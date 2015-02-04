@@ -2933,12 +2933,14 @@ CONTAINS
               CASE(EQUATIONS_JACOBIAN_ANALYTIC_CALCULATED)
                 ! None of these routines currently support calculating off diagonal terms for coupled problems,
                 ! but when one does we will have to pass through the matrix_idx parameter
-                IF(matrix_idx>1) THEN
-                  CALL FLAG_ERROR("Analytic off-diagonal Jacobian calculation not implemented.",ERR,ERROR,*999)
-                END IF
+                !IF(matrix_idx>1) THEN
+                !  CALL FLAG_ERROR("Analytic off-diagonal Jacobian calculation not implemented.",ERR,ERROR,*999)
+                !END IF
                 SELECT CASE(EQUATIONS_SET%CLASS)
                 CASE(EQUATIONS_SET_ELASTICITY_CLASS)
-                  CALL ELASTICITY_FINITE_ELEMENT_JACOBIAN_EVALUATE(EQUATIONS_SET,ELEMENT_NUMBER,ERR,ERROR,*999)
+                  CALL ELASTICITY_FINITE_ELEMENT_JACOBIAN_EVALUATE(EQUATIONS_SET,ELEMENT_NUMBER,matrix_idx,ERR,ERROR,*999)
+                CASE(EQUATIONS_SET_CONSTRAINTS_CLASS)
+                  CALL CONSTRAINTS_FINITE_ELEMENT_JACOBIAN_EVALUATE(EQUATIONS_SET,ELEMENT_NUMBER,matrix_idx,ERR,ERROR,*999)
                 CASE(EQUATIONS_SET_FLUID_MECHANICS_CLASS)
                   CALL FLUID_MECHANICS_FINITE_ELEMENT_JACOBIAN_EVALUATE(EQUATIONS_SET,ELEMENT_NUMBER,ERR,ERROR,*999)
                 CASE(EQUATIONS_SET_ELECTROMAGNETICS_CLASS)
