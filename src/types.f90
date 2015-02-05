@@ -1454,8 +1454,9 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     INTEGER(INTG) :: STRUCTURE_TYPE !<The structure (sparsity) type for this matrix
     INTEGER(INTG) :: NUMBER_OF_COLUMNS !<The number of columns in this global matrix
     LOGICAL :: UPDATE_JACOBIAN !<Is .TRUE. if this Jacobian matrix is to be updated
-    !LOGICAL :: IS_TRANSPOSE !<Is .TRUE. if this Jacobian matrix is a transpose of another matrix
+    LOGICAL :: HAS_TRANSPOSE !<.TRUE. if the Jacobian matrix has a tranpose, .FALSE. if not.  
     TYPE(DISTRIBUTED_MATRIX_TYPE), POINTER :: JACOBIAN !<A pointer to the distributed jacobian matrix data
+    TYPE(DISTRIBUTED_MATRIX_TYPE), POINTER :: JACOBIAN_TRANSPOSE !<A pointer to the distributed interface jacobian matrix transpose data
     LOGICAL :: FIRST_ASSEMBLY !<Is .TRUE. if this Jacobian matrix has not been assembled
     TYPE(ELEMENT_MATRIX_TYPE) :: ELEMENT_JACOBIAN !<The element matrix for this Jacobian matrix. This is not used if the Jacobian is not supplied.
     TYPE(NodalMatrixType) :: NodalJacobian !<The nodal matrix for this Jacobian matrix. This is not used if the Jacobian is not supplied.
