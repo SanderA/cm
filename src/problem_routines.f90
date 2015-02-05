@@ -1333,6 +1333,12 @@ CONTAINS
                   !Assemble the equations for linear problems
                   CALL EQUATIONS_SET_JACOBIAN_EVALUATE(EQUATIONS_SET,ERR,ERROR,*999)
                 ENDDO !equations_set_idx
+                !Update constraint matrices
+                DO constraintConditionIdx=1,SOLVER_MAPPING%NUMBER_OF_CONSTRAINT_CONDITIONS
+                  constraintCondition=>SOLVER_MAPPING%CONSTRAINT_CONDITIONS(constraintConditionIdx)%PTR
+                  !Assemble the constraint condition for the Jacobian
+                  CALL CONSTRAINT_CONDITION_JACOBIAN_EVALUATE(constraintCondition,err,error,*999)
+                ENDDO
                 !Update interface matrices
 !                DO interfaceConditionIdx=1,SOLVER_MAPPING%NUMBER_OF_INTERFACE_CONDITIONS
 !                  interfaceCondition=>SOLVER_MAPPING%INTERFACE_CONDITIONS(interfaceConditionIdx)%PTR
@@ -1473,6 +1479,18 @@ CONTAINS
                     CALL EQUATIONS_SET_RESIDUAL_EVALUATE(EQUATIONS_SET,ERR,ERROR,*999)
                   END SELECT
                 ENDDO !equations_set_idx
+                !Update constraints matrices
+                DO constraintConditionIdx=1,SOLVER_MAPPING%NUMBER_OF_CONSTRAINT_CONDITIONS
+                  constraintCondition=>SOLVER_MAPPING%CONSTRAINT_CONDITIONS(constraintConditionIdx)%PTR
+                  SELECT CASE(constraintCondition%CONSTRAINT_EQUATIONS%LINEARITY)
+                  CASE(CONSTRAINT_CONDITION_LINEAR)
+                    !Assemble the equations for linear constraint equations
+                    CALL CONSTRAINT_CONDITION_ASSEMBLE(EQUATIONS_SET,ERR,ERROR,*999)
+                  CASE(CONSTRAINT_CONDITION_NONLINEAR)
+                    !Evaluate the residual for nonlinear constraints equations
+                    CALL CONSTRAINT_CONDITION_RESIDUAL_EVALUATE(EQUATIONS_SET,ERR,ERROR,*999)
+                  END SELECT
+                ENDDO !constraintConditionIdx
                 !Note that the linear interface matrices are not required to be updated since these matrices do not change
                 !Update interface matrices
 !                DO interfaceConditionIdx=1,SOLVER_MAPPING%NUMBER_OF_INTERFACE_CONDITIONS
@@ -2401,6 +2419,32 @@ CONTAINS
                     ENDIF
                   ENDIF
                 ENDDO !equations_set_idx
+                DO constraint_condition_idx=1,SOLVER_MAPPING%NUMBER_OF_CONSTRAINT_CONDITIONS
+                  CONSTRAINT_CONDITION=>SOLVER_MAPPING%CONSTRAINT_CONDITIONS(constraint_condition_idx)%PTR
+                  IF(DYNAMIC_SOLVER%RESTART.OR..NOT.DYNAMIC_SOLVER%SOLVER_INITIALISED) THEN!.OR.DYNAMIC_SOLVER%FSI) THEN
+                    !If we need to restart or we haven't initialised yet or we have an FSI scheme, make sure the equations sets are up to date
+                    CONSTRAINT_EQUATIONS=>CONSTRAINT_CONDITION%CONSTRAINT_EQUATIONS
+                    IF(ASSOCIATED(CONSTRAINT_EQUATIONS)) THEN
+                      SELECT CASE(CONSTRAINT_EQUATIONS%LINEARITY)
+                      CASE(CONSTRAINT_EQUATIONS_LINEAR)
+                        !Assemble the equations
+                        CALL CONSTRAINT_CONDITION_ASSEMBLE(CONSTRAINT_CONDITION,ERR,ERROR,*999)
+                      CASE(CONSTRAINT_EQUATIONS_NONLINEAR)
+                        !Evaluate the residuals
+                        CALL CONSTRAINT_CONDITION_RESIDUAL_EVALUATE(CONSTRAINT_CONDITION,ERR,ERROR,*999)
+                      CASE(CONSTRAINT_EQUATIONS_NONLINEAR_BCS)
+                        CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+                      CASE DEFAULT
+                        LOCAL_ERROR="The constraint equations linearity type of "// &
+                          & TRIM(NUMBER_TO_VSTRING(CONSTRAINT_EQUATIONS%LINEARITY,"*",ERR,ERROR))// &
+                          & " is invalid."
+                        CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
+                      END SELECT
+                    ELSE
+                      CALL FLAG_ERROR("Constraint conditions equations is not associated.",ERR,ERROR,*999)
+                    ENDIF
+                  ENDIF
+                ENDDO !constraint_condition_idx
                 !Make sure the interface matrices are up to date
                 DO interface_condition_idx=1,SOLVER_MAPPING%NUMBER_OF_INTERFACE_CONDITIONS
                   INTERFACE_CONDITION=>SOLVER_MAPPING%INTERFACE_CONDITIONS(interface_condition_idx)%PTR
@@ -2633,6 +2677,19 @@ CONTAINS
             CALL TAU_PHASE_STOP(PHASE)
 #endif
           ENDDO !equations_set_idx
+          !Make sure the constraint matrices are up to date
+          DO constraint_condition_idx=1,SOLVER_MAPPING%NUMBER_OF_CONSTRAINT_CONDITIONS
+#ifdef TAUPROF
+            WRITE (CVAR,'(a8,i2)') 'Constraint',constraint_condition_idx
+            CALL TAU_PHASE_CREATE_DYNAMIC(PHASE,CVAR)
+            CALL TAU_PHASE_START(PHASE)
+#endif
+            CONSTRAINT_CONDITION=>SOLVER_MAPPING%CONSTRAINT_CONDITIONS(constraint_condition_idx)%PTR
+            CALL CONSTRAINT_CONDITION_ASSEMBLE(CONSTRAINT_CONDITION,ERR,ERROR,*999)
+#ifdef TAUPROF
+            CALL TAU_PHASE_STOP(PHASE)
+#endif
+          ENDDO !constraint_condition_idx
           !Make sure the interface matrices are up to date
           DO interface_condition_idx=1,SOLVER_MAPPING%NUMBER_OF_INTERFACE_CONDITIONS
 #ifdef TAUPROF
@@ -2715,6 +2772,11 @@ CONTAINS
             !Assemble the equations set
             CALL EQUATIONS_SET_ASSEMBLE(EQUATIONS_SET,ERR,ERROR,*999)
           ENDDO !equations_set_idx
+          !Make sure the constraint matrices are up to date
+          DO constraint_condition_idx=1,SOLVER_MAPPING%NUMBER_OF_CONSTRAINT_CONDITIONS
+            CONSTRAINT_CONDITION=>SOLVER_MAPPING%CONSTRAINT_CONDITIONS(constraint_condition_idx)%PTR
+            CALL CONSTRAINT_CONDITION_ASSEMBLE(CONSTRAINT_CONDITION,ERR,ERROR,*999)
+          ENDDO !constraint_condition_idx
           !Make sure the interface matrices are up to date
           DO interface_condition_idx=1,SOLVER_MAPPING%NUMBER_OF_INTERFACE_CONDITIONS
 #ifdef TAUPROF

@@ -83,6 +83,8 @@ MODULE SOLVER_MAPPING_ROUTINES
   INTEGER(INTG), PARAMETER :: SOLVER_MAPPING_EQUATIONS_EQUATIONS_SET=1 !<The equations in the solver mapping is from an equations set \see SOLVER_MAPPING_EquationsTypes,SOLVER_MAPPING
   INTEGER(INTG), PARAMETER :: SOLVER_MAPPING_EQUATIONS_INTERFACE_CONDITION=2 !<The equations in the solver mapping is from an interface condition \see SOLVER_MAPPING_EquationsTypes,SOLVER_MAPPING
   INTEGER(INTG), PARAMETER :: SOLVER_MAPPING_EQUATIONS_INTERFACE_TRANSPOSE=3 !<The equations in the solver mapping is from a transposed interface condition \see SOLVER_MAPPING_EquationsTypes,SOLVER_MAPPING
+  INTEGER(INTG), PARAMETER :: SOLVER_MAPPING_EQUATIONS_CONSTRAINT_CONDITION=2 !<The equations in the solver mapping is from an constraint condition \see SOLVER_MAPPING_EquationsTypes,SOLVER_MAPPING
+  INTEGER(INTG), PARAMETER :: SOLVER_MAPPING_EQUATIONS_CONSTRAINT_TRANSPOSE=3 !<The equations in the solver mapping is from a transposed constraint condition \see SOLVER_MAPPING_EquationsTypes,SOLVER_MAPPING
   !>@}
  
   !Module types

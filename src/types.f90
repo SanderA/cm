@@ -1456,7 +1456,7 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     LOGICAL :: UPDATE_JACOBIAN !<Is .TRUE. if this Jacobian matrix is to be updated
     LOGICAL :: HAS_TRANSPOSE !<.TRUE. if the Jacobian matrix has a tranpose, .FALSE. if not.  
     TYPE(DISTRIBUTED_MATRIX_TYPE), POINTER :: JACOBIAN !<A pointer to the distributed jacobian matrix data
-    TYPE(DISTRIBUTED_MATRIX_TYPE), POINTER :: JACOBIAN_TRANSPOSE !<A pointer to the distributed interface jacobian matrix transpose data
+    TYPE(DISTRIBUTED_MATRIX_TYPE), POINTER :: JACOBIAN_TRANSPOSE !<A pointer to the distributed jacobian matrix transpose data
     LOGICAL :: FIRST_ASSEMBLY !<Is .TRUE. if this Jacobian matrix has not been assembled
     TYPE(ELEMENT_MATRIX_TYPE) :: ELEMENT_JACOBIAN !<The element matrix for this Jacobian matrix. This is not used if the Jacobian is not supplied.
     TYPE(NodalMatrixType) :: NodalJacobian !<The nodal matrix for this Jacobian matrix. This is not used if the Jacobian is not supplied.
@@ -1960,6 +1960,305 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     INTEGER(INTG) :: NUMBER_OF_EQUATIONS_SETS !<The number of equations sets
     TYPE(EQUATIONS_SET_PTR_TYPE), POINTER :: EQUATIONS_SETS(:) !<EQUATIONS_SETS(equations_set_idx). EQUATIONS_SETS(equations_set_idx)%PTR is the pointer to the equations_set_idx'th equations set.
   END TYPE EQUATIONS_SETS_TYPE
+
+  !
+  !================================================================================================================================
+  !
+
+  ! Constraint matrices types
+  
+  !>Contains information about an constraint matrix.
+  TYPE CONSTRAINT_MATRIX_TYPE
+    TYPE(CONSTRAINT_MATRICES_TYPE), POINTER :: CONSTRAINT_MATRICES !<A pointer to the constraint matrices for the constraint matrix.
+    INTEGER(INTG) :: MATRIX_NUMBER !<The number of the constraint matrix
+    INTEGER(INTG) :: STORAGE_TYPE !<The storage (sparsity) type for this matrix
+    INTEGER(INTG) :: STRUCTURE_TYPE !<The structure (sparsity) type for this matrix
+    INTEGER(INTG) :: NUMBER_OF_ROWS !<The number of rows in this constraint matrix
+    INTEGER(INTG) :: CONSTRAINT_MATRIX_TIME_DEPENDENCE_TYPE !<Determines where the constraint matrix is mapped to
+    INTEGER(INTG) :: CONSTRAINT_MATRIX_TRANSPOSE_TIME_DEPENDENCE_TYPE !<Determines where the transpose of the constraint matrix is mapped to
+    LOGICAL :: UPDATE_MATRIX !<Is .TRUE. if this constraint matrix is to be updated
+    LOGICAL :: FIRST_ASSEMBLY !<Is .TRUE. if this constraint matrix has not been assembled
+    LOGICAL :: HAS_TRANSPOSE !<Is .TRUE. if this constraint matrix has has transpose
+    TYPE(DISTRIBUTED_MATRIX_TYPE), POINTER :: MATRIX !<A pointer to the distributed constraint matrix data
+    TYPE(DISTRIBUTED_MATRIX_TYPE), POINTER :: MATRIX_TRANSPOSE !<A pointer to the distributed constraint matrix transpose data
+    TYPE(DISTRIBUTED_VECTOR_TYPE), POINTER :: TEMP_VECTOR !<Temporary vector used for assembly. 
+    TYPE(DISTRIBUTED_VECTOR_TYPE), POINTER :: TEMP_TRANSPOSE_VECTOR !<Temporary vector used for assembly. 
+    TYPE(ELEMENT_MATRIX_TYPE) :: ELEMENT_MATRIX !<The element matrix for this constraint matrix
+  END TYPE CONSTRAINT_MATRIX_TYPE
+
+  !>A buffer type to allow for an array of pointers to a CONSTRAINT_MATRIX_TYPE \see TYPES::CONSTRAINT_MATRIX_TYPE.
+  TYPE CONSTRAINT_MATRIX_PTR_TYPE
+    TYPE(CONSTRAINT_MATRIX_TYPE), POINTER :: PTR !<A pointer to the constraint matrix.
+  END TYPE CONSTRAINT_MATRIX_PTR_TYPE
+
+  !>Contains information on the Jacobian matrix for nonlinear constraint problems
+  TYPE CONSTRAINT_JACOBIAN_TYPE
+    INTEGER(INTG) :: JACOBIAN_NUMBER !<The constraint Jacobian matrix number
+    TYPE(CONSTRAINT_MATRICES_NONLINEAR_TYPE), POINTER :: NONLINEAR_MATRICES !<A pointer back to the nonlinear matrices for this Jacobian
+    INTEGER(INTG) :: STORAGE_TYPE !<The storage (sparsity) type for this matrix
+    INTEGER(INTG) :: STRUCTURE_TYPE !<The structure (sparsity) type for this matrix
+    INTEGER(INTG) :: NUMBER_OF_ROWS !<The number of rows in this global matrix
+    LOGICAL :: UPDATE_JACOBIAN !<Is .TRUE. if this Jacobian matrix is to be updated
+    LOGICAL :: FIRST_ASSEMBLY !<Is .TRUE. if this Jacobian matrix has not been assembled
+    LOGICAL :: HAS_TRANSPOSE !<.TRUE. if the Jacobian matrix has a tranpose, .FALSE. if not.  
+    TYPE(DISTRIBUTED_MATRIX_TYPE), POINTER :: JACOBIAN !<A pointer to the distributed jacobian matrix data
+    TYPE(DISTRIBUTED_MATRIX_TYPE), POINTER :: JACOBIAN_TRANSPOSE !<A pointer to the distributed jacobian matrix transpose data
+    TYPE(ELEMENT_MATRIX_TYPE) :: ELEMENT_JACOBIAN !<The element matrix for this Jacobian matrix. This is not used if the Jacobian is not supplied.
+    INTEGER(INTG) :: JACOBIAN_CALCULATION_TYPE !<The calculation type (analytic of finite difference) of the Jacobian.
+  END TYPE CONSTRAINT_JACOBIAN_TYPE
+
+  !>A buffer type to allow for an array of pointers to a CONSTRAINT_JACOBIAN_TYPE \see TYPES::CONSTRAINT_JACOBIAN_TYPE.
+  TYPE CONSTRAINT_JACOBIAN_PTR_TYPE
+    TYPE(CONSTRAINT_JACOBIAN_TYPE), POINTER :: PTR
+  END TYPE CONSTRAINT_JACOBIAN_PTR_TYPE
+
+  !>Contains information of the linear matrices for constraint matrices
+  TYPE CONSTRAINT_MATRICES_LINEAR_TYPE
+    TYPE(CONSTRAINT_MATRICES_TYPE), POINTER :: CONSTRAINT_MATRICES !<A pointer back to the constraint matrices.
+    INTEGER(INTG) :: NUMBER_OF_LINEAR_MATRICES !<The number of linear constraint matrices defined for the constraint set.
+    TYPE(CONSTRAINT_MATRIX_PTR_TYPE), ALLOCATABLE :: MATRICES(:) !<MATRICES(matrix_idx)%PTR contains the information on the matrix_idx'th linear constraint matrix.
+  END TYPE CONSTRAINT_MATRICES_LINEAR_TYPE
+
+  !>Contains information of the nolinear matrices and vectors for constraint matrices
+  TYPE CONSTRAINT_MATRICES_NONLINEAR_TYPE
+    TYPE(CONSTRAINT_MATRICES_TYPE), POINTER :: CONSTRAINT_MATRICES !<A pointer back to the constraint matrices.
+    INTEGER(INTG) :: NUMBER_OF_JACOBIANS !<The number of Jacobian matrices for the constraint set.
+    TYPE(CONSTRAINT_JACOBIAN_PTR_TYPE), ALLOCATABLE :: JACOBIANS(:) !<JACOBIANS(matrix_idx)%PTR is a pointer to the matrix_idx'th Jacobian matrix for nonlinear constraint
+    LOGICAL :: UPDATE_RESIDUAL !<Is .TRUE. if the equtions residual vector is to be updated
+    LOGICAL :: FIRST_ASSEMBLY !<Is .TRUE. if this residual vector has not been assembled
+    TYPE(DISTRIBUTED_VECTOR_TYPE), POINTER :: RESIDUAL !<A pointer to the distributed residual vector for nonlinear constraint
+    TYPE(ELEMENT_VECTOR_TYPE) :: ELEMENT_RESIDUAL !<The element residual information for nonlinear constraint. Old CMISS name RE1
+    INTEGER(INTG) :: ELEMENT_RESIDUAL_CALCULATED !<The number of the element the residual is calculated for, or zero if it isn't calculated
+  END TYPE CONSTRAINT_MATRICES_NONLINEAR_TYPE
+
+  !>Contains information of the RHS vector for constraint matrices
+  TYPE CONSTRAINT_RHS_TYPE
+    TYPE(CONSTRAINT_MATRICES_TYPE), POINTER :: CONSTRAINT_MATRICES !<A pointer back to the constraint matrices.
+    LOGICAL :: UPDATE_VECTOR !<Is .TRUE. if the constraint rhs vector is to be updated
+    LOGICAL :: FIRST_ASSEMBLY !<Is .TRUE. if this rhs vector has not been assembled
+    TYPE(DISTRIBUTED_VECTOR_TYPE), POINTER :: RHS_VECTOR !<A pointer to the distributed global rhs vector data 
+    TYPE(ELEMENT_VECTOR_TYPE) :: ELEMENT_VECTOR !<The element rhs information
+  END TYPE CONSTRAINT_RHS_TYPE
+  
+  !>Contains information on the constraint matrices 
+  TYPE CONSTRAINT_MATRICES_TYPE
+    TYPE(CONSTRAINT_EQUATIONS_TYPE), POINTER :: CONSTRAINT_EQUATIONS !<A pointer back to the constraint equations
+    LOGICAL :: CONSTRAINT_MATRICES_FINISHED !<Is .TRUE. if the constraint  matrices have finished being created, .FALSE. if not.
+    TYPE(CONSTRAINT_MAPPING_TYPE), POINTER :: CONSTRAINT_MAPPING !<A pointer to the constraint equations mapping for the constraint equations matrices.
+    TYPE(SOLVER_MAPPING_TYPE), POINTER :: SOLVER_MAPPING !<A pointer to the solver mapping for the constraint equations matrices
+    INTEGER(INTG) :: NUMBER_OF_COLUMNS !<The number of local columns in the constraint matrices
+    INTEGER(INTG) :: TOTAL_NUMBER_OF_COLUMNS !<The total number of local columns in the constraint matrices
+    INTEGER(INTG) :: NUMBER_OF_GLOBAL_COLUMNS !<The number of global columns in the constraint matrices
+    TYPE(CONSTRAINT_MATRICES_LINEAR_TYPE), POINTER :: LINEAR_MATRICES !<A pointer to the linear matrices information for the constraints matrices
+    TYPE(CONSTRAINT_MATRICES_NONLINEAR_TYPE), POINTER :: NONLINEAR_MATRICES !<A pointer to the nonlinear matrices and vectors information for the constraints matrices
+    TYPE(CONSTRAINT_RHS_TYPE), POINTER :: RHS_VECTOR !<A pointer to the RHS vector information for the constraint matrices.
+  END TYPE CONSTRAINT_MATRICES_TYPE
+
+  !
+  !================================================================================================================================
+  !
+
+  ! Constraint mapping types
+
+  !>Contains information on constraint variable mapping for an constraint matrix.
+  TYPE CONSTRAINT_MATRIX_TO_VAR_MAP_TYPE
+    INTEGER(INTG) :: MATRIX_NUMBER !<The constraint matrix number
+    TYPE(CONSTRAINT_MATRIX_TYPE), POINTER :: CONSTRAINT_MATRIX !<A pointer to the constraint matrix
+    TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET !<A pointer to the equations set containing the dependent variable that is mapped to this constraint matrix.
+    TYPE(CONSTRAINT_EQUATIONS_TYPE), POINTER :: CONSTRAINT_EQUATIONS !<A pointer to the constraint condition containing the Lagrange variable that is mapped to this constraint matrix.
+    INTEGER(INTG) :: VARIABLE_TYPE !<The dependent variable type mapped to this constraint matrix
+    TYPE(FIELD_VARIABLE_TYPE), POINTER :: VARIABLE !<A pointer to the field variable that is mapped to this constraint matrix
+    INTEGER(INTG) :: MESH_INDEX !<The mesh index for the matrix in the constraint.
+    REAL(DP) :: MATRIX_COEFFICIENT !<The multiplicative coefficent for the matrix.    
+    LOGICAL :: HAS_TRANSPOSE !<.TRUE. if the constraint matrix has a tranpose, .FALSE. if not.  
+    INTEGER(INTG) :: NUMBER_OF_ROWS !<The number of rows  in this constraint matrix.
+    INTEGER(INTG) :: TOTAL_NUMBER_OF_ROWS !<The total number of rows in this constraint matrix.
+    INTEGER(INTG) :: NUMBER_OF_GLOBAL_ROWS !<The global number of rows in this constraint matrix.
+    TYPE(DOMAIN_MAPPING_TYPE), POINTER :: ROW_DOFS_MAPPING !<A pointer to the domain mapping for the row dofs.
+    INTEGER(INTG), ALLOCATABLE :: VARIABLE_DOF_TO_ROW_MAP(:) !<VARIABLE_DOF_TO_ROW_MAP(dof_idx). The mapping from the dof_idx'th variable dof to the rows on the constraint matrix
+  END TYPE CONSTRAINT_MATRIX_TO_VAR_MAP_TYPE
+
+  TYPE CONSTRAINT_MAPPING_RHS_TYPE
+    TYPE(CONSTRAINT_MAPPING_TYPE), POINTER :: CONSTRAINT_MAPPING !<A pointer back to the constraint mapping
+    INTEGER(INTG) :: RHS_VARIABLE_TYPE !<The variable type number mapped to the RHS vector
+    TYPE(FIELD_VARIABLE_TYPE), POINTER :: RHS_VARIABLE !<A pointer to the variable that is mapped to the RHS vector
+    TYPE(DOMAIN_MAPPING_TYPE), POINTER :: RHS_VARIABLE_MAPPING !<A pointer to the RHS variable domain mapping
+    REAL(DP) :: RHS_COEFFICIENT !<The multiplicative coefficient applied to the RHS vector
+    INTEGER(INTG), ALLOCATABLE :: RHS_DOF_TO_CONSTRAINT_ROW_MAP(:) !<RHS_DOF_TO_CONSTRAINT_ROW_MAP(rhs_dof_idx). The mapping from the rhs_dof_idx'th RHS dof in the rhs variable to the constraint row.   
+    INTEGER(INTG), ALLOCATABLE :: CONSTRAINT_ROW_TO_RHS_DOF_MAP(:) !<CONSTRAINT_ROW_TO_RHS_DOF_MAP(row_idx). The mapping from the row_idx'th row of the constraint to the RHS dof.   
+  END TYPE CONSTRAINT_MAPPING_RHS_TYPE
+  
+  TYPE CONSTRAINT_MAPPING_CREATE_VALUES_CACHE_TYPE
+    INTEGER(INTG) :: NUMBER_OF_CONSTRAINT_MATRICES !<Cache of the number of constraint matrices
+    INTEGER(INTG) :: LAGRANGE_VARIABLE_TYPE !<The variable type of the Lagrange field.
+    REAL(DP), ALLOCATABLE :: MATRIX_COEFFICIENTS(:) !<MATRIX_COEFFICIENTS(matrix_idx). The matrix cooefficient for the matrix_idx'th constraint matrix.
+    LOGICAL, ALLOCATABLE :: HAS_TRANSPOSE(:) !<HAS_TRANSPOSE(matrix_idx). .TRUE. if the matrix_idx'th constraint matrix has an tranpose, .FALSE. if not.
+    INTEGER(INTG), ALLOCATABLE :: MATRIX_ROW_FIELD_VARIABLE_INDICES(:) !<MATRIX_ROW_FIELD_VARIABLE_INDICES(variable_idx). The field variable index that are mapped to the the constraint matrix rows.
+    INTEGER(INTG), ALLOCATABLE :: MATRIX_COL_FIELD_VARIABLE_INDICES(:) !<MATRIX_COL_FIELD_VARIABLE_INDICES(variable_idx). The field variable index that are mapped to the the constraint matrix columns.
+    INTEGER(INTG) :: RHS_LAGRANGE_VARIABLE_TYPE !<The Lagrange variable type mapped to the rhs vector
+    REAL(DP) :: RHS_COEFFICIENT !<The coefficient multiplying the RHS vector.
+  END TYPE CONSTRAINT_MAPPING_CREATE_VALUES_CACHE_TYPE
+  
+  !>Contains information on an constraint mapping. TODO: Generalise to non-Lagrange multiplier mappings
+  TYPE CONSTRAINT_MAPPING_TYPE  
+    TYPE(CONSTRAINT_EQUATIONS_TYPE), POINTER :: CONSTRAINT_EQUATIONS  !<A pointer to the constraint equations for this constraint mapping
+    LOGICAL :: CONSTRAINT_MAPPING_FINISHED !<Is .TRUE. if the constraint mapping has finished being created, .FALSE. if not.
+    INTEGER(INTG) :: VARIABLE_TYPE !<The mapped dependent variable type.
+    TYPE(FIELD_VARIABLE_TYPE), POINTER :: VARIABLE !<A pointer to the mapped dependent field variable.
+    INTEGER(INTG) :: LAGRANGE_VARIABLE_TYPE !<The variable type of the mapped Lagrange field variable.
+    TYPE(FIELD_VARIABLE_TYPE), POINTER :: LAGRANGE_VARIABLE !<A pointer to the variable that is mapped to the Lagrange multiplier field variable.
+    INTEGER(INTG) :: NUMBER_OF_COLUMNS !<The number of columns in the constraint mapping
+    INTEGER(INTG) :: TOTAL_NUMBER_OF_COLUMNS !<The total number of columns in the constraint mapping
+    INTEGER(INTG) :: NUMBER_OF_GLOBAL_COLUMNS !<The global number of columns in the constraint mapping
+    TYPE(DOMAIN_MAPPING_TYPE), POINTER :: COLUMN_DOFS_MAPPING !<A pointer to the domain mapping for the columns
+    INTEGER(INTG), ALLOCATABLE :: LAGRANGE_DOF_TO_COLUMN_MAP(:) !<LAGRANGE_DOF_TO_COLUMN_MAP(dof_idx). The mapping from the dof_idx'th Lagrange dof to the constraint matrices column
+    INTEGER(INTG) :: NUMBER_OF_CONSTRAINT_MATRICES !<The number of constraint matrices that the mapping is set up for.
+    TYPE(CONSTRAINT_MATRIX_TO_VAR_MAP_TYPE), ALLOCATABLE :: CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS(:) !<CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS(constraint_matrix_idx). Information for the constraint matrix rows to dependent variable maps for the constraint_matrix_idx'th constraint matrix.
+    TYPE(CONSTRAINT_MAPPING_RHS_TYPE), POINTER :: RHS_MAPPING !<A pointer to the constraint mapping for the RHS vector.
+    TYPE(CONSTRAINT_MAPPING_CREATE_VALUES_CACHE_TYPE), POINTER :: CREATE_VALUES_CACHE
+  END TYPE CONSTRAINT_MAPPING_TYPE
+
+  !
+  !================================================================================================================================
+  !
+
+  ! Constraint interpolation types
+
+  !>Contains information about the interpolation for a parameter set in constraint equations
+  TYPE CONSTRAINT_EQUATIONS_INTERPOLATION_SET_TYPE
+    TYPE(FIELD_INTERPOLATION_PARAMETERS_PTR_TYPE), POINTER :: INTERPOLATION_PARAMETERS(:) !<INTERPOLATION_PARAMETERS(field_variable_type). A pointer to the field_variable_type'th field interpolation parameters.
+    TYPE(FIELD_INTERPOLATED_POINT_PTR_TYPE), POINTER :: INTERPOLATED_POINT(:) !<INTERPOLATED_POINT(field_variable_type). A pointer to the field_variable_type'th field interpolated point. 
+    TYPE(FIELD_INTERPOLATED_POINT_METRICS_PTR_TYPE), POINTER :: INTERPOLATED_POINT_METRICS(:) !<INTERPOLATED_POINT_METRICS(field_variable_type). A pointer to the field_variable_type'th field interpolated point metrics.
+  END TYPE CONSTRAINT_EQUATIONS_INTERPOLATION_SET_TYPE
+
+  !>Contains information on the interpolation for the constraint equations
+  TYPE CONSTRAINT_EQUATIONS_INTERPOLATION_TYPE
+    TYPE(CONSTRAINT_EQUATIONS_TYPE), POINTER :: CONSTRAINT_EQUATIONS !<A pointer to the constraint equations
+    TYPE(FIELD_TYPE), POINTER :: GEOMETRIC_FIELD !<A pointer to the geometric field for the constraint equations.
+    TYPE(FIELD_TYPE), POINTER :: DEPENDENT_FIELD !<A pointer to the dependent field for the constraint equations 
+    TYPE(FIELD_TYPE), POINTER :: LAGRANGE_FIELD !<A pointer to the lagrange multiplier field for the constraint equations
+    TYPE(FIELD_TYPE), POINTER :: PENALTY_FIELD !<A pointer to the penalty field for the constraint equations
+    TYPE(FIELD_INTERPOLATION_PARAMETERS_PTR_TYPE), POINTER :: GEOMETRIC_INTERP_PARAMETERS(:) !<GEOMETRIC_INTERP_PARAMETERS(field_variable_type). A pointer to the field_variable_type'th geometric interpolation parameters for the constraint equations.
+    TYPE(FIELD_INTERPOLATION_PARAMETERS_PTR_TYPE), POINTER :: DEPENDENT_INTERP_PARAMETERS(:) !<DEPENDENT_INTERP_PARAMETERS(field_variable_type). A pointer to the field_variable_type'th dependent interpolation parameters for the constraint equations. 
+    TYPE(FIELD_INTERPOLATION_PARAMETERS_PTR_TYPE), POINTER :: LAGRANGE_INTERP_PARAMETERS(:) !<LAGRANGE_INTERP_PARAMETERS(field_variable_type). A pointer to the field_variable_type'th lagrange multiplier interpolation parameters for the constraint equations.
+    TYPE(FIELD_INTERPOLATION_PARAMETERS_PTR_TYPE), POINTER :: PENALTY_INTERP_PARAMETERS(:) !<PENALTY_INTERP_PARAMETERS(field_variable_type). A pointer to the field_variable_type'th penalty interpolation parameters for the constraint equations.
+    TYPE(FIELD_INTERPOLATED_POINT_PTR_TYPE), POINTER :: GEOMETRIC_INTERP_POINT(:) !<GEOMETRIC_INTERP_POINT(field_variable_type). A pointer to the field_variable_type'th geometric interpolated point information for the constraint equations. 
+    TYPE(FIELD_INTERPOLATED_POINT_METRICS_PTR_TYPE), POINTER :: GEOMETRIC_INTERP_POINT_METRICS(:) !<GEOMETRIC_INTERP_POINT_METRICS(field_variable_type). A pointer to the field_variable_type'th geometric interpolated point metrics information 
+    TYPE(FIELD_INTERPOLATED_POINT_PTR_TYPE), POINTER :: DEPENDENT_INTERP_POINT(:) !<DEPENDENT_INTERP_POINT(field_variable_type). A pointer to the field_variable_type'th dependent interpolated point information for the constraint equations. 
+     TYPE(FIELD_INTERPOLATED_POINT_METRICS_PTR_TYPE), POINTER :: DEPENDENT_INTERP_POINT_METRICS(:) !<DEPENDENT_INTERP_POINT_METRICS(field_variable_type). A pointer to the field_variable_type'th dependent interpolated point metrics information 
+    TYPE(FIELD_INTERPOLATED_POINT_PTR_TYPE), POINTER :: LAGRANGE_INTERP_POINT(:) !<LAGRANGE_INTERP_POINT(field_variable_type). A pointer to the field_variable_type'th lagrange multiplier interpolated point information for the constraint equations. 
+    TYPE(FIELD_INTERPOLATED_POINT_PTR_TYPE), POINTER :: PENALTY_INTERP_POINT(:) !<PENALTY_INTERP_POINT(field_variable_type). A pointer to the field_variable_type'th penalty interpolated point information for the constraint equations. 
+  END TYPE CONSTRAINT_EQUATIONS_INTERPOLATION_TYPE
+
+  !
+  !================================================================================================================================
+  !
+
+  ! Constraint conditions types
+
+  !>Contains information about the constraint equations for an constraint condition. 
+  TYPE CONSTRAINT_EQUATIONS_TYPE
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION !<A pointer to the constraint condition
+    LOGICAL :: CONSTRAINT_EQUATIONS_FINISHED !<Is .TRUE. if the constraint equations have finished being created, .FALSE. if not.
+    INTEGER(INTG) :: OUTPUT_TYPE !<The output type for the constraint equations \see CONSTRAINT_EQUATIONS_ROUTINES_OutputTypes,CONSTRAINT_EQUATIONS_ROUTINES
+    INTEGER(INTG) :: SPARSITY_TYPE !<The sparsity type for the constraint equation matrices of the constraint equations \see CONSTRAINT_EQUATIONS_ROUTINES_SparsityTypes,CONSTRAINT_EQUATIONS_ROUTINES
+    INTEGER(INTG) :: LINEARITY !<The constraint equations linearity type \see CONSTRAINT_CONDITIONS_CONSTANTS_LinearityTypes,CONSTRAINT_CONDITIONS_CONSTANTS
+    INTEGER(INTG) :: TIME_DEPENDENCE !<The constraint equations time dependence type \see CONSTRAINT_CONDITIONS_CONSTANTS_TimeDepedenceTypes,CONSTRAINT_CONDITIONS_CONSTANTS
+    TYPE(CONSTRAINT_EQUATIONS_INTERPOLATION_TYPE), POINTER :: INTERPOLATION !<A pointer to the interpolation information used in the constraint equations.
+    TYPE(CONSTRAINT_MAPPING_TYPE), POINTER :: CONSTRAINT_MAPPING !<A pointer to the constraint equations mapping for the constraint.
+    TYPE(CONSTRAINT_MATRICES_TYPE), POINTER :: CONSTRAINT_MATRICES !<A pointer to the constraint equations matrices and vectors used for the constraint equations.
+  END TYPE CONSTRAINT_EQUATIONS_TYPE
+  
+  !>Contains information on the geometry for an constraint condition
+  TYPE CONSTRAINT_GEOMETRY_TYPE
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION !<A pointer to the constraint condition.
+    TYPE(FIELD_TYPE), POINTER :: GEOMETRIC_FIELD !<The geometric field for this equations set.
+  END TYPE CONSTRAINT_GEOMETRY_TYPE
+
+  !>Contains information about the penalty field information for an constraint condition. 
+  TYPE CONSTRAINT_PENALTY_TYPE
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION !<A pointer to the constraint condition
+    LOGICAL :: PENALTY_FINISHED !<Is .TRUE. if the constraint penalty field has finished being created, .FALSE. if not.
+    LOGICAL :: PENALTY_FIELD_AUTO_CREATED !<Is .TRUE. if the penalty field has been auto created, .FALSE. if not.
+    TYPE(FIELD_TYPE), POINTER :: PENALTY_FIELD !<A pointer to the penalty field.
+  END TYPE CONSTRAINT_PENALTY_TYPE
+
+  !>Contains information about the Lagrange field information for an constraint condition. 
+  TYPE CONSTRAINT_LAGRANGE_TYPE
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION !<A pointer to the constraint condition
+    LOGICAL :: LAGRANGE_FINISHED !<Is .TRUE. if the constraint Lagrange field has finished being created, .FALSE. if not.
+    LOGICAL :: LAGRANGE_FIELD_AUTO_CREATED !<Is .TRUE. if the Lagrange field has been auto created, .FALSE. if not.
+    TYPE(FIELD_TYPE), POINTER :: LAGRANGE_FIELD !<A pointer to the lagrange field.
+    INTEGER(INTG) :: NUMBER_OF_COMPONENTS !<The number of components in the Lagrange field.
+  END TYPE CONSTRAINT_LAGRANGE_TYPE
+
+  !>Contains information about the dependent field information for an constraint condition. 
+  TYPE CONSTRAINT_DEPENDENT_TYPE
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION !<A pointer to the constraint condition
+    INTEGER(INTG) :: NUMBER_OF_DEPENDENT_VARIABLES !<The number of dependent variables in the constraint condition
+    TYPE(EQUATIONS_SET_PTR_TYPE), POINTER :: EQUATIONS_SETS(:) !<EQUATIONS_SETS(variable_idx). The pointer to the equations set containing the dependent variable for the variable_idx'th added dependent variable.
+    TYPE(FIELD_VARIABLE_PTR_TYPE), POINTER :: FIELD_VARIABLES(:) !<FIELD_VARIABLES(variable_idx). The pointer to the variable_idx'th dependent variable in the constraint condition.
+    INTEGER(INTG), POINTER :: VARIABLE_MESH_INDICES(:) !<VARIABLE_MESH_INDICES(variable_idx). The mesh index of the variable_idx'th dependent variable in the constraint condition.
+  END TYPE CONSTRAINT_DEPENDENT_TYPE
+
+  !>Contains information for the constraint condition data.
+  TYPE CONSTRAINT_CONDITION_TYPE
+    INTEGER(INTG) :: USER_NUMBER !<The user identifying number of the constraint condition. Must be unique.
+    INTEGER(INTG) :: GLOBAL_NUMBER !<The global index of the constraint condition in the constraint conditions.
+    LOGICAL :: CONSTRAINT_CONDITION_FINISHED !<Is .TRUE. ifand where  the interfaand where and where ce condition has finished being created, .FALSE. if not.
+    TYPE(CONSTRAINT_CONDITIONS_TYPE), POINTER :: CONSTRAINT_CONDITIONS !<A pointer back to the constraint conditions.
+    TYPE(CONSTRAINT_TYPE), POINTER :: CONSTRAINT !<A pointer back to the constraint.
+    INTEGER(INTG) :: METHOD !<An integer which denotes the constraint condition method. \see CONSTRAINT_CONDITIONS_Methods,CONSTRAINT_CONDITIONS
+    INTEGER(INTG) :: OPERATOR !<An integer which denotes the type of constraint operator. \see CONSTRAINT_CONDITIONS_Operator,CONSTRAINT_CONDITIONS
+    INTEGER(INTG) :: integrationType !<An integer which denotes the integration type. \see CONSTRAINT_CONDITIONS_IntegrationType,CONSTRAINT_CONDITIONS
+    TYPE(CONSTRAINT_GEOMETRY_TYPE) :: GEOMETRY !<The geometry information for the constraint condition.
+    TYPE(CONSTRAINT_PENALTY_TYPE), POINTER :: PENALTY !<A pointer to the constraint condition penalty information if there are any for this constraint condition.
+    TYPE(CONSTRAINT_LAGRANGE_TYPE), POINTER :: LAGRANGE !<A pointer to the constraint condition Lagrange multipler information if there are any for this constraint condition.
+    TYPE(CONSTRAINT_DEPENDENT_TYPE), POINTER :: DEPENDENT !<A pointer to the constraint condition dependent field information if there is any for this constraint condition.
+    TYPE(CONSTRAINT_EQUATIONS_TYPE), POINTER :: CONSTRAINT_EQUATIONS !<A pointer to the constraint equations if there are any for this constraint condition.
+    TYPE(BOUNDARY_CONDITIONS_TYPE), POINTER :: BOUNDARY_CONDITIONS !<A pointer to the boundary condition information for this constraint condition.
+  END TYPE CONSTRAINT_CONDITION_TYPE
+
+  !>A buffer type to allow for an array of pointers to a CONSTRAINT_CONDITION_TYPE.
+  TYPE CONSTRAINT_CONDITION_PTR_TYPE
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: PTR !<The pointer to the constraint condition.
+  END TYPE CONSTRAINT_CONDITION_PTR_TYPE
+  
+  !>Contains information for constraint region specific data that is not of 'region' importance. <<>>
+  TYPE CONSTRAINT_CONDITIONS_TYPE
+    TYPE(CONSTRAINT_TYPE), POINTER :: CONSTRAINT !<A pointer back to the constraint containing the constraint conditions.
+    INTEGER(INTG) :: NUMBER_OF_CONSTRAINT_CONDITIONS !<The number of constraint conditions
+    TYPE(CONSTRAINT_CONDITION_PTR_TYPE), POINTER :: CONSTRAINT_CONDITIONS(:) !<CONSTRAINT_CONDITIONS(constraint_condition_idx). A pointer to the constraint_condition_idx'th constraint condition.
+  END TYPE CONSTRAINT_CONDITIONS_TYPE
+  
+  !>Contains information for the constraint data.
+  TYPE CONSTRAINT_TYPE
+    INTEGER :: USER_NUMBER !<The user defined identifier for the constraint. The user number must be unique.
+    INTEGER :: GLOBAL_NUMBER !<The global number of the constraint in the list of constraints for a particular parent region.
+    LOGICAL :: CONSTRAINT_FINISHED !<Is .TRUE. if the constraint has finished being created, .FALSE. if not.
+    TYPE(VARYING_STRING) :: LABEL !<A user defined label for the region.
+    TYPE(COORDINATE_SYSTEM_TYPE), POINTER :: COORDINATE_SYSTEM !<A pointer to the coordinate system used by the constraint. 
+    TYPE(CONSTRAINTS_TYPE), POINTER :: CONSTRAINTS !<A pointer back to the parent constraints
+    TYPE(REGION_TYPE), POINTER :: PARENT_REGION !<A point to the parent region containing the constraint.
+    TYPE(DATA_POINTS_TYPE), POINTER :: DATA_POINTS  !<A pointer to the data points defined in an constraint.
+    TYPE(NODES_TYPE), POINTER :: NODES !<A pointer to the nodes in an constraint
+    TYPE(MESHES_TYPE), POINTER :: MESHES !<A pointer to the mesh in an constraint.
+    TYPE(GENERATED_MESHES_TYPE), POINTER :: GENERATED_MESHES !<A pointer to the generated meshes in an constraint.
+    TYPE(FIELDS_TYPE), POINTER :: FIELDS !<A pointer to the fields defined over an constraint.
+    TYPE(CONSTRAINT_CONDITIONS_TYPE), POINTER :: CONSTRAINT_CONDITIONS !<The pointer to the constraint conditions for this constraint
+  END TYPE CONSTRAINT_TYPE
+
+  !>A buffer type to allow for an array of pointers to a CONSTRAINT_TYPE.
+  TYPE CONSTRAINT_PTR_TYPE
+    TYPE(CONSTRAINT_TYPE), POINTER :: PTR !<The pointer to the constraint.
+  END TYPE CONSTRAINT_PTR_TYPE
+  
+  !>Contains information for constraints on a parent region.
+  TYPE CONSTRAINTS_TYPE
+    TYPE(REGION_TYPE), POINTER :: PARENT_REGION !<A pointer back to the parent region containing the constraints.
+    INTEGER(INTG) :: NUMBER_OF_CONSTRAINTS !<The number of constraints
+    TYPE(CONSTRAINT_PTR_TYPE), POINTER :: CONSTRAINTS(:) !<CONSTRAINTS(constraint_idx). A pointer to the constraint_idx'th constraint.
+  END TYPE CONSTRAINTS_TYPE
 
   !
   !================================================================================================================================
@@ -2818,6 +3117,20 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     TYPE(EQUATIONS_TO_SOLVER_MAPS_TYPE), POINTER :: PTR !<A pointer to the equations to solver maps
   END TYPE EQUATIONS_TO_SOLVER_MAPS_PTR_TYPE
   
+  TYPE CONSTRAINT_TO_SOLVER_MAPS_TYPE
+    INTEGER(INTG) :: CONSTRAINT_MATRIX_TYPE !<The type of equations matrix \see SOLVER_MAPPING_EquationsMatrixTypes,SOLVER_MAPPING
+    INTEGER(INTG) :: CONSTRAINT_MATRIX_NUMBER !<The constraint matrix number being mapped.
+    INTEGER(INTG) :: SOLVER_MATRIX_NUMBER !<The solver matrix number being mapped.
+    TYPE(CONSTRAINT_MATRIX_TYPE), POINTER :: CONSTRAINT_MATRIX !<A pointer to the constraint matrix being mapped.
+    TYPE(SOLVER_MATRIX_TYPE), POINTER :: SOLVER_MATRIX !<A pointer to the solver matrix being mapped.
+    TYPE(EQUATIONS_COL_TO_SOLVER_COLS_MAP_TYPE), ALLOCATABLE :: CONSTRAINT_ROW_TO_SOLVER_COLS_MAP(:) !<CONSTRAINT_ROW_TO_SOLVER_COL_MAP(column_idx). The mapping from the row_idx'th row of this constraint matrix to the solver matrix columns.
+  END TYPE CONSTRAINT_TO_SOLVER_MAPS_TYPE
+
+  !>A buffer type to allow for an array of pointers to a CONSTRAINT_TO_SOLVER_MAPS_TYPE \see TYPES::CONSTRAINT_TO_SOLVER_MAPS_TYPE
+  TYPE CONSTRAINT_TO_SOLVER_MAPS_PTR_TYPE
+    TYPE(CONSTRAINT_TO_SOLVER_MAPS_TYPE), POINTER :: PTR !<A pointer to the constraint to solver maps
+  END TYPE CONSTRAINT_TO_SOLVER_MAPS_PTR_TYPE
+
   TYPE INTERFACE_TO_SOLVER_MAPS_TYPE
     INTEGER(INTG) :: INTERFACE_MATRIX_NUMBER !<The interface matrix number being mapped.
     INTEGER(INTG) :: SOLVER_MATRIX_NUMBER !<The solver matrix number being mapped.
@@ -2854,6 +3167,12 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     REAL(DP), ALLOCATABLE :: COUPLING_COEFFICIENTS(:) !<COUPLING_COEFFICIENTS(variable_dof_idx). The multiplicative constant for the mapping between the variable_dof_idx'th variable dof and the solver dof.
     REAL(DP), ALLOCATABLE :: ADDITIVE_CONSTANTS(:) !<ADDITIVE_CONSTANTS(variable_dof_idx). The additive constant for the mapping between the variable_dof_idx'th variable dof and the solver dof.
   END TYPE VARIABLE_TO_SOLVER_COL_MAP_TYPE
+
+  TYPE EQUATIONS_TO_SOLVER_MATRIX_MAPS_CONSTRAINT_TYPE
+    INTEGER(INTG) :: CONSTRAINT_CONDITION_INDEX
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION
+    INTEGER(INTG) :: CONSTRAINT_MATRIX_NUMBER
+  END TYPE EQUATIONS_TO_SOLVER_MATRIX_MAPS_CONSTRAINT_TYPE
 
   TYPE EQUATIONS_TO_SOLVER_MATRIX_MAPS_INTERFACE_TYPE
     INTEGER(INTG) :: INTERFACE_CONDITION_INDEX
@@ -2897,12 +3216,72 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     TYPE(SOLVER_MAPPING_TYPE), POINTER :: SOLVER_MAPPING !<A pointer to the solver mappings
     TYPE(EQUATIONS_TYPE), POINTER :: EQUATIONS !<A pointer to the equations in this equations set
     INTEGER(INTG) :: NUMBER_OF_INTERFACE_CONDITIONS !<The number of interface conditions affecting this equations set.
+    TYPE(EQUATIONS_TO_SOLVER_MATRIX_MAPS_CONSTRAINT_TYPE), ALLOCATABLE :: EQUATIONS_TO_SOLVER_MATRIX_MAPS_CONSTRAINT(:) !<EQUATIONS_TO_SOLVER_MATRIX_MAPS_CONSTRAINT(constraint_condition_idx). Information on the constraint_condition_idx'th constraint condition affecting this equations set
     TYPE(EQUATIONS_TO_SOLVER_MATRIX_MAPS_INTERFACE_TYPE), ALLOCATABLE :: EQUATIONS_TO_SOLVER_MATRIX_MAPS_INTERFACE(:) !<EQUATIONS_TO_SOLVER_MATRIX_MAPS_INTERFACE(interface_condition_idx). Information on the interface_condition_idx'th interface condition affecting this equations set
     TYPE(EQUATIONS_TO_SOLVER_MATRIX_MAPS_SM_TYPE), ALLOCATABLE :: EQUATIONS_TO_SOLVER_MATRIX_MAPS_SM(:) !<EQUATIONS_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx). The mappings from the equations matrices in this equation set to the solver_matrix_idx'th solver_matrix
     TYPE(EQUATIONS_TO_SOLVER_MATRIX_MAPS_EM_TYPE), ALLOCATABLE :: EQUATIONS_TO_SOLVER_MATRIX_MAPS_EM(:) !<EQUATIONS_TO_SOLVER_MATRIX_MAPS_EM(equations_matrix_idx). The mappings from the equation_matrix_idx'th equations matrix in this equation set to the solver_matrices.
     TYPE(JACOBIAN_TO_SOLVER_MAP_PTR_TYPE), ALLOCATABLE :: EQUATIONS_TO_SOLVER_MATRIX_MAPS_JM(:) !<EQUATIONS_TO_SOLVER_MATRIX_MAPS_JM(jacobian_idx). The mappings from the jacobian_idx'th Jacobian matrix in this equation set to the solver_matrices.
     TYPE(EQUATIONS_ROW_TO_SOLVER_ROWS_MAP_TYPE), ALLOCATABLE :: EQUATIONS_ROW_TO_SOLVER_ROWS_MAPS(:) !<EQUATIONS_ROW_TO_SOLVER_ROWS_MAPS(equations_row_idx). The mappings from the equations_row_idx'th equations row to the solver matrices rows.
   END TYPE EQUATIONS_SET_TO_SOLVER_MAP_TYPE
+
+  !>Contains information on the constraint to solver matrix mappings when indexing by solver matrix number
+  TYPE CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM_TYPE
+    INTEGER(INTG) :: SOLVER_MATRIX_NUMBER !<The number of the solver matrix for these mappings
+    INTEGER(INTG) :: LAGRANGE_VARIABLE_TYPE !<LThe variable type for the Lagrange variable that is mapped to the solver matrix.
+    TYPE(FIELD_VARIABLE_TYPE), POINTER :: LAGRANGE_VARIABLE !<A pointer to the Lagrange variable that is mapped to the solver matrix.
+    TYPE(VARIABLE_TO_SOLVER_COL_MAP_TYPE) :: LAGRANGE_VARIABLE_TO_SOLVER_COL_MAP !<The mappings from the Lagrange variable dofs to the solver dofs.
+    INTEGER(INTG) :: NUMBER_OF_DEPENDENT_VARIABLES !<The number of dependent variables mapped to this solver matrix
+    INTEGER(INTG), ALLOCATABLE :: DEPENDENT_VARIABLE_TYPES(:) !<DEPENDENT_VARIABLE_TYPES(variable_idx). The variable type for the variable_idx'th dependent variable that is mapped to the solver matrix.
+    TYPE(FIELD_VARIABLE_PTR_TYPE), ALLOCATABLE :: DEPENDENT_VARIABLES(:) !<DEPENDENT_VARIABLES(variable_idx). DEPENDENT_VARIABLES(variable_idx)%PTR points to the variable_idx'th dependent variable that is mapped to the solver matrix.
+    TYPE(VARIABLE_TO_SOLVER_COL_MAP_TYPE), ALLOCATABLE :: DEPENDENT_VARIABLE_TO_SOLVER_COL_MAPS(:) !<DEPENDENT_VARIABLE_TO_SOLVER_COL_MAPS(constraint_matrix_idx). The mappings from the dependent variable dofs to the solver dofs for the constraint_matrix_idx'th constraint matrix dependent variable in the constraint condition that is mapped to the solver matrix.
+    INTEGER(INTG) :: NUMBER_OF_LINEAR_CONSTRAINT_MATRICES !<The number of linear constraint matrices mapped to this solver matrix
+    TYPE(CONSTRAINT_TO_SOLVER_MAPS_PTR_TYPE), ALLOCATABLE :: LINEAR_CONSTRAINT_EQUATIONS_TO_SOLVER_MATRIX_MAPS(:) !<LINEAR_CONSTRAINT_EQUATIONS_TO_SOLVER_MATRIX_MAPS(constraint_matrix_idx). The maps from the constraint_matrix_idx'th constraint matrix to solver matrix
+    INTEGER(INTG) :: NUMBER_OF_DYNAMIC_CONSTRAINT_MATRICES !<The number of dynamic constraint equations matrices mapped to this solver matrix
+    TYPE(CONSTRAINT_TO_SOLVER_MAPS_PTR_TYPE), ALLOCATABLE :: DYNAMIC_CONSTRAINT_TO_SOLVER_MATRIX_MAPS(:) !<DYNAMIC_CONSTRAINT_TO_SOLVER_MATRIX_MAPS(equations_matrix_idx). The maps from the constraint_matrix_idx'th dynamic constraint matrix to solver matrix
+    INTEGER(INTG) :: NUMBER_OF_CONSTRAINT_JACOBIANS !<The number of nonlinear constraint equations Jacobian matrices mapped to this solver matrix
+    TYPE(JACOBIAN_TO_SOLVER_MAP_PTR_TYPE), ALLOCATABLE :: JACOBIAN_TO_SOLVER_MATRIX_MAPS(:) !<JACOBIAN_TO_SOLVER_MATRIX_MAPS(constraint_matrix_idx). The map from the constraint_matrix_idx'th Jacobian matrix to the solver matrix
+  END TYPE CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM_TYPE
+
+  !>Contains information on the mapping from an constraint condition column to a solver row.
+  TYPE CONSTRAINT_ROW_TO_SOLVER_ROWS_MAP_TYPE
+    INTEGER(INTG) :: NUMBER_OF_SOLVER_ROWS !<The number of solver rows that the constraint condition row in mapped to (can be either 0 or 1 at he moment.)
+    INTEGER(INTG) :: SOLVER_ROW !<The solver row that the constraint condition row is mapped to
+    REAL(DP) :: COUPLING_COEFFICIENT !<The coupling coefficient for the mapping.
+  END TYPE CONSTRAINT_ROW_TO_SOLVER_ROWS_MAP_TYPE
+  
+  !>Contains information on the constraint to solver matrix mappings when indexing by constraint matrix number
+  TYPE CONSTRAINT_TO_SOLVER_MATRIX_MAPS_CM_TYPE
+    INTEGER(INTG) :: CONSTRAINT_MATRIX_NUMBER !<The number of the constraint  matrix for these mappings
+    INTEGER(INTG) :: NUMBER_OF_SOLVER_MATRICES !<The number of solver matrices mapped to this constraint matrix
+    TYPE(CONSTRAINT_TO_SOLVER_MAPS_PTR_TYPE), ALLOCATABLE :: CONSTRAINT_TO_SOLVER_MATRIX_MAPS(:) !<EQUATIONS_TO_SOLVER_MATRIX_MAPS(solver_matrix_idx). The maps from the equation matrix to the solver_matrix_idx'th solver matrix
+    TYPE(CONSTRAINT_ROW_TO_SOLVER_ROWS_MAP_TYPE), ALLOCATABLE :: CONSTRAINT_ROW_TO_SOLVER_ROWS_MAP(:) !<CONSTRAINT_ROW_TO_SOLVER_ROW_MAP(constraint_row_idx). The mapping from the constraint_row_idx'th constraint matrix to a solver row.
+  END TYPE CONSTRAINT_TO_SOLVER_MATRIX_MAPS_CM_TYPE
+
+  TYPE CONSTRAINT_TO_SOLVER_MATRIX_MAPS_EQUATIONS_TYPE
+    INTEGER(INTG) :: EQUATIONS_SET_INDEX
+    TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET
+    INTEGER(INTG) :: CONSTRAINT_MATRIX_INDEX
+  END TYPE CONSTRAINT_TO_SOLVER_MATRIX_MAPS_EQUATIONS_TYPE
+  
+  !>Contains information on the mapping from an constraint condition column to a solver row.
+  TYPE CONSTRAINT_COLUMN_TO_SOLVER_ROWS_MAP_TYPE
+    INTEGER(INTG) :: NUMBER_OF_SOLVER_ROWS !<The number of solver rows that the constraint condition column in mapped to (can be either 0 or 1 at he moment.)
+    INTEGER(INTG) :: SOLVER_ROW !<The solver row that the constraint condition column is mapped to
+    REAL(DP) :: COUPLING_COEFFICIENT !<The coupling coefficient for the mapping.
+  END TYPE CONSTRAINT_COLUMN_TO_SOLVER_ROWS_MAP_TYPE
+  
+  !>Contains information on the mappings from an constraint condition to the solver matrices
+  TYPE CONSTRAINT_CONDITION_TO_SOLVER_MAP_TYPE
+    INTEGER(INTG) :: CONSTRAINT_CONDITION_INDEX !<The index of the constraint condition for these mappings
+    TYPE(SOLVER_MAPPING_TYPE), POINTER :: SOLVER_MAPPING !<A pointer to the solver mappings
+    TYPE(CONSTRAINT_EQUATIONS_TYPE), POINTER :: CONSTRAINT_EQUATIONS !<A pointer to the constraint equations in this constraint condition
+    INTEGER(INTG) :: NUMBER_OF_EQUATIONS_SETS !<The number of equations sets that the constraint condition affects
+    TYPE(CONSTRAINT_TO_SOLVER_MATRIX_MAPS_EQUATIONS_TYPE), ALLOCATABLE :: CONSTRAINT_TO_SOLVER_MATRIX_MAPS_EQUATIONS(:) !<CONSTRAINT_TO_SOLVER_MATRIX_MAPS_EQUATIONS(equations_set_idx). The equations set information of the equations_set_idx'th equations set that the constraint condition affects.
+    TYPE(CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM_TYPE), ALLOCATABLE :: CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(:) !<CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx). The mappings from the constraint matrices in this constraint condition to the solver_matrix_idx'th solver_matrix
+    TYPE(CONSTRAINT_TO_SOLVER_MATRIX_MAPS_IM_TYPE), ALLOCATABLE :: CONSTRAINT_TO_SOLVER_MATRIX_MAPS_IM(:) !<CONSTRAINT_TO_SOLVER_MATRIX_MAPS_IM(constraint_matrix_idx). The mappings from the constraint_matrix_idx'th constraint matrix in this constraint condition to the solver_matrices.
+    TYPE(JACOBIAN_TO_SOLVER_MAP_PTR_TYPE), ALLOCATABLE :: CONSTRAINT_TO_SOLVER_MATRIX_MAPS_JM(:) !<JACOBIAN_TO_SOLVER_MATRIX_MAPS_JM(jacobian_idx). The mappings from the jacobian_idx'th Jacobian matrix in this constraint condition to the solver_matrices.
+    TYPE(CONSTRAINT_COLUMN_TO_SOLVER_ROWS_MAP_TYPE), ALLOCATABLE :: CONSTRAINT_COLUMN_TO_SOLVER_ROWS_MAPS(:) !<CONSTRAINT_COLUMN_TO_SOLVER_ROW_MAP(constraint_column_idx). The mapping from the constraint_column_idx'th constraint column to a solver row.
+  END TYPE CONSTRAINT_CONDITION_TO_SOLVER_MAP_TYPE
 
   !>Contains information on the interface to solver matrix mappings when indexing by solver matrix number
   TYPE INTERFACE_TO_SOLVER_MATRIX_MAPS_SM_TYPE
@@ -2998,7 +3377,21 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     TYPE(SOLVER_COL_TO_STATIC_EQUATIONS_MAP_TYPE), ALLOCATABLE :: SOLVER_COL_TO_STATIC_EQUATIONS_MAPS(:) !<SOLVER_COL_TO_STATIC_EQUATIONS_MAPS(col_idx). The mappings from the col_idx'th column of the solver matrix to the static equations in the equations set.
   END TYPE SOLVER_COL_TO_EQUATIONS_SET_MAP_TYPE
   
-  !>Contains information about the mapping from a solver matrix column to interface equations matrices and variables
+  !>Contains information about the mapping from a solver matrix column to constraint equations matrices and variables
+  TYPE SOLVER_COL_TO_CONSTRAINT_EQUATIONS_MAP_TYPE
+    INTEGER(INTG) :: NUMBER_OF_CONSTRAINT_MATRICES !<The number of constraint matrices the solver column is mapped to in this constraint condition
+    INTEGER(INTG), ALLOCATABLE :: CONSTRAINT_MATRIX_NUMBERS(:) !<CONSTRAINT_MATRIX_NUMBERS(i). The i'th constraint matrix number in the constraint equations that the solver column is mapped to
+    INTEGER(INTG), ALLOCATABLE :: CONSTRAINT_COL_NUMBERS(:) !<CONSTRAINT_COL_NUMBERS(i). The i'th constraint constraint column number in the constraint condition the solver column is mapped to.
+    REAL(DP), ALLOCATABLE :: COUPLING_COEFFICIENTS(:) !<COUPLING_COEFFICIENTS(i). The i'th coupling coefficient for solver column mapping
+  END TYPE SOLVER_COL_TO_CONSTRAINT_EQUATIONS_MAP_TYPE
+
+  !>Contains information about the mappings from a solver matrix to the equations in an equations set
+  TYPE SOLVER_COL_TO_CONSTRAINT_MAP_TYPE
+    TYPE(CONSTRAINT_EQUATIONS_TYPE), POINTER :: CONSTRAINT_EQUATIONS !<A pointer to the constraint equations in the constraint conditionthat these columns map to.
+    TYPE(SOLVER_COL_TO_CONSTRAINT_EQUATIONS_MAP_TYPE), ALLOCATABLE :: SOLVER_COL_TO_CONSTRAINT_EQUATIONS_MAPS(:) !<SOLVER_COL_TO_CONSTRAINT_EQUATIONS_MAPS(col_idx). The mappings from the col_idx'th column of the solver matrix to the constraint equations in the constraint condition.
+  END TYPE SOLVER_COL_TO_CONSTRAINT_MAP_TYPE
+  !>Contains information about the mapping from a solver matrix column to constraint equations matrices and variables
+
   TYPE SOLVER_COL_TO_INTERFACE_EQUATIONS_MAP_TYPE
     INTEGER(INTG) :: NUMBER_OF_INTERFACE_MATRICES !<The number of interface matrices the solver column is mapped to in this interface condition
     INTEGER(INTG), ALLOCATABLE :: INTERFACE_MATRIX_NUMBERS(:) !<INTERFACE_MATRIX_NUMBERS(i). The i'th interface matrix number in the interface equations that the solver column is mapped to
@@ -3008,7 +3401,7 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
 
   !>Contains information about the mappings from a solver matrix to the equations in an equations set
   TYPE SOLVER_COL_TO_INTERFACE_MAP_TYPE
-    TYPE(EQUATIONS_TYPE), POINTER :: INTERFACE_EQUATIONS !<A pointer to the interface equations in the interface conditionthat these columns map to.
+    TYPE(INTERFACE_EQUATIONS_TYPE), POINTER :: INTERFACE_EQUATIONS !<A pointer to the interface equations in the interface conditionthat these columns map to.
     TYPE(SOLVER_COL_TO_INTERFACE_EQUATIONS_MAP_TYPE), ALLOCATABLE :: SOLVER_COL_TO_INTERFACE_EQUATIONS_MAPS(:) !<SOLVER_COL_TO_INTERFACE_EQUATIONS_MAPS(col_idx). The mappings from the col_idx'th column of the solver matrix to the interface equations in the interface condition.
   END TYPE SOLVER_COL_TO_INTERFACE_MAP_TYPE
   
@@ -3032,6 +3425,7 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
   TYPE SOLVER_ROW_TO_EQUATIONS_MAPS_TYPE
     INTEGER(INTG) :: NUMBER_OF_EQUATIONS_SET_ROWS !<The number of equations set rows the solver row is mapped to. If the rows are interface rows then this will be zero.
     INTEGER(INTG) :: INTERFACE_CONDITION_INDEX !<The interface condition index that the solver row is mapped to. If the rows are from an equations set then this will be zero.
+    INTEGER(INTG) :: CONSTRAINT_CONDITION_INDEX !<The constraint condition index that the solver row is mapped to. If the rows are from an equations set then this will be zero.
     INTEGER(INTG), ALLOCATABLE :: EQUATIONS_INDEX(:) !<EQUATIONS_INDEX(i). If the rows are equations set rows then this is the index of the equations set that the i'th equations set row belongs to. If the rows are interface rows this will not be allocated.
     INTEGER(INTG), ALLOCATABLE :: ROWCOL_NUMBER(:) !<ROWCOL_NUMBER(i). If the rows are equations set rows the i'th equations row number that the solver row is mapped to. If the rows are interface rows then the i'th column number that the solver row is mapped to.
     REAL(DP), ALLOCATABLE :: COUPLING_COEFFICIENTS(:) !<COUPLING_COEFFICIENTS(i). The i'th coupling coefficient for the solver row to equations mapping
@@ -3045,6 +3439,8 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     INTEGER(INTG), ALLOCATABLE :: RESIDUAL_VARIABLE_TYPES(:,:) !<RESIDUAL_VARIABLE_TYPES(0:..,equations_set_idx). The list of residual variable types in the equations_set_idx'th equations set. RESIDUAL_VARIABLE_TYPES(0,equations_set_idx) is the number of variable types in the equations_set_idx'th equations set and RESIDUAL_VARIABLE_TYPES(1..,equations_set_idx) is the list of the variable types in the equations set.
     INTEGER(INTG), ALLOCATABLE :: RHS_VARIABLE_TYPE(:) !<RHS_VARIABLE_TYPE(equations_set_idx). The variable type that is mapped to the solution RHS for the equations_set_idx'th equations set
     INTEGER, ALLOCATABLE :: SOURCE_VARIABLE_TYPE(:) !<SOURCE_VARIABLE_TYPE(equations_set_idx). The source variable type that is mapped to the RHS for the equations_set_idx'th equations set.
+    TYPE(LIST_PTR_TYPE), POINTER :: CONSTRAINT_VARIABLE_LIST(:) !<CONSTRAINT_VARIABLES_LIST(solver_matrix_idx). The list of constraint condition variables in the solver mapping for the solver_matrix idx'th solver matrix.
+    TYPE(LIST_PTR_TYPE), POINTER :: CONSTRAINT_INDICES(:) !<CONSTRAINT_INDICES(equations_set_idx). The list of constraint condition indices in the equations_set_idx'th equations set.
     TYPE(LIST_PTR_TYPE), POINTER :: INTERFACE_VARIABLE_LIST(:) !<INTERFACE_VARIABLES_LIST(solver_matrix_idx). The list of interface condition variables in the solver mapping for the solver_matrix idx'th solver matrix.
     TYPE(LIST_PTR_TYPE), POINTER :: INTERFACE_INDICES(:) !<INTERFACE_INDICES(equations_set_idx). The list of interface condition indices in the equations_set_idx'th equations set.
   END TYPE SOLVER_MAPPING_CREATE_VALUES_CACHE_TYPE
@@ -3080,6 +3476,9 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     INTEGER(INTG) :: NUMBER_OF_EQUATIONS_SETS !<The number of equations sets in the solution mapping.
     TYPE(EQUATIONS_SET_PTR_TYPE), ALLOCATABLE :: EQUATIONS_SETS(:) !<The list of equations sets that are in this solution mapping
     TYPE(EQUATIONS_SET_TO_SOLVER_MAP_TYPE), ALLOCATABLE :: EQUATIONS_SET_TO_SOLVER_MAP(:) !<EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx). The mapping from the equations_set_idx'th equations set to the solver matrices.
+    INTEGER(INTG) :: NUMBER_OF_CONSTRAINT_CONDITIONS !<The number of constraint conditions in the solution mapping.
+    TYPE(CONSTRAINT_CONDITION_PTR_TYPE), ALLOCATABLE :: CONSTRAINT_CONDITIONS(:) !<The list of constraint conditions that are in this
+    TYPE(CONSTRAINT_CONDITION_TO_SOLVER_MAP_TYPE), ALLOCATABLE :: CONSTRAINT_CONDITION_TO_SOLVER_MAP(:) !<CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx). The mapping from the constraint_condition_idx'th constraint condition to the solver matrices.
     INTEGER(INTG) :: NUMBER_OF_INTERFACE_CONDITIONS !<The number of interface conditions in the solution mapping.
     TYPE(INTERFACE_CONDITION_PTR_TYPE), ALLOCATABLE :: INTERFACE_CONDITIONS(:) !<The list of interface conditions that are in this
     TYPE(INTERFACE_CONDITION_TO_SOLVER_MAP_TYPE), ALLOCATABLE :: INTERFACE_CONDITION_TO_SOLVER_MAP(:) !<INTERFACE_CONDITION_TO_SOLVER_MAP(interface_condition_idx). The mapping from the interface_condition_idx'th interface condition to the solver matrices.
