@@ -2057,6 +2057,66 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
   !
   !================================================================================================================================
   !
+!   !>Contains the information about the mapping of a variable DOF to an constraint matrix column
+!  TYPE VAR_TO_CONSTRAINT_COLUMN_MAP_TYPE
+!    INTEGER(INTG), ALLOCATABLE :: COLUMN_DOF(:) !<COLUMN_DOF(dof_idx). The constraint column number for this constraint matrix that the dof_idx'th variable DOF is mapped to.  
+!  END TYPE VAR_TO_CONSTRAINT_COLUMN_MAP_TYPE
+!
+!  !>Contains the mapping for a dependent variable type to the constraint matrices
+!  TYPE VAR_TO_CONSTRAINT_MATRICES_MAP_TYPE
+!    INTEGER(INTG) :: VARIABLE_INDEX !<The variable index for this variable to constraint matrices map
+!    INTEGER(INTG) :: VARIABLE_TYPE !<The variable type for this variable to constraint matrices map
+!    TYPE(FIELD_VARIABLE_TYPE), POINTER :: VARIABLE !<A pointer to the field variable for this variable to constraint matrices map
+!    INTEGER(INTG) :: NUMBER_OF_CONSTRAINT_MATRICES !<The number of constraint matrices (linear or dynamic) this variable type is mapped to. If the number is -1 the variable is mapped to the RHS vector. If the number is zero then this variable type is not involved in the constraint set and the rest of the type is not allocated.
+!    INTEGER(INTG), ALLOCATABLE :: CONSTRAINT_MATRIX_NUMBERS(:) !<CONSTRAINT_MATRIX_NUMBERS(i). The constraint matrix number for the i'th matrix that this variable type is mapped to.
+!    TYPE(VAR_TO_CONSTRAINT_COLUMN_MAP_TYPE), ALLOCATABLE :: DOF_TO_ROW_MAPS(:) !<DOF_TO_ROW_MAPS(i). The variable dof to constraint columns for the i'th constraint matrix.
+!    INTEGER(INTG), ALLOCATABLE :: DOF_TO_COLUMNS_MAP(:) !<DOF_TO_COLUMNSS_MAP(dof_idx). The row number that the dof_idx'th variable dof is mapped to.
+!  END TYPE VAR_TO_CONSTRAINT_MATRICES_MAP_TYPE
+
+  !>Contains information for mapping field variables to the dynamic matrices in the constraint set of the mapping
+  TYPE CONSTRAINT_MAPPING_DYNAMIC_TYPE
+    TYPE(CONSTRAINT_MAPPING_TYPE), POINTER :: CONSTRAINT_MAPPING !<A pointer to the constraint mapping
+    INTEGER(INTG) :: NUMBER_OF_DYNAMIC_CONSTRAINT_MATRICES !<The number of dynamic constraint matrices in this mapping
+    INTEGER(INTG) :: STIFFNESS_MATRIX_NUMBER !<The matrix number of the dynamic stiffness matrix. 0 if there is no dynamic stiffness matrix
+    INTEGER(INTG) :: DAMPING_MATRIX_NUMBER !<The matrix number of the dynamic damping matrix. 0 if there is no dynamic damping matrix
+    INTEGER(INTG) :: MASS_MATRIX_NUMBER !<The matrix number of the dynamic mass matrix. 0 if there is no dynamic mass matrix
+    INTEGER(INTG) :: VARIABLE_TYPE !<The variable type involved in the constraint matrix mapping.
+    TYPE(FIELD_VARIABLE_TYPE), POINTER :: VARIABLE !<A pointer to the variable that is mapped to the dynamic matrices.
+!    TYPE(VAR_TO_CONSTRAINT_MATRICES_MAP_TYPE) :: VAR_TO_CONSTRAINT_MATRICES_MAP !The constraint matrices mapping for the dependent variable.
+    INTEGER(INTG), ALLOCATABLE :: LAGRANGE_DOF_TO_COLUMN_MAP(:) !<LAGRANGE_DOF_TO_COLUMN_MAP(dof_idx). The mapping from the dof_idx'th Lagrange dof to the constraint matrices column
+    TYPE(CONSTRAINT_MATRIX_TO_VAR_MAP_TYPE), ALLOCATABLE :: CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS(:) !<CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS(constraint_matrix_idx). Information for the constraint matrix rows to dependent variable maps for the constraint_matrix_idx'th constraint matrix.
+  END TYPE CONSTRAINT_MAPPING_DYNAMIC_TYPE
+
+  !>Contains information for mapping a dependent variable to the linear constraint matrices in the constraint
+  TYPE CONSTRAINT_MAPPING_LINEAR_TYPE
+    TYPE(CONSTRAINT_MAPPING_TYPE), POINTER :: CONSTRAINT_MAPPING !<A pointer to the constraint mapping
+    INTEGER(INTG) :: NUMBER_OF_LINEAR_CONSTRAINT_MATRICES !<The number of linear constraint matrices in this mapping
+    INTEGER(INTG) :: VARIABLE_TYPE !The dependent variable type in the constraint linear matrix mapping.
+!    TYPE(VAR_TO_CONSTRAINT_MATRICES_MAP_TYPE) :: VAR_TO_CONSTRAINT_MATRICES_MAP !The constraint matrices mapping for the dependent variable.
+    INTEGER(INTG), ALLOCATABLE :: LAGRANGE_DOF_TO_COLUMN_MAP(:) !<LAGRANGE_DOF_TO_COLUMN_MAP(dof_idx). The mapping from the dof_idx'th Lagrange dof to the constraint matrices column
+    TYPE(CONSTRAINT_MATRIX_TO_VAR_MAP_TYPE), ALLOCATABLE :: CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS(:) !<CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS(constraint_matrix_idx). Information for the constraint matrix rows to dependent variable maps for the constraint_matrix_idx'th constraint matrix.
+  END TYPE CONSTRAINT_MAPPING_LINEAR_TYPE
+
+  !>Contains the mapping for a dependent variable type to the nonlinear constraint Jacobian matrix
+!  TYPE VAR_TO_CONSTRAINT_JACOBIAN_MAP_TYPE
+!    INTEGER(INTG) :: JACOBIAN_NUMBER !<The constraint Jacobian matrix number
+!    INTEGER(INTG) :: VARIABLE_TYPE !<The variable type for this variable to constraint matrices map
+!    TYPE(FIELD_VARIABLE_TYPE), POINTER :: VARIABLE !<A pointer to the field variable for this variable to constraint matrices map
+!    INTEGER(INTG), ALLOCATABLE :: DOF_TO_ROW_MAP(:) !<DOF_TO_ROW_MAP(dof_idx). The Jacobian column number for dof_idx'th variable dof
+!    INTEGER(INTG), ALLOCATABLE :: DOF_TO_COLUMNS_MAP(:) !<DOF_TO_COLUMNS_MAP(dof_idx). The row number that the dof_idx'th variable dof is mapped to.
+!  END TYPE VAR_TO_CONSTRAINT_JACOBIAN_MAP_TYPE
+
+  !>Contains information on the constraint mapping for nonlinear matrices
+  TYPE CONSTRAINT_MAPPING_NONLINEAR_TYPE
+    TYPE(CONSTRAINT_MAPPING_TYPE), POINTER :: CONSTRAINT_MAPPING !<A pointer to the constraint mapping
+    INTEGER(INTG) :: NUMBER_OF_JACOBIAN_CONSTRAINT_MATRICES !<The number of Jacobian constraint matrices in this mapping
+    TYPE(FIELD_VARIABLE_TYPE) :: VARIABLE !<The dependent variable.
+!    TYPE(VAR_TO_CONSTRAINT_JACOBIAN_MAP_TYPE) :: VAR_TO_JACOBIAN_MAP !<The mapping from the dependent variable to the Jacobian matrix.
+    TYPE(CONSTRAINT_JACOBIAN_TO_VAR_MAP_TYPE), ALLOCATABLE :: CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAP(:) !<CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAP(jacobian_idx). The mapping from the Jacobian matrix to the dependent variable
+    INTEGER(INTG), ALLOCATABLE :: LAGRANGE_DOF_TO_COLUMN_MAP(:) !<LAGRANGE_DOF_TO_COLUMN_MAP(dof_idx). The mapping from the dof_idx'th Lagrange dof to the constraint jacobian column 
+    REAL(DP) :: RESIDUAL_COEFFICIENT !<The multiplicative coefficient applied to the residual vector
+  END TYPE CONSTRAINT_MAPPING_NONLINEAR_TYPE
+
 
   ! Constraint mapping types
 
@@ -2065,10 +2125,9 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     INTEGER(INTG) :: MATRIX_NUMBER !<The constraint matrix number
     TYPE(CONSTRAINT_MATRIX_TYPE), POINTER :: CONSTRAINT_MATRIX !<A pointer to the constraint matrix
     TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET !<A pointer to the equations set containing the dependent variable that is mapped to this constraint matrix.
-    TYPE(CONSTRAINT_EQUATIONS_TYPE), POINTER :: CONSTRAINT_EQUATIONS !<A pointer to the constraint condition containing the Lagrange variable that is mapped to this constraint matrix.
+    TYPE(CONSTRAINT_EQUATIONS_TYPE), POINTER :: CONSTRAINT_EQUATIONS !<A pointer to the constraint condition containing the Lagrange variable that is mapped to this constraint matrix
     INTEGER(INTG) :: VARIABLE_TYPE !<The dependent variable type mapped to this constraint matrix
     TYPE(FIELD_VARIABLE_TYPE), POINTER :: VARIABLE !<A pointer to the field variable that is mapped to this constraint matrix
-    INTEGER(INTG) :: MESH_INDEX !<The mesh index for the matrix in the constraint.
     REAL(DP) :: MATRIX_COEFFICIENT !<The multiplicative coefficent for the matrix.    
     LOGICAL :: HAS_TRANSPOSE !<.TRUE. if the constraint matrix has a tranpose, .FALSE. if not.  
     INTEGER(INTG) :: NUMBER_OF_ROWS !<The number of rows  in this constraint matrix.
@@ -2077,6 +2136,23 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     TYPE(DOMAIN_MAPPING_TYPE), POINTER :: ROW_DOFS_MAPPING !<A pointer to the domain mapping for the row dofs.
     INTEGER(INTG), ALLOCATABLE :: VARIABLE_DOF_TO_ROW_MAP(:) !<VARIABLE_DOF_TO_ROW_MAP(dof_idx). The mapping from the dof_idx'th variable dof to the rows on the constraint matrix
   END TYPE CONSTRAINT_MATRIX_TO_VAR_MAP_TYPE
+
+  !>Contains the mapping from the Jacobian back to the dependent variables.
+  TYPE CONSTRAINT_JACOBIAN_TO_VAR_MAP_TYPE
+    INTEGER(INTG) :: JACOBIAN_NUMBER !<The constraint Jacobian matrix number
+    TYPE(CONSTRAINT_JACOBIAN_TYPE), POINTER :: CONSTRAINT_JACOBIAN !<A pointer to the constraint Jacobian
+    TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET !<A pointer to the equations set containing the dependent variable that is mapped to this Jacobian matrix.
+    TYPE(CONSTRAINT_EQUATIONS_TYPE), POINTER :: CONSTRAINT_EQUATIONS !<A pointer to the constraint condition containing the Lagrange variable that is mapped to this constraint Jacobian
+    INTEGER(INTG) :: VARIABLE_TYPE !<The dependent variable type mapped to this constraint matrix
+    TYPE(FIELD_VARIABLE_TYPE), POINTER :: VARIABLE !<A pointer to the field variable that is mapped to this constraint matrix
+    REAL(DP) :: JACOBIAN_COEFFICIENT !<The multiplicative coefficent for the JACOBIAN.    
+    LOGICAL :: HAS_TRANSPOSE !<.TRUE. if the constraint matrix has a tranpose, .FALSE. if not.  
+    INTEGER(INTG) :: NUMBER_OF_ROWS !<The number of rows  in this constraint matrix.
+    INTEGER(INTG) :: TOTAL_NUMBER_OF_ROWS !<The total number of rows in this constraint matrix.
+    INTEGER(INTG) :: NUMBER_OF_GLOBAL_ROWS !<The global number of rows in this constraint matrix.
+    TYPE(DOMAIN_MAPPING_TYPE), POINTER :: ROW_DOFS_MAPPING !<A pointer to the domain mapping for the row dofs.
+    INTEGER(INTG), ALLOCATABLE :: VARIABLE_DOF_TO_ROW_MAP(:) !<VARIABLE_DOF_TO_ROW_MAP(dof_idx). The mapping from the dof_idx'th variable dof to the rows on the constraint Jacobian
+  END TYPE CONSTRAINT_JACOBIAN_TO_VAR_MAP_TYPE
 
   TYPE CONSTRAINT_MAPPING_RHS_TYPE
     TYPE(CONSTRAINT_MAPPING_TYPE), POINTER :: CONSTRAINT_MAPPING !<A pointer back to the constraint mapping
@@ -2089,33 +2165,41 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
   END TYPE CONSTRAINT_MAPPING_RHS_TYPE
   
   TYPE CONSTRAINT_MAPPING_CREATE_VALUES_CACHE_TYPE
-    INTEGER(INTG) :: NUMBER_OF_CONSTRAINT_MATRICES !<Cache of the number of constraint matrices
     INTEGER(INTG) :: LAGRANGE_VARIABLE_TYPE !<The variable type of the Lagrange field.
-    REAL(DP), ALLOCATABLE :: MATRIX_COEFFICIENTS(:) !<MATRIX_COEFFICIENTS(matrix_idx). The matrix cooefficient for the matrix_idx'th constraint matrix.
-    LOGICAL, ALLOCATABLE :: HAS_TRANSPOSE(:) !<HAS_TRANSPOSE(matrix_idx). .TRUE. if the matrix_idx'th constraint matrix has an tranpose, .FALSE. if not.
-    INTEGER(INTG), ALLOCATABLE :: MATRIX_ROW_FIELD_VARIABLE_INDICES(:) !<MATRIX_ROW_FIELD_VARIABLE_INDICES(variable_idx). The field variable index that are mapped to the the constraint matrix rows.
-    INTEGER(INTG), ALLOCATABLE :: MATRIX_COL_FIELD_VARIABLE_INDICES(:) !<MATRIX_COL_FIELD_VARIABLE_INDICES(variable_idx). The field variable index that are mapped to the the constraint matrix columns.
+    INTEGER(INTG) :: VARIABLE_TYPE !<The variable type of the dependent field.
+    INTEGER(INTG) :: NUMBER_OF_DYNAMIC_CONSTRAINT_MATRICES !<The number of dynamic matrices in the constraint mapping
+    INTEGER(INTG) :: DYNAMIC_STIFFNESS_MATRIX_NUMBER !<The dynamic matrix number corresponding to the dynamic stiffness matrix
+    INTEGER(INTG) :: DYNAMIC_DAMPING_MATRIX_NUMBER !<The dynamic matrix number corresponding to the dynamic damping matrix
+    INTEGER(INTG) :: DYNAMIC_MASS_MATRIX_NUMBER !<The dynamic matrix number corresponding to the dynamic mass matrix
+    LOGICAL, ALLOCATABLE :: DYNAMIC_HAS_TRANSPOSE(:) !<DYNAMIC_HAS_TRANSPOSE(matrix_idx). .TRUE. if the dynamic matrix_idx'th constraint dynamic  matrix has an tranpose, .FALSE. if not.
+    REAL(DP), ALLOCATABLE :: DYNAMIC_MATRIX_COEFFICIENTS(:) !<DYNAMIC_MATRIX_COEFFICIENTS(matrix_idx). The coefficient of the matrix_idx'th dynamic matrix in the constraint set.
+    INTEGER(INTG) :: NUMBER_OF_LINEAR_CONSTRAINT_MATRICES !<The number of linear matrices in the constraint mapping
+    REAL(DP), ALLOCATABLE :: LINEAR_MATRIX_COEFFICIENTS(:) !<LINEAR_MATRIX_COEFFICIENTS(matrix_idx). The coefficient of the matrix_idx'th linear matrix in the constraint set.
+    LOGICAL, ALLOCATABLE :: LINEAR_HAS_TRANSPOSE(:) !<LINEAR_HAS_TRANSPOSE(matrix_idx). .TRUE. if the linear matrix_idx'th constraint matrix has an tranpose, .FALSE. if not.
+    INTEGER(INTG) :: NUMBER_OF_JACOBIAN_CONSTRAINT_MATRICES !<The number of Jacobian matrices in the constraint mapping
+    LOGICAL, ALLOCATABLE :: JACOBIAN_HAS_TRANSPOSE(:) !<JACOBIAN_HAS_TRANSPOSE(matrix_idx). .TRUE. if the Jacobian matrix_idx'th constraint Jacobian matrix has an tranpose, .FALSE. if not.
     INTEGER(INTG) :: RHS_LAGRANGE_VARIABLE_TYPE !<The Lagrange variable type mapped to the rhs vector
     REAL(DP) :: RHS_COEFFICIENT !<The coefficient multiplying the RHS vector.
+    REAL(DP) :: RESIDUAL_COEFFICIENT !<The coefficient multiplying the residual vector.
   END TYPE CONSTRAINT_MAPPING_CREATE_VALUES_CACHE_TYPE
-  
-  !>Contains information on an constraint mapping. TODO: Generalise to non-Lagrange multiplier mappings
+
+  !>Contains information on an constraint mapping.
   TYPE CONSTRAINT_MAPPING_TYPE  
     TYPE(CONSTRAINT_EQUATIONS_TYPE), POINTER :: CONSTRAINT_EQUATIONS  !<A pointer to the constraint equations for this constraint mapping
     LOGICAL :: CONSTRAINT_MAPPING_FINISHED !<Is .TRUE. if the constraint mapping has finished being created, .FALSE. if not.
-    INTEGER(INTG) :: VARIABLE_TYPE !<The mapped dependent variable type.
-    TYPE(FIELD_VARIABLE_TYPE), POINTER :: VARIABLE !<A pointer to the mapped dependent field variable.
-    INTEGER(INTG) :: LAGRANGE_VARIABLE_TYPE !<The variable type of the mapped Lagrange field variable.
-    TYPE(FIELD_VARIABLE_TYPE), POINTER :: LAGRANGE_VARIABLE !<A pointer to the variable that is mapped to the Lagrange multiplier field variable.
+    INTEGER(INTG) :: LAGRANGE_VARIABLE_TYPE !<The variable type of the Lagrange field.
+    TYPE(FIELD_VARIABLE_TYPE), POINTER :: LAGRANGE_VARIABLE !<A pointer to the lagrange variable that is mapped to this constraint matrix
+    !Column mappings
     INTEGER(INTG) :: NUMBER_OF_COLUMNS !<The number of columns in the constraint mapping
     INTEGER(INTG) :: TOTAL_NUMBER_OF_COLUMNS !<The total number of columns in the constraint mapping
     INTEGER(INTG) :: NUMBER_OF_GLOBAL_COLUMNS !<The global number of columns in the constraint mapping
     TYPE(DOMAIN_MAPPING_TYPE), POINTER :: COLUMN_DOFS_MAPPING !<A pointer to the domain mapping for the columns
-    INTEGER(INTG), ALLOCATABLE :: LAGRANGE_DOF_TO_COLUMN_MAP(:) !<LAGRANGE_DOF_TO_COLUMN_MAP(dof_idx). The mapping from the dof_idx'th Lagrange dof to the constraint matrices column
-    INTEGER(INTG) :: NUMBER_OF_CONSTRAINT_MATRICES !<The number of constraint matrices that the mapping is set up for.
-    TYPE(CONSTRAINT_MATRIX_TO_VAR_MAP_TYPE), ALLOCATABLE :: CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS(:) !<CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS(constraint_matrix_idx). Information for the constraint matrix rows to dependent variable maps for the constraint_matrix_idx'th constraint matrix.
-    TYPE(CONSTRAINT_MAPPING_RHS_TYPE), POINTER :: RHS_MAPPING !<A pointer to the constraint mapping for the RHS vector.
-    TYPE(CONSTRAINT_MAPPING_CREATE_VALUES_CACHE_TYPE), POINTER :: CREATE_VALUES_CACHE
+    !Constraint mapping components
+    TYPE(CONSTRAINT_MAPPING_DYNAMIC_TYPE), POINTER :: DYNAMIC_MAPPING !<A pointer to the constraint mapping for dynamic matrices
+    TYPE(CONSTRAINT_MAPPING_LINEAR_TYPE), POINTER :: LINEAR_MAPPING !<A pointer to the constraint mapping for the linear matrices
+    TYPE(CONSTRAINT_MAPPING_NONLINEAR_TYPE), POINTER :: NONLINEAR_MAPPING !<A pointer to the constraint mapping for the nonlinear matrices and vectors
+    TYPE(CONSTRAINT_MAPPING_RHS_TYPE), POINTER :: RHS_MAPPING !<A pointer to the constraint mapping for the RHS vector
+    TYPE(CONSTRAINT_MAPPING_CREATE_VALUES_CACHE_TYPE), POINTER :: CREATE_VALUES_CACHE !<The create values cache for the constraint mapping
   END TYPE CONSTRAINT_MAPPING_TYPE
 
   !
@@ -2195,10 +2279,8 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
   !>Contains information about the dependent field information for an constraint condition. 
   TYPE CONSTRAINT_DEPENDENT_TYPE
     TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION !<A pointer to the constraint condition
-    INTEGER(INTG) :: NUMBER_OF_DEPENDENT_VARIABLES !<The number of dependent variables in the constraint condition
-    TYPE(EQUATIONS_SET_PTR_TYPE), POINTER :: EQUATIONS_SETS(:) !<EQUATIONS_SETS(variable_idx). The pointer to the equations set containing the dependent variable for the variable_idx'th added dependent variable.
-    TYPE(FIELD_VARIABLE_PTR_TYPE), POINTER :: FIELD_VARIABLES(:) !<FIELD_VARIABLES(variable_idx). The pointer to the variable_idx'th dependent variable in the constraint condition.
-    INTEGER(INTG), POINTER :: VARIABLE_MESH_INDICES(:) !<VARIABLE_MESH_INDICES(variable_idx). The mesh index of the variable_idx'th dependent variable in the constraint condition.
+    TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET !<The pointer to the equations set containing the dependent variable.
+    TYPE(FIELD_TYPE), POINTER :: DEPENDENT_FIELD !<A pointer to the dependent field.
   END TYPE CONSTRAINT_DEPENDENT_TYPE
 
   !>Contains information for the constraint condition data.
