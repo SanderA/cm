@@ -59,6 +59,11 @@ MODULE OPENCMISS
   USE CMISS_CELLML
   USE COMP_ENVIRONMENT
   USE CONSTANTS
+  USE CONSTRAINT_CONDITIONS_CONSTANTS
+  USE CONSTRAINT_CONDITIONS_ROUTINES
+  USE CONSTRAINT_EQUATIONS_ROUTINES
+  USE CONSTRAINT_MATRICES_CONSTANTS
+  USE CONSTRAINT_MATRICES_ROUTINES
   USE CONTROL_LOOP_ROUTINES
   USE COORDINATE_ROUTINES
   USE DATA_POINT_ROUTINES
@@ -131,6 +136,18 @@ MODULE OPENCMISS
     PRIVATE
     TYPE(CELLML_EQUATIONS_TYPE), POINTER :: CELLML_EQUATIONS
   END TYPE CMISSCellMLEquationsType
+
+  !>Contains information about an constraint condition.
+  TYPE CMISSConstraintConditionType
+    PRIVATE
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION
+  END TYPE CMISSConstraintConditionType
+
+  !>Contains information about an constraint condition.
+  TYPE CMISSConstraintEquationsType
+    PRIVATE
+    TYPE(CONSTRAINT_EQUATIONS_TYPE), POINTER :: CONSTRAINT_EQUATIONS
+  END TYPE CMISSConstraintEquationsType
 
   !>Contains information on a control loop.
   TYPE CMISSControlLoopType
@@ -337,6 +354,10 @@ MODULE OPENCMISS
   PUBLIC CMISSCellMLEquationsType,CMISSCellMLEquations_Finalise,CMISSCellMLEquations_Initialise
 
   PUBLIC CMISSComputationalWorkGroupType,CMISSComputationalWorkGroup_Initialise
+
+  PUBLIC CMISSConstraintConditionType,CMISSConstraintCondition_Finalise,CMISSConstraintCondition_Initialise
+
+  PUBLIC CMISSConstraintEquationsType,CMISSConstraintEquations_Finalise,CMISSConstraintEquations_Initialise
 
   PUBLIC CMISSControlLoopType,CMISSControlLoop_Finalise,CMISSControlLoop_Initialise,CMISSControlLoop_LoadOutputSet
 
@@ -1281,6 +1302,222 @@ MODULE OPENCMISS
 
   PUBLIC CMISS_NO_GLOBAL_DERIV,CMISS_GLOBAL_DERIV_S1,CMISS_GLOBAL_DERIV_S2,CMISS_GLOBAL_DERIV_S1_S2, &
     & CMISS_GLOBAL_DERIV_S3,CMISS_GLOBAL_DERIV_S1_S3,CMISS_GLOBAL_DERIV_S2_S3,CMISS_GLOBAL_DERIV_S1_S2_S3
+
+!!==================================================================================================================================
+!!
+!! CONSTRAINT_CONDITION_ROUTINES
+!!
+!!==================================================================================================================================
+
+  !Module parameters
+
+  !> \addtogroup OPENCMISS_ConstraintConditionConstants OPENCMISS::ConstraintConditions::Constants
+  !> \brief Constraint conditions constants.
+  !>@{
+  !> \addtogroup OPENCMISS_ConstraintConditionMethods OPENCMISS::ConstraintConditions::Methods
+  !> \brief Constraint condition methods.
+  !> \see OPENCMISS::ConstraintConditions,OPENCMISS
+  !>@{
+  INTEGER(INTG), PARAMETER :: CMISS_CONSTRAINT_CONDITION_LAGRANGE_MULTIPLIERS_METHOD = &
+    & CONSTRAINT_CONDITION_LAGRANGE_MULTIPLIERS_METHOD !<Lagrange multipliers constraint condition method. \see OPENCMISS_ConstraintConditionMethods,OPENCMISS
+  INTEGER(INTG), PARAMETER :: CMISS_CONSTRAINT_CONDITION_AUGMENTED_LAGRANGE_METHOD = CONSTRAINT_CONDITION_AUGMENTED_LAGRANGE_METHOD !<Augmented Lagrange multiplers constraint condition method. \see OPENCMISS_ConstraintConditionMethods,OPENCMISS
+  INTEGER(INTG), PARAMETER :: CMISS_CONSTRAINT_CONDITION_PENALTY_METHOD = CONSTRAINT_CONDITION_PENALTY_METHOD !<Penalty constraint condition method. \see OPENCMISS_ConstraintConditionMethods,OPENCMISS
+  INTEGER(INTG), PARAMETER :: CMISS_CONSTRAINT_CONDITION_POINT_TO_POINT_METHOD = CONSTRAINT_CONDITION_POINT_TO_POINT_METHOD !<Point to point constraint condition method. \see OPENCMISS_ConstraintConditionMethods,OPENCMISS
+  !>@}
+  !> \addtogroup OPENCMISS_ConstraintConditionOperators OPENCMISS::ConstraintConditions::Operators
+  !> \brief Constraint condition operator types.
+  !> \see OPENCMISS::ConstraintConditions,OPENCMISS
+  !>@{
+  INTEGER(INTG), PARAMETER :: CMISS_CONSTRAINT_CONDITION_FE_INCOMPRESSIBILITY_OPERATOR = &
+    & CONSTRAINT_CONDITION_FE_INCOMPRESSIBILITY_OPERATOR !<Finite elasticity incompressibility operator, i.e., lambda.(J-1). \see OPENCMISS_ConstraintConditionOperators,OPENCMISS
+  !>@}
+  !> \addtogroup OPENCMISS_ConstraintConditionsLinearityTypes OPENCMISS::ConstraintConditions::LinearityTypes
+  !> \brief The constraint conditions linearity types
+  !> \see OPENCMISS::ConstraintConditions,OPENCMISS
+  !>@{
+  INTEGER(INTG), PARAMETER :: CMISS_CONSTRAINT_CONDITION_LINEAR = CONSTRAINT_CONDITION_LINEAR !<The constraint conditions are linear. \see OPENCMISS_ConstraintConditionsLinearityTypes,OPENCMISS
+  INTEGER(INTG), PARAMETER :: CMISS_CONSTRAINT_CONDITION_NONLINEAR = CONSTRAINT_CONDITION_NONLINEAR !<The constraint conditions are non-linear. \see \see OPENCMISS_ConstraintConditionsLinearityTypes,OPENCMISS
+  INTEGER(INTG), PARAMETER :: CMISS_CONSTRAINT_CONDITION_NONLINEAR_BCS = CONSTRAINT_CONDITION_NONLINEAR_BCS !<The constraint conditions have non-linear boundary conditions. \see \see OPENCMISS_ConstraintConditionsLinearityTypes,OPENCMISS
+  !>@}
+  !> \addtogroup OPENCMISS_ConstraintConditionsTimeDependenceTypes OPENCMISS::ConstraintConditions::TimeDependenceTypes
+  !> \brief The constraint conditions time dependence types
+  !> \see OPENCMISS::ConstraintConditions,OPENCMISS
+  !>@{
+  INTEGER(INTG), PARAMETER :: CMISS_CONSTRAINT_CONDITION_STATIC = CONSTRAINT_CONDITION_STATIC !<The constraint conditions are static and have no time dependence. \see OPENCMISS_ConstraintConditionsTimeDependenceTypes,OPENCMISS
+  INTEGER(INTG), PARAMETER :: CMISS_CONSTRAINT_CONDITION_FIRST_ORDER_DYNAMIC = CONSTRAINT_CONDITION_FIRST_ORDER_DYNAMIC !<The constraint conditions are first order dynamic. \see OPENCMISS_ConstraintConditionsTimeDependenceTypes,OPENCMISS
+  INTEGER(INTG), PARAMETER :: CMISS_CONSTRAINT_CONDITION_SECOND_ORDER_DYNAMIC = CONSTRAINT_CONDITION_SECOND_ORDER_DYNAMIC !<The constraint conditions are a second order dynamic. \see OPENCMISS_ConstraintConditionsTimeDependenceTypes,OPENCMISS
+  INTEGER(INTG), PARAMETER :: CMISS_CONSTRAINT_CONDITION_TIME_STEPPING = CONSTRAINT_CONDITION_TIME_STEPPING !<The constraint conditions are for time stepping. \see OPENCMISS_ConstraintConditionsTimeDependenceTypes,OPENCMISS
+  !>@}
+  !>@}
+
+  !Module types
+
+  !Module variables
+
+  !Constraints
+
+  !>Finishes the creation of an constraint condition. \see OPENCMISS::CMISSConstraintCondition_CreateStart
+  INTERFACE CMISSConstraintCondition_CreateFinish
+    MODULE PROCEDURE CMISSConstraintCondition_CreateFinishNumber
+    MODULE PROCEDURE CMISSConstraintCondition_CreateFinishObj
+  END INTERFACE !CMISSConstraintCondition_CreateFinish
+
+  !>Starts the creation of an constraint condition. \see OPENCMISS::CMISSConstraintCondition_CreateFinish
+  INTERFACE CMISSConstraintCondition_CreateStart
+    MODULE PROCEDURE CMISSConstraintCondition_CreateStartNumber
+    MODULE PROCEDURE CMISSConstraintCondition_CreateStartObj
+  END INTERFACE !CMISSConstraintCondition_CreateStart
+
+  !>Destroys an constraint condition.
+  INTERFACE CMISSConstraintCondition_Destroy
+    MODULE PROCEDURE CMISSConstraintCondition_DestroyNumber
+    MODULE PROCEDURE CMISSConstraintCondition_DestroyObj
+  END INTERFACE !CMISSConstraintCondition_Destroy
+
+  !>Finishes the creation of equations for an constraint condition. \see OPENCMISS::CMISSConstraintCondition_EquationsCreateStart
+  INTERFACE CMISSConstraintCondition_EquationsCreateFinish
+    MODULE PROCEDURE CMISSConstraintCondition_EquationsCreateFinishNumber
+    MODULE PROCEDURE CMISSConstraintCondition_EquationsCreateFinishObj
+  END INTERFACE !CMISSConstraintCondition_EquationsCreateStart
+
+  !>Starts the creation of equations for an constraint condition. \see OPENCMISS::CMISSConstraintCondition_EquationsCreateFinish
+  INTERFACE CMISSConstraintCondition_EquationsCreateStart
+    MODULE PROCEDURE CMISSConstraintCondition_EquationsCreateStartNumber
+    MODULE PROCEDURE CMISSConstraintCondition_EquationsCreateStartObj
+  END INTERFACE !CMISSConstraintCondition_EquationsCreateStart
+
+  !>Destroys the constraint equations for an constraint condition.
+  INTERFACE CMISSConstraintCondition_EquationsDestroy
+    MODULE PROCEDURE CMISSConstraintCondition_EquationsDestroyNumber
+    MODULE PROCEDURE CMISSConstraintCondition_EquationsDestroyObj
+  END INTERFACE !CMISSConstraintCondition_EquationsDestroy
+  
+  !>Finishes the creation of a Lagrange multipliers field for an constraint condition. \see OPENCMISS::CMISSConstraintCondition_LagrangeFieldCreateStart
+  INTERFACE CMISSConstraintCondition_LagrangeFieldCreateFinish
+    MODULE PROCEDURE CMISSConstraintCondition_LagrangeFieldCreateFinishNumber
+    MODULE PROCEDURE CMISSConstraintCondition_LagrangeFieldCreateFinishObj
+  END INTERFACE !CMISSConstraintCondition_LagrangeFieldCreateFinish
+
+  !>Starts the creation of a Lagrange multipliers field for an constraint condition. \see OPENCMISS::CMISSConstraintCondition_LagrangeFieldCreateFinish
+  INTERFACE CMISSConstraintCondition_LagrangeFieldCreateStart
+    MODULE PROCEDURE CMISSConstraintCondition_LagrangeFieldCreateStartNumber
+    MODULE PROCEDURE CMISSConstraintCondition_LagrangeFieldCreateStartObj
+  END INTERFACE !CMISSConstraintCondition_LagrangeFieldCreateStart
+
+  !>Finishes the creation of a Penalty field for an constraint condition. \see OPENCMISS::CMISSConstraintCondition_PenaltyFieldCreateStart
+  INTERFACE CMISSConstraintCondition_PenaltyFieldCreateFinish
+    MODULE PROCEDURE CMISSConstraintCondition_PenaltyFieldCreateFinishNumber
+    MODULE PROCEDURE CMISSConstraintCondition_PenaltyFieldCreateFinishObj
+  END INTERFACE !CMISSConstraintCondition_PenaltyFieldCreateFinish
+
+  !>Starts the creation of a Penalty field for an constraint condition. \see OPENCMISS::CMISSConstraintCondition_PenaltyFieldCreateFinish
+  INTERFACE CMISSConstraintCondition_PenaltyFieldCreateStart
+    MODULE PROCEDURE CMISSConstraintCondition_PenaltyFieldCreateStartNumber
+    MODULE PROCEDURE CMISSConstraintCondition_PenaltyFieldCreateStartObj
+  END INTERFACE !CMISSConstraintCondition_PenaltyFieldCreateStart
+
+  !>Returns the method for an constraint condition.
+  INTERFACE CMISSConstraintCondition_MethodGet
+    MODULE PROCEDURE CMISSConstraintCondition_MethodGetNumber
+    MODULE PROCEDURE CMISSConstraintCondition_MethodGetObj
+  END INTERFACE !CMISSConstraintCondition_MethodGet
+
+  !>Sets/changes the method for an constraint condition.
+  INTERFACE CMISSConstraintCondition_MethodSet
+    MODULE PROCEDURE CMISSConstraintCondition_MethodSetNumber
+    MODULE PROCEDURE CMISSConstraintCondition_MethodSetObj
+  END INTERFACE !CMISSConstraintCondition_MethodSet
+
+  !>Returns the operator for an constraint condition.
+  INTERFACE CMISSConstraintCondition_OperatorGet
+    MODULE PROCEDURE CMISSConstraintCondition_OperatorGetNumber
+    MODULE PROCEDURE CMISSConstraintCondition_OperatorGetObj
+  END INTERFACE !CMISSConstraintCondition_OperatorGet
+
+  !>Sets/changes the operator for an constraint condition.
+  INTERFACE CMISSConstraintCondition_OperatorSet
+    MODULE PROCEDURE CMISSConstraintCondition_OperatorSetNumber
+    MODULE PROCEDURE CMISSConstraintCondition_OperatorSetObj
+  END INTERFACE !CMISSConstraintCondition_OperatorSet
+
+  !>Returns the sparsity for constraint equations.
+  INTERFACE CMISSConstraintEquations_SparsityGet
+    MODULE PROCEDURE CMISSConstraintEquations_SparsityGetNumber
+    MODULE PROCEDURE CMISSConstraintEquations_SparsityGetObj
+  END INTERFACE !CMISSConstraintEquations_SparsityGet
+
+  !>Sets/changes the sparsity for constraint equations.
+  INTERFACE CMISSConstraintEquations_SparsitySet
+    MODULE PROCEDURE CMISSConstraintEquations_SparsitySetNumber
+    MODULE PROCEDURE CMISSConstraintEquations_SparsitySetObj
+  END INTERFACE !CMISSConstraintEquations_SparsitySet
+
+  !>Returns the output type for constraint equations.
+  INTERFACE CMISSConstraintEquations_OutputTypeGet
+    MODULE PROCEDURE CMISSConstraintEquations_OutputTypeGetNumber
+    MODULE PROCEDURE CMISSConstraintEquations_OutputTypeGetObj
+  END INTERFACE !CMISSConstraintEquations_OutputTypeGet
+
+  !>Sets/changes the output type for constraint equations.
+  INTERFACE CMISSConstraintEquations_OutputTypeSet
+    MODULE PROCEDURE CMISSConstraintEquations_OutputTypeSetNumber
+    MODULE PROCEDURE CMISSConstraintEquations_OutputTypeSetObj
+  END INTERFACE !CMISSConstraintEquations_OutputTypeSet
+
+  PUBLIC CMISS_CONSTRAINT_CONDITION_LAGRANGE_MULTIPLIERS_METHOD,CMISS_CONSTRAINT_CONDITION_AUGMENTED_LAGRANGE_METHOD, &
+    & CMISS_CONSTRAINT_CONDITION_PENALTY_METHOD,CMISS_CONSTRAINT_CONDITION_POINT_TO_POINT_METHOD
+
+  PUBLIC CMISS_CONSTRAINT_CONDITION_FE_INCOMPRESSIBILITY_OPERATOR
+    
+  PUBLIC CMISSConstraintCondition_CreateFinish,CMISSConstraintCondition_CreateStart
+
+  PUBLIC CMISSConstraintCondition_DependentVariableAdd
+
+  PUBLIC CMISSConstraintCondition_Destroy
+
+  PUBLIC CMISSConstraintCondition_EquationsCreateFinish,CMISSConstraintCondition_EquationsCreateStart
+
+  PUBLIC CMISSConstraintCondition_EquationsDestroy
+
+  PUBLIC CMISSConstraintCondition_LagrangeFieldCreateFinish,CMISSConstraintCondition_LagrangeFieldCreateStart
+
+  PUBLIC CMISSConstraintCondition_PenaltyFieldCreateFinish,CMISSConstraintCondition_PenaltyFieldCreateStart
+
+  PUBLIC CMISSConstraintCondition_MethodGet,CMISSConstraintCondition_MethodSet
+
+  PUBLIC CMISSConstraintCondition_OperatorGet,CMISSConstraintCondition_OperatorSet
+
+  PUBLIC CMISSConstraintEquations_SparsityGet,CMISSConstraintEquations_SparsitySet
+
+  PUBLIC CMISSConstraintEquations_OutputTypeGet,CMISSConstraintEquations_OutputTypeSet
+  
+!!==================================================================================================================================
+!!
+!! CONSTRAINT MATRICES ROUTINES
+!!
+!!==================================================================================================================================
+  
+  !Module parameters
+
+  !> \addtogroup CONSTRAINT_MATRICES_ROUTINES_ConstraintMatricesTimeDependenceTypes CONSTRAINT_MATRICES_ROUTINES::ConstraintMatricesTimeDependenceTypes
+  !> \brief Constraint matrices time dependency types
+  !> \see CONSTRAINT_MATRICES_ROUTINES
+  !>@{
+  INTEGER, PARAMETER :: CMISS_NUMBER_OF_CONSTRAINT_MATRIX_TYPES=NUMBER_OF_CONSTRAINT_MATRIX_TYPES
+  INTEGER, PARAMETER :: CMISS_CONSTRAINT_MATRIX_STATIC=CONSTRAINT_MATRIX_STATIC !<Constraint matrix is of static type \see CONSTRAINT_MATRICES_ROUTINES_ConstraintMatricesTimeDependenceTypes,CONSTRAINT_MATRICES_ROUTINES
+  INTEGER, PARAMETER :: CMISS_CONSTRAINT_MATRIX_FIRST_ORDER_DYNAMIC=CONSTRAINT_MATRIX_FIRST_ORDER_DYNAMIC !<Constraint matrix is of first order dynamic type \see CONSTRAINT_MATRICES_ROUTINES_ConstraintMatricesTimeDependenceTypes,CONSTRAINT_MATRICES_ROUTINES
+  INTEGER, PARAMETER :: CMISS_CONSTRAINT_MATRIX_SECOND_ORDER_DYNAMIC=CONSTRAINT_MATRIX_SECOND_ORDER_DYNAMIC !<Constraint matrix is of second order dynamic type \see CONSTRAINT_MATRICES_ROUTINES_ConstraintMatricesTimeDependenceTypes,CONSTRAINT_MATRICES_ROUTINES
+  !>@}
+
+  !Module types
+
+  !Module variables
+
+  !Constraints
+  PUBLIC CMISS_NUMBER_OF_CONSTRAINT_MATRIX_TYPES,CMISS_CONSTRAINT_MATRIX_STATIC, &
+    & CMISS_CONSTRAINT_MATRIX_FIRST_ORDER_DYNAMIC,CMISS_CONSTRAINT_MATRIX_SECOND_ORDER_DYNAMIC
+  
+  PUBLIC CMISSConstraintMatrices_TimeDependenceTypeSet,CMISSConstraintMatrices_TimeDependenceTypeGet
 
 !!==================================================================================================================================
 !!
@@ -7452,6 +7689,108 @@ CONTAINS
     RETURN
 
   END SUBROUTINE CMISSCellMLEquations_Initialise
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Finalises a CMISSConstraintConditionType object.
+  SUBROUTINE CMISSConstraintCondition_Finalise(CMISSConstraintCondition,err)
+
+    !Argument variables
+    TYPE(CMISSConstraintConditionType), INTENT(OUT) :: CMISSConstraintCondition !<The CMISSConstraintConditionType object to finalise.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    CALL ENTERS("CMISSConstraintCondition_Finalise",err,error,*999)
+
+    IF(ASSOCIATED(CMISSConstraintCondition%CONSTRAINT_CONDITION))  &
+      & CALL CONSTRAINT_CONDITION_DESTROY(CMISSConstraintCondition%CONSTRAINT_CONDITION,err,error,*999)
+
+    CALL EXITS("CMISSConstraintCondition_Finalise")
+    RETURN
+999 CALL ERRORS("CMISSConstraintTypeConditionFinalise",err,error)
+    CALL EXITS("CMISSConstraintTypeConditionFinalise")
+    CALL CMISS_HANDLE_ERROR(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintCondition_Finalise
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Initialises a CMISSConstraintConditionType object.
+  SUBROUTINE CMISSConstraintCondition_Initialise(CMISSConstraintCondition,err)
+
+    !Argument variables
+    TYPE(CMISSConstraintConditionType), INTENT(OUT) :: CMISSConstraintCondition !<The CMISSConstraintConditionType object to initialise.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    CALL ENTERS("CMISSConstraintCondition_Initialise",err,error,*999)
+
+    NULLIFY(CMISSConstraintCondition%CONSTRAINT_CONDITION)
+
+    CALL EXITS("CMISSConstraintCondition_Initialise")
+    RETURN
+999 CALL ERRORS("CMISSConstraintCondition_Initialise",err,error)
+    CALL EXITS("CMISSConstraintCondition_Initialise")
+    CALL CMISS_HANDLE_ERROR(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintCondition_Initialise
+
+   !
+  !================================================================================================================================
+  !
+
+  !>Finalises a CMISSConstraintEquationsType object.
+  SUBROUTINE CMISSConstraintEquations_Finalise(CMISSConstraintEquations,err)
+
+    !Argument variables
+    TYPE(CMISSConstraintEquationsType), INTENT(OUT) :: CMISSConstraintEquations !<The CMISSConstraintEquationsType object to finalise.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    CALL ENTERS("CMISSConstraintEquations_Finalise",err,error,*999)
+
+    IF(ASSOCIATED(CMISSConstraintEquations%CONSTRAINT_EQUATIONS))  &
+      & CALL CONSTRAINT_EQUATIONS_DESTROY(CMISSConstraintEquations%CONSTRAINT_EQUATIONS,err,error,*999)
+
+    CALL EXITS("CMISSConstraintEquations_Finalise")
+    RETURN
+999 CALL ERRORS("CMISSConstraintEquations_Finalise",err,error)
+    CALL EXITS("CMISSConstraintEquations_Finalise")
+    CALL CMISS_HANDLE_ERROR(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintEquations_Finalise
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Initialises a CMISSConstraintEquationsType object.
+  SUBROUTINE CMISSConstraintEquations_Initialise(CMISSConstraintEquations,err)
+
+    !Argument variables
+    TYPE(CMISSConstraintEquationsType), INTENT(OUT) :: CMISSConstraintEquations !<The CMISSConstraintEquationsType object to initialise.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    CALL ENTERS("CMISSConstraintEquations_Initialise",err,error,*999)
+
+    NULLIFY(CMISSConstraintEquations%CONSTRAINT_EQUATIONS)
+
+    CALL EXITS("CMISSConstraintEquations_Initialise")
+    RETURN
+999 CALL ERRORS("CMISSConstraintEquations_Initialise",err,error)
+    CALL EXITS("CMISSConstraintEquations_Initialise")
+    CALL CMISS_HANDLE_ERROR(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintEquations_Initialise
 
   !
   !================================================================================================================================
@@ -15659,6 +15998,1363 @@ CONTAINS
     RETURN
 
   END SUBROUTINE CMISSDecomposition_WorldWorkGroupSet
+
+!!==================================================================================================================================
+!!
+!! CONSTRAINT_CONDITIONS_ROUTINES
+!!
+!!==================================================================================================================================
+
+  !>Finishes the creation of an constraint condition identified by an user number.
+  SUBROUTINE CMISSConstraintCondition_CreateFinishNumber(regionUserNumber,constraintConditionUserNumber,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: regionUserNumber !<The user number of the region containing the constraint to finish the constraint condition for.
+    INTEGER(INTG), INTENT(IN) :: constraintConditionUserNumber !<The user number of the constraint condition to finish creating.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION
+    TYPE(REGION_TYPE), POINTER :: REGION
+    TYPE(VARYING_STRING) :: LOCAL_ERROR
+
+    CALL ENTERS("CMISSConstraintCondition_CreateFinishNumber",err,error,*999)
+
+    NULLIFY(REGION)
+    NULLIFY(CONSTRAINT_CONDITION)
+    CALL REGION_USER_NUMBER_FIND(regionUserNumber,REGION,err,error,*999)
+    IF(ASSOCIATED(REGION)) THEN
+      CALL CONSTRAINT_CONDITION_USER_NUMBER_FIND(constraintConditionUserNumber,CONSTRAINT,CONSTRAINT_CONDITION,err,error,*999)
+      IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
+        CALL CONSTRAINT_CONDITION_CREATE_FINISH(CONSTRAINT_CONDITION,err,error,*999)
+      ELSE
+        LOCAL_ERROR="An constraint condition with an user number of "// &
+          & TRIM(NUMBER_TO_VSTRING(constraintConditionUserNumber,"*",err,error))// &
+          & " does not exist on the region with a user number of "// &
+          & TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//"."
+        CALL FLAG_ERROR(LOCAL_ERROR,err,error,*999)
+      END IF
+    ELSE
+      LOCAL_ERROR="A region with an user number of "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))// &
+        & " does not exist."
+      CALL FLAG_ERROR(LOCAL_ERROR,err,error,*999)
+    END IF
+
+    CALL EXITS("CMISSConstraintCondition_CreateFinishNumber")
+    RETURN
+999 CALL ERRORS("CMISSConstraintCondition_CreateFinishNumber",err,error)
+    CALL EXITS("CMISSConstraintCondition_CreateFinishNumber")
+    CALL CMISS_HANDLE_ERROR(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintCondition_CreateFinishNumber
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Finishes the creation of an constraint condition identified by an object.
+  SUBROUTINE CMISSConstraintCondition_CreateFinishObj(constraintCondition,err)
+
+    !Argument variables
+    TYPE(CMISSConstraintConditionType), INTENT(IN) :: constraintCondition !<The constraint condition to finish creating.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    CALL ENTERS("CMISSConstraintCondition_CreateFinishObj",err,error,*999)
+
+    CALL CONSTRAINT_CONDITION_CREATE_FINISH(constraintCondition%CONSTRAINT_CONDITION,err,error,*999)
+
+    CALL EXITS("CMISSConstraintCondition_CreateFinishObj")
+    RETURN
+999 CALL ERRORS("CMISSConstraintCondition_CreateFinishObj",err,error)
+    CALL EXITS("CMISSConstraintCondition_CreateFinishObj")
+    CALL CMISS_HANDLE_ERROR(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintCondition_CreateFinishObj
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Starts the creation of an constraint condition identified by a user number.
+  SUBROUTINE CMISSConstraintCondition_CreateStartNumber(constraintConditionUserNumber,regionUserNumber, &
+    & geometricFieldUserNumber,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: constraintConditionUserNumber !<The user number of the constraint condition to start the creation of.
+    INTEGER(INTG), INTENT(IN) :: regionUserNumber !<The user number of the region containing the constraint to start the creation of the constraint condition for.
+    INTEGER(INTG), INTENT(IN) :: geometricFieldUserNumber !<The user number of the geometric field on the constraint for the constraint condition.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(FIELD_TYPE), POINTER :: GEOMETRIC_FIELD
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION
+    TYPE(REGION_TYPE), POINTER :: REGION
+    TYPE(VARYING_STRING) :: LOCAL_ERROR
+
+    CALL ENTERS("CMISSConstraintCondition_CreateStartNumber",err,error,*999)
+
+    NULLIFY(REGION)
+    NULLIFY(GEOMETRIC_FIELD)
+    NULLIFY(CONSTRAINT_CONDITION)
+    CALL REGION_USER_NUMBER_FIND(regionUserNumber,REGION,err,error,*999)
+    IF(ASSOCIATED(REGION)) THEN
+      CALL FIELD_USER_NUMBER_FIND(geometricFieldUserNumber,CONSTRAINT,GEOMETRIC_FIELD,err,error,*999)
+      IF(ASSOCIATED(GEOMETRIC_FIELD)) THEN
+        CALL CONSTRAINT_CONDITION_CREATE_START(constraintConditionUserNumber,REGION,GEOMETRIC_FIELD,CONSTRAINT_CONDITION, &
+          & err,error,*999)
+      ELSE
+        LOCAL_ERROR="A field with an user number of "//TRIM(NUMBER_TO_VSTRING(geometricFieldUserNumber,"*",err,error))// &
+          & " does not exist on the region with a user number of "// &
+          & TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//"."
+        CALL FLAG_ERROR(LOCAL_ERROR,err,error,*999)
+      END IF
+    ELSE
+      LOCAL_ERROR="A region with an user number of "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))// &
+        & " does not exist."
+      CALL FLAG_ERROR(LOCAL_ERROR,err,error,*999)
+    END IF
+
+    CALL EXITS("CMISSConstraintCondition_CreateStartNumber")
+    RETURN
+999 CALL ERRORS("CMISSConstraintCondition_CreateStartNumber",err,error)
+    CALL EXITS("CMISSConstraintCondition_CreateStartNumber")
+    CALL CMISS_HANDLE_ERROR(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintCondition_CreateStartNumber
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Starts the creation of an constraint condition identified by an object.
+  SUBROUTINE CMISSConstraintCondition_CreateStartObj(constraintConditionUserNumber,region,geometricField,constraintCondition,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: constraintConditionUserNumber !<The user number of the constraint conditon to start the creation of.
+    TYPE(CMISSRegionType), INTENT(IN) :: region !<The region to create the constraint on.
+    TYPE(CMISSFieldType), INTENT(IN) :: geometricField !<The geometric field for the constraint condition.
+    TYPE(CMISSConstraintConditionType), INTENT(IN) :: constraintCondition !<On return, the created constraint condition.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    CALL ENTERS("CMISSConstraintCondition_CreateStartObj",err,error,*999)
+
+    CALL CONSTRAINT_CONDITION_CREATE_START(constraintConditionUserNumber,region%REGION,geometricField%FIELD, &
+      & constraintCondition%CONSTRAINT_CONDITION,err,error,*999)
+
+    CALL EXITS("CMISSConstraintCondition_CreateStartObj")
+    RETURN
+999 CALL ERRORS("CMISSConstraintCondition_CreateStartObj",err,error)
+    CALL EXITS("CMISSConstraintCondition_CreateStartObj")
+    CALL CMISS_HANDLE_ERROR(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintCondition_CreateStartObj
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Destroys an constraint condition identified by a user number.
+  SUBROUTINE CMISSConstraintCondition_DestroyNumber(regionUserNumber,constraintConditionUserNumber,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: regionUserNumber !<The user number of the region containing the constraint containing the constraint condition to destroy.
+    INTEGER(INTG), INTENT(IN) :: constraintConditionUserNumber !<The user number of the constraint condition to destroy.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION
+    TYPE(REGION_TYPE), POINTER :: REGION
+    TYPE(VARYING_STRING) :: LOCAL_ERROR
+
+    CALL ENTERS("CMISSFConstraintConditionDestroyNumber",err,error,*999)
+
+    NULLIFY(REGION)
+    NULLIFY(CONSTRAINT_CONDITION)
+    CALL REGION_USER_NUMBER_FIND(regionUserNumber,REGION,err,error,*999)
+    IF(ASSOCIATED(REGION)) THEN
+      CALL CONSTRAINT_CONDITION_USER_NUMBER_FIND(constraintConditionUserNumber,REGION,CONSTRAINT_CONDITION,err,error,*999)
+      IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
+        CALL CONSTRAINT_CONDITION_DESTROY(CONSTRAINT_CONDITION,err,error,*999)
+      ELSE
+        LOCAL_ERROR="An constraint condition with an user number of "// &
+          & TRIM(NUMBER_TO_VSTRING(constraintConditionUserNumber,"*",err,error))// &
+          & " does not exist on the region with a user number of "// &
+          & TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//"."
+        CALL FLAG_ERROR(LOCAL_ERROR,err,error,*999)
+      END IF
+    ELSE
+      LOCAL_ERROR="A region with an user number of "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FLAG_ERROR(LOCAL_ERROR,err,error,*999)
+    END IF
+
+    CALL EXITS("CMISSConstraintCondition_DestroyNumber")
+    RETURN
+999 CALL ERRORS("CMISSConstraintCondition_DestroyNumber",err,error)
+    CALL EXITS("CMISSConstraintCondition_DestroyNumber")
+    CALL CMISS_HANDLE_ERROR(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintCondition_DestroyNumber
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Destroys an constraint condition identified by an object.
+  SUBROUTINE CMISSConstraintCondition_DestroyObj(constraintCondition,err)
+
+    !Argument variables
+    TYPE(CMISSConstraintConditionType), INTENT(IN) :: constraintCondition !<The constraint condition to destroy.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    CALL ENTERS("CMISSConstraintCondition_DestroyObj",err,error,*999)
+
+    CALL CONSTRAINT_CONDITION_DESTROY(constraintCondition%CONSTRAINT_CONDITION,err,error,*999)
+
+    CALL EXITS("CMISSConstraintCondition_DestroyObj")
+    RETURN
+999 CALL ERRORS("CMISSConstraintCondition_DestroyObj",err,error)
+    CALL EXITS("CMISSConstraintCondition_DestroyObj")
+    CALL CMISS_HANDLE_ERROR(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintCondition_DestroyObj
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Finishes the creation of equations for an constraint condition identified by an user number.
+  SUBROUTINE CMISSConstraintCondition_EquationsCreateFinishNumber(regionUserNumber,constraintConditionUserNumber,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: regionUserNumber !<The user number of the region containing the constraint to finish the constraint equations for.
+    INTEGER(INTG), INTENT(IN) :: constraintConditionUserNumber !<The user number of the constraint condition to finish creating the constraint equations for.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION
+    TYPE(REGION_TYPE), POINTER :: REGION
+    TYPE(VARYING_STRING) :: LOCAL_ERROR
+
+    CALL ENTERS("CMISSConstraintCondition_EquationsCreateFinishNumber",err,error,*999)
+
+    NULLIFY(REGION)
+    NULLIFY(CONSTRAINT_CONDITION)
+    CALL REGION_USER_NUMBER_FIND(regionUserNumber,REGION,err,error,*999)
+    IF(ASSOCIATED(REGION)) THEN
+      CALL CONSTRAINT_CONDITION_USER_NUMBER_FIND(constraintConditionUserNumber,REGION,CONSTRAINT_CONDITION,err,error,*999)
+      IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
+        CALL CONSTRAINT_CONDITION_EQUATIONS_CREATE_FINISH(CONSTRAINT_CONDITION,err,error,*999)
+      ELSE
+        LOCAL_ERROR="An constraint condition with an user number of "// &
+          & TRIM(NUMBER_TO_VSTRING(constraintConditionUserNumber,"*",err,error))// &
+          & " does not exist on the region with a user number of "// &
+          & TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//"."
+        CALL FLAG_ERROR(LOCAL_ERROR,err,error,*999)
+      END IF
+    ELSE
+      LOCAL_ERROR="A region with an user number of "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))// &
+        & " does not exist."
+      CALL FLAG_ERROR(LOCAL_ERROR,err,error,*999)
+    END IF
+
+    CALL EXITS("CMISSConstraintCondition_EquationsCreateFinishNumber")
+    RETURN
+999 CALL ERRORS("CMISSConstraintCondition_EquationsCreateFinishNumber",err,error)
+    CALL EXITS("CMISSConstraintCondition_EquationsCreateFinishNumber")
+    CALL CMISS_HANDLE_ERROR(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintCondition_EquationsCreateFinishNumber
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Finishes the creation of constraint equations for an constraint condition identified by an object.
+  SUBROUTINE CMISSConstraintCondition_EquationsCreateFinishObj(constraintCondition,err)
+
+    !Argument variables
+    TYPE(CMISSConstraintConditionType), INTENT(IN) :: constraintCondition !<The constraint condition to finish creating the constraint equations for.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    CALL ENTERS("CMISSConstraintCondition_EquationsCreateFinishObj",err,error,*999)
+
+    CALL CONSTRAINT_CONDITION_EQUATIONS_CREATE_FINISH(constraintCondition%CONSTRAINT_CONDITION,err,error,*999)
+
+    CALL EXITS("CMISSConstraintCondition_EquationsCreateFinishObj")
+    RETURN
+999 CALL ERRORS("CMISSConstraintCondition_EquationsCreateFinishObj",err,error)
+    CALL EXITS("CMISSConstraintCondition_EquationsCreateFinishObj")
+    CALL CMISS_HANDLE_ERROR(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintCondition_EquationsCreateFinishObj
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Starts the creation of constraint equations for an constraint condition identified by a user number.
+  SUBROUTINE CMISSConstraintCondition_EquationsCreateStartNumber(regionUserNumber,constraintConditionUserNumber,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: regionUserNumber !<The user number of the region containing the constraint and constraint condition to start the creation of the constraint equations for.
+    INTEGER(INTG), INTENT(IN) :: constraintConditionUserNumber !<The user number of the constraint condition to start the creation of the constraint equations for.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION
+    TYPE(CONSTRAINT_EQUATIONS_TYPE), POINTER :: CONSTRAINT_EQUATIONS
+    TYPE(REGION_TYPE), POINTER :: REGION
+    TYPE(VARYING_STRING) :: LOCAL_ERROR
+
+    CALL ENTERS("CMISSConstraintCondition_EquationsCreateStartNumber",err,error,*999)
+
+    NULLIFY(REGION)
+    NULLIFY(CONSTRAINT_CONDITION)
+    NULLIFY(CONSTRAINT_EQUATIONS)
+    CALL REGION_USER_NUMBER_FIND(regionUserNumber,REGION,err,error,*999)
+    IF(ASSOCIATED(REGION)) THEN
+      CALL CONSTRAINT_CONDITION_USER_NUMBER_FIND(constraintConditionUserNumber,REGION,CONSTRAINT_CONDITION,err,error,*999)
+      IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
+        CALL CONSTRAINT_CONDITION_EQUATIONS_CREATE_START(CONSTRAINT_CONDITION,CONSTRAINT_EQUATIONS,err,error,*999)
+      ELSE
+        LOCAL_ERROR="An constraint condition with an user number of "// &
+          & TRIM(NUMBER_TO_VSTRING(constraintConditionUserNumber,"*",err,error))// &
+          & " does not exist on the region with a user number of "// &
+          & TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//"."
+        CALL FLAG_ERROR(LOCAL_ERROR,err,error,*999)
+      END IF
+    ELSE
+      LOCAL_ERROR="A region with an user number of "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))// &
+        & " does not exist."
+      CALL FLAG_ERROR(LOCAL_ERROR,err,error,*999)
+    END IF
+
+    CALL EXITS("CMISSConstraintCondition_EquationsCreateStartNumber")
+    RETURN
+999 CALL ERRORS("CMISSConstraintCondition_EquationsCreateStartNumber",err,error)
+    CALL EXITS("CMISSConstraintCondition_EquationsCreateStartNumber")
+    CALL CMISS_HANDLE_ERROR(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintCondition_EquationsCreateStartNumber
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Starts the creation of constraint equations for an constraint condition identified by an object.
+  SUBROUTINE CMISSConstraintCondition_EquationsCreateStartObj(constraintCondition,constraintEquations,err)
+
+    !Argument variables
+    TYPE(CMISSConstraintConditionType), INTENT(IN) :: constraintCondition !<The constraint condition to start the creation of constraint equations for
+    TYPE(CMISSConstraintEquationsType), INTENT(IN) :: constraintEquations !<On return, the created constraint equations.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    CALL ENTERS("CMISSConstraintCondition_EquationsCreateStartObj",err,error,*999)
+
+    CALL CONSTRAINT_CONDITION_EQUATIONS_CREATE_START(constraintCondition%CONSTRAINT_CONDITION,constraintEquations% &
+      & CONSTRAINT_EQUATIONS,err,error,*999)
+
+    CALL EXITS("CMISSConstraintCondition_EquationsCreateStartObj")
+    RETURN
+999 CALL ERRORS("CMISSConstraintCondition_EquationsCreateStartObj",err,error)
+    CALL EXITS("CMISSConstraintCondition_EquationsCreateStartObj")
+    CALL CMISS_HANDLE_ERROR(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintCondition_EquationsCreateStartObj
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Destroys constraint equations for an constraint condition identified by a user number.
+  SUBROUTINE CMISSConstraintCondition_EquationsDestroyNumber(regionUserNumber,constraintConditionUserNumber,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: regionUserNumber !<The user number of the region containing the constraint and constraint condition to destroy the constraint equations for.
+    INTEGER(INTG), INTENT(IN) :: constraintConditionUserNumber !<The user number of the constraint condition to destroy the constraint equations for.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION
+    TYPE(REGION_TYPE), POINTER :: REGION
+    TYPE(VARYING_STRING) :: LOCAL_ERROR
+
+    CALL ENTERS("CMISSFConstraintConditionEquationsDestroyNumber",err,error,*999)
+
+    NULLIFY(REGION)
+    NULLIFY(CONSTRAINT_CONDITION)
+    CALL REGION_USER_NUMBER_FIND(regionUserNumber,REGION,err,error,*999)
+    IF(ASSOCIATED(REGION)) THEN
+      CALL CONSTRAINT_CONDITION_USER_NUMBER_FIND(constraintConditionUserNumber,REGION,CONSTRAINT_CONDITION,err,error,*999)
+      IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
+        CALL CONSTRAINT_CONDITION_EQUATIONS_DESTROY(CONSTRAINT_CONDITION,err,error,*999)
+      ELSE
+        LOCAL_ERROR="An constraint condition with an user number of "// &
+          & TRIM(NUMBER_TO_VSTRING(constraintConditionUserNumber,"*",err,error))// &
+          & " does not exist on the region with a user number of "// &
+          & TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//"."
+        CALL FLAG_ERROR(LOCAL_ERROR,err,error,*999)
+      END IF
+    ELSE
+      LOCAL_ERROR="A region with an user number of "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FLAG_ERROR(LOCAL_ERROR,err,error,*999)
+    END IF
+
+    CALL EXITS("CMISSConstraintCondition_EquationsDestroyNumber")
+    RETURN
+999 CALL ERRORS("CMISSConstraintCondition_EquationsDestroyNumber",err,error)
+    CALL EXITS("CMISSConstraintCondition_EquationsDestroyNumber")
+    CALL CMISS_HANDLE_ERROR(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintCondition_EquationsDestroyNumber
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Destroys the constraint equations for an constraint condition identified by an object.
+  SUBROUTINE CMISSConstraintCondition_EquationsDestroyObj(constraintCondition,err)
+
+    !Argument variables
+    TYPE(CMISSConstraintConditionType), INTENT(IN) :: constraintCondition !<The constraint condition to destroy the constraint equations for.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    CALL ENTERS("CMISSConstraintCondition_EquationsDestroyObj",err,error,*999)
+
+    CALL CONSTRAINT_CONDITION_EQUATIONS_DESTROY(constraintCondition%CONSTRAINT_CONDITION,err,error,*999)
+
+    CALL EXITS("CMISSConstraintCondition_EquationsDestroyObj")
+    RETURN
+999 CALL ERRORS("CMISSConstraintCondition_EquationsDestroyObj",err,error)
+    CALL EXITS("CMISSConstraintCondition_EquationsDestroyObj")
+    CALL CMISS_HANDLE_ERROR(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintCondition_EquationsDestroyObj
+  
+  !
+  !================================================================================================================================
+  !
+
+  !>Finishes the creation of a Lagrange Multiplier Field for an constraint condition identified by an user number.
+  SUBROUTINE CMISSConstraintCondition_LagrangeFieldCreateFinishNumber(regionUserNumber,constraintConditionUserNumber,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: regionUserNumber !<The user number of the region containing the constraint and constraint condition to finish the Lagrange multiplier field for.
+    INTEGER(INTG), INTENT(IN) :: constraintConditionUserNumber !<The user number of the constraint condition to finish creating the Lagrange multiplier field for.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION
+    TYPE(REGION_TYPE), POINTER :: REGION
+    TYPE(VARYING_STRING) :: LOCAL_ERROR
+
+    CALL ENTERS("CMISSConstraintCondition_LagrangeFieldCreateFinishNumber",err,error,*999)
+
+    NULLIFY(REGION)
+    NULLIFY(CONSTRAINT_CONDITION)
+    CALL REGION_USER_NUMBER_FIND(regionUserNumber,REGION,err,error,*999)
+    IF(ASSOCIATED(REGION)) THEN
+      CALL CONSTRAINT_CONDITION_USER_NUMBER_FIND(constraintConditionUserNumber,REGION,CONSTRAINT_CONDITION,err,error,*999)
+      IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
+        CALL CONSTRAINT_CONDITION_LAGRANGE_FIELD_CREATE_FINISH(CONSTRAINT_CONDITION,err,error,*999)
+      ELSE
+        LOCAL_ERROR="An constraint condition with an user number of "// &
+          & TRIM(NUMBER_TO_VSTRING(constraintConditionUserNumber,"*",err,error))// &
+          & " does not exist on the region with a user number of "// &
+          & TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//"."
+        CALL FLAG_ERROR(LOCAL_ERROR,err,error,*999)
+      END IF
+    ELSE
+      LOCAL_ERROR="A region with an user number of "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))// &
+        & " does not exist."
+      CALL FLAG_ERROR(LOCAL_ERROR,err,error,*999)
+    END IF
+
+    CALL EXITS("CMISSConstraintCondition_LagrangeFieldCreateFinishNumber")
+    RETURN
+999 CALL ERRORS("CMISSConstraintCondition_LagrangeFieldCreateFinishNumber",err,error)
+    CALL EXITS("CMISSConstraintCondition_LagrangeFieldCreateFinishNumber")
+    CALL CMISS_HANDLE_ERROR(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintCondition_LagrangeFieldCreateFinishNumber
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Finishes the creation of a Lagrange multiplier field for an constraint condition identified by an object.
+  SUBROUTINE CMISSConstraintCondition_LagrangeFieldCreateFinishObj(constraintCondition,err)
+
+    !Argument variables
+    TYPE(CMISSConstraintConditionType), INTENT(IN) :: constraintCondition !<The constraint condition to finish creating the Lagrange multiplier field for.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    CALL ENTERS("CMISSConstraintCondition_LagrangeFieldCreateFinishObj",err,error,*999)
+
+    CALL CONSTRAINT_CONDITION_LAGRANGE_FIELD_CREATE_FINISH(constraintCondition%CONSTRAINT_CONDITION,err,error,*999)
+
+    CALL EXITS("CMISSConstraintCondition_LagrangeFieldCreateFinishObj")
+    RETURN
+999 CALL ERRORS("CMISSConstraintCondition_LagrangeFieldCreateFinishObj",err,error)
+    CALL EXITS("CMISSConstraintCondition_LagrangeFieldCreateFinishObj")
+    CALL CMISS_HANDLE_ERROR(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintCondition_LagrangeFieldCreateFinishObj
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Starts the creation of a Lagrange multiplier field for an constraint condition identified by a user number.
+  SUBROUTINE CMISSConstraintCondition_LagrangeFieldCreateStartNumber(regionUserNumber, &
+    & constraintConditionUserNumber,lagrangeFieldUserNumber,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: regionUserNumber !<The user number of the region containing the constraint and constraint condition to start the creation of the Lagrange multiplier field for.
+    INTEGER(INTG), INTENT(IN) :: constraintConditionUserNumber !<The user number of the constraint condition to start the creation of the Lagrange multiplier field for.
+    INTEGER(INTG), INTENT(IN) :: lagrangeFieldUserNumber !<The user number of the Lagrange field.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(FIELD_TYPE), POINTER :: LAGRANGE_FIELD
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION
+    TYPE(REGION_TYPE), POINTER :: REGION
+    TYPE(VARYING_STRING) :: LOCAL_ERROR
+
+    CALL ENTERS("CMISSConstraintCondition_LagrangeFieldCreateStartNumber",err,error,*999)
+
+    NULLIFY(REGION)
+    NULLIFY(CONSTRAINT_CONDITION)
+    NULLIFY(LAGRANGE_FIELD)
+    CALL REGION_USER_NUMBER_FIND(regionUserNumber,REGION,err,error,*999)
+    IF(ASSOCIATED(REGION)) THEN
+      CALL CONSTRAINT_CONDITION_USER_NUMBER_FIND(constraintUserNumber,REGION,CONSTRAINT_CONDITION,err,error,*999)
+      IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
+        CALL CONSTRAINT_CONDITION_LAGRANGE_FIELD_CREATE_START(CONSTRAINT_CONDITION,lagrangeFieldUserNumber,LAGRANGE_FIELD, &
+          & err,error,*999)
+      ELSE
+        LOCAL_ERROR="An constraint condition with an user number of "// &
+          & TRIM(NUMBER_TO_VSTRING(constraintConditionUserNumber,"*",err,error))// &
+          & " does not exist on the region with a user number of "// &
+          & TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//"."
+        CALL FLAG_ERROR(LOCAL_ERROR,err,error,*999)
+      END IF
+    ELSE
+      LOCAL_ERROR="A region with an user number of "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))// &
+        & " does not exist."
+      CALL FLAG_ERROR(LOCAL_ERROR,err,error,*999)
+    END IF
+
+    CALL EXITS("CMISSConstraintCondition_LagrangeFieldCreateStartNumber")
+    RETURN
+999 CALL ERRORS("CMISSConstraintCondition_LagrangeFieldCreateStartNumber",err,error)
+    CALL EXITS("CMISSConstraintCondition_LagrangeFieldCreateStartNumber")
+    CALL CMISS_HANDLE_ERROR(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintCondition_LagrangeFieldCreateStartNumber
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Starts the creation of a Lagrange multiplier field for an constraint condition identified by an object.
+  SUBROUTINE CMISSConstraintCondition_LagrangeFieldCreateStartObj(constraintCondition,lagrangeFieldUserNumber,lagrangeField,err)
+
+    !Argument variables
+    TYPE(CMISSConstraintConditionType), INTENT(IN) :: constraintCondition !<The constraint condition to start the creation of the Lagrange multiplier field for.
+    INTEGER(INTG), INTENT(IN) :: lagrangeFieldUserNumber !<The user number of the Lagrange field.
+    TYPE(CMISSFieldType), INTENT(INOUT) :: lagrangeField !<If associated on entry, the user created Lagrange field which has the same user number as the specified Lagrange field user number. If not associated on entry, on return, the created Lagrange field for the constraint condition.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    CALL ENTERS("CMISSConstraintCondition_LagrangeFieldCreateStartObj",err,error,*999)
+
+    CALL CONSTRAINT_CONDITION_LAGRANGE_FIELD_CREATE_START(constraintCondition%CONSTRAINT_CONDITION,lagrangeFieldUserNumber, &
+      & lagrangeField%FIELD,err,error,*999)
+
+    CALL EXITS("CMISSConstraintCondition_LagrangeFieldCreateStartObj")
+    RETURN
+999 CALL ERRORS("CMISSConstraintCondition_LagrangeFieldCreateStartObj",err,error)
+    CALL EXITS("CMISSConstraintCondition_LagrangeFieldCreateStartObj")
+    CALL CMISS_HANDLE_ERROR(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintCondition_LagrangeFieldCreateStartObj
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Finishes the creation of a penalty Field for an constraint condition identified by an user number.
+  SUBROUTINE CMISSConstraintCondition_PenaltyFieldCreateFinishNumber(RegionUserNumber,ConstraintConditionUserNumber,Err)
+  
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: RegionUserNumber !<The user number of the region containing the constraint and constraint condition to finish the penalty field for.
+    INTEGER(INTG), INTENT(IN) :: ConstraintConditionUserNumber !<The user number of the constraint condition to finish creating the penalty field for.
+    INTEGER(INTG), INTENT(OUT) :: Err !<The error code.
+    !Local variables
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION
+    TYPE(REGION_TYPE), POINTER :: REGION
+    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    
+    CALL ENTERS("CMISSConstraintCondition_PenaltyFieldCreateFinishNumber",Err,ERROR,*999)
+ 
+    NULLIFY(REGION)
+    NULLIFY(CONSTRAINT_CONDITION)
+    CALL REGION_USER_NUMBER_FIND(RegionUserNumber,REGION,Err,ERROR,*999)
+    IF(ASSOCIATED(REGION)) THEN
+      CALL CONSTRAINT_CONDITION_USER_NUMBER_FIND(ConstraintConditionUserNumber,REGION,CONSTRAINT_CONDITION,Err,ERROR,*999)
+      IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
+        CALL CONSTRAINT_CONDITION_PENALTY_FIELD_CREATE_FINISH(CONSTRAINT_CONDITION,Err,ERROR,*999)
+      ELSE
+        LOCAL_ERROR="An constraint condition with an user number of "// &
+          & TRIM(NUMBER_TO_VSTRING(ConstraintConditionUserNumber,"*",Err,ERROR))// &
+          & " does not exist on the region with a user number of "// &
+          & TRIM(NUMBER_TO_VSTRING(RegionUserNumber,"*",Err,ERROR))//"."
+        CALL FLAG_ERROR(LOCAL_ERROR,Err,ERROR,*999)
+      ENDIF
+    ELSE
+      LOCAL_ERROR="A region with an user number of "//TRIM(NUMBER_TO_VSTRING(RegionUserNumber,"*",Err,ERROR))// &
+        & " does not exist."
+      CALL FLAG_ERROR(LOCAL_ERROR,Err,ERROR,*999)
+    ENDIF
+
+    CALL EXITS("CMISSConstraintCondition_PenaltyFieldCreateFinishNumber")
+    RETURN
+999 CALL ERRORS("CMISSConstraintCondition_PenaltyFieldCreateFinishNumber",Err,ERROR)
+    CALL EXITS("CMISSConstraintCondition_PenaltyFieldCreateFinishNumber")
+    CALL CMISS_HANDLE_ERROR(Err,ERROR)
+    RETURN
+    
+  END SUBROUTINE CMISSConstraintCondition_PenaltyFieldCreateFinishNumber
+
+  !  
+  !================================================================================================================================
+  !  
+ 
+  !>Finishes the creation of a penalty field for an constraint condition identified by an object.
+  SUBROUTINE CMISSConstraintCondition_PenaltyFieldCreateFinishObj(ConstraintCondition,Err)
+  
+    !Argument variables
+    TYPE(CMISSConstraintConditionType), INTENT(IN) :: ConstraintCondition !<The constraint condition to finish creating the penalty field for.
+    INTEGER(INTG), INTENT(OUT) :: Err !<The error code.
+    !Local variables
+  
+    CALL ENTERS("CMISSConstraintCondition_PenaltyFieldCreateFinishObj",Err,ERROR,*999)
+ 
+    CALL CONSTRAINT_CONDITION_PENALTY_FIELD_CREATE_FINISH(ConstraintCondition%CONSTRAINT_CONDITION,Err,ERROR,*999)
+
+    CALL EXITS("CMISSConstraintCondition_PenaltyFieldCreateFinishObj")
+    RETURN
+999 CALL ERRORS("CMISSConstraintCondition_PenaltyFieldCreateFinishObj",Err,ERROR)
+    CALL EXITS("CMISSConstraintCondition_PenaltyFieldCreateFinishObj")
+    CALL CMISS_HANDLE_ERROR(Err,ERROR)
+    RETURN
+    
+  END SUBROUTINE CMISSConstraintCondition_PenaltyFieldCreateFinishObj
+
+  !  
+  !================================================================================================================================
+  !  
+ 
+  !>Starts the creation of a penalty field for an constraint condition identified by a user number.
+  SUBROUTINE CMISSConstraintCondition_PenaltyFieldCreateStartNumber(RegionUserNumber,ConstraintConditionUserNumber, &
+      & PenaltyFieldUserNumber,Err)
+  
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: RegionUserNumber !<The user number of the region containing the constraint and constraint condition to start the creation of the penalty field for.
+    INTEGER(INTG), INTENT(IN) :: ConstraintConditionUserNumber !<The user number of the constraint condition to start the creation of the penalty field for.
+    INTEGER(INTG), INTENT(IN) :: PenaltyFieldUserNumber !<The user number of the penalty field.
+    INTEGER(INTG), INTENT(OUT) :: Err !<The error code.
+    !Local variables
+    TYPE(FIELD_TYPE), POINTER :: PENALTY_FIELD
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION
+    TYPE(REGION_TYPE), POINTER :: REGION
+    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    
+    CALL ENTERS("CMISSConstraintCondition_PenaltyFieldCreateStartNumber",Err,ERROR,*999)
+ 
+    NULLIFY(REGION)
+    NULLIFY(CONSTRAINT_CONDITION)
+    NULLIFY(PENALTY_FIELD)
+    CALL REGION_USER_NUMBER_FIND(RegionUserNumber,REGION,Err,ERROR,*999)
+    IF(ASSOCIATED(REGION)) THEN
+      CALL CONSTRAINT_CONDITION_USER_NUMBER_FIND(ConstraintUserNumber,REGION,CONSTRAINT_CONDITION,Err,ERROR,*999)
+      IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
+        CALL CONSTRAINT_CONDITION_PENALTY_FIELD_CREATE_START(CONSTRAINT_CONDITION,PenaltyFieldUserNumber,PENALTY_FIELD, &
+          & Err,ERROR,*999)
+      ELSE
+        LOCAL_ERROR="An constraint condition with an user number of "// &
+          & TRIM(NUMBER_TO_VSTRING(ConstraintConditionUserNumber,"*",Err,ERROR))// &
+          & " does not exist on the region with a user number of "// &
+          & TRIM(NUMBER_TO_VSTRING(RegionUserNumber,"*",Err,ERROR))//"."
+        CALL FLAG_ERROR(LOCAL_ERROR,Err,ERROR,*999)
+      ENDIF
+    ELSE
+      LOCAL_ERROR="A region with an user number of "//TRIM(NUMBER_TO_VSTRING(RegionUserNumber,"*",Err,ERROR))// &
+        & " does not exist."
+      CALL FLAG_ERROR(LOCAL_ERROR,Err,ERROR,*999)
+    ENDIF
+
+    CALL EXITS("CMISSConstraintCondition_PenaltyFieldCreateStartNumber")
+    RETURN
+999 CALL ERRORS("CMISSConstraintCondition_PenaltyFieldCreateStartNumber",Err,ERROR)
+    CALL EXITS("CMISSConstraintCondition_PenaltyFieldCreateStartNumber")
+    CALL CMISS_HANDLE_ERROR(Err,ERROR)
+    RETURN
+    
+  END SUBROUTINE CMISSConstraintCondition_PenaltyFieldCreateStartNumber
+
+  !  
+  !================================================================================================================================
+  !  
+ 
+  !>Starts the creation of a penalty field for an constraint condition identified by an object.
+  SUBROUTINE CMISSConstraintCondition_PenaltyFieldCreateStartObj(ConstraintCondition,PenaltyFieldUserNumber,PenaltyField,Err)
+  
+    !Argument variables
+    TYPE(CMISSConstraintConditionType), INTENT(IN) :: ConstraintCondition !<The constraint condition to start the creation of the penalty field for.
+    INTEGER(INTG), INTENT(IN) :: PenaltyFieldUserNumber !<The user number of the penalty field.
+    TYPE(CMISSFieldType), INTENT(INOUT) :: PenaltyField !<If associated on entry, the user created penalty field which has the same user number as the specified penalty field user number. If not associated on entry, on return, the created penalty field for the constraint condition.
+    INTEGER(INTG), INTENT(OUT) :: Err !<The error code.
+    !Local variables
+  
+    CALL ENTERS("CMISSConstraintCondition_PenaltyFieldCreateStartObj",Err,ERROR,*999)
+ 
+    CALL CONSTRAINT_CONDITION_PENALTY_FIELD_CREATE_START(ConstraintCondition%CONSTRAINT_CONDITION,PenaltyFieldUserNumber, &
+      & PenaltyField%FIELD,Err,ERROR,*999)
+
+    CALL EXITS("CMISSConstraintCondition_PenaltyFieldCreateStartObj")
+    RETURN
+999 CALL ERRORS("CMISSConstraintCondition_PenaltyFieldCreateStartObj",Err,ERROR)
+    CALL EXITS("CMISSConstraintCondition_PenaltyFieldCreateStartObj")
+    CALL CMISS_HANDLE_ERROR(Err,ERROR)
+    RETURN
+    
+  END SUBROUTINE CMISSConstraintCondition_PenaltyFieldCreateStartObj
+
+  !  
+  !================================================================================================================================
+  !   
+
+  !>Returns the method for an constraint condition identified by a user number.
+  SUBROUTINE CMISSConstraintCondition_MethodGetNumber(regionUserNumber,constraintConditionUserNumber, &
+    & constraintConditionMethod,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: regionUserNumber !<The user number of the region containing the constraint containing the constraint condition to get the method for.
+    INTEGER(INTG), INTENT(IN) :: constraintConditionUserNumber !<The user number of the constraint condition to get the method for.
+    INTEGER(INTG), INTENT(OUT) :: constraintConditionMethod !<On return, the constraint condition method. \see OPENCMISS_ConstraintConditionMethods,OPENCMISS
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION
+    TYPE(REGION_TYPE), POINTER :: REGION
+    TYPE(VARYING_STRING) :: LOCAL_ERROR
+
+    CALL ENTERS("CMISSConstraintCondition_MethodGetNumber",err,error,*999)
+
+    NULLIFY(REGION)
+    NULLIFY(CONSTRAINT_CONDITION)
+    CALL REGION_USER_NUMBER_FIND(regionUserNumber,REGION,err,error,*999)
+    IF(ASSOCIATED(REGION)) THEN
+        CALL CONSTRAINT_CONDITION_USER_NUMBER_FIND(constraintConditionUserNumber,REGION,CONSTRAINT_CONDITION,err,error,*999)
+        IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
+          CALL CONSTRAINT_CONDITION_METHOD_GET(CONSTRAINT_CONDITION,constraintConditionMethod,err,error,*999)
+        ELSE
+          LOCAL_ERROR="An constraint condition with an user number of "// &
+            & TRIM(NUMBER_TO_VSTRING(constraintConditionUserNumber,"*",err,error))// &
+            & " does not exist on the region with a user number of "// &
+            & TRIM(NUMBER_TO_VSTRING(constraintUserNumber,"*",err,error))// &
+            & " defined on a region with a user number of "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//"."
+          CALL FLAG_ERROR(LOCAL_ERROR,err,error,*999)
+        END IF
+    ELSE
+      LOCAL_ERROR="A region with an user number of "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FLAG_ERROR(LOCAL_ERROR,err,error,*999)
+    END IF
+
+    CALL EXITS("CMISSConstraintCondition_MethodGetNumber")
+    RETURN
+999 CALL ERRORS("CMISSConstraintCondition_MethodGetNumber",err,error)
+    CALL EXITS("CMISSConstraintCondition_MethodGetNumber")
+    CALL CMISS_HANDLE_ERROR(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintCondition_MethodGetNumber
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Gets the method for an constraint condition identified by an object.
+  SUBROUTINE CMISSConstraintCondition_MethodGetObj(constraintCondition,constraintConditionMethod,err)
+
+    !Argument variables
+    TYPE(CMISSConstraintConditionType), INTENT(IN) :: constraintCondition !<The constraint condition to get the method for.
+    INTEGER(INTG), INTENT(OUT) :: constraintConditionMethod !<On return, the constraint condition method. \see OPENCMISS_ConstraintConditionMethods,OPENCMISS
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    CALL ENTERS("CMISSConstraintCondition_MethodGetObj",err,error,*999)
+
+    CALL CONSTRAINT_CONDITION_METHOD_GET(constraintCondition%CONSTRAINT_CONDITION,constraintConditionMethod,err,error,*999)
+
+    CALL EXITS("CMISSConstraintCondition_MethodGetObj")
+    RETURN
+999 CALL ERRORS("CMISSConstraintCondition_MethodGetObj",err,error)
+    CALL EXITS("CMISSConstraintCondition_MethodGetObj")
+    CALL CMISS_HANDLE_ERROR(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintCondition_MethodGetObj
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Sets/changes the method for an constraint condition identified by a user number.
+  SUBROUTINE CMISSConstraintCondition_MethodSetNumber(regionUserNumber,constraintConditionUserNumber, &
+    & constraintConditionMethod,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: regionUserNumber !<The user number of the region containing the constraint containing the constraint condition to set the method for.
+    INTEGER(INTG), INTENT(IN) :: constraintConditionUserNumber !<The user number of the constraint condition to set the method for.
+    INTEGER(INTG), INTENT(IN) :: constraintConditionMethod !<The constraint condition method to set. \see OPENCMISS_ConstraintConditionMethods,OPENCMISS
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION
+    TYPE(REGION_TYPE), POINTER :: REGION
+    TYPE(VARYING_STRING) :: LOCAL_ERROR
+
+    CALL ENTERS("CMISSConstraintCondition_MethodSetNumber",err,error,*999)
+
+    NULLIFY(REGION)
+    NULLIFY(CONSTRAINT_CONDITION)
+    CALL REGION_USER_NUMBER_FIND(regionUserNumber,REGION,err,error,*999)
+    IF(ASSOCIATED(REGION)) THEN
+        CALL CONSTRAINT_CONDITION_USER_NUMBER_FIND(constraintConditionUserNumber,REGION,CONSTRAINT_CONDITION,err,error,*999)
+        IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
+          CALL CONSTRAINT_CONDITION_METHOD_SET(CONSTRAINT_CONDITION,constraintConditionMethod,err,error,*999)
+        ELSE
+          LOCAL_ERROR="An constraint condition with an user number of "// &
+            & TRIM(NUMBER_TO_VSTRING(constraintConditionUserNumber,"*",err,error))// &
+            & " does not exist on the region with a user number of "// &
+            & TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//"."
+          CALL FLAG_ERROR(LOCAL_ERROR,err,error,*999)
+        END IF
+    ELSE
+      LOCAL_ERROR="A region with an user number of "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FLAG_ERROR(LOCAL_ERROR,err,error,*999)
+    END IF
+
+    CALL EXITS("CMISSConstraintCondition_MethodSetNumber")
+    RETURN
+999 CALL ERRORS("CMISSConstraintCondition_MethodSetNumber",err,error)
+    CALL EXITS("CMISSConstraintCondition_MethodSetNumber")
+    CALL CMISS_HANDLE_ERROR(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintCondition_MethodSetNumber
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Sets/changes the method for an constraint condition identified by an object.
+  SUBROUTINE CMISSConstraintCondition_MethodSetObj(constraintCondition,constraintConditionMethod,err)
+
+    !Argument variables
+    TYPE(CMISSConstraintConditionType), INTENT(IN) :: constraintCondition !<The constraint condition to set the method for.
+    INTEGER(INTG), INTENT(IN) :: constraintConditionMethod !<The constraint condition method to set. \see OPENCMISS_ConstraintConditionMethods,OPENCMISS
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    CALL ENTERS("CMISSConstraintCondition_MethodSetObj",err,error,*999)
+
+    CALL CONSTRAINT_CONDITION_METHOD_SET(constraintCondition%CONSTRAINT_CONDITION,constraintConditionMethod,err,error,*999)
+
+    CALL EXITS("CMISSConstraintCondition_MethodSetObj")
+    RETURN
+999 CALL ERRORS("CMISSConstraintCondition_MethodSetObj",err,error)
+    CALL EXITS("CMISSConstraintCondition_MethodSetObj")
+    CALL CMISS_HANDLE_ERROR(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintCondition_MethodSetObj
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Returns the operator for an constraint condition identified by a user number.
+  SUBROUTINE CMISSConstraintCondition_OperatorGetNumber(regionUserNumber,constraintConditionUserNumber, &
+    & constraintConditionOperator,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: regionUserNumber !<The user number of the region containing the constraint containing the constraint condition to get the operator for.
+    INTEGER(INTG), INTENT(IN) :: constraintConditionUserNumber !<The user number of the constraint condition to get the operator for.
+    INTEGER(INTG), INTENT(OUT) :: constraintConditionOperator !<On return, the constraint condition operator. \see OPENCMISS_ConstraintConditionOperators,OPENCMISS
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION
+    TYPE(REGION_TYPE), POINTER :: REGION
+    TYPE(VARYING_STRING) :: LOCAL_ERROR
+
+    CALL ENTERS("CMISSConstraintCondition_OperatorGetNumber",err,error,*999)
+
+    NULLIFY(REGION)
+    NULLIFY(CONSTRAINT_CONDITION)
+    CALL REGION_USER_NUMBER_FIND(regionUserNumber,REGION,err,error,*999)
+    IF(ASSOCIATED(REGION)) THEN
+        CALL CONSTRAINT_CONDITION_USER_NUMBER_FIND(constraintConditionUserNumber,REGION,CONSTRAINT_CONDITION,err,error,*999)
+        IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
+          CALL CONSTRAINT_CONDITION_OPERATOR_GET(CONSTRAINT_CONDITION,constraintConditionOperator,err,error,*999)
+        ELSE
+          LOCAL_ERROR="An constraint condition with an user number of "// &
+            & TRIM(NUMBER_TO_VSTRING(constraintConditionUserNumber,"*",err,error))// &
+            & " does not exist on the region with a user number of "// &
+            & TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//"."
+          CALL FLAG_ERROR(LOCAL_ERROR,err,error,*999)
+        END IF
+    ELSE
+      LOCAL_ERROR="A region with an user number of "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FLAG_ERROR(LOCAL_ERROR,err,error,*999)
+    END IF
+
+    CALL EXITS("CMISSConstraintCondition_OperatorGetNumber")
+    RETURN
+999 CALL ERRORS("CMISSConstraintCondition_OperatorGetNumber",err,error)
+    CALL EXITS("CMISSConstraintCondition_OperatorGetNumber")
+    CALL CMISS_HANDLE_ERROR(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintCondition_OperatorGetNumber
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Gets the operator for an constraint condition identified by an object.
+  SUBROUTINE CMISSConstraintCondition_OperatorGetObj(constraintCondition,constraintConditionOperator,err)
+
+    !Argument variables
+    TYPE(CMISSConstraintConditionType), INTENT(IN) :: constraintCondition !<The constraint condition to get the operator for.
+    INTEGER(INTG), INTENT(OUT) :: constraintConditionOperator !<On return, the constraint condition operator. \see OPENCMISS_ConstraintConditionOperator,OPENCMISS
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    CALL ENTERS("CMISSConstraintCondition_OperatorGetObj",err,error,*999)
+
+    CALL CONSTRAINT_CONDITION_OPERATOR_GET(constraintCondition%CONSTRAINT_CONDITION,constraintConditionOperator, &
+      & err,error,*999)
+
+    CALL EXITS("CMISSConstraintCondition_OperatorGetObj")
+    RETURN
+999 CALL ERRORS("CMISSConstraintCondition_OperatorGetObj",err,error)
+    CALL EXITS("CMISSConstraintCondition_OperatorGetObj")
+    CALL CMISS_HANDLE_ERROR(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintCondition_OperatorGetObj
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Sets/changes the operator for an constraint condition identified by a user number.
+  SUBROUTINE CMISSConstraintCondition_OperatorSetNumber(regionUserNumber,constraintConditionUserNumber, &
+    & constraintConditionOperator,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: regionUserNumber !<The user number of the region containing the constraint containing the constraint condition to set the operator for.
+    INTEGER(INTG), INTENT(IN) :: constraintConditionUserNumber !<The user number of the constraint condition to set the operator for.
+    INTEGER(INTG), INTENT(IN) :: constraintConditionOperator !<The constraint condition operator to set. \see OPENCMISS_ConstraintConditionOperators,OPENCMISS
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION
+    TYPE(REGION_TYPE), POINTER :: REGION
+    TYPE(VARYING_STRING) :: LOCAL_ERROR
+
+    CALL ENTERS("CMISSConstraintCondition_OperatorSetNumber",err,error,*999)
+
+    NULLIFY(REGION)
+    NULLIFY(CONSTRAINT_CONDITION)
+    CALL REGION_USER_NUMBER_FIND(regionUserNumber,REGION,err,error,*999)
+    IF(ASSOCIATED(REGION)) THEN
+      CALL CONSTRAINT_CONDITION_USER_NUMBER_FIND(constraintConditionUserNumber,REGION,CONSTRAINT_CONDITION,err,error,*999)
+      IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
+        CALL CONSTRAINT_CONDITION_OPERATOR_SET(CONSTRAINT_CONDITION,constraintConditionOperator,err,error,*999)
+      ELSE
+        LOCAL_ERROR="An constraint condition with an user number of "// &
+          & TRIM(NUMBER_TO_VSTRING(constraintConditionUserNumber,"*",err,error))// &
+          & " does not exist on the region with a user number of "// &
+          & TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//"."
+          CALL FLAG_ERROR(LOCAL_ERROR,err,error,*999)
+      END IF
+    ELSE
+      LOCAL_ERROR="A region with an user number of "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FLAG_ERROR(LOCAL_ERROR,err,error,*999)
+    END IF
+
+    CALL EXITS("CMISSConstraintCondition_OperatorSetNumber")
+    RETURN
+999 CALL ERRORS("CMISSConstraintCondition_OperatorSetNumber",err,error)
+    CALL EXITS("CMISSConstraintCondition_OperatorSetNumber")
+    CALL CMISS_HANDLE_ERROR(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintCondition_OperatorSetNumber
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Sets/changes the operator for an constraint condition identified by an object.
+  SUBROUTINE CMISSConstraintCondition_OperatorSetObj(constraintCondition,constraintConditionOperator,err)
+
+    !Argument variables
+    TYPE(CMISSConstraintConditionType), INTENT(IN) :: constraintCondition !<The constraint condition to set the operator for.
+    INTEGER(INTG), INTENT(IN) :: constraintConditionOperator !<The constraint condition operator to set. \see OPENCMISS_ConstraintConditionOperator,OPENCMISS
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    CALL ENTERS("CMISSConstraintCondition_OperatorSetObj",err,error,*999)
+
+    CALL CONSTRAINT_CONDITION_OPERATOR_SET(constraintCondition%CONSTRAINT_CONDITION,constraintConditionOperator, &
+      & err,error,*999)
+
+    CALL EXITS("CMISSConstraintCondition_OperatorSetObj")
+    RETURN
+999 CALL ERRORS("CMISSConstraintCondition_OperatorSetObj",err,error)
+    CALL EXITS("CMISSConstraintCondition_OperatorSetObj")
+    CALL CMISS_HANDLE_ERROR(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintCondition_OperatorSetObj
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Returns the output type for an constraint equations identified by a user number.
+  SUBROUTINE CMISSConstraintEquations_OutputTypeGetNumber(regionUserNumber,constraintConditionUserNumber, &
+    & outputType,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: regionUserNumber !<The user number of the region containing the constraint, constraint condition and constraint equations to get the output type for.
+    INTEGER(INTG), INTENT(IN) :: constraintConditionUserNumber !<The user number of the constraint condition and constraint equation to get the output type for.
+    INTEGER(INTG), INTENT(OUT) :: outputType !<On return, the constraint equations output type. \see OPENCMISS_EquationsOutputType,OPENCMISS
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION
+    TYPE(CONSTRAINT_EQUATIONS_TYPE), POINTER :: CONSTRAINT_EQUATIONS
+    TYPE(REGION_TYPE), POINTER :: REGION
+    TYPE(VARYING_STRING) :: LOCAL_ERROR
+
+    CALL ENTERS("CMISSConstraintEquations_OutputTypeGetNumber",err,error,*999)
+
+    NULLIFY(REGION)
+    NULLIFY(CONSTRAINT_CONDITION)
+    NULLIFY(CONSTRAINT_EQUATIONS)
+    CALL REGION_USER_NUMBER_FIND(regionUserNumber,REGION,err,error,*999)
+    IF(ASSOCIATED(REGION)) THEN
+      CALL CONSTRAINT_CONDITION_USER_NUMBER_FIND(constraintConditionUserNumber,REGION,CONSTRAINT_CONDITION,err,error,*999)
+      IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
+        CALL CONSTRAINT_CONDITION_EQUATIONS_GET(CONSTRAINT_CONDITION,CONSTRAINT_EQUATIONS,err,error,*999)
+        CALL CONSTRAINT_EQUATIONS_OUTPUT_TYPE_GET(CONSTRAINT_EQUATIONS,outputType,err,error,*999)
+      ELSE
+        LOCAL_ERROR="An constraint condition with an user number of "// &
+          & TRIM(NUMBER_TO_VSTRING(constraintConditionUserNumber,"*",err,error))// &
+          & " does not exist on the region with a user number of "// &
+          & TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))// &
+          & " defined on a region with a user number of "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//"."
+        CALL FLAG_ERROR(LOCAL_ERROR,err,error,*999)
+      END IF
+    ELSE
+      LOCAL_ERROR="A region with an user number of "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FLAG_ERROR(LOCAL_ERROR,err,error,*999)
+    END IF
+
+    CALL EXITS("CMISSConstraintEquations_OutputTypeGetNumber")
+    RETURN
+999 CALL ERRORS("CMISSConstraintEquations_OutputTypeGetNumber",err,error)
+    CALL EXITS("CMISSConstraintEquations_OutputTypeGetNumber")
+    CALL CMISS_HANDLE_ERROR(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintEquations_OutputTypeGetNumber
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Gets the output type for an constraint equations identified by an object.
+  SUBROUTINE CMISSConstraintEquations_OutputTypeGetObj(constraintEquations,outputType,err)
+
+    !Argument variables
+    TYPE(CMISSConstraintEquationsType), INTENT(IN) :: constraintEquations !<The constraint equations to get the output type for.
+    INTEGER(INTG), INTENT(OUT) :: outputType !<On return, the constraint equations output type. \see OPENCMISS_EquationsOutputType,OPENCMISS
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    CALL ENTERS("CMISSConstraintEquations_OutputTypeGetObj",err,error,*999)
+
+    CALL CONSTRAINT_EQUATIONS_OUTPUT_TYPE_GET(constraintEquations%CONSTRAINT_EQUATIONS,outputType,err,error,*999)
+
+    CALL EXITS("CMISSConstraintEquations_OutputTypeGetObj")
+    RETURN
+999 CALL ERRORS("CMISSConstraintEquations_OutputTypeGetObj",err,error)
+    CALL EXITS("CMISSConstraintEquations_OutputTypeGetObj")
+    CALL CMISS_HANDLE_ERROR(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintEquations_OutputTypeGetObj
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Sets/changes the output type for an constraint equations identified by a user number.
+  SUBROUTINE CMISSConstraintEquations_OutputTypeSetNumber(regionUserNumber,constraintUserNumber,constraintConditionUserNumber, &
+    & outputType,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: regionUserNumber !<The user number of the region containing the constraint, constraint condition and constraint equations to set the output type for.
+    INTEGER(INTG), INTENT(IN) :: constraintConditionUserNumber !<The user number of the constraint condition and constraint equations to set the output type for.
+    INTEGER(INTG), INTENT(IN) :: outputType !<The constraint equations output type to set. \see OPENCMISS_EquationsOutputTypes,OPENCMISS
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION
+    TYPE(CONSTRAINT_EQUATIONS_TYPE), POINTER :: CONSTRAINT_EQUATIONS
+    TYPE(REGION_TYPE), POINTER :: REGION
+    TYPE(VARYING_STRING) :: LOCAL_ERROR
+
+    CALL ENTERS("CMISSConstraintEquations_OutputTypeSetNumber",err,error,*999)
+
+    NULLIFY(REGION)
+    NULLIFY(CONSTRAINT_CONDITION)
+    NULLIFY(CONSTRAINT_EQUATIONS)
+    CALL REGION_USER_NUMBER_FIND(regionUserNumber,REGION,err,error,*999)
+    IF(ASSOCIATED(REGION)) THEN
+      CALL CONSTRAINT_CONDITION_USER_NUMBER_FIND(constraintConditionUserNumber,REGION,CONSTRAINT_CONDITION,err,error,*999)
+      IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
+        CALL CONSTRAINT_CONDITION_EQUATIONS_GET(CONSTRAINT_CONDITION,CONSTRAINT_EQUATIONS,err,error,*999)
+        CALL CONSTRAINT_EQUATIONS_OUTPUT_TYPE_SET(CONSTRAINT_EQUATIONS,outputType,err,error,*999)
+      ELSE
+        LOCAL_ERROR="An constraint condition with an user number of "// &
+          & TRIM(NUMBER_TO_VSTRING(constraintConditionUserNumber,"*",err,error))// &
+          & " does not exist on the region with a user number of "// &
+          & TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))// &
+          & " defined on a region with a user number of "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//"."
+        CALL FLAG_ERROR(LOCAL_ERROR,err,error,*999)
+      END IF
+    ELSE
+      LOCAL_ERROR="A region with an user number of "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FLAG_ERROR(LOCAL_ERROR,err,error,*999)
+    END IF
+
+    CALL EXITS("CMISSConstraintEquations_OutputTypeSetNumber")
+    RETURN
+999 CALL ERRORS("CMISSConstraintEquations_OutputTypeSetNumber",err,error)
+    CALL EXITS("CMISSConstraintEquations_OutputTypeSetNumber")
+    CALL CMISS_HANDLE_ERROR(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintEquations_OutputTypeSetNumber
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Sets/changes the output type for an constraint equations identified by an object.
+  SUBROUTINE CMISSConstraintEquations_OutputTypeSetObj(constraintEquations,outputType,err)
+
+    !Argument variables
+    TYPE(CMISSConstraintEquationsType), INTENT(IN) :: constraintEquations !<The constraint equations to set the output type for.
+    INTEGER(INTG), INTENT(IN) :: outputType !<The constraint equations output type to set. \see OPENCMISS_EquationsOutputTypes,OPENCMISS
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    CALL ENTERS("CMISSConstraintEquations_OutputTypeSetObj",err,error,*999)
+
+    CALL CONSTRAINT_EQUATIONS_OUTPUT_TYPE_SET(constraintEquations%CONSTRAINT_EQUATIONS,outputType,err,error,*999)
+
+    CALL EXITS("CMISSConstraintEquations_OutputTypeSetObj")
+    RETURN
+999 CALL ERRORS("CMISSConstraintEquations_OutputTypeSetObj",err,error)
+    CALL EXITS("CMISSConstraintEquations_OutputTypeSetObj")
+    CALL CMISS_HANDLE_ERROR(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintEquations_OutputTypeSetObj
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Returns the sparsity type for an constraint equations identified by a user number.
+  SUBROUTINE CMISSConstraintEquations_SparsityGetNumber(regionUserNumber,constraintConditionUserNumber, &
+    & sparsityType,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: regionUserNumber !<The user number of the region containing the constraint, constraint condition and constraint equations to get the sparsity type for.
+    INTEGER(INTG), INTENT(IN) :: constraintConditionUserNumber !<The user number of the constraint condition and constraint equation to get the sparsity type for.
+    INTEGER(INTG), INTENT(OUT) :: sparsityType !<On return, the constraint equations sparsity type. \see OPENCMISS_EquationsSparsityType,OPENCMISS
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION
+    TYPE(CONSTRAINT_EQUATIONS_TYPE), POINTER :: CONSTRAINT_EQUATIONS
+    TYPE(REGION_TYPE), POINTER :: REGION
+    TYPE(VARYING_STRING) :: LOCAL_ERROR
+
+    CALL ENTERS("CMISSConstraintEquations_SparsityGetNumber",err,error,*999)
+
+    NULLIFY(REGION)
+    NULLIFY(CONSTRAINT_CONDITION)
+    NULLIFY(CONSTRAINT_EQUATIONS)
+    CALL REGION_USER_NUMBER_FIND(regionUserNumber,REGION,err,error,*999)
+    IF(ASSOCIATED(REGION)) THEN
+      CALL CONSTRAINT_CONDITION_USER_NUMBER_FIND(constraintConditionUserNumber,REGION,CONSTRAINT_CONDITION,err,error,*999)
+      IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
+        CALL CONSTRAINT_CONDITION_EQUATIONS_GET(CONSTRAINT_CONDITION,CONSTRAINT_EQUATIONS,err,error,*999)
+        CALL CONSTRAINT_EQUATIONS_SPARSITY_TYPE_GET(CONSTRAINT_EQUATIONS,sparsityType,err,error,*999)
+      ELSE
+        LOCAL_ERROR="An constraint condition with an user number of "// &
+          & TRIM(NUMBER_TO_VSTRING(constraintConditionUserNumber,"*",err,error))// &
+          & " does not exist on the region with a user number of "// &
+          & TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//"."
+          CALL FLAG_ERROR(LOCAL_ERROR,err,error,*999)
+      END IF
+    ELSE
+      LOCAL_ERROR="A region with an user number of "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FLAG_ERROR(LOCAL_ERROR,err,error,*999)
+    END IF
+
+    CALL EXITS("CMISSConstraintEquations_SparsityGetNumber")
+    RETURN
+999 CALL ERRORS("CMISSConstraintEquations_SparsityGetNumber",err,error)
+    CALL EXITS("CMISSConstraintEquations_SparsityGetNumber")
+    CALL CMISS_HANDLE_ERROR(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintEquations_SparsityGetNumber
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Gets the sparsity type for an constraint equations identified by an object.
+  SUBROUTINE CMISSConstraintEquations_SparsityGetObj(constraintEquations,sparsityType,err)
+
+    !Argument variables
+    TYPE(CMISSConstraintEquationsType), INTENT(IN) :: constraintEquations !<The constraint equations to get the sparsity type for.
+    INTEGER(INTG), INTENT(OUT) :: sparsityType !<On return, the constraint equations sparsity type. \see OPENCMISS_EquationsSparsityType,OPENCMISS
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    CALL ENTERS("CMISSConstraintEquations_SparsityGetObj",err,error,*999)
+
+    CALL CONSTRAINT_EQUATIONS_SPARSITY_TYPE_GET(constraintEquations%CONSTRAINT_EQUATIONS,sparsityType,err,error,*999)
+
+    CALL EXITS("CMISSConstraintEquations_SparsityGetObj")
+    RETURN
+999 CALL ERRORS("CMISSConstraintEquations_SparsityGetObj",err,error)
+    CALL EXITS("CMISSConstraintEquations_SparsityGetObj")
+    CALL CMISS_HANDLE_ERROR(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintEquations_SparsityGetObj
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Sets/changes the sparsity type for an constraint equations identified by a user number.
+  SUBROUTINE CMISSConstraintEquations_SparsitySetNumber(regionUserNumber,constraintConditionUserNumber, &
+    & sparsityType,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: regionUserNumber !<The user number of the region containing the constraint, constraint condition and constraint equations to set the sparsity type for.
+    INTEGER(INTG), INTENT(IN) :: constraintConditionUserNumber !<The user number of the constraint condition and constraint equations to set the sparsity type for.
+    INTEGER(INTG), INTENT(IN) :: sparsityType !<The constraint equations sparsity type to set. \see OPENCMISS_EquationsSparsityTypes,OPENCMISS
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION
+    TYPE(CONSTRAINT_EQUATIONS_TYPE), POINTER :: CONSTRAINT_EQUATIONS
+    TYPE(REGION_TYPE), POINTER :: REGION
+    TYPE(VARYING_STRING) :: LOCAL_ERROR
+
+    CALL ENTERS("CMISSConstraintEquations_SparsitySetNumber",err,error,*999)
+
+    NULLIFY(REGION)
+    NULLIFY(CONSTRAINT_CONDITION)
+    NULLIFY(CONSTRAINT_EQUATIONS)
+    CALL REGION_USER_NUMBER_FIND(regionUserNumber,REGION,err,error,*999)
+    IF(ASSOCIATED(REGION)) THEN
+      CALL CONSTRAINT_CONDITION_USER_NUMBER_FIND(constraintConditionUserNumber,CONSTRAINT,CONSTRAINT_CONDITION,err,error,*999)
+      IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
+        CALL CONSTRAINT_CONDITION_EQUATIONS_GET(CONSTRAINT_CONDITION,CONSTRAINT_EQUATIONS,err,error,*999)
+        CALL CONSTRAINT_EQUATIONS_SPARSITY_TYPE_SET(CONSTRAINT_EQUATIONS,sparsityType,err,error,*999)
+      ELSE
+        LOCAL_ERROR="An constraint condition with an user number of "// &
+          & TRIM(NUMBER_TO_VSTRING(constraintConditionUserNumber,"*",err,error))// &
+          & " does not exist on the region with a user number of "// &
+          & TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//"."
+        CALL FLAG_ERROR(LOCAL_ERROR,err,error,*999)
+      END IF
+    ELSE
+      LOCAL_ERROR="A region with an user number of "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FLAG_ERROR(LOCAL_ERROR,err,error,*999)
+    END IF
+
+    CALL EXITS("CMISSConstraintEquations_SparsitySetNumber")
+    RETURN
+999 CALL ERRORS("CMISSConstraintEquations_SparsitySetNumber",err,error)
+    CALL EXITS("CMISSConstraintEquations_SparsitySetNumber")
+    CALL CMISS_HANDLE_ERROR(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintEquations_SparsitySetNumber
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Sets/changes the sparsity type for an constraint equations identified by an object.
+  SUBROUTINE CMISSConstraintEquations_SparsitySetObj(constraintEquations,sparsityType,err)
+
+    !Argument variables
+    TYPE(CMISSConstraintEquationsType), INTENT(IN) :: constraintEquations !<The constraint equations to set the sparsity type for.
+    INTEGER(INTG), INTENT(IN) :: sparsityType !<The constraint equations sparsity type to set. \see OPENCMISS_EquationsSparsityTypes,OPENCMISS
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    CALL ENTERS("CMISSConstraintEquations_SparsitySetObj",err,error,*999)
+
+    CALL CONSTRAINT_EQUATIONS_SPARSITY_TYPE_SET(constraintEquations%CONSTRAINT_EQUATIONS,sparsityType,err,error,*999)
+
+    CALL EXITS("CMISSConstraintEquations_SparsitySetObj")
+    RETURN
+999 CALL ERRORS("CMISSConstraintEquations_SparsitySetObj",err,error)
+    CALL EXITS("CMISSConstraintEquations_SparsitySetObj")
+    CALL CMISS_HANDLE_ERROR(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintEquations_SparsitySetObj
 
 !!==================================================================================================================================
 !!

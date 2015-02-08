@@ -49,6 +49,7 @@ MODULE BOUNDARY_CONDITIONS_ROUTINES
   USE CMISS_MPI
   USE COMP_ENVIRONMENT
   USE CONSTANTS
+  USE CONSTRAINT_CONDITIONS_CONSTANTS
   USE COORDINATE_ROUTINES
   USE DISTRIBUTED_MATRIX_VECTOR
   USE DOMAIN_MAPPINGS
@@ -780,7 +781,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
     !Local Variables
-    INTEGER(INTG) :: DUMMY_ERR,variable_idx,variable_type,equations_set_idx,interface_condition_idx
+    INTEGER(INTG) :: DUMMY_ERR,variable_idx,variable_type,equations_set_idx,constraint_condition_idx,interface_condition_idx
     TYPE(EQUATIONS_TYPE), POINTER :: EQUATIONS
     TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET
     TYPE(EQUATIONS_MAPPING_TYPE), POINTER :: EQUATIONS_MAPPING
@@ -788,6 +789,13 @@ CONTAINS
     TYPE(EQUATIONS_MAPPING_LINEAR_TYPE), POINTER :: LINEAR_MAPPING
     TYPE(EQUATIONS_MAPPING_NONLINEAR_TYPE), POINTER :: NONLINEAR_MAPPING
     TYPE(EQUATIONS_MAPPING_RHS_TYPE), POINTER :: RHS_MAPPING
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION
+    TYPE(CONSTRAINT_EQUATIONS_TYPE), POINTER :: CONSTRAINT_EQUATIONS
+    TYPE(CONSTRAINT_MAPPING_TYPE), POINTER :: CONSTRAINT_MAPPING
+    TYPE(CONSTRAINT_MAPPING_DYNAMIC_TYPE), POINTER :: DYNAMIC_MAPPING
+    TYPE(CONSTRAINT_MAPPING_LINEAR_TYPE), POINTER :: LINEAR_MAPPING
+    TYPE(CONSTRAINT_MAPPING_NONLINEAR_TYPE), POINTER :: NONLINEAR_MAPPING
+    TYPE(CONSTRAINT_MAPPING_RHS_TYPE), POINTER :: CONSTRAINT_RHS_MAPPING
     TYPE(INTERFACE_CONDITION_TYPE), POINTER :: INTERFACE_CONDITION
     TYPE(INTERFACE_EQUATIONS_TYPE), POINTER :: INTERFACE_EQUATIONS
     TYPE(INTERFACE_MAPPING_TYPE), POINTER :: INTERFACE_MAPPING
@@ -918,6 +926,113 @@ CONTAINS
               CALL FLAG_ERROR("Equations set is not associated.",ERR,ERROR,*998)
             ENDIF
           ENDDO !equations_set_idx
+          DO constraint_condition_idx=1,SOLVER_EQUATIONS%SOLVER_MAPPING%NUMBER_OF_CONSTRAINT_CONDITIONS
+            CONSTRAINT_CONDITION=>SOLVER_EQUATIONS%SOLVER_MAPPING%CONSTRAINT_CONDITIONS(constraint_condition_idx)%PTR
+            IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
+              CONSTRAINT_EQUATIONS=>CONSTRAINT_CONDITION%CONSTRAINT_EQUATIONS
+              IF(ASSOCIATED(EQUATIONS)) THEN
+                IF(CONSTRAINT_EQUATIONS%CONSTRAINT_EQUATIONS_FINISHED) THEN
+                  CONSTRAINT_MAPPING=>EQUATIONS%CONSTRAINT_CONSTRAINT_MAPPING
+                  IF(ASSOCIATED(CONSTRAINT_MAPPING)) THEN
+                    IF(CONSTRAINT_MAPPING%CONSTRAINT_CONSTRAINT_MAPPING_FINISHED) THEN
+                      CONSTRAINT_CONDITION%BOUNDARY_CONDITIONS=>SOLVER_EQUATIONS%BOUNDARY_CONDITIONS
+                      SELECT CASE(CONSTRAINT_EQUATIONS%TIME_DEPENDENCE)
+                      CASE(CONSTRAINT_CONDITION_STATIC)
+                        SELECT CASE(CONSTRAINT_EQUATIONS%LINEARITY)
+                        CASE(CONSTRAINT_CONDITION_LINEAR,CONSTRAINT_CONDITION_NONLINEAR_BCS)
+                          LINEAR_MAPPING=>CONSTRAINT_MAPPING%LINEAR_MAPPING
+                          IF(ASSOCIATED(LINEAR_MAPPING)) THEN
+                            IF(LINEAR_MAPPING%NUMBER_OF_LINEAR_CONSTRAINT_MATRICES>0) THEN
+                              CALL BOUNDARY_CONDITIONS_VARIABLE_INITIALISE(SOLVER_EQUATIONS%BOUNDARY_CONDITIONS, &
+                                & LINEAR_MAPPING%LAGRANGE_VARIABLE,ERR,ERROR,*999)
+                            ENDIF
+                          ELSE
+                            CALL FLAG_ERROR("Constraint mapping linear mapping is not associated.",ERR,ERROR,*999)
+                          ENDIF
+                          RHS_MAPPING=>CONSTRAINT_MAPPING%RHS_MAPPING
+                          IF(ASSOCIATED(RHS_MAPPING)) THEN
+                            CALL BOUNDARY_CONDITIONS_VARIABLE_INITIALISE(SOLVER_EQUATIONS%BOUNDARY_CONDITIONS, &
+                                & RHS_MAPPING%RHS_VARIABLE,ERR,ERROR,*999)
+                          ENDIF
+                        CASE(CONSTRAINT_CONDITION_NONLINEAR)
+                          NONLINEAR_MAPPING=>CONSTRAINT_MAPPING%NONLINEAR_MAPPING
+                          IF(ASSOCIATED(NONLINEAR_MAPPING)) THEN
+                            IF(NONLINEAR_MAPPING%NUMBER_OF_JACOBIAN_CONSTRAINT_MATRICES>0) THEN
+                            CALL BOUNDARY_CONDITIONS_VARIABLE_INITIALISE(SOLVER_EQUATIONS%BOUNDARY_CONDITIONS, &
+                              & NONLINEAR_MAPPING%LAGRANGE_VARIABLE,ERR,ERROR,*999)
+                          ELSE
+                            CALL FLAG_ERROR("Constraint mapping nonlinear mapping is not associated.",ERR,ERROR,*999)
+                          ENDIF
+                          RHS_MAPPING=>CONSTRAINT_MAPPING%RHS_MAPPING
+                          IF(ASSOCIATED(RHS_MAPPING)) THEN
+                            CALL BOUNDARY_CONDITIONS_VARIABLE_INITIALISE(SOLVER_EQUATIONS%BOUNDARY_CONDITIONS, &
+                                & RHS_MAPPING%RHS_VARIABLE,ERR,ERROR,*999)
+                          ELSE
+                            CALL FLAG_ERROR("Constraint mapping RHS mapping is not associated.",ERR,ERROR,*999)
+                          ENDIF
+                        CASE DEFAULT
+                          LOCAL_ERROR="The constraint equations linearity type of "//TRIM(NUMBER_TO_VSTRING(CONSTRAINT_EQUATIONS%LINEARITY,"*", &
+                                & ERR,ERROR))//" is invalid."
+                          CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
+                        END SELECT
+                      CASE(CONSTRAINT_CONDITION_FIRST_ORDER_DYNAMIC,CONSTRAINT_CONDITION_SECOND_ORDER_DYNAMIC)
+                        SELECT CASE(CONSTRAINT_EQUATIONS%LINEARITY)
+                        CASE(CONSTRAINT_CONDITION_LINEAR,CONSTRAINT_CONDITION_NONLINEAR_BCS)
+                          DYNAMIC_MAPPING=>CONSTRAINT_MAPPING%DYNAMIC_MAPPING
+                          IF(ASSOCIATED(DYNAMIC_MAPPING)) THEN
+                            CALL BOUNDARY_CONDITIONS_VARIABLE_INITIALISE(SOLVER_EQUATIONS%BOUNDARY_CONDITIONS, &
+                                & DYNAMIC_MAPPING%LAGRANGE_VARIABLE,ERR,ERROR,*999)
+                          ELSE
+                            CALL FLAG_ERROR("Constraint mapping dynamic mapping is not associated.",ERR,ERROR,*999)
+                          ENDIF
+                          RHS_MAPPING=>CONSTRAINT_MAPPING%RHS_MAPPING
+                          IF(ASSOCIATED(RHS_MAPPING)) THEN
+                            CALL BOUNDARY_CONDITIONS_VARIABLE_INITIALISE(SOLVER_EQUATIONS%BOUNDARY_CONDITIONS, &
+                                & RHS_MAPPING%RHS_VARIABLE,ERR,ERROR,*999)
+                          ELSE
+                            CALL FLAG_ERROR("Constraint mapping RHS mapping is not associated.",ERR,ERROR,*999)
+                          ENDIF
+                        CASE(CONSTRAINT_CONDITION_NONLINEAR)
+                          DYNAMIC_MAPPING=>CONSTRAINT_MAPPING%DYNAMIC_MAPPING
+                          IF(ASSOCIATED(DYNAMIC_MAPPING)) THEN
+                            CALL BOUNDARY_CONDITIONS_VARIABLE_INITIALISE(SOLVER_EQUATIONS%BOUNDARY_CONDITIONS, &
+                                & DYNAMIC_MAPPING%LAGRANGE_VARIABLE,ERR,ERROR,*999)
+                          ELSE
+                            CALL FLAG_ERROR("Constraint mapping dynamic mapping is not associated.",ERR,ERROR,*999)
+                          ENDIF
+                          RHS_MAPPING=>CONSTRAINT_MAPPING%RHS_MAPPING
+                          IF(ASSOCIATED(RHS_MAPPING)) THEN
+                            CALL BOUNDARY_CONDITIONS_VARIABLE_INITIALISE(SOLVER_EQUATIONS%BOUNDARY_CONDITIONS, &
+                                & RHS_MAPPING%RHS_VARIABLE,ERR,ERROR,*999)
+                          ELSE
+                            CALL FLAG_ERROR("Constraint mapping RHS mapping is not associated.",ERR,ERROR,*999)
+                          ENDIF
+                        CASE DEFAULT
+                          LOCAL_ERROR="The constraint equations linearity type of "//TRIM(NUMBER_TO_VSTRING(CONSTRAINT_EQUATIONS%LINEARITY,"*", &
+                                & ERR,ERROR))//" is invalid."
+                          CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
+                        END SELECT
+                      CASE DEFAULT
+                        LOCAL_ERROR="The constraint equations time dependence type of "// &
+                          & TRIM(NUMBER_TO_VSTRING(CONSTRAINT_EQUATIONS%TIME_DEPENDENCE,"*",ERR,ERROR))//" is invalid."
+                        CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
+                      END SELECT
+                    ELSE
+                      CALL FLAG_ERROR("Constraint mapping has not been finished.",ERR,ERROR,*998)
+                    ENDIF
+                  ELSE
+                    CALL FLAG_ERROR("Constraint equations constraint mapping is not associated.",ERR,ERROR,*998)
+                  ENDIF
+                ELSE
+                  CALL FLAG_ERROR("Constraint quations has not been finished.",ERR,ERROR,*998)
+                ENDIF
+              ELSE
+                CALL FLAG_ERROR("Constraint condition equations is not associated.",ERR,ERROR,*998)
+              ENDIF
+            ELSE
+              CALL FLAG_ERROR("Constraint condition is not associated.",ERR,ERROR,*998)
+            ENDIF
+          ENDDO !constraint_condition_idx
           DO interface_condition_idx=1,SOLVER_EQUATIONS%SOLVER_MAPPING%NUMBER_OF_INTERFACE_CONDITIONS
             INTERFACE_CONDITION=>SOLVER_EQUATIONS%SOLVER_MAPPING%INTERFACE_CONDITIONS(interface_condition_idx)%PTR
             IF(ASSOCIATED(INTERFACE_CONDITION)) THEN

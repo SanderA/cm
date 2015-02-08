@@ -26,7 +26,7 @@
 !> Auckland, the University of Oxford and King's College, London.
 !> All Rights Reserved.
 !>
-!> Contributor(s):
+!> Contributor(s): Sander Arens
 !>
 !> Alternatively, the contents of this file may be used under the terms of
 !> either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -80,8 +80,6 @@ MODULE CONSTRAINT_CONDITIONS_ROUTINES
 
   PUBLIC CONSTRAINT_CONDITION_EQUATIONS_DESTROY
   
-  PUBLIC ConstraintCondition_IntegrationTypeGet,ConstraintCondition_IntegrationTypeSet
-
   PUBLIC CONSTRAINT_CONDITION_JACOBIAN_EVALUATE,CONSTRAINT_CONDITION_RESIDUAL_EVALUATE
 
   PUBLIC CONSTRAINT_CONDITION_LAGRANGE_FIELD_CREATE_FINISH,CONSTRAINT_CONDITION_LAGRANGE_FIELD_CREATE_START
@@ -112,15 +110,101 @@ CONTAINS
     TYPE(VARYING_STRING) :: LOCAL_ERROR
  
     CALL ENTERS("CONSTRAINT_CONDITION_ASSEMBLE",ERR,ERROR,*999)
-    
-!    CALL WRITE_STRING(GENERAL_OUTPUT_TYPE,"********************Constraint Condition Assemble******************",ERR,ERROR,*999)
+
     IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
-      CONSTRAINT_EQUATIONS=>CONSTRAINT_CONDITION%CONSTRAINT_EQUATIONS
-      IF(ASSOCIATED(CONSTRAINT_EQUATIONS)) THEN
+      CONSTRAINT_EQUATIONS=>CONSTRAINT_CONDITION%EQUATIONS
+      IF(ASSOCIATED(EQUATIONS)) THEN
         IF(CONSTRAINT_EQUATIONS%CONSTRAINT_EQUATIONS_FINISHED) THEN
           SELECT CASE(CONSTRAINT_CONDITION%METHOD)
           CASE(CONSTRAINT_CONDITION_LAGRANGE_MULTIPLIERS_METHOD,CONSTRAINT_CONDITION_PENALTY_METHOD)
-            CALL CONSTRAINT_CONDITION_ASSEMBLE_FEM(CONSTRAINT_CONDITION,ERR,ERROR,*999)
+            SELECT CASE(CONSTRAINT_EQUATIONS%TIME_DEPENDENCE)
+            CASE(CONSTRAINT_CONDITION_STATIC)
+              SELECT CASE(CONSTRAINT_EQUATIONS%LINEARITY)
+              CASE(CONSTRAINT_CONDITION_LINEAR)
+                SELECT CASE(CONSTRAINT_CONDITION%SOLUTION_METHOD)
+                CASE(CONSTRAINT_CONDITION_FEM_SOLUTION_METHOD)
+                  CALL CONSTRAINT_CONDITION_ASSEMBLE_STATIC_LINEAR_FEM(CONSTRAINT_CONDITION,ERR,ERROR,*999)
+                CASE(CONSTRAINT_CONDITION_BEM_SOLUTION_METHOD)
+                  CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+                CASE(CONSTRAINT_CONDITION_FD_SOLUTION_METHOD)
+                  CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+                CASE(CONSTRAINT_CONDITION_FV_SOLUTION_METHOD)
+                  CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+                CASE(CONSTRAINT_CONDITION_GFEM_SOLUTION_METHOD)
+                  CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+                CASE(CONSTRAINT_CONDITION_GFV_SOLUTION_METHOD)
+                  CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+                CASE DEFAULT
+                  LOCAL_ERROR="The constraint condition solution method of "// &
+                    & TRIM(NUMBER_TO_VSTRING(CONSTRAINT_CONDITION%SOLUTION_METHOD,"*",ERR,ERROR))// &
+                    & " is invalid."
+                  CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
+                END SELECT
+              CASE(CONSTRAINT_CONDITION_NONLINEAR)
+                SELECT CASE(CONSTRAINT_CONDITION%SOLUTION_METHOD)
+                CASE(CONSTRAINT_CONDITION_FEM_SOLUTION_METHOD)
+                  CALL CONSTRAINT_CONDITION_ASSEMBLE_STATIC_NONLINEAR_FEM(CONSTRAINT_CONDITION,ERR,ERROR,*999)
+                CASE(CONSTRAINT_CONDITION_BEM_SOLUTION_METHOD)
+                  CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+                CASE(CONSTRAINT_CONDITION_FD_SOLUTION_METHOD)
+                  CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+                CASE(CONSTRAINT_CONDITION_FV_SOLUTION_METHOD)
+                  CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+                CASE(CONSTRAINT_CONDITION_GFEM_SOLUTION_METHOD)
+                  CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+                CASE(CONSTRAINT_CONDITION_GFV_SOLUTION_METHOD)
+                  CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+                CASE DEFAULT
+                  LOCAL_ERROR="The constraint condition solution method of "// &
+                    & TRIM(NUMBER_TO_VSTRING(CONSTRAINT_CONDITION%SOLUTION_METHOD,"*",ERR,ERROR))// &
+                    & " is invalid."
+                  CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
+                END SELECT
+              CASE(CONSTRAINT_CONDITION_NONLINEAR_BCS)
+                CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+              CASE DEFAULT
+                LOCAL_ERROR="The equations linearity of "// &
+                  & TRIM(NUMBER_TO_VSTRING(CONSTRAINT_EQUATIONS%LINEARITY,"*",ERR,ERROR))//" is invalid."
+                CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
+              END SELECT
+            CASE(CONSTRAINT_CONDITION_FIRST_ORDER_DYNAMIC,CONSTRAINT_CONDITION_SECOND_ORDER_DYNAMIC)
+              SELECT CASE(CONSTRAINT_EQUATIONS%LINEARITY)
+              CASE(CONSTRAINT_CONDITION_LINEAR)
+                SELECT CASE(CONSTRAINT_CONDITION%SOLUTION_METHOD)
+                CASE(CONSTRAINT_CONDITION_FEM_SOLUTION_METHOD)
+                  CALL CONSTRAINT_CONDITION_ASSEMBLE_DYNAMIC_LINEAR_FEM(CONSTRAINT_CONDITION,ERR,ERROR,*999)
+                CASE(CONSTRAINT_CONDITION_BEM_SOLUTION_METHOD)
+                  CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+                CASE(CONSTRAINT_CONDITION_FD_SOLUTION_METHOD)
+                  CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+                CASE(CONSTRAINT_CONDITION_FV_SOLUTION_METHOD)
+                  CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+                CASE(CONSTRAINT_CONDITION_GFEM_SOLUTION_METHOD)
+                  CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+                CASE(CONSTRAINT_CONDITION_GFV_SOLUTION_METHOD)
+                  CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+                CASE DEFAULT
+                  LOCAL_ERROR="The constraint condition solution method of "// &
+                    & TRIM(NUMBER_TO_VSTRING(CONSTRAINT_CONDITION%SOLUTION_METHOD,"*",ERR,ERROR))// &
+                    & " is invalid."
+                  CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
+                END SELECT
+              CASE(CONSTRAINT_CONDITION_NONLINEAR)
+                CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+              CASE(CONSTRAINT_CONDITION_NONLINEAR_BCS)
+                CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+              CASE DEFAULT
+                LOCAL_ERROR="The constraint condition linearity of "// &
+                  & TRIM(NUMBER_TO_VSTRING(CONSTRAINT_EQUATIONS%LINEARITY,"*",ERR,ERROR))//" is invalid."
+                CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
+              END SELECT
+            CASE(CONSTRAINT_CONDITION_TIME_STEPPING)
+              CALL FLAG_ERROR("Time stepping equations are not assembled.",ERR,ERROR,*999)
+            CASE DEFAULT
+              LOCAL_ERROR="The equations time dependence type of "// &
+                & TRIM(NUMBER_TO_VSTRING(CONSTRAINT_EQUATIONS%TIME_DEPENDENCE,"*",ERR,ERROR))//" is invalid."
+              CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
+            END SELECT
           CASE(CONSTRAINT_CONDITION_AUGMENTED_LAGRANGE_METHOD)
             CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
           CASE(CONSTRAINT_CONDITION_POINT_TO_POINT_METHOD)
@@ -135,7 +219,7 @@ CONTAINS
           CALL FLAG_ERROR("Constraint equations have not been finished.",ERR,ERROR,*999)
         ENDIF
       ELSE
-        CALL FLAG_ERROR("Constraint condition constraint equations is not associated.",ERR,ERROR,*999)
+        CALL FLAG_ERROR("Constraint condition equations is not associated.",ERR,ERROR,*999)
       ENDIF      
     ELSE
       CALL FLAG_ERROR("Constraint condition is not associated.",ERR,ERROR,*999)
@@ -152,8 +236,162 @@ CONTAINS
   !================================================================================================================================
   !
   
-  !>Assembles the constraint matricesand rhs for using the finite element method.
-  SUBROUTINE CONSTRAINT_CONDITION_ASSEMBLE_FEM(CONSTRAINT_CONDITION,ERR,ERROR,*)
+  !>Assembles the equations stiffness matrix and rhs for a dynamic linear constraint condition using the finite element method.
+  SUBROUTINE CONSTRAINT_CONDITION_ASSEMBLE_DYNAMIC_LINEAR_FEM(CONSTRAINT_CONDITION,ERR,ERROR,*)
+
+    !Argument variables
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION !<A pointer to the constraint condition to assemble the equations for
+    INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
+    !Local Variables
+    INTEGER(INTG) :: element_idx,ne,NUMBER_OF_TIMES
+    REAL(SP) :: ELEMENT_USER_ELAPSED,ELEMENT_SYSTEM_ELAPSED,USER_ELAPSED,USER_TIME1(1),USER_TIME2(1),USER_TIME3(1),USER_TIME4(1), &
+      & USER_TIME5(1),USER_TIME6(1),SYSTEM_ELAPSED,SYSTEM_TIME1(1),SYSTEM_TIME2(1),SYSTEM_TIME3(1),SYSTEM_TIME4(1), &
+      & SYSTEM_TIME5(1),SYSTEM_TIME6(1)
+    TYPE(DOMAIN_MAPPING_TYPE), POINTER :: ELEMENTS_MAPPING
+    TYPE(CONSTRAINT_EQUATIONS_TYPE), POINTER :: CONSTRAINT_EQUATIONS
+    TYPE(CONSTRAINT_MATRICES_TYPE), POINTER :: CONSTRAINT_MATRICES
+    TYPE(FIELD_TYPE), POINTER :: LAGRANGE_FIELD
+    
+    CALL ENTERS("CONSTRAINT_CONDITION_ASSEMBLE_DYNAMIC_LINEAR_FEM",ERR,ERROR,*999)
+
+    IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
+      LAGRANGE_FIELD=>CONSTRAINT_CONDITION%LAGRANGE%LAGRANGE_FIELD
+      IF(ASSOCIATED(LAGRANGE_FIELD)) THEN
+        CONSTRAINT_EQUATIONS=>CONSTRAINT_CONDITION%EQUATIONS
+        IF(ASSOCIATED(EQUATIONS)) THEN
+          CONSTRAINT_MATRICES=>CONSTRAINT_EQUATIONS%CONSTRAINT_MATRICES
+          IF(ASSOCIATED(CONSTRAINT_MATRICES)) THEN
+            IF(CONSTRAINT_EQUATIONS%OUTPUT_TYPE>=EQUATIONS_TIMING_OUTPUT) THEN
+              CALL CPU_TIMER(USER_CPU,USER_TIME1,ERR,ERROR,*999)
+              CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME1,ERR,ERROR,*999)
+            ENDIF
+            !Initialise the matrices and rhs vector
+            CALL CONSTRAINT_MATRICES_VALUES_INITIALISE(CONSTRAINT_MATRICES,CONSTRAINT_MATRICES_LINEAR_ONLY,0.0_DP,ERR,ERROR,*999)
+            !Assemble the elements
+            !Allocate the element matrices 
+            CALL CONSTRAINT_MATRICES_ELEMENT_INITIALISE(CONSTRAINT_MATRICES,ERR,ERROR,*999)
+            ELEMENTS_MAPPING=>LAGRANGE_FIELD%DECOMPOSITION%DOMAIN(LAGRANGE_FIELD%DECOMPOSITION%MESH_COMPONENT_NUMBER)%PTR% &
+              & MAPPINGS%ELEMENTS
+            !Output timing information if required
+            IF(CONSTRAINT_EQUATIONS%OUTPUT_TYPE>=EQUATIONS_TIMING_OUTPUT) THEN
+              CALL CPU_TIMER(USER_CPU,USER_TIME2,ERR,ERROR,*999)
+              CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME2,ERR,ERROR,*999)
+              USER_ELAPSED=USER_TIME2(1)-USER_TIME1(1)
+              SYSTEM_ELAPSED=SYSTEM_TIME2(1)-SYSTEM_TIME1(1)
+              CALL WRITE_STRING(GENERAL_OUTPUT_TYPE,"",ERR,ERROR,*999)
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for constraint conditionup and initialisation = ",USER_ELAPSED, &
+                & ERR,ERROR,*999)
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for constraint conditionup and initialisation = ",SYSTEM_ELAPSED, &
+                & ERR,ERROR,*999)
+              ELEMENT_USER_ELAPSED=0.0_SP
+              ELEMENT_SYSTEM_ELAPSED=0.0_SP
+            ENDIF
+            NUMBER_OF_TIMES=0
+            !Loop over the internal elements
+            DO element_idx=ELEMENTS_MAPPING%INTERNAL_START,ELEMENTS_MAPPING%INTERNAL_FINISH
+              ne=ELEMENTS_MAPPING%DOMAIN_LIST(element_idx)
+              NUMBER_OF_TIMES=NUMBER_OF_TIMES+1
+              CALL CONSTRAINT_MATRICES_ELEMENT_CALCULATE(CONSTRAINT_MATRICES,ne,ERR,ERROR,*999)
+              CALL CONSTRAINT_CONDITION_FINITE_ELEMENT_CALCULATE(CONSTRAINT_CONDITION,ne,ERR,ERROR,*999)
+              CALL CONSTRAINT_MATRICES_ELEMENT_ADD(CONSTRAINT_MATRICES,ERR,ERROR,*999)
+            ENDDO !element_idx
+            !Output timing information if required
+            IF(CONSTRAINT_EQUATIONS%OUTPUT_TYPE>=EQUATIONS_TIMING_OUTPUT) THEN
+              CALL CPU_TIMER(USER_CPU,USER_TIME3,ERR,ERROR,*999)
+              CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME3,ERR,ERROR,*999)
+              USER_ELAPSED=USER_TIME3(1)-USER_TIME2(1)
+              SYSTEM_ELAPSED=SYSTEM_TIME3(1)-SYSTEM_TIME2(1)
+              ELEMENT_USER_ELAPSED=USER_ELAPSED
+              ELEMENT_SYSTEM_ELAPSED=SYSTEM_ELAPSED
+              CALL WRITE_STRING(GENERAL_OUTPUT_TYPE,"",ERR,ERROR,*999)
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for internal constraint equations assembly = ",USER_ELAPSED, &
+                & ERR,ERROR,*999)
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for internal constraint equations assembly = ",SYSTEM_ELAPSED, &
+                & ERR,ERROR,*999)
+             ENDIF
+            !Output timing information if required
+            IF(CONSTRAINT_EQUATIONS%OUTPUT_TYPE>=EQUATIONS_TIMING_OUTPUT) THEN
+              CALL CPU_TIMER(USER_CPU,USER_TIME4,ERR,ERROR,*999)
+              CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME4,ERR,ERROR,*999)
+              USER_ELAPSED=USER_TIME4(1)-USER_TIME3(1)
+              SYSTEM_ELAPSED=SYSTEM_TIME4(1)-SYSTEM_TIME3(1)
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for parameter transfer completion = ",USER_ELAPSED, &
+                & ERR,ERROR,*999)
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for parameter transfer completion = ",SYSTEM_ELAPSED, &
+                & ERR,ERROR,*999)
+            ENDIF
+            !Loop over the boundary and ghost elements
+            DO element_idx=ELEMENTS_MAPPING%BOUNDARY_START,ELEMENTS_MAPPING%GHOST_FINISH
+              ne=ELEMENTS_MAPPING%DOMAIN_LIST(element_idx)
+              NUMBER_OF_TIMES=NUMBER_OF_TIMES+1
+              CALL CONSTRAINT_MATRICES_ELEMENT_CALCULATE(CONSTRAINT_MATRICES,ne,ERR,ERROR,*999)
+              CALL CONSTRAINT_CONDITION_FINITE_ELEMENT_CALCULATE(CONSTRAINT_CONDITION,ne,ERR,ERROR,*999)
+              CALL CONSTRAINT_MATRICES_ELEMENT_ADD(CONSTRAINT_MATRICES,ERR,ERROR,*999)
+            ENDDO !element_idx
+            !Output timing information if required
+            IF(CONSTRAINT_EQUATIONS%OUTPUT_TYPE>=EQUATIONS_TIMING_OUTPUT) THEN
+              CALL CPU_TIMER(USER_CPU,USER_TIME5,ERR,ERROR,*999)
+              CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME5,ERR,ERROR,*999)
+              USER_ELAPSED=USER_TIME5(1)-USER_TIME4(1)
+              SYSTEM_ELAPSED=SYSTEM_TIME5(1)-SYSTEM_TIME4(1)
+              ELEMENT_USER_ELAPSED=ELEMENT_USER_ELAPSED+USER_ELAPSED
+              ELEMENT_SYSTEM_ELAPSED=ELEMENT_SYSTEM_ELAPSED+USER_ELAPSED
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for boundary+ghost constraint equations assembly = ",USER_ELAPSED, &
+                & ERR,ERROR,*999)
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for boundary+ghost constraint equations assembly = ",SYSTEM_ELAPSED, &
+                & ERR,ERROR,*999)
+              IF(NUMBER_OF_TIMES>0) THEN
+                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average element user time for constraint equations assembly = ", &
+                  & ELEMENT_USER_ELAPSED/NUMBER_OF_TIMES,ERR,ERROR,*999)
+                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average element system time for constraint equations assembly = ", &
+                  & ELEMENT_SYSTEM_ELAPSED/NUMBER_OF_TIMES,ERR,ERROR,*999)
+              ENDIF
+            ENDIF
+            !Finalise the element matrices
+            CALL CONSTRAINT_MATRICES_ELEMENT_FINALISE(CONSTRAINT_MATRICES,ERR,ERROR,*999)
+            !Output equations matrices and RHS vector if required
+            IF(CONSTRAINT_EQUATIONS%OUTPUT_TYPE>=EQUATIONS_MATRIX_OUTPUT) THEN
+              CALL CONSTRAINT_MATRICES_OUTPUT(GENERAL_OUTPUT_TYPE,CONSTRAINT_MATRICES,ERR,ERROR,*999)
+            ENDIF
+            !Output timing information if required
+            IF(CONSTRAINT_EQUATIONS%OUTPUT_TYPE>=EQUATIONS_TIMING_OUTPUT) THEN
+              CALL CPU_TIMER(USER_CPU,USER_TIME6,ERR,ERROR,*999)
+              CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME6,ERR,ERROR,*999)
+              USER_ELAPSED=USER_TIME6(1)-USER_TIME1(1)
+              SYSTEM_ELAPSED=SYSTEM_TIME6(1)-SYSTEM_TIME1(1)
+              CALL WRITE_STRING(GENERAL_OUTPUT_TYPE,"",ERR,ERROR,*999)
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Total user time for constraint equations assembly = ",USER_ELAPSED, &
+                & ERR,ERROR,*999)
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Total system time for constraint equations assembly = ",SYSTEM_ELAPSED, &
+                & ERR,ERROR,*999)
+            ENDIF
+          ELSE
+            CALL FLAG_ERROR("Constraint equations matrices is not associated",ERR,ERROR,*999)
+          ENDIF
+        ELSE
+          CALL FLAG_ERROR("Constraint equations is not associated",ERR,ERROR,*999)
+        ENDIF
+      ELSE
+        CALL FLAG_ERROR("Lagrange field is not associated",ERR,ERROR,*999)
+      ENDIF
+    ELSE
+      CALL FLAG_ERROR("Constraint condition is not associated",ERR,ERROR,*999)
+    ENDIF
+       
+    CALL EXITS("CONSTRAINT_CONDITION_ASSEMBLE_DYNAMIC_LINEAR_FEM")
+    RETURN
+999 CALL ERRORS("CONSTRAINT_CONDITION_ASSEMBLE_DYNAMIC_LINEAR_FEM",ERR,ERROR)
+    CALL EXITS("CONSTRAINT_CONDITION_ASSEMBLE_DYNAMIC_LINEAR_FEM")
+    RETURN 1
+  END SUBROUTINE CONSTRAINT_CONDITION_ASSEMBLE_DYNAMIC_LINEAR_FEM
+
+  !
+  !================================================================================================================================
+  !
+  
+  !>Assembles the equations stiffness matrix and rhs for a linear static constraint condition using the finite element method.
+  SUBROUTINE CONSTRAINT_CONDITION_ASSEMBLE_STATIC_LINEAR_FEM(CONSTRAINT_CONDITION,ERR,ERROR,*)
 
     !Argument variables
     TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION !<A pointer to the constraint condition to assemble the equations for
@@ -171,186 +409,335 @@ CONTAINS
     
 !#ifdef TAUPROF
 !    CHARACTER(28) :: CVAR
-!    INTEGER :: PHASE(2) = (/ 0, 0 /)
+!    INTEGER :: PHASE(2)= (/ 0, 0 /)
 !    SAVE PHASE
 !#endif
 
-    CALL ENTERS("CONSTRAINT_CONDITION_ASSEMBLE_FEM",ERR,ERROR,*999)
+    CALL ENTERS("CONSTRAINT_CONDITION_ASSEMBLE_STATIC_LINEAR_FEM",ERR,ERROR,*999)
 
     IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
-      IF(ASSOCIATED(CONSTRAINT_CONDITION%LAGRANGE)) THEN
-        LAGRANGE_FIELD=>CONSTRAINT_CONDITION%LAGRANGE%LAGRANGE_FIELD
-        IF(ASSOCIATED(LAGRANGE_FIELD)) THEN
-          CONSTRAINT_EQUATIONS=>CONSTRAINT_CONDITION%CONSTRAINT_EQUATIONS
-          IF(ASSOCIATED(CONSTRAINT_EQUATIONS)) THEN
-            CONSTRAINT_MATRICES=>CONSTRAINT_EQUATIONS%CONSTRAINT_MATRICES
-            IF(ASSOCIATED(CONSTRAINT_MATRICES)) THEN
-              IF(CONSTRAINT_EQUATIONS%OUTPUT_TYPE>=CONSTRAINT_EQUATIONS_TIMING_OUTPUT) THEN
-                CALL CPU_TIMER(USER_CPU,USER_TIME1,ERR,ERROR,*999)
-                CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME1,ERR,ERROR,*999)
-              ENDIF
-              !Initialise the matrices and rhs vector
+      LAGRANGE_FIELD=>CONSTRAINT_CONDITION%LAGRANGE%LAGRANGE_FIELD
+      IF(ASSOCIATED(LAGRANGE_FIELD)) THEN
+        CONSTRAINT_EQUATIONS=>CONSTRAINT_CONDITION%EQUATIONS
+        IF(ASSOCIATED(EQUATIONS)) THEN
+          CONSTRAINT_MATRICES=>CONSTRAINT_EQUATIONS%CONSTRAINT_MATRICES
+          IF(ASSOCIATED(CONSTRAINT_MATRICES)) THEN
+            IF(CONSTRAINT_EQUATIONS%OUTPUT_TYPE>=EQUATIONS_TIMING_OUTPUT) THEN
+              CALL CPU_TIMER(USER_CPU,USER_TIME1,ERR,ERROR,*999)
+              CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME1,ERR,ERROR,*999)
+            ENDIF
+            !Initialise the matrices and rhs vector
 #ifdef TAUPROF
-              CALL TAU_STATIC_PHASE_START("CONSTRAINT_MATRICES_VALUES_INITIALISE()")
+            CALL TAU_STATIC_PHASE_START("CONSTRAINT_MATRICES_VALUES_INITIALISE()")
 #endif
-              CALL CONSTRAINT_MATRICES_VALUES_INITIALISE(CONSTRAINT_MATRICES,0.0_DP,ERR,ERROR,*999)
+            CALL CONSTRAINT_MATRICES_VALUES_INITIALISE(CONSTRAINT_MATRICES,CONSTRAINT_MATRICES_LINEAR_ONLY,0.0_DP,ERR,ERROR,*999)
 #ifdef TAUPROF
-              CALL TAU_STATIC_PHASE_STOP("CONSTRAINT_MATRICES_VALUES_INITIALISE()")
+            CALL TAU_STATIC_PHASE_STOP("CONSTRAINT_MATRICES_VALUES_INITIALISE()")
 #endif
-              !Assemble the elements
-              !Allocate the element matrices 
+            !Assemble the elements
+            !Allocate the element matrices 
 #ifdef TAUPROF
-              CALL TAU_STATIC_PHASE_START("ConstraintMatrices_ElementInitialise()")
+            CALL TAU_STATIC_PHASE_START("CONSTRAINT_MATRICES_ELEMENT_INITIALISE()")
 #endif
-              CALL ConstraintMatrices_ElementInitialise(CONSTRAINT_MATRICES,ERR,ERROR,*999)
-              ELEMENTS_MAPPING=>LAGRANGE_FIELD%DECOMPOSITION%DOMAIN(LAGRANGE_FIELD%DECOMPOSITION%MESH_COMPONENT_NUMBER)%PTR% &
-                & MAPPINGS%ELEMENTS
+            CALL CONSTRAINT_MATRICES_ELEMENT_INITIALISE(CONSTRAINT_MATRICES,ERR,ERROR,*999)
+            ELEMENTS_MAPPING=>LAGRANGE_FIELD%DECOMPOSITION%DOMAIN(LAGRANGE_FIELD%DECOMPOSITION%MESH_COMPONENT_NUMBER)%PTR% &
+              & MAPPINGS%ELEMENTS
 #ifdef TAUPROF
-              CALL TAU_STATIC_PHASE_STOP("ConstraintMatrices_ElementInitialise()")
+            CALL TAU_STATIC_PHASE_STOP("CONSTRAINT_MATRICES_ELEMENT_INITIALISE()")
 #endif
-              !Output timing information if required
-              IF(CONSTRAINT_EQUATIONS%OUTPUT_TYPE>=CONSTRAINT_EQUATIONS_TIMING_OUTPUT) THEN
-                CALL CPU_TIMER(USER_CPU,USER_TIME2,ERR,ERROR,*999)
-                CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME2,ERR,ERROR,*999)
-                USER_ELAPSED=USER_TIME2(1)-USER_TIME1(1)
-                SYSTEM_ELAPSED=SYSTEM_TIME2(1)-SYSTEM_TIME1(1)
-                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for constraint equations setup and initialisation = ", &
-                  & USER_ELAPSED,ERR,ERROR,*999)
-                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for constraint equations setup and initialisation = ", &
-                  & SYSTEM_ELAPSED,ERR,ERROR,*999)
-                ELEMENT_USER_ELAPSED=0.0_SP
-                ELEMENT_SYSTEM_ELAPSED=0.0_SP
-              ENDIF
-              NUMBER_OF_TIMES=0
-              !Loop over the internal elements
+            !Output timing information if required
+            IF(CONSTRAINT_EQUATIONS%OUTPUT_TYPE>=EQUATIONS_TIMING_OUTPUT) THEN
+              CALL CPU_TIMER(USER_CPU,USER_TIME2,ERR,ERROR,*999)
+              CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME2,ERR,ERROR,*999)
+              USER_ELAPSED=USER_TIME2(1)-USER_TIME1(1)
+              SYSTEM_ELAPSED=SYSTEM_TIME2(1)-SYSTEM_TIME1(1)
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for constraint condition setup and initialisation = ",USER_ELAPSED, &
+                & ERR,ERROR,*999)
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for constraint condition setup and initialisation = ",SYSTEM_ELAPSED, &
+                & ERR,ERROR,*999)
+              ELEMENT_USER_ELAPSED=0.0_SP
+              ELEMENT_SYSTEM_ELAPSED=0.0_SP
+            ENDIF
+            NUMBER_OF_TIMES=0
+            !Loop over the internal elements
 
 #ifdef TAUPROF
-              CALL TAU_STATIC_PHASE_START("Internal Elements Loop")
+            CALL TAU_STATIC_PHASE_START("Internal Elements Loop")
 #endif
-              DO element_idx=ELEMENTS_MAPPING%INTERNAL_START,ELEMENTS_MAPPING%INTERNAL_FINISH
+            DO element_idx=ELEMENTS_MAPPING%INTERNAL_START,ELEMENTS_MAPPING%INTERNAL_FINISH
 !#ifdef TAUPROF
 !              WRITE (CVAR,'(a23,i3)') 'Internal Elements Loop ',element_idx
 !              CALL TAU_PHASE_CREATE_DYNAMIC(PHASE,CVAR)
 !              CALL TAU_PHASE_START(PHASE)
 !#endif
-                ne=ELEMENTS_MAPPING%DOMAIN_LIST(element_idx)
-                NUMBER_OF_TIMES=NUMBER_OF_TIMES+1
-                CALL ConstraintMatrices_ElementCalculate(CONSTRAINT_MATRICES,ne,ERR,ERROR,*999)
-                CALL ConstraintCondition_FiniteElementCalculate(CONSTRAINT_CONDITION,ne,ERR,ERROR,*999)
-                CALL CONSTRAINT_MATRICES_ELEMENT_ADD(CONSTRAINT_MATRICES,ERR,ERROR,*999)
+              ne=ELEMENTS_MAPPING%DOMAIN_LIST(element_idx)
+              NUMBER_OF_TIMES=NUMBER_OF_TIMES+1
+              CALL CONSTRAINT_MATRICES_ELEMENT_CALCULATE(CONSTRAINT_MATRICES,ne,ERR,ERROR,*999)
+              CALL CONSTRAINT_CONDITION_FINITE_ELEMENT_CALCULATE(CONSTRAINT_CONDITION,ne,ERR,ERROR,*999)
+              CALL CONSTRAINT_MATRICES_ELEMENT_ADD(CONSTRAINT_MATRICES,ERR,ERROR,*999)
 !#ifdef TAUPROF
 !              CALL TAU_PHASE_STOP(PHASE)
 !#endif
-              ENDDO !element_idx
+            ENDDO !element_idx
 #ifdef TAUPROF
-              CALL TAU_STATIC_PHASE_STOP("Internal Elements Loop")
+            CALL TAU_STATIC_PHASE_STOP("Internal Elements Loop")
 #endif
 
-              !Output timing information if required
-              IF(CONSTRAINT_EQUATIONS%OUTPUT_TYPE>=CONSTRAINT_EQUATIONS_TIMING_OUTPUT) THEN
-                CALL CPU_TIMER(USER_CPU,USER_TIME3,ERR,ERROR,*999)
-                CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME3,ERR,ERROR,*999)
-                USER_ELAPSED=USER_TIME3(1)-USER_TIME2(1)
-                SYSTEM_ELAPSED=SYSTEM_TIME3(1)-SYSTEM_TIME2(1)
-                ELEMENT_USER_ELAPSED=USER_ELAPSED
-                ELEMENT_SYSTEM_ELAPSED=SYSTEM_ELAPSED
-                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for internal constraint equations assembly = ", &
-                  & USER_ELAPSED, ERR,ERROR,*999)
-                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for internal constraint equations assembly = ", &
-                  & SYSTEM_ELAPSED,ERR,ERROR,*999)
-              ENDIF
-              !Output timing information if required
-              IF(CONSTRAINT_EQUATIONS%OUTPUT_TYPE>=CONSTRAINT_EQUATIONS_TIMING_OUTPUT) THEN
-                CALL CPU_TIMER(USER_CPU,USER_TIME4,ERR,ERROR,*999)
-                CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME4,ERR,ERROR,*999)
-                USER_ELAPSED=USER_TIME4(1)-USER_TIME3(1)
-                SYSTEM_ELAPSED=SYSTEM_TIME4(1)-SYSTEM_TIME3(1)
-                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for parameter transfer completion = ",USER_ELAPSED, &
-                  & ERR,ERROR,*999)
-                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for parameter transfer completion = ",SYSTEM_ELAPSED, &
-                & ERR,ERROR,*999)              
-              ENDIF
-              !Loop over the boundary and ghost elements
+            !Output timing information if required
+            IF(CONSTRAINT_EQUATIONS%OUTPUT_TYPE>=EQUATIONS_TIMING_OUTPUT) THEN
+              CALL CPU_TIMER(USER_CPU,USER_TIME3,ERR,ERROR,*999)
+              CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME3,ERR,ERROR,*999)
+              USER_ELAPSED=USER_TIME3(1)-USER_TIME2(1)
+              SYSTEM_ELAPSED=SYSTEM_TIME3(1)-SYSTEM_TIME2(1)
+              ELEMENT_USER_ELAPSED=USER_ELAPSED
+              ELEMENT_SYSTEM_ELAPSED=SYSTEM_ELAPSED
+              CALL WRITE_STRING(GENERAL_OUTPUT_TYPE,"",ERR,ERROR,*999)
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for internal constraint equations assembly = ",USER_ELAPSED, &
+                & ERR,ERROR,*999)
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for internal constraint equations assembly = ",SYSTEM_ELAPSED, &
+                & ERR,ERROR,*999)
+             ENDIF
+            !Output timing information if required
+            IF(CONSTRAINT_EQUATIONS%OUTPUT_TYPE>=EQUATIONS_TIMING_OUTPUT) THEN
+              CALL CPU_TIMER(USER_CPU,USER_TIME4,ERR,ERROR,*999)
+              CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME4,ERR,ERROR,*999)
+              USER_ELAPSED=USER_TIME4(1)-USER_TIME3(1)
+              SYSTEM_ELAPSED=SYSTEM_TIME4(1)-SYSTEM_TIME3(1)
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for parameter transfer completion = ",USER_ELAPSED, &
+                & ERR,ERROR,*999)
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for parameter transfer completion = ",SYSTEM_ELAPSED, &
+                & ERR,ERROR,*999)
+            ENDIF
+            !Loop over the boundary and ghost elements
 #ifdef TAUPROF
-              CALL TAU_STATIC_PHASE_START("Boundary and Ghost Elements Loop")
+            CALL TAU_STATIC_PHASE_START("Boundary and Ghost Elements Loop")
 #endif
-              DO element_idx=ELEMENTS_MAPPING%BOUNDARY_START,ELEMENTS_MAPPING%GHOST_FINISH
-                ne=ELEMENTS_MAPPING%DOMAIN_LIST(element_idx)
-                NUMBER_OF_TIMES=NUMBER_OF_TIMES+1
-                CALL ConstraintMatrices_ElementCalculate(CONSTRAINT_MATRICES,ne,ERR,ERROR,*999)
-                CALL ConstraintCondition_FiniteElementCalculate(CONSTRAINT_CONDITION,ne,ERR,ERROR,*999)
-                CALL CONSTRAINT_MATRICES_ELEMENT_ADD(CONSTRAINT_MATRICES,ERR,ERROR,*999)
-              ENDDO !element_idx
+            DO element_idx=ELEMENTS_MAPPING%BOUNDARY_START,ELEMENTS_MAPPING%GHOST_FINISH
+              ne=ELEMENTS_MAPPING%DOMAIN_LIST(element_idx)
+              NUMBER_OF_TIMES=NUMBER_OF_TIMES+1
+              CALL CONSTRAINT_MATRICES_ELEMENT_CALCULATE(CONSTRAINT_MATRICES,ne,ERR,ERROR,*999)
+              CALL CONSTRAINT_CONDITION_FINITE_ELEMENT_CALCULATE(CONSTRAINT_CONDITION,ne,ERR,ERROR,*999)
+              CALL CONSTRAINT_MATRICES_ELEMENT_ADD(CONSTRAINT_MATRICES,ERR,ERROR,*999)
+            ENDDO !element_idx
 #ifdef TAUPROF
-              CALL TAU_STATIC_PHASE_STOP("Boundary and Ghost Elements Loop")
+            CALL TAU_STATIC_PHASE_STOP("Boundary and Ghost Elements Loop")
 #endif
-              !Output timing information if required
-              IF(CONSTRAINT_EQUATIONS%OUTPUT_TYPE>=CONSTRAINT_EQUATIONS_TIMING_OUTPUT) THEN
-                CALL CPU_TIMER(USER_CPU,USER_TIME5,ERR,ERROR,*999)
-                CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME5,ERR,ERROR,*999)
-                USER_ELAPSED=USER_TIME5(1)-USER_TIME4(1)
-                SYSTEM_ELAPSED=SYSTEM_TIME5(1)-SYSTEM_TIME4(1)
-                ELEMENT_USER_ELAPSED=ELEMENT_USER_ELAPSED+USER_ELAPSED
-                ELEMENT_SYSTEM_ELAPSED=ELEMENT_SYSTEM_ELAPSED+USER_ELAPSED
-                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for boundary+ghost equations assembly = ",USER_ELAPSED, &
-                  & ERR,ERROR,*999)
-                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for boundary+ghost equations assembly = ",SYSTEM_ELAPSED, &
-                  & ERR,ERROR,*999)
-                IF(NUMBER_OF_TIMES>0) THEN
-                  CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average element user time for equations assembly = ", &
-                    & ELEMENT_USER_ELAPSED/NUMBER_OF_TIMES,ERR,ERROR,*999)
-                  CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average element system time for equations assembly = ", &
-                    & ELEMENT_SYSTEM_ELAPSED/NUMBER_OF_TIMES,ERR,ERROR,*999)
-                ENDIF
+            !Output timing information if required
+            IF(CONSTRAINT_EQUATIONS%OUTPUT_TYPE>=EQUATIONS_TIMING_OUTPUT) THEN
+              CALL CPU_TIMER(USER_CPU,USER_TIME5,ERR,ERROR,*999)
+              CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME5,ERR,ERROR,*999)
+              USER_ELAPSED=USER_TIME5(1)-USER_TIME4(1)
+              SYSTEM_ELAPSED=SYSTEM_TIME5(1)-SYSTEM_TIME4(1)
+              ELEMENT_USER_ELAPSED=ELEMENT_USER_ELAPSED+USER_ELAPSED
+              ELEMENT_SYSTEM_ELAPSED=ELEMENT_SYSTEM_ELAPSED+USER_ELAPSED
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for boundary+ghost constraint equations assembly = ",USER_ELAPSED, &
+                & ERR,ERROR,*999)
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for boundary+ghost constraint equations assembly = ",SYSTEM_ELAPSED, &
+                & ERR,ERROR,*999)
+              IF(NUMBER_OF_TIMES>0) THEN
+                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average element user time for constraint equations assembly = ", &
+                  & ELEMENT_USER_ELAPSED/NUMBER_OF_TIMES,ERR,ERROR,*999)
+                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average element system time for constraint equations assembly = ", &
+                  & ELEMENT_SYSTEM_ELAPSED/NUMBER_OF_TIMES,ERR,ERROR,*999)
               ENDIF
-              !Finalise the element matrices
+            ENDIF
+            !Finalise the element matrices
 #ifdef TAUPROF
-              CALL TAU_STATIC_PHASE_START("CONSTRAINT_MATRICES_ELEMENT_FINALISE()")
+            CALL TAU_STATIC_PHASE_START("CONSTRAINT_MATRICES_ELEMENT_FINALISE()")
 #endif
-              CALL CONSTRAINT_MATRICES_ELEMENT_FINALISE(CONSTRAINT_MATRICES,ERR,ERROR,*999)
+            CALL CONSTRAINT_MATRICES_ELEMENT_FINALISE(CONSTRAINT_MATRICES,ERR,ERROR,*999)
 #ifdef TAUPROF
-              CALL TAU_STATIC_PHASE_STOP("CONSTRAINT_MATRICES_ELEMENT_FINALISE()")
+            CALL TAU_STATIC_PHASE_STOP("CONSTRAINT_MATRICES_ELEMENT_FINALISE()")
 #endif
-              !Output equations matrices and vector if required
-              IF(CONSTRAINT_EQUATIONS%OUTPUT_TYPE>=CONSTRAINT_EQUATIONS_MATRIX_OUTPUT) THEN
-                CALL CONSTRAINT_MATRICES_OUTPUT(GENERAL_OUTPUT_TYPE,CONSTRAINT_MATRICES,ERR,ERROR,*999)
-              ENDIF
-              !Output timing information if required
-              IF(CONSTRAINT_EQUATIONS%OUTPUT_TYPE>=CONSTRAINT_EQUATIONS_TIMING_OUTPUT) THEN
-                CALL CPU_TIMER(USER_CPU,USER_TIME6,ERR,ERROR,*999)
-                CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME6,ERR,ERROR,*999)
-                USER_ELAPSED=USER_TIME6(1)-USER_TIME1(1)
-                SYSTEM_ELAPSED=SYSTEM_TIME6(1)-SYSTEM_TIME1(1)
-                CALL WRITE_STRING(GENERAL_OUTPUT_TYPE,"***",ERR,ERROR,*999)
-                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Total user time for equations assembly = ",USER_ELAPSED, &
-                  & ERR,ERROR,*999)
-                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Total system time for equations assembly = ",SYSTEM_ELAPSED, &
-                  & ERR,ERROR,*999)
-                CALL WRITE_STRING(GENERAL_OUTPUT_TYPE,"***",ERR,ERROR,*999)
-              ENDIF
-            ELSE
-              CALL FLAG_ERROR("Constraint matrices is not associated.",ERR,ERROR,*999)
+            !Output equations matrices and vector if required
+            IF(CONSTRAINT_EQUATIONS%OUTPUT_TYPE>=EQUATIONS_MATRIX_OUTPUT) THEN
+              CALL CONSTRAINT_MATRICES_OUTPUT(GENERAL_OUTPUT_TYPE,CONSTRAINT_MATRICES,ERR,ERROR,*999)
+            ENDIF
+            !Output timing information if required
+            IF(CONSTRAINT_EQUATIONS%OUTPUT_TYPE>=EQUATIONS_TIMING_OUTPUT) THEN
+              CALL CPU_TIMER(USER_CPU,USER_TIME6,ERR,ERROR,*999)
+              CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME6,ERR,ERROR,*999)
+              USER_ELAPSED=USER_TIME6(1)-USER_TIME1(1)
+              SYSTEM_ELAPSED=SYSTEM_TIME6(1)-SYSTEM_TIME1(1)
+              CALL WRITE_STRING(GENERAL_OUTPUT_TYPE,"",ERR,ERROR,*999)
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Total user time for constraint equations assembly = ",USER_ELAPSED, &
+                & ERR,ERROR,*999)
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Total system time for constraint equations assembly = ",SYSTEM_ELAPSED, &
+                & ERR,ERROR,*999)
             ENDIF
           ELSE
-            CALL FLAG_ERROR("Constraint matrices is not associated.",ERR,ERROR,*999)
+            CALL FLAG_ERROR("Constraint equations matrices is not associated",ERR,ERROR,*999)
           ENDIF
         ELSE
-          CALL FLAG_ERROR("Lagrange field is not associated.",ERR,ERROR,*999)
+          CALL FLAG_ERROR("Constraint equations is not associated",ERR,ERROR,*999)
         ENDIF
       ELSE
-        CALL FLAG_ERROR("Constraint condition Lagrange is not associated.",ERR,ERROR,*999)
+        CALL FLAG_ERROR("Lagrange field is not associated",ERR,ERROR,*999)
       ENDIF
     ELSE
       CALL FLAG_ERROR("Constraint condition is not associated",ERR,ERROR,*999)
     ENDIF
        
-    CALL EXITS("CONSTRAINT_CONDITION_ASSEMBLE_FEM")
+    CALL EXITS("CONSTRAINT_CONDITION_ASSEMBLE_STATIC_LINEAR_FEM")
     RETURN
-999 CALL ERRORS("CONSTRAINT_CONDITION_ASSEMBLE_FEM",ERR,ERROR)
-    CALL EXITS("CONSTRAINT_CONDITION_ASSEMBLE_FEM")
+999 CALL ERRORS("CONSTRAINT_CONDITION_ASSEMBLE_STATIC_LINEAR_FEM",ERR,ERROR)
+    CALL EXITS("CONSTRAINT_CONDITION_ASSEMBLE_STATIC_LINEAR_FEM")
     RETURN 1
-  END SUBROUTINE CONSTRAINT_CONDITION_ASSEMBLE_FEM
+  END SUBROUTINE CONSTRAINT_CONDITION_ASSEMBLE_STATIC_LINEAR_FEM
 
+  !
+  !================================================================================================================================
+  !
+  
+  !>Assembles the equations stiffness matrix, residuals and rhs for a nonlinear static constraint condition using the finite element method.
+  SUBROUTINE CONSTRAINT_CONDITION_ASSEMBLE_STATIC_NONLINEAR_FEM(CONSTRAINT_CONDITION,ERR,ERROR,*)
+
+    !Argument variables
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION !<A pointer to the constraint condition to assemble the equations for
+    INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
+    !Local Variables
+    INTEGER(INTG) :: element_idx,ne,NUMBER_OF_TIMES
+    REAL(SP) :: ELEMENT_USER_ELAPSED,ELEMENT_SYSTEM_ELAPSED,USER_ELAPSED,USER_TIME1(1),USER_TIME2(1),USER_TIME3(1),USER_TIME4(1), &
+      & USER_TIME5(1),USER_TIME6(1),SYSTEM_ELAPSED,SYSTEM_TIME1(1),SYSTEM_TIME2(1),SYSTEM_TIME3(1),SYSTEM_TIME4(1), &
+      & SYSTEM_TIME5(1),SYSTEM_TIME6(1)
+    TYPE(DOMAIN_MAPPING_TYPE), POINTER :: ELEMENTS_MAPPING
+    TYPE(CONSTRAINT_EQUATIONS_TYPE), POINTER :: CONSTRAINT_EQUATIONS
+    TYPE(CONSTRAINT_MATRICES_TYPE), POINTER :: CONSTRAINT_MATRICES
+    TYPE(FIELD_TYPE), POINTER :: LAGRANGE_FIELD
+    
+    CALL ENTERS("CONSTRAINT_CONDITION_ASSEMBLE_STATIC_NONLINEAR_FEM",ERR,ERROR,*999)
+
+    IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
+      LAGRANGE_FIELD=>CONSTRAINT_CONDITION%LAGRANGE%LAGRANGE_FIELD
+      IF(ASSOCIATED(LAGRANGE_FIELD)) THEN
+        CONSTRAINT_EQUATIONS=>CONSTRAINT_CONDITION%EQUATIONS
+        IF(ASSOCIATED(EQUATIONS)) THEN
+          CONSTRAINT_MATRICES=>CONSTRAINT_EQUATIONS%CONSTRAINT_MATRICES
+          IF(ASSOCIATED(CONSTRAINT_MATRICES)) THEN
+            IF(CONSTRAINT_EQUATIONS%OUTPUT_TYPE>=EQUATIONS_TIMING_OUTPUT) THEN
+              CALL CPU_TIMER(USER_CPU,USER_TIME1,ERR,ERROR,*999)
+              CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME1,ERR,ERROR,*999)
+            ENDIF
+             !Initialise the matrices and rhs vector
+            CALL CONSTRAINT_MATRICES_VALUES_INITIALISE(CONSTRAINT_MATRICES,CONSTRAINT_MATRICES_NONLINEAR_ONLY,0.0_DP,ERR,ERROR,*999)
+            !Assemble the elements
+            !Allocate the element matrices 
+            CALL CONSTRAINT_MATRICES_ELEMENT_INITIALISE(CONSTRAINT_MATRICES,ERR,ERROR,*999)
+            ELEMENTS_MAPPING=>LAGRANGE_FIELD%DECOMPOSITION%DOMAIN(LAGRANGE_FIELD%DECOMPOSITION%MESH_COMPONENT_NUMBER)%PTR% &
+              & MAPPINGS%ELEMENTS
+            !Output timing information if required
+            IF(CONSTRAINT_EQUATIONS%OUTPUT_TYPE>=EQUATIONS_TIMING_OUTPUT) THEN
+              CALL CPU_TIMER(USER_CPU,USER_TIME2,ERR,ERROR,*999)
+              CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME2,ERR,ERROR,*999)
+              USER_ELAPSED=USER_TIME2(1)-USER_TIME1(1)
+              SYSTEM_ELAPSED=SYSTEM_TIME2(1)-SYSTEM_TIME1(1)
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for constraint conditionup and initialisation = ",USER_ELAPSED, &
+                & ERR,ERROR,*999)
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for constraint conditionup and initialisation = ",SYSTEM_ELAPSED, &
+                & ERR,ERROR,*999)
+              ELEMENT_USER_ELAPSED=0.0_SP
+              ELEMENT_SYSTEM_ELAPSED=0.0_SP
+            ENDIF
+            NUMBER_OF_TIMES=0
+            !Loop over the internal elements
+            DO element_idx=ELEMENTS_MAPPING%INTERNAL_START,ELEMENTS_MAPPING%INTERNAL_FINISH
+              ne=ELEMENTS_MAPPING%DOMAIN_LIST(element_idx)
+              NUMBER_OF_TIMES=NUMBER_OF_TIMES+1
+              CALL CONSTRAINT_MATRICES_ELEMENT_CALCULATE(CONSTRAINT_MATRICES,ne,ERR,ERROR,*999)
+              CALL CONSTRAINT_CONDITION_FINITE_ELEMENT_RESIDUAL_EVALUATE(CONSTRAINT_CONDITION,ne,ERR,ERROR,*999)
+              CALL CONSTRAINT_MATRICES_ELEMENT_ADD(CONSTRAINT_MATRICES,ERR,ERROR,*999)
+            ENDDO !element_idx
+            !Output timing information if required
+            IF(CONSTRAINT_EQUATIONS%OUTPUT_TYPE>=EQUATIONS_TIMING_OUTPUT) THEN
+              CALL CPU_TIMER(USER_CPU,USER_TIME3,ERR,ERROR,*999)
+              CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME3,ERR,ERROR,*999)
+              USER_ELAPSED=USER_TIME3(1)-USER_TIME2(1)
+              SYSTEM_ELAPSED=SYSTEM_TIME3(1)-SYSTEM_TIME2(1)
+              ELEMENT_USER_ELAPSED=USER_ELAPSED
+              ELEMENT_SYSTEM_ELAPSED=SYSTEM_ELAPSED
+              CALL WRITE_STRING(GENERAL_OUTPUT_TYPE,"",ERR,ERROR,*999)
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for internal constraint equations assembly = ",USER_ELAPSED, &
+                & ERR,ERROR,*999)
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for internal constraint equations assembly = ",SYSTEM_ELAPSED, &
+                & ERR,ERROR,*999)
+            ENDIF
+            !Output timing information if required
+            IF(CONSTRAINT_EQUATIONS%OUTPUT_TYPE>=EQUATIONS_TIMING_OUTPUT) THEN
+              CALL CPU_TIMER(USER_CPU,USER_TIME4,ERR,ERROR,*999)
+              CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME4,ERR,ERROR,*999)
+              USER_ELAPSED=USER_TIME4(1)-USER_TIME3(1)
+              SYSTEM_ELAPSED=SYSTEM_TIME4(1)-SYSTEM_TIME3(1)
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for parameter transfer completion = ",USER_ELAPSED, &
+                & ERR,ERROR,*999)
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for parameter transfer completion = ",SYSTEM_ELAPSED, &
+                & ERR,ERROR,*999)
+            ENDIF
+            !Loop over the boundary and ghost elements
+            DO element_idx=ELEMENTS_MAPPING%BOUNDARY_START,ELEMENTS_MAPPING%GHOST_FINISH
+              ne=ELEMENTS_MAPPING%DOMAIN_LIST(element_idx)
+              NUMBER_OF_TIMES=NUMBER_OF_TIMES+1
+              CALL CONSTRAINT_MATRICES_ELEMENT_CALCULATE(CONSTRAINT_MATRICES,ne,ERR,ERROR,*999)
+              CALL CONSTRAINT_CONDITION_FINITE_ELEMENT_RESIDUAL_EVALUATE(CONSTRAINT_CONDITION,ne,ERR,ERROR,*999)
+              CALL CONSTRAINT_MATRICES_ELEMENT_ADD(CONSTRAINT_MATRICES,ERR,ERROR,*999)
+            ENDDO !element_idx
+            !Output timing information if required
+            IF(CONSTRAINT_EQUATIONS%OUTPUT_TYPE>=EQUATIONS_TIMING_OUTPUT) THEN
+              CALL CPU_TIMER(USER_CPU,USER_TIME5,ERR,ERROR,*999)
+              CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME5,ERR,ERROR,*999)
+              USER_ELAPSED=USER_TIME5(1)-USER_TIME4(1)
+              SYSTEM_ELAPSED=SYSTEM_TIME5(1)-SYSTEM_TIME4(1)
+              ELEMENT_USER_ELAPSED=ELEMENT_USER_ELAPSED+USER_ELAPSED
+              ELEMENT_SYSTEM_ELAPSED=ELEMENT_SYSTEM_ELAPSED+USER_ELAPSED
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for boundary+ghost constraint equations assembly = ",USER_ELAPSED, &
+                & ERR,ERROR,*999)
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for boundary+ghost constraint equations assembly = ",SYSTEM_ELAPSED, &
+                & ERR,ERROR,*999)
+              IF(NUMBER_OF_TIMES>0) THEN
+                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average element user time for constraint equations assembly = ", &
+                  & ELEMENT_USER_ELAPSED/NUMBER_OF_TIMES,ERR,ERROR,*999)
+                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average element system time for constraint equations assembly = ", &
+                  & ELEMENT_SYSTEM_ELAPSED/NUMBER_OF_TIMES,ERR,ERROR,*999)
+              ENDIF
+            ENDIF
+            !Finalise the element matrices
+            CALL CONSTRAINT_MATRICES_ELEMENT_FINALISE(CONSTRAINT_MATRICES,ERR,ERROR,*999)
+            !Output equations matrices and RHS vector if required
+            IF(CONSTRAINT_EQUATIONS%OUTPUT_TYPE>=EQUATIONS_MATRIX_OUTPUT) THEN
+              CALL CONSTRAINT_MATRICES_OUTPUT(GENERAL_OUTPUT_TYPE,CONSTRAINT_MATRICES,ERR,ERROR,*999)
+            ENDIF
+            !Output timing information if required
+            IF(CONSTRAINT_EQUATIONS%OUTPUT_TYPE>=EQUATIONS_TIMING_OUTPUT) THEN
+              CALL CPU_TIMER(USER_CPU,USER_TIME6,ERR,ERROR,*999)
+              CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME6,ERR,ERROR,*999)
+              USER_ELAPSED=USER_TIME6(1)-USER_TIME1(1)
+              SYSTEM_ELAPSED=SYSTEM_TIME6(1)-SYSTEM_TIME1(1)
+              CALL WRITE_STRING(GENERAL_OUTPUT_TYPE,"",ERR,ERROR,*999)
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Total user time for constraint equations assembly = ",USER_ELAPSED, &
+                & ERR,ERROR,*999)
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Total system time for constraint equations assembly = ",SYSTEM_ELAPSED, &
+                & ERR,ERROR,*999)
+            ENDIF
+          ELSE
+            CALL FLAG_ERROR("Constraint equations matrices is not associated",ERR,ERROR,*999)
+          ENDIF
+        ELSE
+          CALL FLAG_ERROR("Constraint equations is not associated",ERR,ERROR,*999)
+        ENDIF
+      ELSE
+        CALL FLAG_ERROR("Lagrange field is not associated",ERR,ERROR,*999)
+      ENDIF
+    ELSE
+      CALL FLAG_ERROR("Constraint condition is not associated",ERR,ERROR,*999)
+    ENDIF
+       
+    CALL EXITS("CONSTRAINT_CONDITION_ASSEMBLE_STATIC_NONLINEAR_FEM")
+    RETURN
+999 CALL ERRORS("CONSTRAINT_CONDITION_ASSEMBLE_STATIC_NONLINEAR_FEM",ERR,ERROR)
+    CALL EXITS("CONSTRAINT_CONDITION_ASSEMBLE_STATIC_NONLINEAR_FEM")
+    RETURN 1
+  END SUBROUTINE CONSTRAINT_CONDITION_ASSEMBLE_STATIC_NONLINEAR_FEM
+  
   !
   !==================================================================================================================================
   !
@@ -363,16 +750,8 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
     !Local Variables
-    INTEGER(INTG) :: mesh_idx,mesh_idx_count,NUMBER_OF_COMPONENTS,variable_idx
-    INTEGER(INTG), POINTER :: NEW_VARIABLE_MESH_INDICES(:)
-    TYPE(FIELD_VARIABLE_TYPE), POINTER :: FIELD_VARIABLE
-    TYPE(FIELD_VARIABLE_PTR_TYPE), POINTER :: NEW_FIELD_VARIABLES(:)
-    TYPE(CONSTRAINT_TYPE), POINTER :: CONSTRAINT
     TYPE(CONSTRAINT_DEPENDENT_TYPE), POINTER :: CONSTRAINT_DEPENDENT
     TYPE(VARYING_STRING) :: LOCAL_ERROR
-    
-    NULLIFY(NEW_FIELD_VARIABLES)
-    NULLIFY(NEW_VARIABLE_MESH_INDICES)
     
     CALL ENTERS("CONSTRAINT_CONDITION_CREATE_FINISH",ERR,ERROR,*999)
 
@@ -380,105 +759,34 @@ CONTAINS
       IF(CONSTRAINT_CONDITION%CONSTRAINT_CONDITION_FINISHED) THEN
         CALL FLAG_ERROR("Constraint condition has already been finished.",ERR,ERROR,*999)
       ELSE
-        CONSTRAINT=>CONSTRAINT_CONDITION%CONSTRAINT
-        IF(ASSOCIATED(CONSTRAINT)) THEN
-          !Test various inputs have been set up.
-          SELECT CASE(CONSTRAINT_CONDITION%METHOD)
-          CASE(CONSTRAINT_CONDITION_LAGRANGE_MULTIPLIERS_METHOD,CONSTRAINT_CONDITION_PENALTY_METHOD)
-            CONSTRAINT_DEPENDENT=>CONSTRAINT_CONDITION%DEPENDENT
-            IF(ASSOCIATED(CONSTRAINT_DEPENDENT)) THEN
-              !Check the dependent field variables have been set.
-              IF(CONSTRAINT_DEPENDENT%NUMBER_OF_DEPENDENT_VARIABLES<2) THEN
-                LOCAL_ERROR="The number of added dependent variables of "// &
-                  & TRIM(NUMBER_TO_VSTRING(CONSTRAINT_DEPENDENT%NUMBER_OF_DEPENDENT_VARIABLES,"*",ERR,ERROR))// &
-                  & " is invalid. The number must be >= 2."
-                CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
-              ENDIF
-
-              !\todo check if constraint mesh connectivity basis has same number of gauss points as constraint geometric field IF(CONSTRAINT_CONDITION%CONSTRAINT%MESH_CONNECTIVITY%BASIS%QUADRATURE%NUMBER_OF_GAUSS_XI/=)
- 
-              !Note There is no need to check that the dependent variables have the same number of components.
-              !The user will need to set a fixed BC on the constraint dof relating to the field components 
-              !not present in each of the coupled bodies, eliminating this dof from the solver matrices
-              SELECT CASE(CONSTRAINT_CONDITION%OPERATOR)
-              CASE(CONSTRAINT_CONDITION_FIELD_CONTINUITY_OPERATOR,CONSTRAINT_CONDITION_FLS_CONTACT_OPERATOR, &
-                & CONSTRAINT_CONDITION_FLS_CONTACT_REPROJECT_OPERATOR,CONSTRAINT_CONDITION_SOLID_FLUID_OPERATOR)
-                !Check that the dependent variables have the same number of components
-                FIELD_VARIABLE=>CONSTRAINT_DEPENDENT%FIELD_VARIABLES(1)%PTR
-                IF(ASSOCIATED(FIELD_VARIABLE)) THEN
-                  NUMBER_OF_COMPONENTS=FIELD_VARIABLE%NUMBER_OF_COMPONENTS
-                  DO variable_idx=2,CONSTRAINT_DEPENDENT%NUMBER_OF_DEPENDENT_VARIABLES
-                    FIELD_VARIABLE=>CONSTRAINT_DEPENDENT%FIELD_VARIABLES(variable_idx)%PTR
-                    IF(ASSOCIATED(FIELD_VARIABLE)) THEN
-                      !do nothing
-                    ELSE
-                      LOCAL_ERROR="The constraint condition field variables is not associated for variable index "// &
-                        & TRIM(NUMBER_TO_VSTRING(variable_idx,"*",ERR,ERROR))
-                      CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
-                    ENDIF
-                  ENDDO !variable_idx 
-                ELSE
-                  CALL FLAG_ERROR("Constraint field variable is not associated.",ERR,ERROR,*999)
-                ENDIF
-              CASE(CONSTRAINT_CONDITION_FIELD_NORMAL_CONTINUITY_OPERATOR)
-                CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
-              CASE(CONSTRAINT_CONDITION_SOLID_FLUID_NORMAL_OPERATOR)
-                CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
-              CASE DEFAULT
-                LOCAL_ERROR="The constraint condition operator of "// &
-                  & TRIM(NUMBER_TO_VSTRING(CONSTRAINT_CONDITION%OPERATOR,"*",ERR,ERROR))//" is invalid."
-                CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
-              END SELECT
-
-              !Reorder the dependent variables based on mesh index order
-              ALLOCATE(NEW_FIELD_VARIABLES(CONSTRAINT_DEPENDENT%NUMBER_OF_DEPENDENT_VARIABLES),STAT=ERR)
-              IF(ERR/=0) CALL FLAG_ERROR("Could not allocate new field variables.",ERR,ERROR,*999)
-              ALLOCATE(NEW_VARIABLE_MESH_INDICES(CONSTRAINT_DEPENDENT%NUMBER_OF_DEPENDENT_VARIABLES),STAT=ERR)
-              IF(ERR/=0) CALL FLAG_ERROR("Could not allocate new variable mesh indices.",ERR,ERROR,*999)
-              NEW_VARIABLE_MESH_INDICES=0
-              mesh_idx_count=0
-              DO mesh_idx=1,CONSTRAINT%NUMBER_OF_COUPLED_MESHES
-                DO variable_idx=1,CONSTRAINT_DEPENDENT%NUMBER_OF_DEPENDENT_VARIABLES
-                  IF(CONSTRAINT_DEPENDENT%VARIABLE_MESH_INDICES(variable_idx)==mesh_idx) THEN
-                    mesh_idx_count=mesh_idx_count+1
-                    NEW_FIELD_VARIABLES(mesh_idx_count)%PTR=>CONSTRAINT_DEPENDENT%FIELD_VARIABLES(variable_idx)%PTR
-                    NEW_VARIABLE_MESH_INDICES(mesh_idx_count)=mesh_idx
-                  ENDIF
-                ENDDO !variable_idx
-              ENDDO !mesh_idx
-              IF(mesh_idx_count/=CONSTRAINT_DEPENDENT%NUMBER_OF_DEPENDENT_VARIABLES) &
-                & CALL FLAG_ERROR("Invalid dependent variable mesh index setup.",ERR,ERROR,*999)
-              IF(ASSOCIATED(CONSTRAINT_DEPENDENT%FIELD_VARIABLES)) DEALLOCATE(CONSTRAINT_DEPENDENT%FIELD_VARIABLES)
-              IF(ASSOCIATED(CONSTRAINT_DEPENDENT%VARIABLE_MESH_INDICES)) DEALLOCATE(CONSTRAINT_DEPENDENT%VARIABLE_MESH_INDICES)
-              CONSTRAINT_DEPENDENT%FIELD_VARIABLES=>NEW_FIELD_VARIABLES
-              CONSTRAINT_DEPENDENT%VARIABLE_MESH_INDICES=>NEW_VARIABLE_MESH_INDICES
-            ELSE
-              CALL FLAG_ERROR("Constraint condition dependent is not associated.",ERR,ERROR,*999)
-            ENDIF
-          CASE(CONSTRAINT_CONDITION_AUGMENTED_LAGRANGE_METHOD)
-            CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
-          CASE(CONSTRAINT_CONDITION_POINT_TO_POINT_METHOD)
-            CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
-          CASE DEFAULT
-            LOCAL_ERROR="The constraint condition method of "//TRIM(NUMBER_TO_VSTRING(CONSTRAINT_CONDITION%METHOD,"*",ERR,ERROR))// &
-              & " is invalid."
-            CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
-          END SELECT
-          !Finish the constraint condition creation
-          CONSTRAINT_CONDITION%CONSTRAINT_CONDITION_FINISHED=.TRUE.
-        ELSE
-          CALL FLAG_ERROR("Constraint condition constraint is not associated.",ERR,ERROR,*999)
-        ENDIF
+        !Test various inputs have been set up.
+        SELECT CASE(CONSTRAINT_CONDITION%METHOD)
+        CASE(CONSTRAINT_CONDITION_LAGRANGE_MULTIPLIERS_METHOD,CONSTRAINT_CONDITION_PENALTY_METHOD)
+          CONSTRAINT_DEPENDENT=>CONSTRAINT_CONDITION%DEPENDENT
+          IF(ASSOCIATED(CONSTRAINT_DEPENDENT)) THEN
+            !Do nothing?
+          ELSE
+            CALL FLAG_ERROR("Constraint condition dependent is not associated.",ERR,ERROR,*999)
+          ENDIF
+        CASE(CONSTRAINT_CONDITION_AUGMENTED_LAGRANGE_METHOD)
+          CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+        CASE(CONSTRAINT_CONDITION_POINT_TO_POINT_METHOD)
+          CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+        CASE DEFAULT
+          LOCAL_ERROR="The constraint condition method of "//TRIM(NUMBER_TO_VSTRING(CONSTRAINT_CONDITION%METHOD,"*",ERR,ERROR))// &
+            & " is invalid."
+          CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
+        END SELECT
+        !Finish the constraint condition creation
+        CONSTRAINT_CONDITION%CONSTRAINT_CONDITION_FINISHED=.TRUE.
       ENDIF
     ELSE
       CALL FLAG_ERROR("Constraint condition is not associated.",ERR,ERROR,*999)
     ENDIF
        
     CALL EXITS("CONSTRAINT_CONDITION_CREATE_FINISH")
-    RETURN
-999 IF(ASSOCIATED(NEW_FIELD_VARIABLES)) DEALLOCATE(NEW_FIELD_VARIABLES)
-    IF(ASSOCIATED(NEW_VARIABLE_MESH_INDICES)) DEALLOCATE(NEW_VARIABLE_MESH_INDICES)
-    CALL ERRORS("CONSTRAINT_CONDITION_CREATE_FINISH",ERR,ERROR)    
+    RETURN 
+999 CALL ERRORS("CONSTRAINT_CONDITION_CREATE_FINISH",ERR,ERROR)    
     CALL EXITS("CONSTRAINT_CONDITION_CREATE_FINISH")
     RETURN 1
    
@@ -489,11 +797,11 @@ CONTAINS
   !
 
   !>Starts the process of creating an constraint condition on an constraint. \see OPENCMISS::CMISSConstraintConditionCreateStart
-  SUBROUTINE CONSTRAINT_CONDITION_CREATE_START(USER_NUMBER,CONSTRAINT,GEOMETRIC_FIELD,CONSTRAINT_CONDITION,ERR,ERROR,*)
+  SUBROUTINE CONSTRAINT_CONDITION_CREATE_START(USER_NUMBER,REGION,GEOMETRIC_FIELD,CONSTRAINT_CONDITION,ERR,ERROR,*)
 
     !Argument variables
     INTEGER(INTG), INTENT(IN) :: USER_NUMBER !<The user number of the constraint condition
-    TYPE(CONSTRAINT_TYPE), POINTER :: CONSTRAINT !<A pointer to the constraint to create the constraint condition on
+    TYPE(REGION_TYPE), POINTER :: REGION !<A pointer to the region to create the constraint condition on
     TYPE(FIELD_TYPE), POINTER :: GEOMETRIC_FIELD !<A pointer to the geometric field for the constraint condition.
     TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION !<On return, a pointer to the constraint condition. Must not be associated on entry.
     INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
@@ -503,7 +811,6 @@ CONTAINS
     TYPE(CONSTRAINT_TYPE), POINTER :: GEOMETRIC_CONSTRAINT
     TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: NEW_CONSTRAINT_CONDITION
     TYPE(CONSTRAINT_CONDITION_PTR_TYPE), POINTER :: NEW_CONSTRAINT_CONDITIONS(:)
-    TYPE(REGION_TYPE), POINTER :: GEOMETRIC_REGION,GEOMETRIC_CONSTRAINT_PARENT_REGION,CONSTRAINT_PARENT_REGION
     TYPE(VARYING_STRING) :: DUMMY_ERROR,LOCAL_ERROR
  
     NULLIFY(NEW_CONSTRAINT_CONDITION)
@@ -511,105 +818,82 @@ CONTAINS
 
     CALL ENTERS("CONSTRAINT_CONDITION_CREATE_START",ERR,ERROR,*997)
 
-    IF(ASSOCIATED(CONSTRAINT)) THEN
-      IF(ASSOCIATED(CONSTRAINT%CONSTRAINT_CONDITIONS)) THEN
-        CALL CONSTRAINT_CONDITION_USER_NUMBER_FIND(USER_NUMBER,CONSTRAINT,NEW_CONSTRAINT_CONDITION,ERR,ERROR,*997)
+    IF(ASSOCIATED(REGION)) THEN
+      IF(ASSOCIATED(REGION%CONSTRAINT_CONDITIONS)) THEN
+        CALL CONSTRAINT_CONDITION_USER_NUMBER_FIND(USER_NUMBER,REGION,NEW_CONSTRAINT_CONDITION,ERR,ERROR,*997)
         IF(ASSOCIATED(NEW_CONSTRAINT_CONDITION)) THEN
           LOCAL_ERROR="Constraint condition user number "//TRIM(NUMBER_TO_VSTRING(USER_NUMBER,"*",ERR,ERROR))// &
-            & " has already been created on constraint number "//TRIM(NUMBER_TO_VSTRING(CONSTRAINT%USER_NUMBER,"*",ERR,ERROR))//"."
+            & " has already been created on region number "//TRIM(NUMBER_TO_VSTRING(REGION%USER_NUMBER,"*",ERR,ERROR))//"."
           CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*997)
         ELSE
           IF(ASSOCIATED(GEOMETRIC_FIELD)) THEN
             IF(GEOMETRIC_FIELD%FIELD_FINISHED) THEN
-              !Check the geometric field is defined on the constraint
-              GEOMETRIC_CONSTRAINT=>GEOMETRIC_FIELD%CONSTRAINT
-              IF(ASSOCIATED(GEOMETRIC_CONSTRAINT)) THEN
-                IF(ASSOCIATED(GEOMETRIC_CONSTRAINT,CONSTRAINT)) THEN
-                  NULLIFY(NEW_CONSTRAINT_CONDITION)
-                  !Initialise the new constraint condition
-                  CALL CONSTRAINT_CONDITION_INITIALISE(NEW_CONSTRAINT_CONDITION,ERR,ERROR,*999)
-                  !Set default constraint condition values
-                  NEW_CONSTRAINT_CONDITION%USER_NUMBER=USER_NUMBER
-                  NEW_CONSTRAINT_CONDITION%GLOBAL_NUMBER=CONSTRAINT%CONSTRAINT_CONDITIONS%NUMBER_OF_CONSTRAINT_CONDITIONS+1
-                  NEW_CONSTRAINT_CONDITION%CONSTRAINT_CONDITIONS=>CONSTRAINT%CONSTRAINT_CONDITIONS
-                  NEW_CONSTRAINT_CONDITION%CONSTRAINT=>CONSTRAINT
-                  !Default attributes
-                  NEW_CONSTRAINT_CONDITION%GEOMETRY%GEOMETRIC_FIELD=>GEOMETRIC_FIELD
-                  NEW_CONSTRAINT_CONDITION%METHOD=CONSTRAINT_CONDITION_LAGRANGE_MULTIPLIERS_METHOD
-                  NEW_CONSTRAINT_CONDITION%OPERATOR=CONSTRAINT_CONDITION_FIELD_CONTINUITY_OPERATOR
-                  IF(ASSOCIATED(CONSTRAINT%pointsConnectivity)) THEN
-                    NEW_CONSTRAINT_CONDITION%integrationType=CONSTRAINT_CONDITION_DATA_POINTS_INTEGRATION
+              IF(GEOMETRIC_FIELD%TYPE==FIELD_GEOMETRIC_TYPE) THEN
+                GEOMETRIC_FIELD_REGION=>GEOMETRIC_FIELD%REGION
+                IF(ASSOCIATED(GEOMETRIC_FIELD_REGION)) THEN
+                  IF(GEOMETRIC_FIELD_REGION%USER_NUMBER==REGION%USER_NUMBER) THEN
+                    NULLIFY(NEW_CONSTRAINT_CONDITION)
+                    !Initalise constraint condition
+                    CALL CONSTRAINT_CONDITION_INITIALISE(NEW_CONSTRAINT_CONDITION,ERR,ERROR,*999)
+                    !Set default constraint condition values
+                    NEW_CONSTRAINT_CONDITION%USER_NUMBER=USER_NUMBER
+                    NEW_CONSTRAINT_CONDITION%GLOBAL_NUMBER=REGION%CONSTRAINT_CONDITIONS%NUMBER_OF_CONSTRAINT_CONDITIONS+1
+                    NEW_CONSTRAINT_CONDITION%CONSTRAINT_CONDITIONS=>REGION%CONSTRAINT_CONDITIONS
+                    NEW_CONSTRAINT_CONDITION%REGION=>REGION
+                    !Default attributes
+                    NEW_CONSTRAINT_CONDITION%GEOMETRY%GEOMETRIC_FIELD=>GEOMETRIC_FIELD
+                    NEW_CONSTRAINT_CONDITION%METHOD=CONSTRAINT_CONDITION_LAGRANGE_MULTIPLIERS_METHOD
+                    NEW_CONSTRAINT_CONDITION%OPERATOR=CONSTRAINT_CONDITION_FE_INCOMPRESSIBILITY_OPERATOR
+                    CALL CONSTRAINT_CONDITION_DEPENDENT_INITIALISE(NEW_CONSTRAINT_CONDITION,ERR,ERROR,*999)
+                    !Add new constraint condition into list of constraint conditions in the constraint
+                    ALLOCATE(NEW_CONSTRAINT_CONDITIONS(REGION%CONSTRAINT_CONDITIONS%NUMBER_OF_CONSTRAINT_CONDITIONS+1),STAT=ERR)
+                    IF(ERR/=0) CALL FLAG_ERROR("Could not allocate new constraint conditions.",ERR,ERROR,*999)
+                    DO constraint_conditions_idx=1,REGION%CONSTRAINT_CONDITIONS%NUMBER_OF_CONSTRAINT_CONDITIONS
+                      NEW_CONSTRAINT_CONDITIONS(constraint_conditions_idx)%PTR=>REGION%CONSTRAINT_CONDITIONS% &
+                        & CONSTRAINT_CONDITIONS(constraint_conditions_idx)%PTR
+                    ENDDO !constraint_conditions_idx
+                    NEW_CONSTRAINT_CONDITIONS(REGION%CONSTRAINT_CONDITIONS%NUMBER_OF_CONSTRAINT_CONDITIONS+1)%PTR=> &
+                      & NEW_CONSTRAINT_CONDITION
+                    IF(ASSOCIATED(REGION%CONSTRAINT_CONDITIONS%CONSTRAINT_CONDITIONS)) DEALLOCATE(REGION%CONSTRAINT_CONDITIONS% &
+                      & CONSTRAINT_CONDITIONS)
+                    REGION%CONSTRAINT_CONDITIONS%CONSTRAINT_CONDITIONS=>NEW_CONSTRAINT_CONDITIONS
+                    REGION%CONSTRAINT_CONDITIONS%NUMBER_OF_CONSTRAINT_CONDITIONS=REGION%CONSTRAINT_CONDITIONS% &
+                      NUMBER_OF_CONSTRAINT_CONDITIONS+1
+                    !Return the pointer
+                    CONSTRAINT_CONDITION=>NEW_CONSTRAINT_CONDITION
                   ELSE
-                    NEW_CONSTRAINT_CONDITION%integrationType=CONSTRAINT_CONDITION_GAUSS_INTEGRATION
+                    LOCAL_ERROR="The geometric field region and the specified region do not match. "// &
+                      & "The geometric field was created on region number "// &
+                      & TRIM(NUMBER_TO_VSTRING(GEOMETRIC_FIELD_REGION%USER_NUMBER,"*",ERR,ERROR))// &
+                      & " and the specified region number is "// &
+                      & TRIM(NUMBER_TO_VSTRING(REGION%USER_NUMBER,"*",ERR,ERROR))//"."
+                    CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*997)
                   ENDIF
-                  CALL CONSTRAINT_CONDITION_DEPENDENT_INITIALISE(NEW_CONSTRAINT_CONDITION,ERR,ERROR,*999)
-                  !Add new constraint condition into list of constraint conditions in the constraint
-                  ALLOCATE(NEW_CONSTRAINT_CONDITIONS(CONSTRAINT%CONSTRAINT_CONDITIONS%NUMBER_OF_CONSTRAINT_CONDITIONS+1),STAT=ERR)
-                  IF(ERR/=0) CALL FLAG_ERROR("Could not allocate new constraint conditions.",ERR,ERROR,*999)
-                  DO constraint_conditions_idx=1,CONSTRAINT%CONSTRAINT_CONDITIONS%NUMBER_OF_CONSTRAINT_CONDITIONS
-                    NEW_CONSTRAINT_CONDITIONS(constraint_conditions_idx)%PTR=>CONSTRAINT%CONSTRAINT_CONDITIONS% &
-                      & CONSTRAINT_CONDITIONS(constraint_conditions_idx)%PTR
-                  ENDDO !constraint_conditions_idx
-                  NEW_CONSTRAINT_CONDITIONS(CONSTRAINT%CONSTRAINT_CONDITIONS%NUMBER_OF_CONSTRAINT_CONDITIONS+1)%PTR=> &
-                    & NEW_CONSTRAINT_CONDITION
-                  IF(ASSOCIATED(CONSTRAINT%CONSTRAINT_CONDITIONS%CONSTRAINT_CONDITIONS)) DEALLOCATE(CONSTRAINT%CONSTRAINT_CONDITIONS% &
-                    & CONSTRAINT_CONDITIONS)
-                  CONSTRAINT%CONSTRAINT_CONDITIONS%CONSTRAINT_CONDITIONS=>NEW_CONSTRAINT_CONDITIONS
-                  CONSTRAINT%CONSTRAINT_CONDITIONS%NUMBER_OF_CONSTRAINT_CONDITIONS=CONSTRAINT%CONSTRAINT_CONDITIONS% &
-                    NUMBER_OF_CONSTRAINT_CONDITIONS+1
-                  !Return the pointer
-                  CONSTRAINT_CONDITION=>NEW_CONSTRAINT_CONDITION
                 ELSE
-                  CONSTRAINT_PARENT_REGION=>CONSTRAINT%PARENT_REGION
-                  IF(ASSOCIATED(CONSTRAINT_PARENT_REGION)) THEN
-                    GEOMETRIC_CONSTRAINT_PARENT_REGION=>GEOMETRIC_CONSTRAINT%PARENT_REGION
-                    IF(ASSOCIATED(GEOMETRIC_CONSTRAINT_PARENT_REGION)) THEN
-                      LOCAL_ERROR="Geometric field constraint does not match specified constraint. "// &
-                        "The geometric field was created on constraint number "// &
-                        & TRIM(NUMBER_TO_VSTRING(GEOMETRIC_CONSTRAINT%USER_NUMBER,"*",ERR,ERROR))// &
-                        & " of parent region number "// &
-                        & TRIM(NUMBER_TO_VSTRING(GEOMETRIC_CONSTRAINT_PARENT_REGION%USER_NUMBER,"*",ERR,ERROR))// &
-                        & " and the specified constraint was created as number "// &
-                        & TRIM(NUMBER_TO_VSTRING(CONSTRAINT%USER_NUMBER,"*",ERR,ERROR))//" on parent region number "// &
-                        & TRIM(NUMBER_TO_VSTRING(CONSTRAINT_PARENT_REGION%USER_NUMBER,"*",ERR,ERROR))//"."
-                      CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
-                    ELSE
-                      CALL FLAG_ERROR("Geometric constraint parent region is not associated.",ERR,ERROR,*999)
-                    ENDIF
-                  ELSE
-                    CALL FLAG_ERROR("Constraint parent region is not associated.",ERR,ERROR,*999)
-                  ENDIF
+                  CALL FLAG_ERROR("The specified geometric field region is not associated.",ERR,ERROR,*997)
                 ENDIF
               ELSE
-                GEOMETRIC_REGION=>GEOMETRIC_FIELD%REGION
-                IF(ASSOCIATED(GEOMETRIC_REGION)) THEN
-                  LOCAL_ERROR="The geometric field was created on region number "// &
-                    & TRIM(NUMBER_TO_VSTRING(GEOMETRIC_REGION%USER_NUMBER,"*",ERR,ERROR))// &
-                    & " and not on the specified constraint."
-                  CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
-                ELSE
-                  CALL FLAG_ERROR("The geometric field does not have a region or constraint created.",ERR,ERROR,*999)
-                ENDIF
+                CALL FLAG_ERROR("The specified geometric field is not a geometric field.",ERR,ERROR,*997)
               ENDIF
             ELSE
-              CALL FLAG_ERROR("Geometric field has not been finished.",ERR,ERROR,*999)
+              CALL FLAG_ERROR("The specified geometric field is not finished.",ERR,ERROR,*997)
             ENDIF
           ELSE
-            CALL FLAG_ERROR("Geometric field is not finished.",ERR,ERROR,*999)
+            CALL FLAG_ERROR("The specified geometric field is not associated.",ERR,ERROR,*997)
           ENDIF
         ENDIF
       ELSE
-        LOCAL_ERROR="The constraint conditions on constraint number "// &
-          & TRIM(NUMBER_TO_VSTRING(CONSTRAINT%USER_NUMBER,"*",ERR,ERROR))//" are not associated."
+        LOCAL_ERROR="The constraint conditions on region number "//TRIM(NUMBER_TO_VSTRING(REGION%USER_NUMBER,"*",ERR,ERROR))// &
+          & " are not associated."
         CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*997)
       ENDIF
     ELSE
-      CALL FLAG_ERROR("Constraint is not associated.",ERR,ERROR,*997)
+      CALL FLAG_ERROR("Region is not associated.",ERR,ERROR,*997)
     ENDIF
     
     CALL EXITS("CONSTRAINT_CONDITION_CREATE_START")
     RETURN
-999 IF(ASSOCIATED(NEW_CONSTRAINT_CONDITION)) CALL CONSTRAINT_CONDITION_FINALISE(NEW_CONSTRAINT_CONDITION,DUMMY_ERR,DUMMY_ERROR,*998)
+999 IF(ASSOCIATED(NEW_CONSTRAINT_CONDITION))CALL CONSTRAINT_CONDITION_FINALISE(NEW_CONSTRAINT_CONDITION,DUMMY_ERR,DUMMY_ERROR,*998)
 998 IF(ASSOCIATED(NEW_CONSTRAINT_CONDITIONS)) DEALLOCATE(NEW_CONSTRAINT_CONDITIONS)
 997 CALL ERRORS("CONSTRAINT_CONDITION_CREATE_START",ERR,ERROR)
     CALL EXITS("CONSTRAINT_CONDITION_CREATE_START")
@@ -633,8 +917,6 @@ CONTAINS
 
     IF(ASSOCIATED(CONSTRAINT_DEPENDENT)) THEN
       IF(ASSOCIATED(CONSTRAINT_DEPENDENT%EQUATIONS_SETS)) DEALLOCATE(CONSTRAINT_DEPENDENT%EQUATIONS_SETS)
-      IF(ASSOCIATED(CONSTRAINT_DEPENDENT%FIELD_VARIABLES)) DEALLOCATE(CONSTRAINT_DEPENDENT%FIELD_VARIABLES)
-      IF(ASSOCIATED(CONSTRAINT_DEPENDENT%VARIABLE_MESH_INDICES)) DEALLOCATE(CONSTRAINT_DEPENDENT%VARIABLE_MESH_INDICES)
       DEALLOCATE(CONSTRAINT_DEPENDENT)
     ENDIF
        
@@ -669,10 +951,7 @@ CONTAINS
         ALLOCATE(CONSTRAINT_CONDITION%DEPENDENT,STAT=ERR)
         IF(ERR/=0) CALL FLAG_ERROR("Could not allocate constraint condition dependent.",ERR,ERROR,*999)
         CONSTRAINT_CONDITION%DEPENDENT%CONSTRAINT_CONDITION=>CONSTRAINT_CONDITION
-        CONSTRAINT_CONDITION%DEPENDENT%NUMBER_OF_DEPENDENT_VARIABLES=0
         NULLIFY(CONSTRAINT_CONDITION%DEPENDENT%EQUATIONS_SETS)
-        NULLIFY(CONSTRAINT_CONDITION%DEPENDENT%FIELD_VARIABLES)
-        NULLIFY(CONSTRAINT_CONDITION%DEPENDENT%VARIABLE_MESH_INDICES)
       ENDIF
     ELSE
       CALL FLAG_ERROR("Constraint condition is not associated.",ERR,ERROR,*999)
@@ -685,170 +964,6 @@ CONTAINS
     CALL EXITS("CONSTRAINT_CONDITION_DEPENDENT_INITIALISE")
     RETURN 1
   END SUBROUTINE CONSTRAINT_CONDITION_DEPENDENT_INITIALISE
-
-  !
-  !================================================================================================================================
-  !
-
-  !>Adds an equations set to an constraint condition. \see OPENCMISS::CMISSConstraintConditionEquationsSetAdd
-  SUBROUTINE CONSTRAINT_CONDITION_DEPENDENT_VARIABLE_ADD(CONSTRAINT_CONDITION,MESH_INDEX,EQUATIONS_SET,VARIABLE_TYPE,ERR,ERROR,*)
-
-    !Argument variables
-    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION !<A pointer to the constraint condition to add the dependent variable to
-    INTEGER(INTG), INTENT(IN) :: MESH_INDEX !<The mesh index in the constraint conditions constraint that the dependent variable corresponds to
-    TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET !<A pointer to the equations set containing the dependent field to add the variable from.
-    INTEGER(INTG), INTENT(IN) :: VARIABLE_TYPE !<The variable type of the dependent field to add \see FIELD_ROUTINES_VariableTypes,FIELD_ROUTINES
-    INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
-    TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
-    !Local Variables
-    INTEGER(INTG) :: variable_idx
-    INTEGER(INTG), POINTER :: NEW_VARIABLE_MESH_INDICES(:)
-    LOGICAL :: FOUND_MESH_INDEX
-    TYPE(DECOMPOSITION_TYPE), POINTER :: DECOMPOSITION
-    TYPE(EQUATIONS_SET_PTR_TYPE), POINTER :: NEW_EQUATIONS_SETS(:)
-    TYPE(FIELD_TYPE), POINTER :: DEPENDENT_FIELD
-    TYPE(FIELD_VARIABLE_TYPE), POINTER :: FIELD_VARIABLE,CONSTRAINT_VARIABLE
-    TYPE(FIELD_VARIABLE_PTR_TYPE), POINTER :: NEW_FIELD_VARIABLES(:)
-    TYPE(CONSTRAINT_TYPE), POINTER :: CONSTRAINT
-    TYPE(CONSTRAINT_DEPENDENT_TYPE), POINTER :: CONSTRAINT_DEPENDENT
-    TYPE(MESH_TYPE), POINTER :: DEPENDENT_MESH,CONSTRAINT_MESH
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
-
-    CALL ENTERS("CONSTRAINT_CONDITION_DEPENDENT_VARIABLE_ADD",ERR,ERROR,*999)
-
-    IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
-      CONSTRAINT_DEPENDENT=>CONSTRAINT_CONDITION%DEPENDENT
-      IF(ASSOCIATED(CONSTRAINT_DEPENDENT)) THEN
-        CONSTRAINT=>CONSTRAINT_CONDITION%CONSTRAINT
-        IF(ASSOCIATED(CONSTRAINT)) THEN
-          IF(MESH_INDEX>0.AND.MESH_INDEX<=CONSTRAINT%NUMBER_OF_COUPLED_MESHES) THEN
-            IF(ASSOCIATED(EQUATIONS_SET)) THEN
-              DEPENDENT_FIELD=>EQUATIONS_SET%DEPENDENT%DEPENDENT_FIELD
-              IF(ASSOCIATED(DEPENDENT_FIELD)) THEN
-                IF(VARIABLE_TYPE>=1.AND.VARIABLE_TYPE<=FIELD_NUMBER_OF_VARIABLE_TYPES) THEN
-                  FIELD_VARIABLE=>DEPENDENT_FIELD%VARIABLE_TYPE_MAP(VARIABLE_TYPE)%PTR
-                  IF(ASSOCIATED(FIELD_VARIABLE)) THEN
-                    !Check that the field variable hasn't already been added.
-                    variable_idx=1
-                    NULLIFY(CONSTRAINT_VARIABLE)
-                    DO WHILE(variable_idx<=CONSTRAINT_DEPENDENT%NUMBER_OF_DEPENDENT_VARIABLES.AND. &
-                      & .NOT.ASSOCIATED(CONSTRAINT_VARIABLE))
-                      IF(ASSOCIATED(FIELD_VARIABLE,CONSTRAINT_DEPENDENT%FIELD_VARIABLES(variable_idx)%PTR)) THEN
-                        CONSTRAINT_VARIABLE=>CONSTRAINT_DEPENDENT%FIELD_VARIABLES(variable_idx)%PTR
-                      ELSE
-                        variable_idx=variable_idx+1
-                      ENDIF
-                    ENDDO
-                    IF(ASSOCIATED(CONSTRAINT_VARIABLE)) THEN
-                      !Check if we are dealing with the same mesh index.
-                      IF(MESH_INDEX/=CONSTRAINT_DEPENDENT%VARIABLE_MESH_INDICES(variable_idx)) THEN
-                        LOCAL_ERROR="The dependent variable has already been added to the constraint condition at "// &
-                          & "position index "//TRIM(NUMBER_TO_VSTRING(variable_idx,"*",ERR,ERROR))//"."
-                        CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
-                      ENDIF
-                    ELSE
-                      !Check the dependent variable and the mesh index match.
-                      CONSTRAINT_MESH=>CONSTRAINT%COUPLED_MESHES(MESH_INDEX)%PTR
-                      IF(ASSOCIATED(CONSTRAINT_MESH)) THEN
-                        DECOMPOSITION=>DEPENDENT_FIELD%DECOMPOSITION
-                        IF(ASSOCIATED(DECOMPOSITION)) THEN
-                          DEPENDENT_MESH=>DECOMPOSITION%MESH
-                          IF(ASSOCIATED(DEPENDENT_MESH)) THEN
-                            IF(ASSOCIATED(CONSTRAINT_MESH,DEPENDENT_MESH)) THEN
-                              !The meshes match. Check if the dependent variable has already been added for the mesh index.
-                              FOUND_MESH_INDEX=.FALSE.
-                              DO variable_idx=1,CONSTRAINT_DEPENDENT%NUMBER_OF_DEPENDENT_VARIABLES
-                                IF(CONSTRAINT_DEPENDENT%VARIABLE_MESH_INDICES(variable_idx)==MESH_INDEX) THEN
-                                  FOUND_MESH_INDEX=.TRUE.
-                                  EXIT
-                                ENDIF
-                              ENDDO !variable_idx
-                              IF(FOUND_MESH_INDEX) THEN
-                                !The mesh index has already been added to replace the dependent variable with the specified variable
-                                CONSTRAINT_DEPENDENT%FIELD_VARIABLES(variable_idx)%PTR=>DEPENDENT_FIELD% &
-                                  & VARIABLE_TYPE_MAP(VARIABLE_TYPE)%PTR
-                              ELSE
-                                !The mesh index has not been found so add a new dependent variable.
-                                ALLOCATE(NEW_EQUATIONS_SETS(CONSTRAINT_DEPENDENT%NUMBER_OF_DEPENDENT_VARIABLES+1),STAT=ERR)
-                                IF(ERR/=0) CALL FLAG_ERROR("Could not allocate new equations sets.",ERR,ERROR,*999)
-                                ALLOCATE(NEW_FIELD_VARIABLES(CONSTRAINT_DEPENDENT%NUMBER_OF_DEPENDENT_VARIABLES+1),STAT=ERR)
-                                IF(ERR/=0) CALL FLAG_ERROR("Could not allocate new field variables.",ERR,ERROR,*999)
-                                ALLOCATE(NEW_VARIABLE_MESH_INDICES(CONSTRAINT_DEPENDENT%NUMBER_OF_DEPENDENT_VARIABLES+1),STAT=ERR)
-                                IF(ERR/=0) CALL FLAG_ERROR("Could not allocate new variable mesh indices.",ERR,ERROR,*999)
-                                DO variable_idx=1,CONSTRAINT_DEPENDENT%NUMBER_OF_DEPENDENT_VARIABLES
-                                  NEW_EQUATIONS_SETS(variable_idx)%PTR=>CONSTRAINT_DEPENDENT%EQUATIONS_SETS(variable_idx)%PTR
-                                  NEW_FIELD_VARIABLES(variable_idx)%PTR=>CONSTRAINT_DEPENDENT%FIELD_VARIABLES(variable_idx)%PTR
-                                  NEW_VARIABLE_MESH_INDICES(variable_idx)=CONSTRAINT_DEPENDENT%VARIABLE_MESH_INDICES(variable_idx)
-                                ENDDO !variable_idx
-                                NEW_EQUATIONS_SETS(CONSTRAINT_DEPENDENT%NUMBER_OF_DEPENDENT_VARIABLES+1)%PTR=>EQUATIONS_SET
-                                NEW_FIELD_VARIABLES(CONSTRAINT_DEPENDENT%NUMBER_OF_DEPENDENT_VARIABLES+1)%PTR=>DEPENDENT_FIELD% &
-                                  & VARIABLE_TYPE_MAP(VARIABLE_TYPE)%PTR
-                                NEW_VARIABLE_MESH_INDICES(CONSTRAINT_DEPENDENT%NUMBER_OF_DEPENDENT_VARIABLES+1)=MESH_INDEX
-                                IF(ASSOCIATED(CONSTRAINT_DEPENDENT%EQUATIONS_SETS)) DEALLOCATE(CONSTRAINT_DEPENDENT%EQUATIONS_SETS)
-                                IF(ASSOCIATED(CONSTRAINT_DEPENDENT%FIELD_VARIABLES)) DEALLOCATE(CONSTRAINT_DEPENDENT%FIELD_VARIABLES)
-                                IF(ASSOCIATED(CONSTRAINT_DEPENDENT%VARIABLE_MESH_INDICES)) &
-                                  & DEALLOCATE(CONSTRAINT_DEPENDENT%VARIABLE_MESH_INDICES)
-                                CONSTRAINT_DEPENDENT%EQUATIONS_SETS=>NEW_EQUATIONS_SETS
-                                CONSTRAINT_DEPENDENT%FIELD_VARIABLES=>NEW_FIELD_VARIABLES
-                                CONSTRAINT_DEPENDENT%VARIABLE_MESH_INDICES=>NEW_VARIABLE_MESH_INDICES
-                                CONSTRAINT_DEPENDENT%NUMBER_OF_DEPENDENT_VARIABLES= &
-                                  & CONSTRAINT_DEPENDENT%NUMBER_OF_DEPENDENT_VARIABLES+1
-                              ENDIF
-                            ELSE
-                              CALL FLAG_ERROR("The dependent field mesh does not match the constraint mesh.",ERR,ERROR,*999)
-                            ENDIF
-                          ELSE
-                            CALL FLAG_ERROR("The dependent field decomposition mesh is not associated.",ERR,ERROR,*999)
-                          ENDIF
-                        ELSE
-                          CALL FLAG_ERROR("The dependent field decomposition is not associated.",ERR,ERROR,*999)
-                        ENDIF
-                      ELSE
-                        LOCAL_ERROR="The constraint mesh for mesh index "//TRIM(NUMBER_TO_VSTRING(MESH_INDEX,"*",ERR,ERROR))// &
-                          & " is not associated."
-                        CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
-                      ENDIF
-                    ENDIF
-                  ELSE
-                    LOCAL_ERROR="The field variable type of "//TRIM(NUMBER_TO_VSTRING(VARIABLE_TYPE,"*",ERR,ERROR))// &
-                      & " has not been created on field number "// &
-                      & TRIM(NUMBER_TO_VSTRING(DEPENDENT_FIELD%USER_NUMBER,"*",ERR,ERROR))//"."
-                    CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
-                  ENDIF
-                ELSE
-                  LOCAL_ERROR="The field variable type of "//TRIM(NUMBER_TO_VSTRING(VARIABLE_TYPE,"*",ERR,ERROR))// &
-                    & " is invalid. The variable type must be between 1 and "// &
-                    & TRIM(NUMBER_TO_VSTRING(FIELD_NUMBER_OF_VARIABLE_TYPES,"*",ERR,ERROR))//"."
-                  CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
-                ENDIF
-              ELSE
-                CALL FLAG_ERROR("Equations set dependent field is not associated.",ERR,ERROR,*999)
-              ENDIF
-            ELSE
-              CALL FLAG_ERROR("Equations set is not associated.",ERR,ERROR,*999)
-            ENDIF
-          ELSE
-            LOCAL_ERROR="The specificed mesh index of "//TRIM(NUMBER_TO_VSTRING(MESH_INDEX,"*",ERR,ERROR))// &
-              & " is invalid. The mesh index must be > 0 and <= "// &
-              & TRIM(NUMBER_TO_VSTRING(CONSTRAINT%NUMBER_OF_COUPLED_MESHES,"*",ERR,ERROR))//"."
-            CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
-          ENDIF
-        ELSE
-          CALL FLAG_ERROR("Constraint condition constraint is not associated.",ERR,ERROR,*999)
-        ENDIF
-      ELSE
-        CALL FLAG_ERROR("Constraint condition dependent is not associated.",ERR,ERROR,*999)
-      ENDIF
-    ELSE
-      CALL FLAG_ERROR("Constraint conditions is not associated.",ERR,ERROR,*999)
-    ENDIF
-    
-    CALL EXITS("CONSTRAINT_CONDITION_DEPENDENT_VARIABLE_ADD")
-    RETURN
-999 CALL ERRORS("CONSTRAINT_CONDITION_DEPENDENT_VARIABLE_ADD",ERR,ERROR)
-    CALL EXITS("CONSTRAINT_CONDITION_DEPENDENT_VARIABLE_ADD")
-    RETURN 1   
-  END SUBROUTINE CONSTRAINT_CONDITION_DEPENDENT_VARIABLE_ADD
   
   !
   !================================================================================================================================
@@ -1163,82 +1278,6 @@ CONTAINS
     RETURN 1
   END SUBROUTINE CONSTRAINT_CONDITION_FINALISE
 
-!
-  !================================================================================================================================
-  !
-
-  !>Returns the constraint condition integration type 
-  SUBROUTINE ConstraintCondition_IntegrationTypeGet(constraintCondition,constraintConditionIntegrationType,err,error,*)
-
-    !Argument variables
-    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: constraintCondition !<A pointer to the constraint condition to get the operator for
-    INTEGER(INTG), INTENT(OUT) :: constraintConditionIntegrationType !<On return, the constraint condition integration type. \see CONSTRAINT_CONDITIONS_IntegrationType,CONSTRAINT_CONDITIONS 
-    INTEGER(INTG), INTENT(OUT) :: err !<The error code
-    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
-    !Local Variables
-
-    CALL ENTERS("ConstraintCondition_IntegrationTypeGet",err,error,*999)
-
-    IF(ASSOCIATED(constraintCondition)) THEN
-      IF(constraintCondition%CONSTRAINT_CONDITION_FINISHED) THEN
-        constraintConditionIntegrationType=constraintCondition%integrationType
-      ELSE
-        CALL FLAG_ERROR("Constraint condition has not been finished.",err,error,*999)
-      ENDIF
-    ELSE
-      CALL FLAG_ERROR("Constraint condition is not associated.",err,error,*999)
-    ENDIF
-    
-    CALL EXITS("ConstraintCondition_IntegrationTypeGet")
-    RETURN
-999 CALL ERRORS("ConstraintCondition_IntegrationTypeGet",err,ERROR)
-    CALL EXITS("ConstraintCondition_IntegrationTypeGet")
-    RETURN 1
-  END SUBROUTINE ConstraintCondition_IntegrationTypeGet
-  
-  !
-  !================================================================================================================================
-  !
-
-  !>Sets/changes the constraint condition integration type 
-  SUBROUTINE ConstraintCondition_IntegrationTypeSet(constraintCondition,constraintConditionIntegrationType,err,error,*)
-
-    !Argument variables
-    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: constraintCondition !<A pointer to the constraint condition to set the operator for
-    INTEGER(INTG), INTENT(IN) :: constraintConditionIntegrationType !<The constraint condition integration type to set. \see CONSTRAINT_CONDITIONS_IntegrationType,CONSTRAINT_CONDITIONS 
-    INTEGER(INTG), INTENT(OUT) :: err !<The error code
-    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
-    !Local Variables
-    TYPE(VARYING_STRING) :: localError
-
-    CALL ENTERS("ConstraintCondition_IntegrationTypeSet",err,error,*999)
-
-    IF(ASSOCIATED(constraintCondition)) THEN
-      IF(constraintCondition%CONSTRAINT_CONDITION_FINISHED) THEN
-        CALL FLAG_ERROR("Constraint condition has been finished.",err,error,*999)
-      ELSE
-        SELECT CASE(constraintConditionIntegrationType)
-        CASE(CONSTRAINT_CONDITION_GAUSS_INTEGRATION)
-          constraintCondition%integrationType=CONSTRAINT_CONDITION_GAUSS_INTEGRATION
-        CASE(CONSTRAINT_CONDITION_DATA_POINTS_INTEGRATION)
-          constraintCondition%integrationType=CONSTRAINT_CONDITION_DATA_POINTS_INTEGRATION
-        CASE DEFAULT
-          localError="The specified constraint condition operator of "// &
-            & TRIM(NUMBER_TO_VSTRING(constraintConditionIntegrationType,"*",err,ERROR))//" is not valid."
-          CALL FLAG_ERROR(localError,err,error,*999)
-        END SELECT
-      ENDIF
-    ELSE
-      CALL FLAG_ERROR("Constraint condition is not associated.",err,error,*999)
-    ENDIF
-    
-    CALL EXITS("ConstraintCondition_IntegrationTypeSet")
-    RETURN
-999 CALL ERRORS("ConstraintCondition_IntegrationTypeSet",err,ERROR)
-    CALL EXITS("ConstraintCondition_IntegrationTypeSet")
-    RETURN 1
-  END SUBROUTINE ConstraintCondition_IntegrationTypeSet
-
   !
   !================================================================================================================================
   !
@@ -1441,7 +1480,7 @@ CONTAINS
             DO element_idx=ELEMENTS_MAPPING%INTERNAL_START,ELEMENTS_MAPPING%INTERNAL_FINISH
               ne=ELEMENTS_MAPPING%DOMAIN_LIST(element_idx)
               NUMBER_OF_TIMES=NUMBER_OF_TIMES+1
-              CALL constraintMatrices_ElementCalculate(CONSTRAINT_MATRICES,ne,ERR,ERROR,*999)
+              CALL CONSTRAINT_MATRICES_ELEMENT_CALCULATE(CONSTRAINT_MATRICES,ne,ERR,ERROR,*999)
               CALL CONSTRAINT_CONDITION_FINITE_ELEMENT_JACOBIAN_EVALUATE(CONSTRAINT_CONDITION,ne,ERR,ERROR,*999)
               CALL CONSTRAINT_MATRICES_JACOBIAN_ELEMENT_ADD(CONSTRAINT_MATRICES,ERR,ERROR,*999)
             ENDDO !element_idx                  
@@ -1474,7 +1513,7 @@ CONTAINS
             DO element_idx=ELEMENTS_MAPPING%BOUNDARY_START,ELEMENTS_MAPPING%GHOST_FINISH
               ne=ELEMENTS_MAPPING%DOMAIN_LIST(element_idx)
               NUMBER_OF_TIMES=NUMBER_OF_TIMES+1
-              CALL constraintMatrices_ElementCalculate(CONSTRAINT_MATRICES,ne,ERR,ERROR,*999)
+              CALL CONSTRAINT_MATRICES_ELEMENT_CALCULATE(CONSTRAINT_MATRICES,ne,ERR,ERROR,*999)
               CALL CONSTRAINT_CONDITION_FINITE_ELEMENT_JACOBIAN_EVALUATE(CONSTRAINT_CONDITION,ne,ERR,ERROR,*999)
               CALL CONSTRAINT_MATRICES_JACOBIAN_ELEMENT_ADD(CONSTRAINT_MATRICES,ERR,ERROR,*999)
             ENDDO !element_idx
@@ -1595,7 +1634,7 @@ CONTAINS
             DO element_idx=ELEMENTS_MAPPING%INTERNAL_START,ELEMENTS_MAPPING%INTERNAL_FINISH
               ne=ELEMENTS_MAPPING%DOMAIN_LIST(element_idx)
               NUMBER_OF_TIMES=NUMBER_OF_TIMES+1
-              CALL constraintMatrices_ElementCalculate(CONSTRAINT_MATRICES,ne,ERR,ERROR,*999)
+              CALL CONSTRAINT_MATRICES_ELEMENT_CALCULATE(CONSTRAINT_MATRICES,ne,ERR,ERROR,*999)
               CALL CONSTRAINT_CONDITION_FINITE_ELEMENT_JACOBIAN_EVALUATE(CONSTRAINT_CONDITION,ne,ERR,ERROR,*999)
               CALL CONSTRAINT_MATRICES_JACOBIAN_ELEMENT_ADD(CONSTRAINT_MATRICES,ERR,ERROR,*999)
             ENDDO !element_idx
@@ -1628,7 +1667,7 @@ CONTAINS
             DO element_idx=ELEMENTS_MAPPING%BOUNDARY_START,ELEMENTS_MAPPING%GHOST_FINISH
               ne=ELEMENTS_MAPPING%DOMAIN_LIST(element_idx)
               NUMBER_OF_TIMES=NUMBER_OF_TIMES+1
-              CALL constraintMatrices_ElementCalculate(CONSTRAINT_MATRICES,ne,ERR,ERROR,*999)
+              CALL CONSTRAINT_MATRICES_ELEMENT_CALCULATE(CONSTRAINT_MATRICES,ne,ERR,ERROR,*999)
               CALL CONSTRAINT_CONDITION_FINITE_ELEMENT_JACOBIAN_EVALUATE(CONSTRAINT_CONDITION,ne,ERR,ERROR,*999)
               CALL CONSTRAINT_MATRICES_JACOBIAN_ELEMENT_ADD(CONSTRAINT_MATRICES,ERR,ERROR,*999)
             ENDDO !element_idx
@@ -1894,7 +1933,7 @@ CONTAINS
             DO element_idx=ELEMENTS_MAPPING%INTERNAL_START,ELEMENTS_MAPPING%INTERNAL_FINISH
               ne=ELEMENTS_MAPPING%DOMAIN_LIST(element_idx)
               NUMBER_OF_TIMES=NUMBER_OF_TIMES+1
-              CALL constraintMatrices_ElementCalculate(CONSTRAINT_MATRICES,ne,ERR,ERROR,*999)
+              CALL CONSTRAINT_MATRICES_ELEMENT_CALCULATE(CONSTRAINT_MATRICES,ne,ERR,ERROR,*999)
               CALL CONSTRAINT_CONDITION_FINITE_ELEMENT_RESIDUAL_EVALUATE(CONSTRAINT_CONDITION,ne,ERR,ERROR,*999)
               CALL CONSTRAINT_MATRICES_ELEMENT_ADD(CONSTRAINT_MATRICES,ERR,ERROR,*999)
             ENDDO !element_idx                  
@@ -1927,7 +1966,7 @@ CONTAINS
             DO element_idx=ELEMENTS_MAPPING%BOUNDARY_START,ELEMENTS_MAPPING%GHOST_FINISH
               ne=ELEMENTS_MAPPING%DOMAIN_LIST(element_idx)
               NUMBER_OF_TIMES=NUMBER_OF_TIMES+1
-              CALL constraintMatrices_ElementCalculate(CONSTRAINT_MATRICES,ne,ERR,ERROR,*999)
+              CALL CONSTRAINT_MATRICES_ELEMENT_CALCULATE(CONSTRAINT_MATRICES,ne,ERR,ERROR,*999)
               CALL CONSTRAINT_CONDITION_FINITE_ELEMENT_RESIDUAL_EVALUATE(CONSTRAINT_CONDITION,ne,ERR,ERROR,*999)
               CALL CONSTRAINT_MATRICES_ELEMENT_ADD(CONSTRAINT_MATRICES,ERR,ERROR,*999)
             ENDDO !element_idx
@@ -2048,7 +2087,7 @@ CONTAINS
             DO element_idx=ELEMENTS_MAPPING%INTERNAL_START,ELEMENTS_MAPPING%INTERNAL_FINISH
               ne=ELEMENTS_MAPPING%DOMAIN_LIST(element_idx)
               NUMBER_OF_TIMES=NUMBER_OF_TIMES+1
-              CALL constraintMatrices_ElementCalculate(CONSTRAINT_MATRICES,ne,ERR,ERROR,*999)
+              CALL CONSTRAINT_MATRICES_ELEMENT_CALCULATE(CONSTRAINT_MATRICES,ne,ERR,ERROR,*999)
               CALL CONSTRAINT_CONDITION_FINITE_ELEMENT_RESIDUAL_EVALUATE(CONSTRAINT_CONDITION,ne,ERR,ERROR,*999)
               CALL CONSTRAINT_MATRICES_ELEMENT_ADD(CONSTRAINT_MATRICES,ERR,ERROR,*999)
             ENDDO !element_idx
@@ -2081,7 +2120,7 @@ CONTAINS
             DO element_idx=ELEMENTS_MAPPING%BOUNDARY_START,ELEMENTS_MAPPING%GHOST_FINISH
               ne=ELEMENTS_MAPPING%DOMAIN_LIST(element_idx)
               NUMBER_OF_TIMES=NUMBER_OF_TIMES+1
-              CALL constraintMatrices_ElementCalculate(CONSTRAINT_MATRICES,ne,ERR,ERROR,*999)
+              CALL CONSTRAINT_MATRICES_ELEMENT_CALCULATE(CONSTRAINT_MATRICES,ne,ERR,ERROR,*999)
               CALL CONSTRAINT_CONDITION_FINITE_ELEMENT_RESIDUAL_EVALUATE(CONSTRAINT_CONDITION,ne,ERR,ERROR,*999)
               CALL CONSTRAINT_MATRICES_ELEMENT_ADD(CONSTRAINT_MATRICES,ERR,ERROR,*999)
             ENDDO !element_idx
@@ -2312,7 +2351,7 @@ CONTAINS
     INTEGER(INTG) :: component_idx,interpolation_type,GEOMETRIC_SCALING_TYPE,dependent_variable_number
     TYPE(DECOMPOSITION_TYPE), POINTER :: GEOMETRIC_DECOMPOSITION
     TYPE(FIELD_TYPE), POINTER :: FIELD
-    TYPE(CONSTRAINT_TYPE), POINTER :: CONSTRAINT
+    TYPE(REGION_TYPE), POINTER :: REGION
     TYPE(CONSTRAINT_DEPENDENT_TYPE), POINTER :: CONSTRAINT_DEPENDENT
     TYPE(REGION_TYPE), POINTER :: CONSTRAINT_REGION,LAGRANGE_FIELD_REGION
     TYPE(VARYING_STRING) :: LOCAL_ERROR
@@ -2325,134 +2364,108 @@ CONTAINS
       ELSE
         CONSTRAINT_DEPENDENT=>CONSTRAINT_CONDITION%DEPENDENT
         IF(ASSOCIATED(CONSTRAINT_DEPENDENT)) THEN
-          CONSTRAINT=>CONSTRAINT_CONDITION%CONSTRAINT
-          IF(ASSOCIATED(CONSTRAINT)) THEN
-            CONSTRAINT_REGION=>CONSTRAINT%PARENT_REGION
-            IF(ASSOCIATED(CONSTRAINT_REGION)) THEN
-              IF(ASSOCIATED(LAGRANGE_FIELD)) THEN
-                !Check the Lagrange field has been finished
-                IF(LAGRANGE_FIELD%FIELD_FINISHED) THEN
-                  !Check the user numbers match
-                  IF(LAGRANGE_FIELD_USER_NUMBER/=LAGRANGE_FIELD%USER_NUMBER) THEN
-                    LOCAL_ERROR="The specified Lagrange field user number of "// &
-                      & TRIM(NUMBER_TO_VSTRING(LAGRANGE_FIELD_USER_NUMBER,"*",ERR,ERROR))// &
-                      & " does not match the user number of the specified Lagrange field of "// &
-                      & TRIM(NUMBER_TO_VSTRING(LAGRANGE_FIELD%USER_NUMBER,"*",ERR,ERROR))//"."
-                    CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
-                  ENDIF
-                  LAGRANGE_FIELD_REGION=>LAGRANGE_FIELD%REGION
-                  IF(ASSOCIATED(LAGRANGE_FIELD_REGION)) THEN
-                    !Check the field is defined on the same region as the constraint
-                    IF(LAGRANGE_FIELD_REGION%USER_NUMBER/=CONSTRAINT_REGION%USER_NUMBER) THEN
-                      LOCAL_ERROR="Invalid region setup. The specified Lagrange field has been created on constraint number "// &
-                        & TRIM(NUMBER_TO_VSTRING(CONSTRAINT%USER_NUMBER,"*",ERR,ERROR))//" in parent region number "// &
-                        & TRIM(NUMBER_TO_VSTRING(LAGRANGE_FIELD_REGION%USER_NUMBER,"*",ERR,ERROR))// &
-                        & " and the specified constraint has been created in parent region number "// &
-                        & TRIM(NUMBER_TO_VSTRING(CONSTRAINT_REGION%USER_NUMBER,"*",ERR,ERROR))//"."
-                      CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
-                    ENDIF
-                  ELSE
-                    CALL FLAG_ERROR("The Lagrange field region is not associated.",ERR,ERROR,*999)
-                  ENDIF
-                ELSE
-                  CALL FLAG_ERROR("The specified Lagrange field has not been finished.",ERR,ERROR,*999)
-                ENDIF
-              ELSE
-                !Check the user number has not already been used for a field in this region.
-                NULLIFY(FIELD)
-                CALL FIELD_USER_NUMBER_FIND(LAGRANGE_FIELD_USER_NUMBER,CONSTRAINT,FIELD,ERR,ERROR,*999)
-                IF(ASSOCIATED(FIELD)) THEN
+          REGION=>CONSTRAINT_CONDITION%REGION
+          IF(ASSOCIATED(REGION)) THEN
+            IF(ASSOCIATED(LAGRANGE_FIELD)) THEN
+              !Check the Lagrange field has been finished
+              IF(LAGRANGE_FIELD%FIELD_FINISHED) THEN
+                !Check the user numbers match
+                IF(LAGRANGE_FIELD_USER_NUMBER/=LAGRANGE_FIELD%USER_NUMBER) THEN
                   LOCAL_ERROR="The specified Lagrange field user number of "// &
                     & TRIM(NUMBER_TO_VSTRING(LAGRANGE_FIELD_USER_NUMBER,"*",ERR,ERROR))// &
-                    & " has already been used to create a field on constraint number "// &
-                    & TRIM(NUMBER_TO_VSTRING(CONSTRAINT%USER_NUMBER,"*",ERR,ERROR))//"."
+                    & " does not match the user number of the specified Lagrange field of "// &
+                    & TRIM(NUMBER_TO_VSTRING(LAGRANGE_FIELD%USER_NUMBER,"*",ERR,ERROR))//"."
                   CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
                 ENDIF
-              ENDIF
-              CALL CONSTRAINT_CONDITION_LAGRANGE_INITIALISE(CONSTRAINT_CONDITION,ERR,ERROR,*999)
-              IF(.NOT.ASSOCIATED(LAGRANGE_FIELD)) THEN
-                !Create the Lagrange field
-                CONSTRAINT_CONDITION%LAGRANGE%LAGRANGE_FIELD_AUTO_CREATED=.TRUE.
-                CALL FIELD_CREATE_START(LAGRANGE_FIELD_USER_NUMBER,CONSTRAINT_CONDITION%CONSTRAINT,CONSTRAINT_CONDITION%LAGRANGE% &
-                  & LAGRANGE_FIELD,ERR,ERROR,*999)
-                CALL FIELD_LABEL_SET(CONSTRAINT_CONDITION%LAGRANGE%LAGRANGE_FIELD,"Lagrange Multipliers Field",ERR,ERROR,*999)
-                CALL FIELD_TYPE_SET_AND_LOCK(CONSTRAINT_CONDITION%LAGRANGE%LAGRANGE_FIELD,FIELD_GENERAL_TYPE,ERR,ERROR,*999)
-                CALL FIELD_DEPENDENT_TYPE_SET_AND_LOCK(CONSTRAINT_CONDITION%LAGRANGE%LAGRANGE_FIELD,FIELD_DEPENDENT_TYPE, &
-                  & ERR,ERROR,*999)
-                NULLIFY(GEOMETRIC_DECOMPOSITION)
-                CALL FIELD_MESH_DECOMPOSITION_GET(CONSTRAINT_CONDITION%GEOMETRY%GEOMETRIC_FIELD,GEOMETRIC_DECOMPOSITION, &
-                  & ERR,ERROR,*999)
-                CALL FIELD_MESH_DECOMPOSITION_SET_AND_LOCK(CONSTRAINT_CONDITION%LAGRANGE%LAGRANGE_FIELD,GEOMETRIC_DECOMPOSITION, &
-                  & ERR,ERROR,*999)
-                CALL FIELD_GEOMETRIC_FIELD_SET_AND_LOCK(CONSTRAINT_CONDITION%LAGRANGE%LAGRANGE_FIELD,CONSTRAINT_CONDITION%GEOMETRY% &
-                  & GEOMETRIC_FIELD,ERR,ERROR,*999)
-                CALL FIELD_NUMBER_OF_VARIABLES_SET_AND_LOCK(CONSTRAINT_CONDITION%LAGRANGE%LAGRANGE_FIELD,2,ERR,ERROR,*999)
-                CALL FIELD_VARIABLE_TYPES_SET_AND_LOCK(CONSTRAINT_CONDITION%LAGRANGE%LAGRANGE_FIELD,[FIELD_U_VARIABLE_TYPE, &
-                  & FIELD_DELUDELN_VARIABLE_TYPE],ERR,ERROR,*999)
-                CALL FIELD_VARIABLE_LABEL_SET(CONSTRAINT_CONDITION%LAGRANGE%LAGRANGE_FIELD,FIELD_U_VARIABLE_TYPE,"Lambda", &
-                  & ERR,ERROR,*999)
-                CALL FIELD_VARIABLE_LABEL_SET(CONSTRAINT_CONDITION%LAGRANGE%LAGRANGE_FIELD,FIELD_DELUDELN_VARIABLE_TYPE, &
-                  & "Lambda RHS",ERR,ERROR,*999)
-                CALL FIELD_DIMENSION_SET_AND_LOCK(CONSTRAINT_CONDITION%LAGRANGE%LAGRANGE_FIELD,FIELD_U_VARIABLE_TYPE, &
-                   & FIELD_VECTOR_DIMENSION_TYPE,ERR,ERROR,*999)
-                CALL FIELD_DIMENSION_SET_AND_LOCK(CONSTRAINT_CONDITION%LAGRANGE%LAGRANGE_FIELD,FIELD_DELUDELN_VARIABLE_TYPE, &
-                  & FIELD_VECTOR_DIMENSION_TYPE,ERR,ERROR,*999)
-                CALL FIELD_DATA_TYPE_SET_AND_LOCK(CONSTRAINT_CONDITION%LAGRANGE%LAGRANGE_FIELD,FIELD_U_VARIABLE_TYPE, &
-                  & FIELD_DP_TYPE,ERR,ERROR,*999)
-                CALL FIELD_DATA_TYPE_SET_AND_LOCK(CONSTRAINT_CONDITION%LAGRANGE%LAGRANGE_FIELD,FIELD_DELUDELN_VARIABLE_TYPE, &
-                  & FIELD_DP_TYPE,ERR,ERROR,*999)
-                !Note that only components present in both the coupled meshes constraint dependent fields can be coupled
-                !Default the number of component to be the minimum number of components across all the coupled dependent variables
-                !\todo Check ordering of variable components which are coupled and uncoupled are handled correctly to ensure that
-                !coupled variable components don't have to always come before the uncoupled variable components
-                CONSTRAINT_CONDITION%LAGRANGE%NUMBER_OF_COMPONENTS=0
-                DO dependent_variable_number=1,CONSTRAINT_DEPENDENT%NUMBER_OF_DEPENDENT_VARIABLES
-                  IF (CONSTRAINT_DEPENDENT%FIELD_VARIABLES(dependent_variable_number)%PTR%NUMBER_OF_COMPONENTS< &
-                    & CONSTRAINT_CONDITION%LAGRANGE%NUMBER_OF_COMPONENTS) THEN
-                    CONSTRAINT_CONDITION%LAGRANGE%NUMBER_OF_COMPONENTS= &
-                      & CONSTRAINT_DEPENDENT%FIELD_VARIABLES(dependent_variable_number)%PTR%NUMBER_OF_COMPONENTS
-                  ELSEIF (CONSTRAINT_CONDITION%LAGRANGE%NUMBER_OF_COMPONENTS==0) THEN
-                    CONSTRAINT_CONDITION%LAGRANGE%NUMBER_OF_COMPONENTS= &
-                      & CONSTRAINT_DEPENDENT%FIELD_VARIABLES(dependent_variable_number)%PTR%NUMBER_OF_COMPONENTS
+                LAGRANGE_FIELD_REGION=>LAGRANGE_FIELD%REGION
+                IF(ASSOCIATED(LAGRANGE_FIELD_REGION)) THEN
+                  !Check the field is defined on the same region as the constraint
+                  IF(LAGRANGE_FIELD_REGION%USER_NUMBER/=REGION%USER_NUMBER) THEN
+                    LOCAL_ERROR="Invalid region setup. The specified Lagrange field has been created on region number "// &
+                      & TRIM(NUMBER_TO_VSTRING(LAGRANGE_FIELD_REGION%USER_NUMBER,"*",ERR,ERROR))// &
+                      & " and the specified constraint condition has been created in region number "// &
+                      & TRIM(NUMBER_TO_VSTRING(REGION%USER_NUMBER,"*",ERR,ERROR))//"."
+                    CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
                   ENDIF
-                ENDDO
-                ! Remove pressure component from number of coupled components
-                ! CONSTRAINT_CONDITION_SOLID_FLUID_OPERATOR might not be used as it is equivalent to
-                ! CONSTRAINT_CONDITION_FIELD_CONTINUITY_OPERATOR if set up correctly
-                IF (CONSTRAINT_CONDITION%OPERATOR==CONSTRAINT_CONDITION_SOLID_FLUID_OPERATOR) THEN
-                  CONSTRAINT_CONDITION%LAGRANGE%NUMBER_OF_COMPONENTS=CONSTRAINT_CONDITION%LAGRANGE%NUMBER_OF_COMPONENTS-1
+                ELSE
+                  CALL FLAG_ERROR("The Lagrange field region is not associated.",ERR,ERROR,*999)
                 ENDIF
-                CALL FIELD_NUMBER_OF_COMPONENTS_SET(CONSTRAINT_CONDITION%LAGRANGE%LAGRANGE_FIELD,FIELD_U_VARIABLE_TYPE, &
-                  & CONSTRAINT_CONDITION%LAGRANGE%NUMBER_OF_COMPONENTS,ERR,ERROR,*999)
-                CALL FIELD_NUMBER_OF_COMPONENTS_SET(CONSTRAINT_CONDITION%LAGRANGE%LAGRANGE_FIELD,FIELD_DELUDELN_VARIABLE_TYPE, &
-                  & CONSTRAINT_CONDITION%LAGRANGE%NUMBER_OF_COMPONENTS,ERR,ERROR,*999)
-                DO component_idx=1,CONSTRAINT_CONDITION%LAGRANGE%NUMBER_OF_COMPONENTS
-                  CALL FIELD_COMPONENT_INTERPOLATION_GET(CONSTRAINT_DEPENDENT%FIELD_VARIABLES(1)%PTR%FIELD,FIELD_U_VARIABLE_TYPE, &
-                    & component_idx,interpolation_type,ERR,ERROR,*999)
-                  CALL FIELD_COMPONENT_INTERPOLATION_SET(CONSTRAINT_CONDITION%LAGRANGE%LAGRANGE_FIELD, &
-                    & FIELD_U_VARIABLE_TYPE,component_idx,interpolation_type,ERR,ERROR,*999)
-                  CALL FIELD_COMPONENT_INTERPOLATION_SET(CONSTRAINT_CONDITION%LAGRANGE%LAGRANGE_FIELD, &
-                    & FIELD_DELUDELN_VARIABLE_TYPE,component_idx,interpolation_type,ERR,ERROR,*999)
-                ENDDO !component_idx
-                CALL FIELD_SCALING_TYPE_GET(CONSTRAINT_CONDITION%GEOMETRY%GEOMETRIC_FIELD,GEOMETRIC_SCALING_TYPE, &
-                  & ERR,ERROR,*999)
-                CALL FIELD_SCALING_TYPE_SET(CONSTRAINT_CONDITION%LAGRANGE%LAGRANGE_FIELD,GEOMETRIC_SCALING_TYPE, &
-                  & ERR,ERROR,*999)
               ELSE
-                !Check the Lagrange field
-                CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
-              ENDIF
-              !Set pointers
-              IF(CONSTRAINT_CONDITION%LAGRANGE%LAGRANGE_FIELD_AUTO_CREATED) THEN
-                LAGRANGE_FIELD=>CONSTRAINT_CONDITION%LAGRANGE%LAGRANGE_FIELD
-              ELSE
-                CONSTRAINT_CONDITION%LAGRANGE%LAGRANGE_FIELD=>LAGRANGE_FIELD
+                CALL FLAG_ERROR("The specified Lagrange field has not been finished.",ERR,ERROR,*999)
               ENDIF
             ELSE
-              CALL FLAG_ERROR("The constraint parent region is not associated.",ERR,ERROR,*999)
+              !Check the user number has not already been used for a field in this region.
+              NULLIFY(FIELD)
+              CALL FIELD_USER_NUMBER_FIND(LAGRANGE_FIELD_USER_NUMBER,REGION,FIELD,ERR,ERROR,*999)
+              IF(ASSOCIATED(FIELD)) THEN
+                LOCAL_ERROR="The specified Lagrange field user number of "// &
+                  & TRIM(NUMBER_TO_VSTRING(LAGRANGE_FIELD_USER_NUMBER,"*",ERR,ERROR))// &
+                  & " has already been used to create a field on region number "// &
+                  & TRIM(NUMBER_TO_VSTRING(REGION%USER_NUMBER,"*",ERR,ERROR))//"."
+                CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
+              ENDIF
+            ENDIF
+            CALL CONSTRAINT_CONDITION_LAGRANGE_INITIALISE(CONSTRAINT_CONDITION,ERR,ERROR,*999)
+            IF(.NOT.ASSOCIATED(LAGRANGE_FIELD)) THEN
+              !Create the Lagrange field
+              CONSTRAINT_CONDITION%LAGRANGE%LAGRANGE_FIELD_AUTO_CREATED=.TRUE.
+              CALL FIELD_CREATE_START(LAGRANGE_FIELD_USER_NUMBER,CONSTRAINT_CONDITION%REGION,CONSTRAINT_CONDITION%LAGRANGE% &
+                & LAGRANGE_FIELD,ERR,ERROR,*999)
+              CALL FIELD_LABEL_SET(CONSTRAINT_CONDITION%LAGRANGE%LAGRANGE_FIELD,"Lagrange Multipliers Field",ERR,ERROR,*999)
+              CALL FIELD_TYPE_SET_AND_LOCK(CONSTRAINT_CONDITION%LAGRANGE%LAGRANGE_FIELD,FIELD_GENERAL_TYPE,ERR,ERROR,*999)
+              CALL FIELD_DEPENDENT_TYPE_SET_AND_LOCK(CONSTRAINT_CONDITION%LAGRANGE%LAGRANGE_FIELD,FIELD_DEPENDENT_TYPE, &
+                & ERR,ERROR,*999)
+              NULLIFY(GEOMETRIC_DECOMPOSITION)
+              CALL FIELD_MESH_DECOMPOSITION_GET(CONSTRAINT_CONDITION%GEOMETRY%GEOMETRIC_FIELD,GEOMETRIC_DECOMPOSITION, &
+                & ERR,ERROR,*999)
+              CALL FIELD_MESH_DECOMPOSITION_SET_AND_LOCK(CONSTRAINT_CONDITION%LAGRANGE%LAGRANGE_FIELD,GEOMETRIC_DECOMPOSITION, &
+                & ERR,ERROR,*999)
+              CALL FIELD_GEOMETRIC_FIELD_SET_AND_LOCK(CONSTRAINT_CONDITION%LAGRANGE%LAGRANGE_FIELD,CONSTRAINT_CONDITION%GEOMETRY% &
+                & GEOMETRIC_FIELD,ERR,ERROR,*999)
+              CALL FIELD_NUMBER_OF_VARIABLES_SET_AND_LOCK(CONSTRAINT_CONDITION%LAGRANGE%LAGRANGE_FIELD,2,ERR,ERROR,*999)
+              CALL FIELD_VARIABLE_TYPES_SET_AND_LOCK(CONSTRAINT_CONDITION%LAGRANGE%LAGRANGE_FIELD,[FIELD_U_VARIABLE_TYPE, &
+                & FIELD_DELUDELN_VARIABLE_TYPE],ERR,ERROR,*999)
+              CALL FIELD_VARIABLE_LABEL_SET(CONSTRAINT_CONDITION%LAGRANGE%LAGRANGE_FIELD,FIELD_U_VARIABLE_TYPE,"Lambda", &
+                & ERR,ERROR,*999)
+              CALL FIELD_VARIABLE_LABEL_SET(CONSTRAINT_CONDITION%LAGRANGE%LAGRANGE_FIELD,FIELD_DELUDELN_VARIABLE_TYPE, &
+                & "Lambda RHS",ERR,ERROR,*999)
+              CALL FIELD_DIMENSION_SET_AND_LOCK(CONSTRAINT_CONDITION%LAGRANGE%LAGRANGE_FIELD,FIELD_U_VARIABLE_TYPE, &
+                & FIELD_VECTOR_DIMENSION_TYPE,ERR,ERROR,*999)
+              CALL FIELD_DIMENSION_SET_AND_LOCK(CONSTRAINT_CONDITION%LAGRANGE%LAGRANGE_FIELD,FIELD_DELUDELN_VARIABLE_TYPE, &
+                & FIELD_VECTOR_DIMENSION_TYPE,ERR,ERROR,*999)
+              CALL FIELD_DATA_TYPE_SET_AND_LOCK(CONSTRAINT_CONDITION%LAGRANGE%LAGRANGE_FIELD,FIELD_U_VARIABLE_TYPE, &
+                & FIELD_DP_TYPE,ERR,ERROR,*999)
+              CALL FIELD_DATA_TYPE_SET_AND_LOCK(CONSTRAINT_CONDITION%LAGRANGE%LAGRANGE_FIELD,FIELD_DELUDELN_VARIABLE_TYPE, &
+                & FIELD_DP_TYPE,ERR,ERROR,*999)
+              CONSTRAINT_CONDITION%LAGRANGE%NUMBER_OF_COMPONENTS=1
+              CALL FIELD_NUMBER_OF_COMPONENTS_SET(CONSTRAINT_CONDITION%LAGRANGE%LAGRANGE_FIELD,FIELD_U_VARIABLE_TYPE, &
+                & CONSTRAINT_CONDITION%LAGRANGE%NUMBER_OF_COMPONENTS,ERR,ERROR,*999)
+              CALL FIELD_NUMBER_OF_COMPONENTS_SET(CONSTRAINT_CONDITION%LAGRANGE%LAGRANGE_FIELD,FIELD_DELUDELN_VARIABLE_TYPE, &
+                & CONSTRAINT_CONDITION%LAGRANGE%NUMBER_OF_COMPONENTS,ERR,ERROR,*999)
+              DO component_idx=1,CONSTRAINT_CONDITION%LAGRANGE%NUMBER_OF_COMPONENTS
+              CALL FIELD_COMPONENT_INTERPOLATION_GET(CONSTRAINT_DEPENDENT%FIELD_VARIABLES(1)%PTR%FIELD,FIELD_U_VARIABLE_TYPE, &
+                & component_idx,interpolation_type,ERR,ERROR,*999)
+              CALL FIELD_COMPONENT_INTERPOLATION_SET(CONSTRAINT_CONDITION%LAGRANGE%LAGRANGE_FIELD, &
+                & FIELD_U_VARIABLE_TYPE,component_idx,interpolation_type,ERR,ERROR,*999)
+              CALL FIELD_COMPONENT_INTERPOLATION_SET(CONSTRAINT_CONDITION%LAGRANGE%LAGRANGE_FIELD, &
+                & FIELD_DELUDELN_VARIABLE_TYPE,component_idx,interpolation_type,ERR,ERROR,*999)
+              ENDDO !component_idx
+              CALL FIELD_SCALING_TYPE_GET(CONSTRAINT_CONDITION%GEOMETRY%GEOMETRIC_FIELD,GEOMETRIC_SCALING_TYPE, &
+                & ERR,ERROR,*999)
+              CALL FIELD_SCALING_TYPE_SET(CONSTRAINT_CONDITION%LAGRANGE%LAGRANGE_FIELD,GEOMETRIC_SCALING_TYPE, &
+                & ERR,ERROR,*999)
+            ELSE
+              !Check the Lagrange field
+              CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+            ENDIF
+            !Set pointers
+            IF(CONSTRAINT_CONDITION%LAGRANGE%LAGRANGE_FIELD_AUTO_CREATED) THEN
+              LAGRANGE_FIELD=>CONSTRAINT_CONDITION%LAGRANGE%LAGRANGE_FIELD
+            ELSE
+              CONSTRAINT_CONDITION%LAGRANGE%LAGRANGE_FIELD=>LAGRANGE_FIELD
             ENDIF
           ELSE
-            CALL FLAG_ERROR("The constraint constraint conditions is not associated.",ERR,ERROR,*999)
+            CALL FLAG_ERROR("The constraint region is not associated.",ERR,ERROR,*999)
           ENDIF
         ELSE
           CALL FLAG_ERROR("Constraint condition dependent is not associated.",ERR,ERROR,*999)
@@ -2595,9 +2608,9 @@ CONTAINS
     INTEGER(INTG) :: component_idx,GEOMETRIC_SCALING_TYPE
     TYPE(DECOMPOSITION_TYPE), POINTER :: GEOMETRIC_DECOMPOSITION
     TYPE(FIELD_TYPE), POINTER :: FIELD
-    TYPE(CONSTRAINT_TYPE), POINTER :: CONSTRAINT
+    TYPE(REGION_TYPE), POINTER :: REGION
     TYPE(CONSTRAINT_DEPENDENT_TYPE), POINTER :: CONSTRAINT_DEPENDENT
-    TYPE(REGION_TYPE), POINTER :: CONSTRAINT_REGION,PENALTY_FIELD_REGION
+    TYPE(REGION_TYPE), POINTER :: PENALTY_FIELD_REGION
     TYPE(VARYING_STRING) :: LOCAL_ERROR
 
     CALL ENTERS("CONSTRAINT_CONDITION_PENALTY_FIELD_CREATE_START",ERR,ERROR,*999)
@@ -2608,111 +2621,90 @@ CONTAINS
       ELSE
         CONSTRAINT_DEPENDENT=>CONSTRAINT_CONDITION%DEPENDENT
         IF(ASSOCIATED(CONSTRAINT_DEPENDENT)) THEN
-          CONSTRAINT=>CONSTRAINT_CONDITION%CONSTRAINT
-          IF(ASSOCIATED(CONSTRAINT)) THEN
-            CONSTRAINT_REGION=>CONSTRAINT%PARENT_REGION
-            IF(ASSOCIATED(CONSTRAINT_REGION)) THEN
-              IF(ASSOCIATED(PENALTY_FIELD)) THEN
-                !Check the penalty field has been finished
-                IF(PENALTY_FIELD%FIELD_FINISHED) THEN
-                  !Check the user numbers match
-                  IF(PENALTY_FIELD_USER_NUMBER/=PENALTY_FIELD%USER_NUMBER) THEN
-                    LOCAL_ERROR="The specified penalty field user number of "// &
-                      & TRIM(NUMBER_TO_VSTRING(PENALTY_FIELD_USER_NUMBER,"*",ERR,ERROR))// &
-                      & " does not match the user number of the specified penalty field of "// &
-                      & TRIM(NUMBER_TO_VSTRING(PENALTY_FIELD%USER_NUMBER,"*",ERR,ERROR))//"."
-                    CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
-                  ENDIF
-                  PENALTY_FIELD_REGION=>PENALTY_FIELD%REGION
-                  IF(ASSOCIATED(PENALTY_FIELD_REGION)) THEN
-                    !Check the field is defined on the same region as the constraint
-                    IF(PENALTY_FIELD_REGION%USER_NUMBER/=CONSTRAINT_REGION%USER_NUMBER) THEN
-                      LOCAL_ERROR="Invalid region setup. The specified penalty field has been created on constraint number "// &
-                        & TRIM(NUMBER_TO_VSTRING(CONSTRAINT%USER_NUMBER,"*",ERR,ERROR))//" in parent region number "// &
-                        & TRIM(NUMBER_TO_VSTRING(PENALTY_FIELD_REGION%USER_NUMBER,"*",ERR,ERROR))// &
-                        & " and the specified constraint has been created in parent region number "// &
-                        & TRIM(NUMBER_TO_VSTRING(CONSTRAINT_REGION%USER_NUMBER,"*",ERR,ERROR))//"."
-                      CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
-                    ENDIF
-                  ELSE
-                    CALL FLAG_ERROR("The penalty field region is not associated.",ERR,ERROR,*999)
-                  ENDIF
-                ELSE
-                  CALL FLAG_ERROR("The specified penalty field has not been finished.",ERR,ERROR,*999)
-                ENDIF
-              ELSE
-                !Check the user number has not already been used for a field in this region.
-                NULLIFY(FIELD)
-                CALL FIELD_USER_NUMBER_FIND(PENALTY_FIELD_USER_NUMBER,CONSTRAINT,FIELD,ERR,ERROR,*999)
-                IF(ASSOCIATED(FIELD)) THEN
-                  LOCAL_ERROR="The specified penalty field user number of "// &
-                    & TRIM(NUMBER_TO_VSTRING(PENALTY_FIELD_USER_NUMBER,"*",ERR,ERROR))// &
-                    & " has already been used to create a field on constraint number "// &
-                    & TRIM(NUMBER_TO_VSTRING(CONSTRAINT%USER_NUMBER,"*",ERR,ERROR))//"."
+          REGION=>CONSTRAINT_CONDITION%REGION
+          IF(ASSOCIATED(PENALTY_FIELD)) THEN
+            !Check the penalty field has been finished
+            IF(PENALTY_FIELD%FIELD_FINISHED) THEN
+              !Check the user numbers match
+              IF(PENALTY_FIELD_USER_NUMBER/=PENALTY_FIELD%USER_NUMBER) THEN
+                LOCAL_ERROR="The specified penalty field user number of "// &
+                  & TRIM(NUMBER_TO_VSTRING(PENALTY_FIELD_USER_NUMBER,"*",ERR,ERROR))// &
+                  & " does not match the user number of the specified penalty field of "// &
+                  & TRIM(NUMBER_TO_VSTRING(PENALTY_FIELD%USER_NUMBER,"*",ERR,ERROR))//"."
+                CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
+              ENDIF
+              PENALTY_FIELD_REGION=>PENALTY_FIELD%REGION
+              IF(ASSOCIATED(PENALTY_FIELD_REGION)) THEN
+                !Check the field is defined on the same region as the constraint
+                IF(PENALTY_FIELD_REGION%USER_NUMBER/=REGION%USER_NUMBER) THEN
+                  LOCAL_ERROR="Invalid region setup. The specified penalty field has been created on region number "// &
+                    & TRIM(NUMBER_TO_VSTRING(REGION%USER_NUMBER,"*",ERR,ERROR))//"."
                   CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
                 ENDIF
-              ENDIF
-              CALL CONSTRAINT_CONDITION_PENALTY_INITIALISE(CONSTRAINT_CONDITION,ERR,ERROR,*999)
-              IF(.NOT.ASSOCIATED(PENALTY_FIELD)) THEN
-                !Create the penalty field
-                CONSTRAINT_CONDITION%PENALTY%PENALTY_FIELD_AUTO_CREATED=.TRUE.
-                CALL FIELD_CREATE_START(PENALTY_FIELD_USER_NUMBER,CONSTRAINT_CONDITION%CONSTRAINT,CONSTRAINT_CONDITION%PENALTY% &
-                  & PENALTY_FIELD,ERR,ERROR,*999)
-                CALL FIELD_LABEL_SET(CONSTRAINT_CONDITION%PENALTY%PENALTY_FIELD,"Penalty Field",ERR,ERROR,*999)
-                CALL FIELD_TYPE_SET_AND_LOCK(CONSTRAINT_CONDITION%PENALTY%PENALTY_FIELD,FIELD_GENERAL_TYPE,ERR,ERROR,*999)
-                CALL FIELD_DEPENDENT_TYPE_SET_AND_LOCK(CONSTRAINT_CONDITION%PENALTY%PENALTY_FIELD,FIELD_DEPENDENT_TYPE, &
-                  & ERR,ERROR,*999)
-                NULLIFY(GEOMETRIC_DECOMPOSITION)
-                CALL FIELD_MESH_DECOMPOSITION_GET(CONSTRAINT_CONDITION%GEOMETRY%GEOMETRIC_FIELD,GEOMETRIC_DECOMPOSITION, &
-                  & ERR,ERROR,*999)
-                CALL FIELD_MESH_DECOMPOSITION_SET_AND_LOCK(CONSTRAINT_CONDITION%PENALTY%PENALTY_FIELD,GEOMETRIC_DECOMPOSITION, &
-                  & ERR,ERROR,*999)
-                CALL FIELD_GEOMETRIC_FIELD_SET_AND_LOCK(CONSTRAINT_CONDITION%PENALTY%PENALTY_FIELD,CONSTRAINT_CONDITION%GEOMETRY% &
-                  & GEOMETRIC_FIELD,ERR,ERROR,*999)
-                CALL FIELD_NUMBER_OF_VARIABLES_SET_AND_LOCK(CONSTRAINT_CONDITION%PENALTY%PENALTY_FIELD,1,ERR,ERROR,*999)
-                CALL FIELD_VARIABLE_TYPES_SET_AND_LOCK(CONSTRAINT_CONDITION%PENALTY%PENALTY_FIELD,[FIELD_U_VARIABLE_TYPE], &
-                  & ERR,ERROR,*999)
-                CALL FIELD_VARIABLE_LABEL_SET(CONSTRAINT_CONDITION%PENALTY%PENALTY_FIELD,FIELD_U_VARIABLE_TYPE,"Alpha", &
-                  & ERR,ERROR,*999)
-                CALL FIELD_DIMENSION_SET_AND_LOCK(CONSTRAINT_CONDITION%PENALTY%PENALTY_FIELD,FIELD_U_VARIABLE_TYPE, &
-                   & FIELD_VECTOR_DIMENSION_TYPE,ERR,ERROR,*999)
-                CALL FIELD_DATA_TYPE_SET_AND_LOCK(CONSTRAINT_CONDITION%PENALTY%PENALTY_FIELD,FIELD_U_VARIABLE_TYPE, &
-                  & FIELD_DP_TYPE,ERR,ERROR,*999)
-                IF(CONSTRAINT_CONDITION%OPERATOR==CONSTRAINT_CONDITION_FLS_CONTACT_OPERATOR .OR. &
-                    & CONSTRAINT_CONDITION%OPERATOR==CONSTRAINT_CONDITION_FLS_CONTACT_REPROJECT_OPERATOR) THEN
-                  !Default 1 component for the contact lagrange variable in a frictionless contact problem
-                  CALL FIELD_NUMBER_OF_COMPONENTS_SET(CONSTRAINT_CONDITION%PENALTY%PENALTY_FIELD,FIELD_U_VARIABLE_TYPE, &
-                    & 1,ERR,ERROR,*999)
-                  CALL FIELD_COMPONENT_INTERPOLATION_SET(CONSTRAINT_CONDITION%PENALTY%PENALTY_FIELD, &
-                      & FIELD_U_VARIABLE_TYPE,1,FIELD_CONSTANT_INTERPOLATION,ERR,ERROR,*999)
-                ELSE
-                  !Default the number of component to the first variable of the constraint dependent field's number of components, 
-                  CALL FIELD_NUMBER_OF_COMPONENTS_SET(CONSTRAINT_CONDITION%PENALTY%PENALTY_FIELD,FIELD_U_VARIABLE_TYPE, &
-                    & CONSTRAINT_DEPENDENT%FIELD_VARIABLES(1)%PTR%NUMBER_OF_COMPONENTS,ERR,ERROR,*999)
-                  DO component_idx=1,CONSTRAINT_DEPENDENT%FIELD_VARIABLES(1)%PTR%NUMBER_OF_COMPONENTS
-                    CALL FIELD_COMPONENT_INTERPOLATION_SET_AND_LOCK(CONSTRAINT_CONDITION%PENALTY%PENALTY_FIELD, &
-                      & FIELD_U_VARIABLE_TYPE,component_idx,FIELD_CONSTANT_INTERPOLATION,ERR,ERROR,*999)
-                  ENDDO !component_idx
-                ENDIF
-                CALL FIELD_SCALING_TYPE_GET(CONSTRAINT_CONDITION%GEOMETRY%GEOMETRIC_FIELD,GEOMETRIC_SCALING_TYPE, &
-                  & ERR,ERROR,*999)
-                CALL FIELD_SCALING_TYPE_SET(CONSTRAINT_CONDITION%PENALTY%PENALTY_FIELD,GEOMETRIC_SCALING_TYPE, &
-                  & ERR,ERROR,*999)
               ELSE
-                !Check the penalty field
-                CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
-              ENDIF
-              !Set pointers
-              IF(CONSTRAINT_CONDITION%PENALTY%PENALTY_FIELD_AUTO_CREATED) THEN
-                PENALTY_FIELD=>CONSTRAINT_CONDITION%PENALTY%PENALTY_FIELD
-              ELSE
-                CONSTRAINT_CONDITION%PENALTY%PENALTY_FIELD=>PENALTY_FIELD
+                CALL FLAG_ERROR("The penalty field region is not associated.",ERR,ERROR,*999)
               ENDIF
             ELSE
-              CALL FLAG_ERROR("The constraint parent region is not associated.",ERR,ERROR,*999)
+              CALL FLAG_ERROR("The specified penalty field has not been finished.",ERR,ERROR,*999)
             ENDIF
           ELSE
-            CALL FLAG_ERROR("The constraint constraint conditions is not associated.",ERR,ERROR,*999)
+            !Check the user number has not already been used for a field in this region.
+            NULLIFY(FIELD)
+            CALL FIELD_USER_NUMBER_FIND(PENALTY_FIELD_USER_NUMBER,REGION,FIELD,ERR,ERROR,*999)
+            IF(ASSOCIATED(FIELD)) THEN
+              LOCAL_ERROR="The specified penalty field user number of "// &
+                & TRIM(NUMBER_TO_VSTRING(PENALTY_FIELD_USER_NUMBER,"*",ERR,ERROR))// &
+                & " has already been used to create a field on region number "// &
+                & TRIM(NUMBER_TO_VSTRING(REGION%USER_NUMBER,"*",ERR,ERROR))//"."
+              CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
+            ENDIF
+          ENDIF
+          CALL CONSTRAINT_CONDITION_PENALTY_INITIALISE(CONSTRAINT_CONDITION,ERR,ERROR,*999)
+          IF(.NOT.ASSOCIATED(PENALTY_FIELD)) THEN
+            !Create the penalty field
+            CONSTRAINT_CONDITION%PENALTY%PENALTY_FIELD_AUTO_CREATED=.TRUE.
+            CALL FIELD_CREATE_START(PENALTY_FIELD_USER_NUMBER,CONSTRAINT_CONDITION%REGION,CONSTRAINT_CONDITION%PENALTY% &
+              & PENALTY_FIELD,ERR,ERROR,*999)
+            CALL FIELD_LABEL_SET(CONSTRAINT_CONDITION%PENALTY%PENALTY_FIELD,"Penalty Field",ERR,ERROR,*999)
+            CALL FIELD_TYPE_SET_AND_LOCK(CONSTRAINT_CONDITION%PENALTY%PENALTY_FIELD,FIELD_GENERAL_TYPE,ERR,ERROR,*999)
+            CALL FIELD_DEPENDENT_TYPE_SET_AND_LOCK(CONSTRAINT_CONDITION%PENALTY%PENALTY_FIELD,FIELD_DEPENDENT_TYPE, &
+              & ERR,ERROR,*999)
+            NULLIFY(GEOMETRIC_DECOMPOSITION)
+            CALL FIELD_MESH_DECOMPOSITION_GET(CONSTRAINT_CONDITION%GEOMETRY%GEOMETRIC_FIELD,GEOMETRIC_DECOMPOSITION, &
+              & ERR,ERROR,*999)
+            CALL FIELD_MESH_DECOMPOSITION_SET_AND_LOCK(CONSTRAINT_CONDITION%PENALTY%PENALTY_FIELD,GEOMETRIC_DECOMPOSITION, &
+              & ERR,ERROR,*999)
+            CALL FIELD_GEOMETRIC_FIELD_SET_AND_LOCK(CONSTRAINT_CONDITION%PENALTY%PENALTY_FIELD,CONSTRAINT_CONDITION%GEOMETRY% &
+              & GEOMETRIC_FIELD,ERR,ERROR,*999)
+            CALL FIELD_NUMBER_OF_VARIABLES_SET_AND_LOCK(CONSTRAINT_CONDITION%PENALTY%PENALTY_FIELD,1,ERR,ERROR,*999)
+            CALL FIELD_VARIABLE_TYPES_SET_AND_LOCK(CONSTRAINT_CONDITION%PENALTY%PENALTY_FIELD,[FIELD_U_VARIABLE_TYPE], &
+              & ERR,ERROR,*999)
+            CALL FIELD_VARIABLE_LABEL_SET(CONSTRAINT_CONDITION%PENALTY%PENALTY_FIELD,FIELD_U_VARIABLE_TYPE,"Alpha", &
+              & ERR,ERROR,*999)
+            CALL FIELD_DIMENSION_SET_AND_LOCK(CONSTRAINT_CONDITION%PENALTY%PENALTY_FIELD,FIELD_U_VARIABLE_TYPE, &
+              & FIELD_VECTOR_DIMENSION_TYPE,ERR,ERROR,*999)
+            CALL FIELD_DATA_TYPE_SET_AND_LOCK(CONSTRAINT_CONDITION%PENALTY%PENALTY_FIELD,FIELD_U_VARIABLE_TYPE, &
+              & FIELD_DP_TYPE,ERR,ERROR,*999)
+            !Default the number of component to the first variable of the constraint dependent field's number of components, 
+            CALL FIELD_NUMBER_OF_COMPONENTS_SET(CONSTRAINT_CONDITION%PENALTY%PENALTY_FIELD,FIELD_U_VARIABLE_TYPE, &
+              & CONSTRAINT_DEPENDENT%FIELD_VARIABLES(1)%PTR%NUMBER_OF_COMPONENTS,ERR,ERROR,*999)
+            DO component_idx=1,CONSTRAINT_DEPENDENT%FIELD_VARIABLES(1)%PTR%NUMBER_OF_COMPONENTS
+            CALL FIELD_COMPONENT_INTERPOLATION_SET_AND_LOCK(CONSTRAINT_CONDITION%PENALTY%PENALTY_FIELD, &
+              & FIELD_U_VARIABLE_TYPE,component_idx,FIELD_CONSTANT_INTERPOLATION,ERR,ERROR,*999)
+            ENDDO !component_idx
+            CALL FIELD_SCALING_TYPE_GET(CONSTRAINT_CONDITION%GEOMETRY%GEOMETRIC_FIELD,GEOMETRIC_SCALING_TYPE, &
+              & ERR,ERROR,*999)
+            CALL FIELD_SCALING_TYPE_SET(CONSTRAINT_CONDITION%PENALTY%PENALTY_FIELD,GEOMETRIC_SCALING_TYPE, &
+              & ERR,ERROR,*999)
+          ELSE
+            !Check the penalty field
+            CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+          ENDIF
+          !Set pointers
+          IF(CONSTRAINT_CONDITION%PENALTY%PENALTY_FIELD_AUTO_CREATED) THEN
+            PENALTY_FIELD=>CONSTRAINT_CONDITION%PENALTY%PENALTY_FIELD
+          ELSE
+            CONSTRAINT_CONDITION%PENALTY%PENALTY_FIELD=>PENALTY_FIELD
           ENDIF
         ELSE
           CALL FLAG_ERROR("Constraint condition dependent is not associated.",ERR,ERROR,*999)
@@ -2930,18 +2922,8 @@ CONTAINS
         CALL FLAG_ERROR("Constraint condition has been finished.",ERR,ERROR,*999)
       ELSE
         SELECT CASE(CONSTRAINT_CONDITION_OPERATOR)
-        CASE(CONSTRAINT_CONDITION_FIELD_CONTINUITY_OPERATOR)
-          CONSTRAINT_CONDITION%OPERATOR=CONSTRAINT_CONDITION_FIELD_CONTINUITY_OPERATOR
-        CASE(CONSTRAINT_CONDITION_FIELD_NORMAL_CONTINUITY_OPERATOR)
-          CONSTRAINT_CONDITION%OPERATOR=CONSTRAINT_CONDITION_FIELD_NORMAL_CONTINUITY_OPERATOR
-        CASE(CONSTRAINT_CONDITION_FLS_CONTACT_OPERATOR)
-          CONSTRAINT_CONDITION%OPERATOR=CONSTRAINT_CONDITION_FLS_CONTACT_OPERATOR
-        CASE(CONSTRAINT_CONDITION_FLS_CONTACT_REPROJECT_OPERATOR)
-          CONSTRAINT_CONDITION%OPERATOR=CONSTRAINT_CONDITION_FLS_CONTACT_REPROJECT_OPERATOR
-        CASE(CONSTRAINT_CONDITION_SOLID_FLUID_OPERATOR)
-          CONSTRAINT_CONDITION%OPERATOR=CONSTRAINT_CONDITION_SOLID_FLUID_OPERATOR
-        CASE(CONSTRAINT_CONDITION_SOLID_FLUID_NORMAL_OPERATOR)
-          CONSTRAINT_CONDITION%OPERATOR=CONSTRAINT_CONDITION_SOLID_FLUID_NORMAL_OPERATOR
+        CASE(CONSTRAINT_CONDITION_FE_INCOMPRESSIBILITY_OPERATOR)
+          CONSTRAINT_CONDITION%OPERATOR=CONSTRAINT_CONDITION_FE_INCOMPRESSIBILITY_OPERATOR
         CASE DEFAULT
           LOCAL_ERROR="The specified constraint condition operator of "// &
             & TRIM(NUMBER_TO_VSTRING(CONSTRAINT_CONDITION_OPERATOR,"*",ERR,ERROR))//" is not valid."
@@ -3090,7 +3072,7 @@ CONTAINS
                 ne=ELEMENTS_MAPPING%DOMAIN_LIST(element_idx)
                 NUMBER_OF_TIMES=NUMBER_OF_TIMES+1
                 CALL ConstraintMatrices_ElementCalculate(CONSTRAINT_MATRICES,ne,ERR,ERROR,*999)
-                CALL ConstraintCondition_FiniteElementCalculate(CONSTRAINT_CONDITION,ne,ERR,ERROR,*999)
+                CALL CONSTRAINT_CONDITION_FINITE_ELEMENT_CALCULATE(CONSTRAINT_CONDITION,ne,ERR,ERROR,*999)
                 CALL CONSTRAINT_MATRICES_ELEMENT_ADD(CONSTRAINT_MATRICES,ERR,ERROR,*999)
               ENDDO !element_idx                  
 #ifdef TAUPROF
@@ -3128,7 +3110,7 @@ CONTAINS
                 ne=ELEMENTS_MAPPING%DOMAIN_LIST(element_idx)
                 NUMBER_OF_TIMES=NUMBER_OF_TIMES+1
                 CALL ConstraintMatrices_ElementCalculate(CONSTRAINT_MATRICES,ne,ERR,ERROR,*999)
-                CALL ConstraintCondition_FiniteElementCalculate(CONSTRAINT_CONDITION,ne,ERR,ERROR,*999)
+                CALL CONSTRAINT_CONDITION_FINITE_ELEMENT_CALCULATE(CONSTRAINT_CONDITION,ne,ERR,ERROR,*999)
                 CALL CONSTRAINT_MATRICES_ELEMENT_ADD(CONSTRAINT_MATRICES,ERR,ERROR,*999)
               ENDDO !element_idx
 #ifdef TAUPROF
@@ -3207,7 +3189,7 @@ CONTAINS
   !
 
   !>Calculates the element stiffness matries for the given element number for a finite element constraint equations.
-  SUBROUTINE ConstraintCondition_FiniteElementCalculate(constraintCondition,constraintElementNumber,err,error,*)
+  SUBROUTINE CONSTRAINT_CONDITION_FINITE_ELEMENT_CALCULATE(constraintCondition,constraintElementNumber,err,error,*)
 
     !Argument variables
     TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: constraintCondition !<A pointer to the constraint condition
@@ -3222,25 +3204,16 @@ CONTAINS
     TYPE(VARYING_STRING) :: localError
     
 #ifdef TAUPROF
-    CALL TAU_STATIC_PHASE_START("ConstraintCondition_FiniteElementCalculate")
+    CALL TAU_STATIC_PHASE_START("CONSTRAINT_CONDITION_FINITE_ELEMENT_CALCULATE")
 #endif
 
-    CALL ENTERS("ConstraintCondition_FiniteElementCalculate",err,error,*999)
+    CALL ENTERS("CONSTRAINT_CONDITION_FINITE_ELEMENT_CALCULATE",err,error,*999)
     
     IF(ASSOCIATED(constraintCondition)) THEN
       constraintEquations=>constraintCondition%CONSTRAINT_EQUATIONS
       IF(ASSOCIATED(constraintEquations)) THEN
         SELECT CASE(constraintCondition%OPERATOR)
-        CASE(CONSTRAINT_CONDITION_FIELD_CONTINUITY_OPERATOR)
-          CALL FieldContinuity_FiniteElementCalculate(constraintCondition,constraintElementNumber,err,error,*999)
-        CASE(CONSTRAINT_CONDITION_FIELD_NORMAL_CONTINUITY_OPERATOR)
-          CALL FLAG_ERROR("Not implemented!",ERR,ERROR,*999)
-        CASE(CONSTRAINT_CONDITION_FLS_CONTACT_OPERATOR,CONSTRAINT_CONDITION_FLS_CONTACT_REPROJECT_OPERATOR)
-          CALL FrictionlessContact_FiniteElementCalculate(constraintCondition,constraintElementNumber,ERR,ERROR,*999)
-        CASE(CONSTRAINT_CONDITION_SOLID_FLUID_OPERATOR)
-          CALL SolidFluidOperator_FiniteElementCalculate(constraintCondition,constraintElementNumber,ERR,ERROR,*999)
-          !CALL FLAG_ERROR("Not implemented!",ERR,ERROR,*999)
-        CASE(CONSTRAINT_CONDITION_SOLID_FLUID_NORMAL_OPERATOR)
+        CASE(CONSTRAINT_CONDITION_FE_INCOMPRESSIBILITY_OPERATOR)
           CALL FLAG_ERROR("Not implemented!",ERR,ERROR,*999)
         CASE DEFAULT
           localError="The constraint condition operator of "//TRIM(NUMBER_TO_VSTRING(constraintCondition%OPERATOR,"*",err,error))// &
@@ -3288,27 +3261,27 @@ CONTAINS
     ENDIF
 
 #ifdef TAUPROF
-    CALL TAU_STATIC_PHASE_STOP("ConstraintCondition_FiniteElementCalculate")
+    CALL TAU_STATIC_PHASE_STOP("CONSTRAINT_CONDITION_FINITE_ELEMENT_CALCULATE")
 #endif
        
-    CALL EXITS("ConstraintCondition_FiniteElementCalculate")
+    CALL EXITS("CONSTRAINT_CONDITION_FINITE_ELEMENT_CALCULATE")
     RETURN
-999 CALL ERRORS("ConstraintCondition_FiniteElementCalculate",err,error)
-    CALL EXITS("ConstraintCondition_FiniteElementCalculate")
+999 CALL ERRORS("CONSTRAINT_CONDITION_FINITE_ELEMENT_CALCULATE",err,error)
+    CALL EXITS("CONSTRAINT_CONDITION_FINITE_ELEMENT_CALCULATE")
     RETURN 1
     
-  END SUBROUTINE ConstraintCondition_FiniteElementCalculate
+  END SUBROUTINE CONSTRAINT_CONDITION_FINITE_ELEMENT_CALCULATE
 
   !
   !================================================================================================================================
   !
 
   !>Finds and returns in CONSTRAINT_CONDITION a pointer to the constraint condition identified by USER_NUMBER in the given CONSTRAINT. If no constraint condition with that USER_NUMBER exists CONSTRAINT_CONDITION is left nullified.
-  SUBROUTINE CONSTRAINT_CONDITION_USER_NUMBER_FIND(USER_NUMBER,CONSTRAINT,CONSTRAINT_CONDITION,ERR,ERROR,*)
+  SUBROUTINE CONSTRAINT_CONDITION_USER_NUMBER_FIND(USER_NUMBER,REGION,CONSTRAINT_CONDITION,ERR,ERROR,*)
 
     !Argument variables
     INTEGER(INTG), INTENT(IN) :: USER_NUMBER !<The user number to find.
-    TYPE(CONSTRAINT_TYPE), POINTER :: CONSTRAINT !<The constraint to find the constraint condition in.
+    TYPE(REGION_TYPE), POINTER :: REGION !<The region to find the constraint condition in.
     TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION !<On return a pointer to the constraint condition with the given user number. If no constraint condition with that user number exists then the pointer is returned as NULL. Must not be associated on entry.
     INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
@@ -3318,29 +3291,29 @@ CONTAINS
 
     CALL ENTERS("CONSTRAINT_CONDITION_USER_NUMBER_FIND",ERR,ERROR,*999)
 
-    IF(ASSOCIATED(CONSTRAINT)) THEN
+    IF(ASSOCIATED(REGION)) THEN
       IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
         CALL FLAG_ERROR("Constraint condition is already associated.",ERR,ERROR,*999)
       ELSE
         NULLIFY(CONSTRAINT_CONDITION)
-        IF(ASSOCIATED(CONSTRAINT%CONSTRAINT_CONDITIONS)) THEN
+        IF(ASSOCIATED(REGION%CONSTRAINT_CONDITIONS)) THEN
           constraint_condition_idx=1
-          DO WHILE(constraint_condition_idx<=CONSTRAINT%CONSTRAINT_CONDITIONS%NUMBER_OF_CONSTRAINT_CONDITIONS.AND. &
+          DO WHILE(constraint_condition_idx<=REGION%CONSTRAINT_CONDITIONS%NUMBER_OF_CONSTRAINT_CONDITIONS.AND. &
             & .NOT.ASSOCIATED(CONSTRAINT_CONDITION))
-            IF(CONSTRAINT%CONSTRAINT_CONDITIONS%CONSTRAINT_CONDITIONS(constraint_condition_idx)%PTR%USER_NUMBER==USER_NUMBER) THEN
-              CONSTRAINT_CONDITION=>CONSTRAINT%CONSTRAINT_CONDITIONS%CONSTRAINT_CONDITIONS(constraint_condition_idx)%PTR
+            IF(REGION%CONSTRAINT_CONDITIONS%CONSTRAINT_CONDITIONS(constraint_condition_idx)%PTR%USER_NUMBER==USER_NUMBER) THEN
+              CONSTRAINT_CONDITION=>REGION%CONSTRAINT_CONDITIONS%CONSTRAINT_CONDITIONS(constraint_condition_idx)%PTR
             ELSE
               constraint_condition_idx=constraint_condition_idx+1
             ENDIF
           ENDDO
         ELSE
-          LOCAL_ERROR="The constraint conditions on constraint number "// &
-            & TRIM(NUMBER_TO_VSTRING(CONSTRAINT%USER_NUMBER,"*",ERR,ERROR))//" are not associated."
+          LOCAL_ERROR="The constraint conditions on region number "// &
+            & TRIM(NUMBER_TO_VSTRING(REGION%USER_NUMBER,"*",ERR,ERROR))//" are not associated."
           CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
         ENDIF
       ENDIF
     ELSE
-      CALL FLAG_ERROR("Constraint is not associated.",ERR,ERROR,*999)
+      CALL FLAG_ERROR("Region is not associated.",ERR,ERROR,*999)
     ENDIF
     
     CALL EXITS("CONSTRAINT_CONDITION_USER_NUMBER_FIND")
@@ -3387,10 +3360,10 @@ CONTAINS
   !
   
   !>Initialises an constraint conditions for an constraint.
-  SUBROUTINE CONSTRAINT_CONDITIONS_INITIALISE(CONSTRAINT,ERR,ERROR,*) 
+  SUBROUTINE CONSTRAINT_CONDITIONS_INITIALISE(REGION,ERR,ERROR,*) 
 
     !Argument variables
-    TYPE(CONSTRAINT_TYPE), POINTER :: CONSTRAINT !<A pointer to the constraint to initialise the conditions for
+    TYPE(REGION_TYPE), POINTER :: REGION !<A pointer to the region to initialise the conditions for
     INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
     !Local Variables
@@ -3399,25 +3372,25 @@ CONTAINS
      
     CALL ENTERS("CONSTRAINT_CONDITIONS_INITIALISE",ERR,ERROR,*998)
 
-    IF(ASSOCIATED(CONSTRAINT)) THEN
-      IF(ASSOCIATED(CONSTRAINT%CONSTRAINT_CONDITIONS)) THEN
-        LOCAL_ERROR="Constraint conditions is already associated for constraint number "// &
-          & TRIM(NUMBER_TO_VSTRING(CONSTRAINT%USER_NUMBER,"*",ERR,ERROR))//"."
+    IF(ASSOCIATED(REGION)) THEN
+      IF(ASSOCIATED(REGION%CONSTRAINT_CONDITIONS)) THEN
+        LOCAL_ERROR="Constraint conditions is already associated for region number "// &
+          & TRIM(NUMBER_TO_VSTRING(REGION%USER_NUMBER,"*",ERR,ERROR))//"."
         CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
       ELSE
-        ALLOCATE(CONSTRAINT%CONSTRAINT_CONDITIONS,STAT=ERR)
-        IF(ERR/=0) CALL FLAG_ERROR("Could not allocate constraint constraint conditions.",ERR,ERROR,*999)
-        CONSTRAINT%CONSTRAINT_CONDITIONS%CONSTRAINT=>CONSTRAINT
-        CONSTRAINT%CONSTRAINT_CONDITIONS%NUMBER_OF_CONSTRAINT_CONDITIONS=0
-        NULLIFY(CONSTRAINT%CONSTRAINT_CONDITIONS%CONSTRAINT_CONDITIONS)
+        ALLOCATE(REGION%CONSTRAINT_CONDITIONS,STAT=ERR)
+        IF(ERR/=0) CALL FLAG_ERROR("Could not allocate region constraint conditions.",ERR,ERROR,*999)
+        REGION%CONSTRAINT_CONDITIONS%CONSTRAINT=>REGION
+        REGION%CONSTRAINT_CONDITIONS%NUMBER_OF_CONSTRAINT_CONDITIONS=0
+        NULLIFY(REGION%CONSTRAINT_CONDITIONS%CONSTRAINT_CONDITIONS)
       ENDIF
     ELSE
-      CALL FLAG_ERROR("Constraint is not associated.",ERR,ERROR,*998)
+      CALL FLAG_ERROR("Region is not associated.",ERR,ERROR,*998)
     ENDIF
     
     CALL EXITS("CONSTRAINT_CONDITIONS_INITIALISE")
     RETURN
-999 CALL CONSTRAINT_CONDITIONS_FINALISE(CONSTRAINT%CONSTRAINT_CONDITIONS,DUMMY_ERR,DUMMY_ERROR,*998)
+999 CALL CONSTRAINT_CONDITIONS_FINALISE(REGION%CONSTRAINT_CONDITIONS,DUMMY_ERR,DUMMY_ERROR,*998)
 998 CALL ERRORS("CONSTRAINT_CONDITIONS_INITIALISE",ERR,ERROR)
     CALL EXITS("CONSTRAINT_CONDITIONS_INITIALISE")
     RETURN 1

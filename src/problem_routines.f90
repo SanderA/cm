@@ -47,6 +47,8 @@ MODULE PROBLEM_ROUTINES
   USE BASE_ROUTINES
   USE BIOELECTRIC_ROUTINES
   USE CLASSICAL_FIELD_ROUTINES
+  USE CONSTRAINT_CONDITIONS_CONSTANTS
+  USE CONSTRAINT_CONDITIONS_ROUTINES
   USE CONTROL_LOOP_ROUTINES
   USE DISTRIBUTED_MATRIX_VECTOR
   USE ELASTICITY_ROUTINES
@@ -1269,8 +1271,9 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
     !Local Variables
-    INTEGER(INTG) :: equations_set_idx,solver_matrix_idx
+    INTEGER(INTG) :: equations_set_idx,constraintConditionIdx,solver_matrix_idx
     TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: constraintCondition 
     TYPE(SOLVER_EQUATIONS_TYPE), POINTER :: SOLVER_equations
     TYPE(SOLVER_MAPPING_TYPE), POINTER :: SOLVER_MAPPING
     TYPE(SOLVER_MATRICES_TYPE), POINTER :: SOLVER_MATRICES
@@ -1384,7 +1387,8 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
     !Local Variables
-    INTEGER(INTG) :: equations_set_idx,solver_matrix_idx
+    INTEGER(INTG) :: equations_set_idx,constraintConditionIdx,solver_matrix_idx
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: constraintCondition 
     TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET
     TYPE(SOLVER_TYPE), POINTER :: CELLML_SOLVER,LINKING_SOLVER
     TYPE(SOLVER_EQUATIONS_TYPE), POINTER :: SOLVER_EQUATIONS
@@ -1484,11 +1488,11 @@ CONTAINS
                   constraintCondition=>SOLVER_MAPPING%CONSTRAINT_CONDITIONS(constraintConditionIdx)%PTR
                   SELECT CASE(constraintCondition%CONSTRAINT_EQUATIONS%LINEARITY)
                   CASE(CONSTRAINT_CONDITION_LINEAR)
-                    !Assemble the equations for linear constraint equations
-                    CALL CONSTRAINT_CONDITION_ASSEMBLE(EQUATIONS_SET,ERR,ERROR,*999)
+                    !Assemble the equations for linear constraint conditions
+                    CALL CONSTRAINT_CONDITION_ASSEMBLE(constraintCondition,ERR,ERROR,*999)
                   CASE(CONSTRAINT_CONDITION_NONLINEAR)
-                    !Evaluate the residual for nonlinear constraints equations
-                    CALL CONSTRAINT_CONDITION_RESIDUAL_EVALUATE(EQUATIONS_SET,ERR,ERROR,*999)
+                    !Evaluate the residual for nonlinear constraint conditions
+                    CALL CONSTRAINT_CONDITION_RESIDUAL_EVALUATE(constraintCondition,ERR,ERROR,*999)
                   END SELECT
                 ENDDO !constraintConditionIdx
                 !Note that the linear interface matrices are not required to be updated since these matrices do not change
@@ -2368,11 +2372,12 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
     !Local Variables
-    INTEGER(INTG) :: equations_set_idx,loop_idx,interface_condition_idx
+    INTEGER(INTG) :: equations_set_idx,loop_idx,constraint_condition_idx,interface_condition_idx
     REAL(DP) :: CURRENT_TIME,TIME_INCREMENT
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION
     TYPE(CONTROL_LOOP_TYPE), POINTER :: CONTROL_LOOP,CONTROL_TIME_LOOP
     TYPE(EQUATIONS_TYPE), POINTER :: EQUATIONS
-    TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET
+    TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SE
     TYPE(INTERFACE_CONDITION_TYPE), POINTER :: INTERFACE_CONDITION
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
     TYPE(DYNAMIC_SOLVER_TYPE), POINTER :: DYNAMIC_SOLVER
@@ -2421,8 +2426,7 @@ CONTAINS
                 ENDDO !equations_set_idx
                 DO constraint_condition_idx=1,SOLVER_MAPPING%NUMBER_OF_CONSTRAINT_CONDITIONS
                   CONSTRAINT_CONDITION=>SOLVER_MAPPING%CONSTRAINT_CONDITIONS(constraint_condition_idx)%PTR
-                  IF(DYNAMIC_SOLVER%RESTART.OR..NOT.DYNAMIC_SOLVER%SOLVER_INITIALISED) THEN!.OR.DYNAMIC_SOLVER%FSI) THEN
-                    !If we need to restart or we haven't initialised yet or we have an FSI scheme, make sure the equations sets are up to date
+                  IF(DYNAMIC_SOLVER%RESTART.OR..NOT.DYNAMIC_SOLVER%SOLVER_INITIALISED) THEN
                     CONSTRAINT_EQUATIONS=>CONSTRAINT_CONDITION%CONSTRAINT_EQUATIONS
                     IF(ASSOCIATED(CONSTRAINT_EQUATIONS)) THEN
                       SELECT CASE(CONSTRAINT_EQUATIONS%LINEARITY)
@@ -2643,7 +2647,8 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
     !Local Variables
-    INTEGER(INTG) :: equations_set_idx,interface_condition_idx
+    INTEGER(INTG) :: equations_set_idx,constraint_condition_idx,interface_condition_idx
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION
     TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET
     TYPE(INTERFACE_CONDITION_TYPE), POINTER :: INTERFACE_CONDITION
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
@@ -2747,7 +2752,8 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
     !Local Variables
-    INTEGER(INTG) :: equations_set_idx,interface_condition_idx
+    INTEGER(INTG) :: equations_set_idx,constraint_condition_idx,interface_condition_idx
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION
     TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET
     TYPE(EQUATIONS_TYPE), POINTER :: EQUATIONS
     TYPE(INTERFACE_CONDITION_TYPE), POINTER :: INTERFACE_CONDITION
@@ -3380,8 +3386,9 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
     !Local Variables
-    INTEGER(INTG) :: interfaceConditionIdx
+    INTEGER(INTG) :: constraintConditionIdx,interfaceConditionIdx
     TYPE(SOLVERS_TYPE), POINTER :: solvers
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: constraintCondition
     TYPE(CONTROL_LOOP_TYPE), POINTER :: controlLoop
     TYPE(PROBLEM_TYPE), POINTER :: problem
     TYPE(NONLINEAR_SOLVER_TYPE), POINTER :: nonlinearSolver
