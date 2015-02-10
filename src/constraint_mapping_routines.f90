@@ -64,25 +64,25 @@ MODULE CONSTRAINT_MAPPING_ROUTINES
   !Module variables
 
 
-! INTERFACE CONSTRAINT_MAPPING_DYNAMIC_MATRICES_SET
-!   MODULE PROCEDURE CONSTRAINT_MAPPING_DYNAMIC_MATRICES_SET_1
-!   MODULE PROCEDURE CONSTRAINT_MAPPING_DYNAMIC_MATRICES_SET_2
-! END INTERFACE !CONSTRAINT_MAPPING_DYNAMIC_MATRICES_SET
-! 
-! INTERFACE CONSTRAINT_MAPPING_DYNAMIC_MATRICES_COEFFS_SET
-!   MODULE PROCEDURE CONSTRAINT_MAPPING_DYNAMIC_MATRICES_COEFFS_SET_1
-!   MODULE PROCEDURE CONSTRAINT_MAPPING_DYNAMIC_MATRICES_COEFFS_SET_2
-! END INTERFACE !CONSTRAINT_MAPPING_DYNAMIC_MATRICES_COEFFS_SET
-! 
-! PUBLIC CONSTRAINT_MAPPING_CREATE_FINISH,CONSTRAINT_MAPPING_CREATE_START,CONSTRAINT_MAPPING_DESTROY, &
-!   & CONSTRAINT_MAPPING_DYNAMIC_MATRICES_SET,CONSTRAINT_MAPPING_DYNAMIC_MATRICES_COEFFS_SET, &
-!   & CONSTRAINT_MAPPING_LINEAR_MATRICES_COEFFS_SET,CONSTRAINT_MAPPING_RESIDUAL_COEFF_SET, &
-!   & CONSTRAINT_MAPPING_RHS_COEFF_SET,CONSTRAINT_MAPPING_RHS_VARIABLE_TYPE_SET
-!
-! PUBLIC CONSTRAINT_MAPPING_LAGRANGE_VARIABLE_TYPE_SET
-!
-! PUBLIC CONSTRAINT_MAPPING_DYNAMIC_MATRICES_TRANSPOSE_SET,CONSTRAINT_MAPPING_LINEAR_MATRICES_TRANSPOSE_SET, &
-!   & CONSTRAINT_MAPPING_JACOBIAN_MATRICES_TRANSPOSE_SET
+  INTERFACE CONSTRAINT_MAPPING_DYNAMIC_MATRICES_SET
+    MODULE PROCEDURE CONSTRAINT_MAPPING_DYNAMIC_MATRICES_SET_1
+    MODULE PROCEDURE CONSTRAINT_MAPPING_DYNAMIC_MATRICES_SET_2
+  END INTERFACE !CONSTRAINT_MAPPING_DYNAMIC_MATRICES_SET
+  
+  INTERFACE CONSTRAINT_MAPPING_DYNAMIC_MATRICES_COEFFS_SET
+    MODULE PROCEDURE CONSTRAINT_MAPPING_DYNAMIC_MATRICES_COEFFS_SET_1
+    MODULE PROCEDURE CONSTRAINT_MAPPING_DYNAMIC_MATRICES_COEFFS_SET_2
+  END INTERFACE !CONSTRAINT_MAPPING_DYNAMIC_MATRICES_COEFFS_SET
+  
+  PUBLIC CONSTRAINT_MAPPING_CREATE_FINISH,CONSTRAINT_MAPPING_CREATE_START,CONSTRAINT_MAPPING_DESTROY, &
+    & CONSTRAINT_MAPPING_DYNAMIC_MATRICES_SET,CONSTRAINT_MAPPING_DYNAMIC_MATRICES_COEFFS_SET, &
+    & CONSTRAINT_MAPPING_LINEAR_MATRICES_COEFFS_SET,CONSTRAINT_MAPPING_JACOBIAN_COEFF_SET, &
+    & CONSTRAINT_MAPPING_RHS_COEFF_SET,CONSTRAINT_MAPPING_RHS_VARIABLE_TYPE_SET
+ 
+  PUBLIC CONSTRAINT_MAPPING_LAGRANGE_VARIABLE_TYPE_SET
+ 
+  PUBLIC CONSTRAINT_MAPPING_DYNAMIC_MATRICES_TRANSPOSE_SET,CONSTRAINT_MAPPING_LINEAR_MATRICES_TRANSPOSE_SET, &
+    & CONSTRAINT_MAPPING_JACOBIAN_MATRICES_TRANSPOSE_SET
 
 
 CONTAINS
@@ -99,7 +99,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) ::       ERR !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) ::    ERROR !<The error string
     !Local Variables
-    INTEGER(INTG) :: column_idx,dof_idx,matrix_idx,mesh_idx,variable_idx,number_of_constraint_matrices
+    INTEGER(INTG) :: row_idx,column_idx,dof_idx,matrix_idx,variable_idx,number_of_constraint_matrices
     TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET
     TYPE(FIELD_TYPE), POINTER :: LAGRANGE_FIELD,DEPENDENT_FIELD
     TYPE(FIELD_VARIABLE_TYPE), POINTER :: FIELD_VARIABLE,LAGRANGE_VARIABLE
@@ -116,528 +116,722 @@ CONTAINS
 
     CALL ENTERS("CONSTRAINT_MAPPING_CALCULATE",ERR,ERROR,*999)
 
-!   IF(ASSOCIATED(CONSTRAINT_MAPPING)) THEN
-!     CREATE_VALUES_CACHE=>CONSTRAINT_MAPPING%CREATE_VALUES_CACHE
-!     IF(ASSOCIATED(CREATE_VALUES_CACHE)) THEN
-!       CONSTRAINT_EQUATIONS=>CONSTRAINT_MAPPING%CONSTRAINT_EQUATIONS
-!       IF(ASSOCIATED(CONSTRAINT_EQUATIONS)) THEN
-!         CONSTRAINT_CONDITION=>CONSTRAINT_EQUATIONS%CONSTRAINT_CONDITION
-!         SELECT CASE(CONSTRAINT_CONDITION%METHOD)
-!         CASE(CONSTRAINT_CONDITION_LAGRANGE_MULTIPLIERS_METHOD,CONSTRAINT_CONDITION_PENALTY_METHOD)
-!           LAGRANGE=>CONSTRAINT_CONDITION%LAGRANGE
-!           IF(ASSOCIATED(LAGRANGE)) THEN
-!             CONSTRAINT_DEPENDENT=>CONSTRAINT_CONDITION%DEPENDENT
-!             IF(ASSOCIATED(CONSTRAINT_DEPENDENT)) THEN
-!               !Set the Lagrange variable information
-!               LAGRANGE_FIELD=>LAGRANGE%LAGRANGE_FIELD
-!               DEPENDENT_FIELD=>CONSTRAINT_DEPENDENT%DEPENDENT_FIELD
-!               NULLIFY(LAGRANGE_VARIABLE)
-!               CALL FIELD_VARIABLE_GET(LAGRANGE_FIELD,CREATE_VALUES_CACHE%LAGRANGE_VARIABLE_TYPE,LAGRANGE_VARIABLE, &
-!                 & ERR,ERROR,*999)
-!               CONSTRAINT_MAPPING%LAGRANGE_VARIABLE_TYPE=CREATE_VALUES_CACHE%LAGRANGE_VARIABLE_TYPE
-!               CONSTRAINT_MAPPING%LAGRANGE_VARIABLE=>LAGRANGE_VARIABLE
-!               !Set the number of columns in the constraint matrices
-!               CONSTRAINT_MAPPING%NUMBER_OF_COLUMNS=LAGRANGE_VARIABLE%NUMBER_OF_DOFS
-!               CONSTRAINT_MAPPING%TOTAL_NUMBER_OF_COLUMNS=LAGRANGE_VARIABLE%TOTAL_NUMBER_OF_DOFS
-!               CONSTRAINT_MAPPING%NUMBER_OF_GLOBAL_COLUMNS=LAGRANGE_VARIABLE%NUMBER_OF_GLOBAL_DOFS
-!               !Set the column dofs mapping
-!               CONSTRAINT_MAPPING%COLUMN_DOFS_MAPPING=>LAGRANGE_VARIABLE%DOMAIN_MAPPING
-!
-!               !Calculate dynamic mappings
-!               IF(CREATE_VALUES_CACHE%NUMBER_OF_DYNAMIC_CONSTRAINT_MATRICES>0) THEN                  
-!                 CALL CONSTRAINT_MAPPING_DYNAMIC_MAPPING_INITIALISE(CONSTRAINT_MAPPING,ERR,ERROR,*999)
-!                 DYNAMIC_MAPPING=>CONSTRAINT_MAPPING%DYNAMIC_MAPPING
-!                 IF(ASSOCIATED(DYNAMIC_MAPPING)) THEN
-!                   DYNAMIC_MAPPING%NUMBER_OF_DYNAMIC_CONSTRAINT_MATRICES=CREATE_VALUES_CACHE%NUMBER_OF_DYNAMIC_CONSTRAINT_MATRICES
-!                   DYNAMIC_MAPPING%STIFFNESS_MATRIX_NUMBER=CREATE_VALUES_CACHE%DYNAMIC_STIFFNESS_MATRIX_NUMBER
-!                   DYNAMIC_MAPPING%DAMPING_MATRIX_NUMBER=CREATE_VALUES_CACHE%DYNAMIC_DAMPING_MATRIX_NUMBER
-!                   DYNAMIC_MAPPING%MASS_MATRIX_NUMBER=CREATE_VALUES_CACHE%DYNAMIC_MASS_MATRIX_NUMBER
-!                   ALLOCATE(DYNAMIC_MAPPING%LAGRANGE_DOF_TO_COLUMN_MAP(LAGRANGE_VARIABLE%TOTAL_NUMBER_OF_DOFS),STAT=ERR)
-!                   IF(ERR/=0) CALL FLAG_ERROR("Could not allocate Lagrange dof to column map.",ERR,ERROR,*999)
-!                   !1-1 mapping for now
-!                   DO dof_idx=1,LAGRANGE_VARIABLE%TOTAL_NUMBER_OF_DOFS
-!                     column_idx=LAGRANGE_VARIABLE%DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(dof_idx)
-!                     DYNAMIC_MAPPING%LAGRANGE_DOF_TO_COLUMN_MAP(dof_idx)=column_idx
-!                   ENDDO
-!                   CALL CONSTRAINT_MAPPING_VAR_TO_CONSTR_MATRICES_MAP_INITIALISE( &
-!                     & DYNAMIC_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP,ERR,ERROR,*999)
-!                   DYNAMIC_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%VARIABLE_TYPE=CREATE_VALUES_CACHE%VARIABLE_TYPE
-!                   DYNAMIC_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%VARIABLE=>CREATE_VALUES_CACHE%VARIABLE
-!                   DYNAMIC_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%NUMBER_OF_CONSTRAINT_MATRICES=CREATE_VALUES_CACHE%NUMBER_OF_DYNAMIC_CONSTRAINT_MATRICES
-!                   IF(CREATE_VALUES_CACHE%RHS_VARIABLE_TYPE/=0) DYNAMIC_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%NUMBER_OF_CONSTRAINT_MATRICES=-1
-!                   !Allocate and initialise the variable to constraint matrices maps
-!                   FIELD_VARIABLE=>DEPENDENT_FIELD%VARIABLE
-!                   IF(ASSOCIATED(FIELD_VARIABLE)) THEN
-!                     IF(DYNAMIC_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%NUMBER_OF_CONSTRAINT_MATRICES==-1) THEN
-!                       !!TODO: check if this can be removed and just allocate those variables that are actually used
-!                       ALLOCATE(DYNAMIC_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%VARIABLE_DOF_TO_ROWS_MAP( &
-!                         & FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS),STAT=ERR)
-!                       IF(ERR/=0) CALL FLAG_ERROR("Could not allocate variable to constraint matrices maps dof to rows map.", &
-!                         & ERR,ERROR,*999)
-!                       DYNAMIC_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%VARIABLE_DOF_TO_ROWS_MAP=0
-!                     ELSE IF(DYNAMIC_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%NUMBER_OF_CONSTRAINT_MATRICES>0) THEN
-!                       ALLOCATE(DYNAMIC_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%CONSTRAINT_MATRIX_NUMBERS( &
-!                         & DYNAMIC_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%NUMBER_OF_CONSTRAINT_MATRICES),STAT=ERR)
-!                       IF(ERR/=0) &
-!                         & CALL FLAG_ERROR("Could not allocate variable to constraint matrices maps constraint matrix numbers.", &
-!                         & ERR,ERROR,*999)
-!                       DYNAMIC_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%CONSTRAINT_MATRIX_NUMBERS=0
-!                       IF(CREATE_VALUES_CACHE%DYNAMIC_STIFFNESS_MATRIX_NUMBER/=0) THEN
-!                         DYNAMIC_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%CONSTRAINT_MATRIX_NUMBERS( &
-!                           & CREATE_VALUES_CACHE%DYNAMIC_STIFFNESS_MATRIX_NUMBER)=CREATE_VALUES_CACHE% &
-!                           & DYNAMIC_STIFFNESS_MATRIX_NUMBER
-!                       ENDIF
-!                       IF(CREATE_VALUES_CACHE%DYNAMIC_DAMPING_MATRIX_NUMBER/=0) THEN
-!                         DYNAMIC_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%CONSTRAINT_MATRIX_NUMBERS( &
-!                           & CREATE_VALUES_CACHE%DYNAMIC_DAMPING_MATRIX_NUMBER)=CREATE_VALUES_CACHE% &
-!                           & DYNAMIC_DAMPING_MATRIX_NUMBER
-!                       ENDIF
-!                       IF(CREATE_VALUES_CACHE%DYNAMIC_MASS_MATRIX_NUMBER/=0) THEN
-!                         DYNAMIC_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%CONSTRAINT_MATRIX_NUMBERS( &
-!                           & CREATE_VALUES_CACHE%DYNAMIC_MASS_MATRIX_NUMBER)=CREATE_VALUES_CACHE% &
-!                           & DYNAMIC_MASS_MATRIX_NUMBER
-!                       ENDIF
-!                       ALLOCATE(DYNAMIC_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%VARIABLE_DOF_TO_ROWS_MAP( &
-!                         & FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS),STAT=ERR)
-!                       IF(ERR/=0) CALL FLAG_ERROR("Could not allocate variable to constraint matrices maps dof to rows map.", &
-!                         & ERR,ERROR,*999)
-!                       DO dof_idx=1,FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS
-!                       !1-1 mappings for now.
-!                       row_idx=dof_idx
-!                       DYNAMIC_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%VARIABLE_DOF_TO_ROWS_MAP(dof_idx)=row_idx
-!                       ENDDO !dof_idx
-!                     ENDIF
-!                   ENDIF
-!                   !Allocate and initialise the constraint matrix to variable maps types
-!                   ALLOCATE(DYNAMIC_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS(DYNAMIC_MAPPING% &
-!                     & NUMBER_OF_DYNAMIC_CONSTRAINT_MATRICES),STAT=ERR)
-!                   IF(ERR/=0) CALL FLAG_ERROR("Could not allocate constraint matrix rows to variable maps.", &
-!                     & ERR,ERROR,*999)
-!                   !Loop over the constraint matrices and calculate the row mappings
-!                   !The pointers below have been checked for association above.
-!                   SELECT CASE(CONSTRAINT_CONDITION%METHOD)
-!                   CASE(CONSTRAINT_CONDITION_LAGRANGE_MULTIPLIERS_METHOD)
-!                     number_of_constraint_matrices=CONSTRAINT_MAPPING%NUMBER_OF_DYNAMIC_CONSTRAINT_MATRICES
-!                   CASE(CONSTRAINT_CONDITION_PENALTY_METHOD)
-!                     !Number of constraint matrices whose rows/columns are related to Dependent/Lagrange variables and not Lagrange/Lagrange variables (last constraint matrix is Lagrange/Lagrange (Penalty matrix)
-!                     number_of_constraint_matrices=CONSTRAINT_MAPPING%NUMBER_OF_DYNAMIC_CONSTRAINT_MATRICES/2 
-!                   ENDSELECT
-!                   DO matrix_idx=1,number_of_constraint_matrices
-!                     !Initialise and setup the constraint matrix
-!                     CALL CONSTRAINT_MAPPING_MATRIX_ROW_TO_VAR_MAP_INITIALISE(CONSTRAINT_MAPPING,matrix_idx,ERR,ERROR,*999)
-!                     EQUATIONS_SET=>CONSTRAINT_DEPENDENT%EQUATIONS_SET
-!                     IF(ASSOCIATED(EQUATIONS_SET)) THEN
-!                       FIELD_VARIABLE=>CONSTRAINT_DEPENDENT%FIELD_VARIABLE
-!                       IF(ASSOCIATED(FIELD_VARIABLE)) THEN
-!                         CONSTRAINT_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%EQUATIONS_SET=>EQUATIONS_SET
-!                         CONSTRAINT_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%VARIABLE_TYPE= &
-!                           & FIELD_VARIABLE%VARIABLE_TYPE
-!                         CONSTRAINT_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%VARIABLE=>FIELD_VARIABLE
-!                         CONSTRAINT_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%MATRIX_COEFFICIENT= &
-!                           & CONSTRAINT_MAPPING%CREATE_VALUES_CACHE%MATRIX_COEFFICIENTS(matrix_idx)
-!                         CONSTRAINT_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%HAS_TRANSPOSE=CONSTRAINT_MAPPING% &
-!                           & CREATE_VALUES_CACHE%HAS_TRANSPOSE(matrix_idx)
-!                          !Set the number of rows
-!                         CONSTRAINT_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%NUMBER_OF_ROWS= &
-!                           & FIELD_VARIABLE%NUMBER_OF_DOFS
-!                         CONSTRAINT_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%TOTAL_NUMBER_OF_ROWS= &
-!                           & FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS
-!                         CONSTRAINT_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%NUMBER_OF_GLOBAL_ROWS= &
-!                           & FIELD_VARIABLE%NUMBER_OF_GLOBAL_DOFS
-!                         !Set the row mapping
-!                         CONSTRAINT_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%ROW_DOFS_MAPPING=> &
-!                           & FIELD_VARIABLE%DOMAIN_MAPPING
-!                         ALLOCATE(CONSTRAINT_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%VARIABLE_DOF_TO_ROW_MAP( &
-!                           & FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS),STAT=ERR)
-!                         IF(ERR/=0) CALL FLAG_ERROR("Could not allocate variable dof to row map.",ERR,ERROR,*999)
-!                         !1-1 mapping for now
-!                         DO dof_idx=1,FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS
-!                           CONSTRAINT_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)% &
-!                             & VARIABLE_DOF_TO_ROW_MAP(dof_idx)=dof_idx
-!                         ENDDO !dof_idx
-!                       ELSE
-!                         CALL FLAG_ERROR("Dependent variable could not be found.",ERR,ERROR,*999)
-!                       ENDIF
-!                     ELSE
-!                       CALL FLAG_ERROR("Equations set could not be found.",ERR,ERROR,*999)
-!                     ENDIF
-!                   ENDDO !matrix_idx
-!                   !The pointers below have been checked for association above.
-!                   SELECT CASE(CONSTRAINT_CONDITION%METHOD)
-!                   CASE(CONSTRAINT_CONDITION_PENALTY_METHOD)
-!                     !Sets up the Lagrange-(Penalty) constraint matrix mapping and calculate the row mappings
-!                     DO matrix_idx=number_of_constraint_matrices,CONSTRAINT_MAPPING%NUMBER_OF_DYNAMIC_CONSTRAINT_MATRICES
-!                       !Initialise and setup the constraint matrix
-!                       CALL CONSTRAINT_MAPPING_MATRIX_ROW_TO_VAR_MAP_INITIALISE(CONSTRAINT_MAPPING,matrix_idx,ERR,ERROR,*999)
-!                       CALL FIELD_VARIABLE_GET(LAGRANGE_FIELD,CREATE_VALUES_CACHE%LAGRANGE_VARIABLE_TYPE,LAGRANGE_VARIABLE, &
-!                         & ERR,ERROR,*999)
-!                       FIELD_VARIABLE=>LAGRANGE_VARIABLE
-!                       CONSTRAINT_EQUATIONS=>CONSTRAINT_CONDITION%CONSTRAINT_EQUATIONS
-!                       IF(ASSOCIATED(CONSTRAINT_EQUATIONS)) THEN
-!                         IF(ASSOCIATED(FIELD_VARIABLE)) THEN
-!                           CONSTRAINT_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%CONSTRAINT_EQUATIONS=> &
-!                             & CONSTRAINT_EQUATIONS
-!                           CONSTRAINT_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%VARIABLE_TYPE=FIELD_VARIABLE% &
-!                             & VARIABLE_TYPE
-!                           CONSTRAINT_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%VARIABLE=>FIELD_VARIABLE
-!                           CONSTRAINT_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%MATRIX_COEFFICIENT= &
-!                             & CONSTRAINT_MAPPING%CREATE_VALUES_CACHE%MATRIX_COEFFICIENTS(matrix_idx)
-!                           CONSTRAINT_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%HAS_TRANSPOSE=CONSTRAINT_MAPPING% &
-!                             & CREATE_VALUES_CACHE%HAS_TRANSPOSE(matrix_idx)
-!                             !Set the number of rows
-!                           CONSTRAINT_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%NUMBER_OF_ROWS= &
-!                             & FIELD_VARIABLE%NUMBER_OF_DOFS
-!                           CONSTRAINT_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%TOTAL_NUMBER_OF_ROWS= &
-!                             & FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS
-!                           CONSTRAINT_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%NUMBER_OF_GLOBAL_ROWS= &
-!                             & FIELD_VARIABLE%NUMBER_OF_GLOBAL_DOFS
-!                           !Set the row mapping
-!                           CONSTRAINT_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%ROW_DOFS_MAPPING=> &
-!                             & FIELD_VARIABLE%DOMAIN_MAPPING
-!                           ALLOCATE(CONSTRAINT_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%VARIABLE_DOF_TO_ROW_MAP( &
-!                             & FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS),STAT=ERR)
-!                           IF(ERR/=0) CALL FLAG_ERROR("Could not allocate variable dof to row map.",ERR,ERROR,*999)
-!                           !1-1 mapping for now
-!                           DO dof_idx=1,FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS
-!                             CONSTRAINT_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)% &
-!                               & VARIABLE_DOF_TO_ROW_MAP(dof_idx)=dof_idx
-!                           ENDDO !dof_idx
-!                         ELSE
-!                           CALL FLAG_ERROR("Lagrange variable could not be found.",ERR,ERROR,*999)
-!                         ENDIF
-!                       ELSE
-!                         CALL FLAG_ERROR("Constraint equations could not be found.",ERR,ERROR,*999)
-!                       ENDIF
-!                     ENDDO
-!                   ENDSELECT
-!                 ELSE
-!                   CALL FLAG_ERROR("Dynamic mapping is not associated.",ERR,ERROR,*999)
-!                 ENDIF
-!               ENDIF
-!
-!               !Calculate linear mappings
-!               IF(CREATE_VALUES_CACHE%NUMBER_OF_LINEAR_CONSTRAINT_MATRICES>0) THEN                  
-!                 CALL CONSTRAINT_MAPPING_LINEAR_MAPPING_INITIALISE(CONSTRAINT_MAPPING,ERR,ERROR,*999)
-!                 LINEAR_MAPPING=>CONSTRAINT_MAPPING%LINEAR_MAPPING
-!                 IF(ASSOCIATED(LINEAR_MAPPING)) THEN
-!                   LINEAR_MAPPING%NUMBER_OF_LINEAR_CONSTRAINT_MATRICES=CREATE_VALUES_CACHE%NUMBER_OF_LINEAR_CONSTRAINT_MATRICES
-!                   ALLOCATE(LINEAR_MAPPING%LAGRANGE_DOF_TO_COLUMN_MAP(LAGRANGE_VARIABLE%TOTAL_NUMBER_OF_DOFS),STAT=ERR)
-!                   IF(ERR/=0) CALL FLAG_ERROR("Could not allocate Lagrange dof to column map.",ERR,ERROR,*999)
-!                   !1-1 mapping for now
-!                   DO dof_idx=1,LAGRANGE_VARIABLE%TOTAL_NUMBER_OF_DOFS
-!                     column_idx=LAGRANGE_VARIABLE%DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(dof_idx)
-!                     LINEAR_MAPPING%LAGRANGE_DOF_TO_COLUMN_MAP(dof_idx)=column_idx
-!                   ENDDO
-!                   CALL CONSTRAINT_MAPPING_VAR_TO_CONSTR_MATRICES_MAP_INITIALISE( &
-!                     & LINEAR_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP,ERR,ERROR,*999)
-!                   LINEAR_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%VARIABLE_TYPE=CREATE_VALUES_CACHE%VARIABLE_TYPE
-!                   LINEAR_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%VARIABLE=>CREATE_VALUES_CACHE%VARIABLE
-!                   LINEAR_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%NUMBER_OF_CONSTRAINT_MATRICES=CREATE_VALUES_CACHE%NUMBER_OF_LINEAR_CONSTRAINT_MATRICES
-!                   IF(CREATE_VALUES_CACHE%RHS_VARIABLE_TYPE/=0) LINEAR_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%NUMBER_OF_CONSTRAINT_MATRICES=-1
-!                   !Allocate and initialise the variable to constraint matrices maps
-!                   FIELD_VARIABLE=>DEPENDENT_FIELD%VARIABLE
-!                   IF(ASSOCIATED(FIELD_VARIABLE)) THEN
-!                     IF(LINEAR_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%NUMBER_OF_CONSTRAINT_MATRICES==-1) THEN
-!                       !!TODO: check if this can be removed and just allocate those variables that are actually used
-!                       ALLOCATE(LINEAR_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%VARIABLE_DOF_TO_ROWS_MAP( &
-!                         & FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS),STAT=ERR)
-!                       IF(ERR/=0) CALL FLAG_ERROR("Could not allocate variable to constraint matrices maps dof to rows map.", &
-!                         & ERR,ERROR,*999)
-!                       LINEAR_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%VARIABLE_DOF_TO_ROWS_MAP=0
-!                     ELSE IF(LINEAR_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%NUMBER_OF_CONSTRAINT_MATRICES>0) THEN
-!                       ALLOCATE(LINEAR_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%CONSTRAINT_MATRIX_NUMBERS( &
-!                         & LINEAR_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%NUMBER_OF_CONSTRAINT_MATRICES),STAT=ERR)
-!                       IF(ERR/=0) &
-!                         & CALL FLAG_ERROR("Could not allocate variable to constraint matrices maps constraint matrix numbers.", &
-!                         & ERR,ERROR,*999)
-!                       LINEAR_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%CONSTRAINT_MATRIX_NUMBERS=0
-!
-!
-!                       ALLOCATE(LINEAR_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%VARIABLE_DOF_TO_ROWS_MAP( &
-!                         & FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS),STAT=ERR)
-!                       IF(ERR/=0) CALL FLAG_ERROR("Could not allocate variable to constraint matrices maps dof to rows map.", &
-!                         & ERR,ERROR,*999)
-!                       DO dof_idx=1,FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS
-!                       !1-1 mappings for now.
-!                       row_idx=dof_idx
-!                       LINEAR_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%VARIABLE_DOF_TO_ROWS_MAP(dof_idx)=row_idx
-!                       ENDDO !dof_idx
-!                     ENDIF
-!                   ENDIF
-!                   !Allocate and initialise the constraint matrix to variable maps types
-!                   ALLOCATE(LINEAR_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS(LINEAR_MAPPING% &
-!                     & NUMBER_OF_LINEAR_CONSTRAINT_MATRICES),STAT=ERR)
-!                   IF(ERR/=0) CALL FLAG_ERROR("Could not allocate constraint matrix rows to variable maps.", &
-!                     & ERR,ERROR,*999)
-!                   !Loop over the constraint matrices and calculate the row mappings
-!                   !The pointers below have been checked for association above.
-!                   SELECT CASE(CONSTRAINT_CONDITION%METHOD)
-!                   CASE(CONSTRAINT_CONDITION_LAGRANGE_MULTIPLIERS_METHOD)
-!                     number_of_constraint_matrices=CONSTRAINT_MAPPING%NUMBER_OF_LINEAR_CONSTRAINT_MATRICES
-!                   CASE(CONSTRAINT_CONDITION_PENALTY_METHOD)
-!                     !Number of constraint matrices whose rows/columns are related to Dependent/Lagrange variables and not Lagrange/Lagrange variables (last constraint matrix is Lagrange/Lagrange (Penalty matrix)
-!                     number_of_constraint_matrices=CONSTRAINT_MAPPING%NUMBER_OF_LINEAR_CONSTRAINT_MATRICES-1 
-!                   ENDSELECT
-!                   DO matrix_idx=1,number_of_constraint_matrices
-!                     !Initialise and setup the constraint matrix
-!                     CALL CONSTRAINT_MAPPING_MATRIX_ROW_TO_VAR_MAP_INITIALISE(CONSTRAINT_MAPPING,matrix_idx,ERR,ERROR,*999)
-!                     EQUATIONS_SET=>CONSTRAINT_DEPENDENT%EQUATIONS_SET
-!                     IF(ASSOCIATED(EQUATIONS_SET)) THEN
-!                       FIELD_VARIABLE=>CONSTRAINT_DEPENDENT%FIELD_VARIABLE
-!                       IF(ASSOCIATED(FIELD_VARIABLE)) THEN
-!                         CONSTRAINT_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%EQUATIONS_SET=>EQUATIONS_SET
-!                         CONSTRAINT_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%VARIABLE_TYPE=FIELD_VARIABLE%VARIABLE_TYPE
-!                         CONSTRAINT_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%VARIABLE=>FIELD_VARIABLE
-!                         CONSTRAINT_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%MATRIX_COEFFICIENT=CONSTRAINT_MAPPING% &
-!                           & CREATE_VALUES_CACHE%MATRIX_COEFFICIENTS(matrix_idx)
-!                         CONSTRAINT_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%HAS_TRANSPOSE=CONSTRAINT_MAPPING% &
-!                           & CREATE_VALUES_CACHE%HAS_TRANSPOSE(matrix_idx)
-!                          !Set the number of rows
-!                         CONSTRAINT_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%NUMBER_OF_ROWS=FIELD_VARIABLE%NUMBER_OF_DOFS
-!                         CONSTRAINT_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%TOTAL_NUMBER_OF_ROWS= &
-!                           & FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS
-!                         CONSTRAINT_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%NUMBER_OF_GLOBAL_ROWS= &
-!                           & FIELD_VARIABLE%NUMBER_OF_GLOBAL_DOFS
-!                         !Set the row mapping
-!                         CONSTRAINT_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%ROW_DOFS_MAPPING=> &
-!                           & FIELD_VARIABLE%DOMAIN_MAPPING
-!                         ALLOCATE(CONSTRAINT_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%VARIABLE_DOF_TO_ROW_MAP( &
-!                           & FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS),STAT=ERR)
-!                         IF(ERR/=0) CALL FLAG_ERROR("Could not allocate variable dof to row map.",ERR,ERROR,*999)
-!                         !1-1 mapping for now
-!                         DO dof_idx=1,FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS
-!                           CONSTRAINT_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%VARIABLE_DOF_TO_ROW_MAP(dof_idx)=dof_idx
-!                         ENDDO !dof_idx
-!                       ELSE
-!                         CALL FLAG_ERROR("Dependent variable could not be found.",ERR,ERROR,*999)
-!                       ENDIF
-!                     ELSE
-!                       CALL FLAG_ERROR("Equations set could not be found.",ERR,ERROR,*999)
-!                     ENDIF
-!                   ENDDO !matrix_idx
-!                   !The pointers below have been checked for association above.
-!                   SELECT CASE(CONSTRAINT_CONDITION%METHOD)
-!                   CASE(CONSTRAINT_CONDITION_PENALTY_METHOD)
-!                     !Sets up the Lagrange-(Penalty) constraint matrix mapping and calculate the row mappings
-!                     matrix_idx = CONSTRAINT_MAPPING%NUMBER_OF_LINEAR_CONSTRAINT_MATRICES !last of the constraint matrices
-!                     !Initialise and setup the constraint matrix
-!                     CALL CONSTRAINT_MAPPING_MATRIX_ROW_TO_VAR_MAP_INITIALISE(CONSTRAINT_MAPPING,matrix_idx,ERR,ERROR,*999)
-!                     CALL FIELD_VARIABLE_GET(LAGRANGE_FIELD,CREATE_VALUES_CACHE%LAGRANGE_VARIABLE_TYPE,LAGRANGE_VARIABLE, &
-!                       & ERR,ERROR,*999)
-!                     FIELD_VARIABLE=>LAGRANGE_VARIABLE
-!                     CONSTRAINT_EQUATIONS=>CONSTRAINT_CONDITION%CONSTRAINT_EQUATIONS
-!                     IF(ASSOCIATED(CONSTRAINT_EQUATIONS)) THEN
-!                       IF(ASSOCIATED(FIELD_VARIABLE)) THEN
-!                         CONSTRAINT_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%CONSTRAINT_EQUATIONS=>CONSTRAINT_EQUATIONS
-!                         CONSTRAINT_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%VARIABLE_TYPE=FIELD_VARIABLE%VARIABLE_TYPE
-!                         CONSTRAINT_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%VARIABLE=>FIELD_VARIABLE
-!                         CONSTRAINT_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%MATRIX_COEFFICIENT=CONSTRAINT_MAPPING% &
-!                           & CREATE_VALUES_CACHE%MATRIX_COEFFICIENTS(matrix_idx)
-!                         CONSTRAINT_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%HAS_TRANSPOSE=CONSTRAINT_MAPPING% &
-!                           & CREATE_VALUES_CACHE%HAS_TRANSPOSE(matrix_idx)
-!                           !Set the number of rows
-!                         CONSTRAINT_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%NUMBER_OF_ROWS=FIELD_VARIABLE%NUMBER_OF_DOFS
-!                         CONSTRAINT_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%TOTAL_NUMBER_OF_ROWS= &
-!                           & FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS
-!                         CONSTRAINT_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%NUMBER_OF_GLOBAL_ROWS= &
-!                           & FIELD_VARIABLE%NUMBER_OF_GLOBAL_DOFS
-!                         !Set the row mapping
-!                         CONSTRAINT_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%ROW_DOFS_MAPPING=> &
-!                           & FIELD_VARIABLE%DOMAIN_MAPPING
-!                         ALLOCATE(CONSTRAINT_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%VARIABLE_DOF_TO_ROW_MAP( &
-!                           & FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS),STAT=ERR)
-!                         IF(ERR/=0) CALL FLAG_ERROR("Could not allocate variable dof to row map.",ERR,ERROR,*999)
-!                         !1-1 mapping for now
-!                         DO dof_idx=1,FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS
-!                           CONSTRAINT_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)% &
-!                             & VARIABLE_DOF_TO_ROW_MAP(dof_idx)=dof_idx
-!                         ENDDO !dof_idx
-!                       ELSE
-!                         CALL FLAG_ERROR("Lagrange variable could not be found.",ERR,ERROR,*999)
-!                       ENDIF
-!                     ELSE
-!                       CALL FLAG_ERROR("Constraint equations could not be found.",ERR,ERROR,*999)
-!                     ENDIF
-!                   ENDSELECT
-!                 ELSE
-!                   CALL FLAG_ERROR("Linear mapping is not associated.",ERR,ERROR,*999)
-!                 ENDIF
-!               ENDIF
-!
-!               !Calculate nonlinear mappings
-!               IF(CREATE_VALUES_CACHE%NUMBER_OF_JACOBIAN_CONSTRAINT_MATRICES>0) THEN                  
-!                 CALL CONSTRAINT_MAPPING_NONLINEAR_MAPPING_INITIALISE(CONSTRAINT_MAPPING,ERR,ERROR,*999)
-!                 NONLINEAR_MAPPING=>CONSTRAINT_MAPPING%NONLINEAR_MAPPING
-!                 IF(ASSOCIATED(NONLINEAR_MAPPING)) THEN
-!                   NONLINEAR_MAPPING%NUMBER_OF_JACOBIAN_CONSTRAINT_MATRICES= &
-!                     & CREATE_VALUES_CACHE%NUMBER_OF_JACOBIAN_CONSTRAINT_MATRICES
-!                   ALLOCATE(NONLINEAR_MAPPING%LAGRANGE_DOF_TO_COLUMN_MAP(LAGRANGE_VARIABLE%TOTAL_NUMBER_OF_DOFS),STAT=ERR)
-!                   IF(ERR/=0) CALL FLAG_ERROR("Could not allocate Lagrange dof to column map.",ERR,ERROR,*999)
-!                   !1-1 mapping for now
-!                   DO dof_idx=1,LAGRANGE_VARIABLE%TOTAL_NUMBER_OF_DOFS
-!                     column_idx=LAGRANGE_VARIABLE%DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(dof_idx)
-!                     NONLINEAR_MAPPING%LAGRANGE_DOF_TO_COLUMN_MAP(dof_idx)=column_idx
-!                   ENDDO
-!                   !Allocate and initialise the Jacobian constraint matrix to variable maps types
-!                   ALLOCATE(NONLINEAR_MAPPING%CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAPS(LINEAR_MAPPING% &
-!                     & NUMBER_OF_JACOBIAN_CONSTRAINT_MATRICES),STAT=ERR)
-!                   IF(ERR/=0) CALL FLAG_ERROR("Could not allocate constraint Jacobian rows to variable maps.", &
-!                     & ERR,ERROR,*999)
-!                   !Loop over the constraint matrices and calculate the row mappings
-!                   !The pointers below have been checked for association above.
-!                   SELECT CASE(CONSTRAINT_CONDITION%METHOD)
-!                   CASE(CONSTRAINT_CONDITION_LAGRANGE_MULTIPLIERS_METHOD)
-!                     number_of_constraint_matrices=CONSTRAINT_MAPPING%NUMBER_OF_JACOBIAN_CONSTRAINT_MATRICES
-!                   CASE(CONSTRAINT_CONDITION_PENALTY_METHOD)
-!                     !Number of constraint matrices whose rows/columns are related to Dependent/Lagrange variables and not Lagrange/Lagrange variables (last constraint matrix is Lagrange/Lagrange (Penalty matrix)
-!                     number_of_constraint_matrices=CONSTRAINT_MAPPING%NUMBER_OF_JACOBIAN_CONSTRAINT_MATRICES-1 
-!                   ENDSELECT
-!                   DO matrix_idx=1,number_of_constraint_matrices
-!                     !Initialise and setup the constraint matrix
-!                     CALL CONSTRAINT_MAPPING_JACOBIAN_ROWS_TO_VAR_MAP_INITIALISE(CONSTRAINT_MAPPING,matrix_idx,ERR,ERROR,*999)
-!                     EQUATIONS_SET=>CONSTRAINT_DEPENDENT%EQUATIONS_SET
-!                     IF(ASSOCIATED(EQUATIONS_SET)) THEN
-!                       FIELD_VARIABLE=>CONSTRAINT_DEPENDENT%FIELD_VARIABLE
-!                       IF(ASSOCIATED(FIELD_VARIABLE)) THEN
-!                         CONSTRAINT_MAPPING%CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAPS(matrix_idx)%EQUATIONS_SET=>EQUATIONS_SET
-!                         CONSTRAINT_MAPPING%CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAPS(matrix_idx)%VARIABLE_TYPE= &
-!                           & FIELD_VARIABLE%VARIABLE_TYPE
-!                         CONSTRAINT_MAPPING%CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAPS(matrix_idx)%VARIABLE=>FIELD_VARIABLE
-!                         CONSTRAINT_MAPPING%CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAPS(matrix_idx)%RESIDUAL_COEFFICIENT= &
-!                           & CONSTRAINT_MAPPING%CREATE_VALUES_CACHE%RESIDUAL_COEFFICIENT
-!                         CONSTRAINT_MAPPING%CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAPS(matrix_idx)%HAS_TRANSPOSE=CONSTRAINT_MAPPING% &
-!                           & CREATE_VALUES_CACHE%HAS_TRANSPOSE(matrix_idx)
-!                          !Set the number of rows
-!                         CONSTRAINT_MAPPING%CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAPS(matrix_idx)%NUMBER_OF_ROWS= &
-!                           & FIELD_VARIABLE%NUMBER_OF_DOFS
-!                         CONSTRAINT_MAPPING%CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAPS(matrix_idx)%TOTAL_NUMBER_OF_ROWS= &
-!                           & FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS
-!                         CONSTRAINT_MAPPING%CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAPS(matrix_idx)%NUMBER_OF_GLOBAL_ROWS= &
-!                           & FIELD_VARIABLE%NUMBER_OF_GLOBAL_DOFS
-!                         !Set the row mapping
-!                         CONSTRAINT_MAPPING%CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAPS(matrix_idx)%ROW_DOFS_MAPPING=> &
-!                           & FIELD_VARIABLE%DOMAIN_MAPPING
-!                         ALLOCATE(CONSTRAINT_MAPPING%CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAPS(matrix_idx)%VARIABLE_DOF_TO_ROW_MAP( &
-!                           & FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS),STAT=ERR)
-!                         IF(ERR/=0) CALL FLAG_ERROR("Could not allocate variable dof to row map.",ERR,ERROR,*999)
-!                         !1-1 mapping for now
-!                         DO dof_idx=1,FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS
-!                           CONSTRAINT_MAPPING%CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAPS(matrix_idx)%VARIABLE_DOF_TO_ROW_MAP(dof_idx)=dof_idx
-!                         ENDDO !dof_idx
-!                       ELSE
-!                         CALL FLAG_ERROR("Dependent variable could not be found.",ERR,ERROR,*999)
-!                       ENDIF
-!                     ELSE
-!                       CALL FLAG_ERROR("Equations set could not be found.",ERR,ERROR,*999)
-!                     ENDIF
-!                   ENDDO !matrix_idx
-!                   !The pointers below have been checked for association above.
-!                   SELECT CASE(CONSTRAINT_CONDITION%METHOD)
-!                   CASE(CONSTRAINT_CONDITION_PENALTY_METHOD)
-!                     !Sets up the Lagrange-(Penalty) constraint matrix mapping and calculate the row mappings
-!                     matrix_idx = CONSTRAINT_MAPPING%NUMBER_OF_JACOBIAN_CONSTRAINT_MATRICES !last of the constraint matrices
-!                     !Initialise and setup the constraint matrix
-!                     CALL CONSTRAINT_MAPPING_MATRIX_TO_VAR_MAP_INITIALISE(CONSTRAINT_MAPPING,matrix_idx,ERR,ERROR,*999)
-!                     NULLIFY(LAGRANGE_VARIABLE)
-!                     CALL FIELD_VARIABLE_GET(LAGRANGE_FIELD,CREATE_VALUES_CACHE%LAGRANGE_VARIABLE_TYPE,LAGRANGE_VARIABLE, &
-!                       & ERR,ERROR,*999)
-!                     NULLIFY(CONSTRAINT_EQUATIONS)
-!                     NULLIFY(FIELD_VARIABLE)
-!                     FIELD_VARIABLE=>LAGRANGE_VARIABLE
-!                     CONSTRAINT_EQUATIONS=>CONSTRAINT_CONDITION%CONSTRAINT_EQUATIONS
-!                     IF(ASSOCIATED(CONSTRAINT_EQUATIONS)) THEN
-!                       IF(ASSOCIATED(FIELD_VARIABLE)) THEN
-!                         CONSTRAINT_MAPPING%CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAPS(matrix_idx)%CONSTRAINT_EQUATIONS=> &
-!                           & CONSTRAINT_EQUATIONS
-!                         CONSTRAINT_MAPPING%CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAPS(matrix_idx)%VARIABLE_TYPE=FIELD_VARIABLE% &
-!                           & VARIABLE_TYPE
-!                         CONSTRAINT_MAPPING%CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAPS(matrix_idx)%VARIABLE=>FIELD_VARIABLE
-!                         CONSTRAINT_MAPPING%CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAPS(matrix_idx)%RESIDUAL_COEFFICIENT= &
-!                           & CONSTRAINT_MAPPING%CREATE_VALUES_CACHE%RESIDUAL_COEFFICIENT
-!                         CONSTRAINT_MAPPING%CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAPS(matrix_idx)%HAS_TRANSPOSE=CONSTRAINT_MAPPING% &
-!                           & CREATE_VALUES_CACHE%HAS_TRANSPOSE(matrix_idx)
-!                           !Set the number of rows
-!                         CONSTRAINT_MAPPING%CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAPS(matrix_idx)%NUMBER_OF_ROWS=FIELD_VARIABLE% &
-!                           & NUMBER_OF_DOFS
-!                         CONSTRAINT_MAPPING%CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAPS(matrix_idx)%TOTAL_NUMBER_OF_ROWS= &
-!                           & FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS
-!                         CONSTRAINT_MAPPING%CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAPS(matrix_idx)%NUMBER_OF_GLOBAL_ROWS= &
-!                           & FIELD_VARIABLE%NUMBER_OF_GLOBAL_DOFS
-!                         !Set the row mapping
-!                         CONSTRAINT_MAPPING%CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAPS(matrix_idx)%ROW_DOFS_MAPPING=> &
-!                           & FIELD_VARIABLE%DOMAIN_MAPPING
-!                         ALLOCATE(CONSTRAINT_MAPPING%CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAPS(matrix_idx)%VARIABLE_DOF_TO_ROW_MAP( &
-!                           & FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS),STAT=ERR)
-!                         IF(ERR/=0) CALL FLAG_ERROR("Could not allocate variable dof to row map.",ERR,ERROR,*999)
-!                         !1-1 mapping for now
-!                         DO dof_idx=1,FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS
-!                           CONSTRAINT_MAPPING%CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAPS(matrix_idx)%VARIABLE_DOF_TO_ROW_MAP(dof_idx)=dof_idx
-!                         ENDDO !dof_idx
-!                       ELSE
-!                         CALL FLAG_ERROR("Lagrange variable could not be found.",ERR,ERROR,*999)
-!                       ENDIF
-!                     ELSE
-!                       CALL FLAG_ERROR("Constraint equations could not be found.",ERR,ERROR,*999)
-!                     ENDIF
-!                   ENDSELECT
-!                 ELSE
-!                   CALL FLAG_ERROR("Nonlinear mapping is not associated.",ERR,ERROR,*999)
-!                 ENDIF
-!               ENDIF
-!
-!               !Calculate RHS mappings
-!               IF(CREATE_VALUES_CACHE%RHS_LAGRANGE_VARIABLE_TYPE/=0) THEN
-!                 CALL CONSTRAINT_MAPPING_RHS_MAPPING_INITIALISE(CONSTRAINT_MAPPING,ERR,ERROR,*999)
-!                 RHS_MAPPING=>CONSTRAINT_MAPPING%RHS_MAPPING
-!                 IF(ASSOCIATED(RHS_MAPPING)) THEN
-!                   RHS_MAPPING%RHS_VARIABLE_TYPE=CREATE_VALUES_CACHE%RHS_LAGRANGE_VARIABLE_TYPE
-!                   LAGRANGE_VARIABLE=>LAGRANGE_FIELD%VARIABLE_TYPE_MAP(CREATE_VALUES_CACHE%RHS_LAGRANGE_VARIABLE_TYPE)%PTR
-!                   RHS_MAPPING%RHS_VARIABLE=>LAGRANGE_VARIABLE
-!                   RHS_MAPPING%RHS_VARIABLE_MAPPING=>LAGRANGE_VARIABLE%DOMAIN_MAPPING
-!                   RHS_MAPPING%RHS_COEFFICIENT=CREATE_VALUES_CACHE%RHS_COEFFICIENT
-!                   !Allocate and set up the row mappings
-!                   ALLOCATE(RHS_MAPPING%RHS_DOF_TO_CONSTRAINT_ROW_MAP(LAGRANGE_VARIABLE%TOTAL_NUMBER_OF_DOFS),STAT=ERR)
-!                   IF(ERR/=0) CALL FLAG_ERROR("Could not allocate rhs dof to constraint row map.",ERR,ERROR,*999)
-!                   ALLOCATE(RHS_MAPPING%CONSTRAINT_ROW_TO_RHS_DOF_MAP(CONSTRAINT_MAPPING%TOTAL_NUMBER_OF_COLUMNS),STAT=ERR)
-!                   IF(ERR/=0) CALL FLAG_ERROR("Could not allocate constraint row to dof map.",ERR,ERROR,*999)
-!                   DO dof_idx=1,LAGRANGE_VARIABLE%TOTAL_NUMBER_OF_DOFS
-!                     !1-1 mapping for now
-!                     column_idx=dof_idx
-!                     RHS_MAPPING%RHS_DOF_TO_CONSTRAINT_ROW_MAP(dof_idx)=column_idx
-!                   ENDDO !dof_idx
-!                   DO column_idx=1,CONSTRAINT_MAPPING%TOTAL_NUMBER_OF_COLUMNS
-!                     !1-1 mapping for now
-!                     dof_idx=column_idx
-!                     RHS_MAPPING%CONSTRAINT_ROW_TO_RHS_DOF_MAP(column_idx)=dof_idx
-!                   ENDDO !column_idx
-!                 ELSE
-!                   CALL FLAG_ERROR("RHS mapping is not associated.",ERR,ERROR,*999)
-!                 ENDIF
-!               ENDIF
-!             ELSE
-!               CALL FLAG_ERROR("Constraint condition dependent is not associated.",ERR,ERROR,*999)
-!             ENDIF
-!           ELSE
-!             CALL FLAG_ERROR("Constraint condition Lagrange is not associated.",ERR,ERROR,*999)
-!           ENDIF
-!         CASE(CONSTRAINT_CONDITION_AUGMENTED_LAGRANGE_METHOD)
-!           CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
-!         CASE(CONSTRAINT_CONDITION_POINT_TO_POINT_METHOD)
-!           CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
-!         CASE DEFAULT
-!           LOCAL_ERROR="The constraint condition method of "// &
-!             & TRIM(NUMBER_TO_VSTRING(CONSTRAINT_CONDITION%METHOD,"*",ERR,ERROR))//" is invalid."
-!           CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
-!         END SELECT
-!       ELSE
-!         CALL FLAG_ERROR("Constraint equations constraint condition is not associated.",ERR,ERROR,*999)
-!       ENDIF
-!     ELSE
-!       CALL FLAG_ERROR("Constraint mapping create values cache is not associated.",ERR,ERROR,*999)
-!     ENDIF
-!   ELSE
-!     CALL FLAG_ERROR("Constraint mapping is not associated.",ERR,ERROR,*999)
-!   ENDIF
+   IF(ASSOCIATED(CONSTRAINT_MAPPING)) THEN
+     CREATE_VALUES_CACHE=>CONSTRAINT_MAPPING%CREATE_VALUES_CACHE
+     IF(ASSOCIATED(CREATE_VALUES_CACHE)) THEN
+       CONSTRAINT_EQUATIONS=>CONSTRAINT_MAPPING%CONSTRAINT_EQUATIONS
+       IF(ASSOCIATED(CONSTRAINT_EQUATIONS)) THEN
+         CONSTRAINT_CONDITION=>CONSTRAINT_EQUATIONS%CONSTRAINT_CONDITION
+         SELECT CASE(CONSTRAINT_CONDITION%METHOD)
+         CASE(CONSTRAINT_CONDITION_LAGRANGE_MULTIPLIERS_METHOD,CONSTRAINT_CONDITION_PENALTY_METHOD)
+           LAGRANGE=>CONSTRAINT_CONDITION%LAGRANGE
+           IF(ASSOCIATED(LAGRANGE)) THEN
+             CONSTRAINT_DEPENDENT=>CONSTRAINT_CONDITION%DEPENDENT
+             IF(ASSOCIATED(CONSTRAINT_DEPENDENT)) THEN
+               !Set the Lagrange variable information
+               LAGRANGE_FIELD=>LAGRANGE%LAGRANGE_FIELD
+               DEPENDENT_FIELD=>CONSTRAINT_DEPENDENT%DEPENDENT_FIELD
+               NULLIFY(LAGRANGE_VARIABLE)
+               CALL FIELD_VARIABLE_GET(LAGRANGE_FIELD,CREATE_VALUES_CACHE%LAGRANGE_VARIABLE_TYPE,LAGRANGE_VARIABLE, &
+                 & ERR,ERROR,*999)
+               CONSTRAINT_MAPPING%LAGRANGE_VARIABLE_TYPE=CREATE_VALUES_CACHE%LAGRANGE_VARIABLE_TYPE
+               CONSTRAINT_MAPPING%LAGRANGE_VARIABLE=>LAGRANGE_VARIABLE
+               !Set the number of columns in the constraint matrices
+               CONSTRAINT_MAPPING%NUMBER_OF_COLUMNS=LAGRANGE_VARIABLE%NUMBER_OF_DOFS
+               CONSTRAINT_MAPPING%TOTAL_NUMBER_OF_COLUMNS=LAGRANGE_VARIABLE%TOTAL_NUMBER_OF_DOFS
+               CONSTRAINT_MAPPING%NUMBER_OF_GLOBAL_COLUMNS=LAGRANGE_VARIABLE%NUMBER_OF_GLOBAL_DOFS
+               !Set the column dofs mapping
+               CONSTRAINT_MAPPING%COLUMN_DOFS_MAPPING=>LAGRANGE_VARIABLE%DOMAIN_MAPPING
+
+                !Calculate dynamic mappings
+                IF(CREATE_VALUES_CACHE%NUMBER_OF_DYNAMIC_CONSTRAINT_MATRICES>0) THEN                  
+                  CALL CONSTRAINT_MAPPING_DYNAMIC_MAPPING_INITIALISE(CONSTRAINT_MAPPING,ERR,ERROR,*999)
+                  DYNAMIC_MAPPING=>CONSTRAINT_MAPPING%DYNAMIC_MAPPING
+                  IF(ASSOCIATED(DYNAMIC_MAPPING)) THEN
+                    DYNAMIC_MAPPING%NUMBER_OF_DYNAMIC_CONSTRAINT_MATRICES=CREATE_VALUES_CACHE%NUMBER_OF_DYNAMIC_CONSTRAINT_MATRICES
+                    DYNAMIC_MAPPING%STIFFNESS_MATRIX_NUMBER=CREATE_VALUES_CACHE%DYNAMIC_STIFFNESS_MATRIX_NUMBER
+                    DYNAMIC_MAPPING%DAMPING_MATRIX_NUMBER=CREATE_VALUES_CACHE%DYNAMIC_DAMPING_MATRIX_NUMBER
+                    DYNAMIC_MAPPING%MASS_MATRIX_NUMBER=CREATE_VALUES_CACHE%DYNAMIC_MASS_MATRIX_NUMBER
+                    ALLOCATE(DYNAMIC_MAPPING%LAGRANGE_DOF_TO_COLUMN_MAP(LAGRANGE_VARIABLE%TOTAL_NUMBER_OF_DOFS),STAT=ERR)
+                    IF(ERR/=0) CALL FLAG_ERROR("Could not allocate Lagrange dof to column map.",ERR,ERROR,*999)
+                    !1-1 mapping for now
+                    DO dof_idx=1,LAGRANGE_VARIABLE%TOTAL_NUMBER_OF_DOFS
+                      column_idx=LAGRANGE_VARIABLE%DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(dof_idx)
+                      DYNAMIC_MAPPING%LAGRANGE_DOF_TO_COLUMN_MAP(dof_idx)=column_idx
+                    ENDDO
+                    CALL CONSTRAINT_MAPPING_VAR_TO_CONSTR_MATRICES_MAP_INIT( &
+                      & DYNAMIC_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP,ERR,ERROR,*999)
+                    DYNAMIC_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%VARIABLE_TYPE=CREATE_VALUES_CACHE%DYNAMIC_VARIABLE_TYPE
+                    CALL FIELD_VARIABLE_GET(DEPENDENT_FIELD,CREATE_VALUES_CACHE%DYNAMIC_VARIABLE_TYPE,FIELD_VARIABLE, &
+                      & ERR,ERROR,*999)
+                    DYNAMIC_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%VARIABLE=>FIELD_VARIABLE
+                    DYNAMIC_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%NUMBER_OF_CONSTRAINT_MATRICES= &
+                      & CREATE_VALUES_CACHE%NUMBER_OF_DYNAMIC_CONSTRAINT_MATRICES
+                    IF(CREATE_VALUES_CACHE%RHS_LAGRANGE_VARIABLE_TYPE/=0) & 
+                      & DYNAMIC_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%NUMBER_OF_CONSTRAINT_MATRICES=-1
+                    !Allocate and initialise the variable to constraint matrices maps
+                    FIELD_VARIABLE=>DYNAMIC_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%VARIABLE
+                    IF(ASSOCIATED(FIELD_VARIABLE)) THEN
+                      IF(DYNAMIC_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%NUMBER_OF_CONSTRAINT_MATRICES==-1) THEN
+                        !!TODO: check if this can be removed and just allocate those variables that are actually used
+                        ALLOCATE(DYNAMIC_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%VARIABLE_DOF_TO_ROWS_MAP( &
+                          & FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS),STAT=ERR)
+                        IF(ERR/=0) CALL FLAG_ERROR("Could not allocate variable to constraint matrices maps dof to rows map.", &
+                          & ERR,ERROR,*999)
+                        DYNAMIC_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%VARIABLE_DOF_TO_ROWS_MAP=0
+                      ELSE IF(DYNAMIC_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%NUMBER_OF_CONSTRAINT_MATRICES>0) THEN
+                        ALLOCATE(DYNAMIC_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%CONSTRAINT_MATRIX_NUMBERS( &
+                          & DYNAMIC_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%NUMBER_OF_CONSTRAINT_MATRICES),STAT=ERR)
+                        IF(ERR/=0) &
+                          & CALL FLAG_ERROR("Could not allocate variable to constraint matrices maps constraint matrix numbers.", &
+                          & ERR,ERROR,*999)
+                        DYNAMIC_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%CONSTRAINT_MATRIX_NUMBERS=0
+                        IF(CREATE_VALUES_CACHE%DYNAMIC_STIFFNESS_MATRIX_NUMBER/=0) THEN
+                          DYNAMIC_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%CONSTRAINT_MATRIX_NUMBERS( &
+                            & CREATE_VALUES_CACHE%DYNAMIC_STIFFNESS_MATRIX_NUMBER)=CREATE_VALUES_CACHE% &
+                            & DYNAMIC_STIFFNESS_MATRIX_NUMBER
+                        ENDIF
+                        IF(CREATE_VALUES_CACHE%DYNAMIC_DAMPING_MATRIX_NUMBER/=0) THEN
+                          DYNAMIC_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%CONSTRAINT_MATRIX_NUMBERS( &
+                            & CREATE_VALUES_CACHE%DYNAMIC_DAMPING_MATRIX_NUMBER)=CREATE_VALUES_CACHE% &
+                            & DYNAMIC_DAMPING_MATRIX_NUMBER
+                        ENDIF
+                        IF(CREATE_VALUES_CACHE%DYNAMIC_MASS_MATRIX_NUMBER/=0) THEN
+                          DYNAMIC_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%CONSTRAINT_MATRIX_NUMBERS( &
+                            & CREATE_VALUES_CACHE%DYNAMIC_MASS_MATRIX_NUMBER)=CREATE_VALUES_CACHE% &
+                            & DYNAMIC_MASS_MATRIX_NUMBER
+                        ENDIF
+                        ALLOCATE(DYNAMIC_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%VARIABLE_DOF_TO_ROWS_MAP( &
+                          & FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS),STAT=ERR)
+                        IF(ERR/=0) CALL FLAG_ERROR("Could not allocate variable to constraint matrices maps dof to rows map.", &
+                          & ERR,ERROR,*999)
+                        DO dof_idx=1,FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS
+                        !1-1 mappings for now.
+                          row_idx=FIELD_VARIABLE%DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(dof_idx)
+                          DYNAMIC_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%VARIABLE_DOF_TO_ROWS_MAP(dof_idx)=row_idx
+                        ENDDO !dof_idx
+                      ENDIF
+                    ENDIF
+                    !Allocate and initialise the constraint matrix to variable maps types
+                    ALLOCATE(DYNAMIC_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(DYNAMIC_MAPPING% &
+                      & NUMBER_OF_DYNAMIC_CONSTRAINT_MATRICES),STAT=ERR)
+                    IF(ERR/=0) CALL FLAG_ERROR("Could not allocate constraint matrix rows to variable maps.", &
+                      & ERR,ERROR,*999)
+                    !Loop over the constraint matrices and calculate the row mappings
+                    !The pointers below have been checked for association above.
+                    SELECT CASE(CONSTRAINT_CONDITION%METHOD)
+                    CASE(CONSTRAINT_CONDITION_LAGRANGE_MULTIPLIERS_METHOD)
+                      number_of_constraint_matrices=DYNAMIC_MAPPING%NUMBER_OF_DYNAMIC_CONSTRAINT_MATRICES
+                    CASE(CONSTRAINT_CONDITION_PENALTY_METHOD)
+                      !Number of constraint matrices whose rows/columns are related to Dependent/Lagrange variables and not Lagrange/Lagrange variables (last constraint matrix is Lagrange/Lagrange (Penalty matrix)
+                      number_of_constraint_matrices=DYNAMIC_MAPPING%NUMBER_OF_DYNAMIC_CONSTRAINT_MATRICES/2 
+                    ENDSELECT
+                    DO matrix_idx=1,number_of_constraint_matrices
+                      !Initialise and setup the constraint matrix
+                      CALL CONSTRAINT_MAPPING_CONSTR_MATRIX_TO_VAR_MAP_INIT(DYNAMIC_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP( &
+                        & matrix_idx),ERR,ERROR,*999)
+                      IF(ASSOCIATED(EQUATIONS_SET)) THEN
+                        FIELD_VARIABLE=>DYNAMIC_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%VARIABLE
+                        IF(ASSOCIATED(FIELD_VARIABLE)) THEN
+                          DYNAMIC_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(matrix_idx)%EQUATIONS_SET=>EQUATIONS_SET
+                          DYNAMIC_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(matrix_idx)%VARIABLE_TYPE= &
+                            & FIELD_VARIABLE%VARIABLE_TYPE
+                          DYNAMIC_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(matrix_idx)%VARIABLE=>FIELD_VARIABLE
+                          DYNAMIC_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(matrix_idx)%MATRIX_COEFFICIENT= &
+                            & CONSTRAINT_MAPPING%CREATE_VALUES_CACHE%DYNAMIC_MATRIX_COEFFICIENTS(matrix_idx)
+                          DYNAMIC_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(matrix_idx)%HAS_TRANSPOSE=CONSTRAINT_MAPPING% &
+                            & CREATE_VALUES_CACHE%DYNAMIC_HAS_TRANSPOSE(matrix_idx)
+                           !Set the number of rows
+                          DYNAMIC_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(matrix_idx)%NUMBER_OF_ROWS= &
+                            & FIELD_VARIABLE%NUMBER_OF_DOFS
+                          DYNAMIC_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(matrix_idx)%TOTAL_NUMBER_OF_ROWS= &
+                            & FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS
+                          DYNAMIC_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(matrix_idx)%NUMBER_OF_GLOBAL_ROWS= &
+                            & FIELD_VARIABLE%NUMBER_OF_GLOBAL_DOFS
+                          !Set the row mapping
+                          DYNAMIC_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(matrix_idx)%ROW_DOFS_MAPPING=> &
+                            & FIELD_VARIABLE%DOMAIN_MAPPING
+                          ALLOCATE(DYNAMIC_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(matrix_idx)%ROW_TO_VARIABLE_DOF_MAP( &
+                            & FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS),STAT=ERR)
+                          IF(ERR/=0) CALL FLAG_ERROR("Could not allocate row to variable dofs map.",ERR,ERROR,*999)
+                          !1-1 mapping for now
+                          DO dof_idx=1,FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS
+                            row_idx=FIELD_VARIABLE%DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(dof_idx)
+                            DYNAMIC_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(matrix_idx)% &
+                              & ROW_TO_VARIABLE_DOF_MAP(row_idx)=dof_idx
+                          ENDDO !dof_idx
+                        ELSE
+                          CALL FLAG_ERROR("Dependent variable could not be found.",ERR,ERROR,*999)
+                        ENDIF
+                      ELSE
+                        CALL FLAG_ERROR("Equations set could not be found.",ERR,ERROR,*999)
+                      ENDIF
+                    ENDDO !matrix_idx
+                    !The pointers below have been checked for association above.
+                    SELECT CASE(CONSTRAINT_CONDITION%METHOD)
+                    CASE(CONSTRAINT_CONDITION_PENALTY_METHOD)
+                      !Sets up the Lagrange-(Penalty) constraint matrix mapping and calculate the row mappings
+                      DO matrix_idx=number_of_constraint_matrices,DYNAMIC_MAPPING%NUMBER_OF_DYNAMIC_CONSTRAINT_MATRICES
+                        !Initialise and setup the constraint matrix
+                        CALL CONSTRAINT_MAPPING_MATRIX_ROW_TO_VAR_MAP_INITIALISE(CONSTRAINT_MAPPING,matrix_idx,ERR,ERROR,*999)
+                        CALL FIELD_VARIABLE_GET(LAGRANGE_FIELD,CREATE_VALUES_CACHE%LAGRANGE_VARIABLE_TYPE,LAGRANGE_VARIABLE, &
+                          & ERR,ERROR,*999)
+                        FIELD_VARIABLE=>LAGRANGE_VARIABLE
+                        CONSTRAINT_EQUATIONS=>CONSTRAINT_CONDITION%CONSTRAINT_EQUATIONS
+                        IF(ASSOCIATED(CONSTRAINT_EQUATIONS)) THEN
+                          IF(ASSOCIATED(FIELD_VARIABLE)) THEN
+                            DYNAMIC_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(matrix_idx)%CONSTRAINT_EQUATIONS=> &
+                              & CONSTRAINT_EQUATIONS
+                            DYNAMIC_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(matrix_idx)%VARIABLE_TYPE=FIELD_VARIABLE% &
+                              & VARIABLE_TYPE
+                            DYNAMIC_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(matrix_idx)%VARIABLE=>FIELD_VARIABLE
+                            DYNAMIC_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(matrix_idx)%MATRIX_COEFFICIENT= &
+                              & CONSTRAINT_MAPPING%CREATE_VALUES_CACHE%DYNAMIC_MATRIX_COEFFICIENTS(matrix_idx)
+                            DYNAMIC_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(matrix_idx)%HAS_TRANSPOSE=CONSTRAINT_MAPPING% &
+                              & CREATE_VALUES_CACHE%DYNAMIC_HAS_TRANSPOSE(matrix_idx)
+                              !Set the number of rows
+                            DYNAMIC_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(matrix_idx)%NUMBER_OF_ROWS= &
+                              & FIELD_VARIABLE%NUMBER_OF_DOFS
+                            DYNAMIC_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(matrix_idx)%TOTAL_NUMBER_OF_ROWS= &
+                              & FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS
+                            DYNAMIC_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(matrix_idx)%NUMBER_OF_GLOBAL_ROWS= &
+                              & FIELD_VARIABLE%NUMBER_OF_GLOBAL_DOFS
+                            !Set the row mapping
+                            DYNAMIC_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(matrix_idx)%ROW_DOFS_MAPPING=> &
+                              & FIELD_VARIABLE%DOMAIN_MAPPING
+                            ALLOCATE(DYNAMIC_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(matrix_idx)%ROW_TO_VARIABLE_DOF_MAP( &
+                              & FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS),STAT=ERR)
+                            IF(ERR/=0) CALL FLAG_ERROR("Could not allocate variable dof to row map.",ERR,ERROR,*999)
+                            !1-1 mapping for now
+                            DO dof_idx=1,FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS
+                              row_idx=FIELD_VARIABLE%DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(dof_idx)
+                              DYNAMIC_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(matrix_idx)% &
+                                & ROW_TO_VARIABLE_DOF_MAP(row_idx)=dof_idx
+                            ENDDO !dof_idx
+                          ELSE
+                            CALL FLAG_ERROR("Lagrange variable could not be found.",ERR,ERROR,*999)
+                          ENDIF
+                        ELSE
+                          CALL FLAG_ERROR("Constraint equations could not be found.",ERR,ERROR,*999)
+                        ENDIF
+                      ENDDO
+                    ENDSELECT
+                  ELSE
+                    CALL FLAG_ERROR("Dynamic mapping is not associated.",ERR,ERROR,*999)
+                  ENDIF
+                ENDIF
+ 
+               !Calculate linear mappings
+               IF(CREATE_VALUES_CACHE%NUMBER_OF_LINEAR_CONSTRAINT_MATRICES>0) THEN                  
+                 CALL CONSTRAINT_MAPPING_LINEAR_MAPPING_INITIALISE(CONSTRAINT_MAPPING,ERR,ERROR,*999)
+                 LINEAR_MAPPING=>CONSTRAINT_MAPPING%LINEAR_MAPPING
+                 IF(ASSOCIATED(LINEAR_MAPPING)) THEN
+                   LINEAR_MAPPING%NUMBER_OF_LINEAR_CONSTRAINT_MATRICES=CREATE_VALUES_CACHE%NUMBER_OF_LINEAR_CONSTRAINT_MATRICES
+                   ALLOCATE(LINEAR_MAPPING%LAGRANGE_DOF_TO_COLUMN_MAP(LAGRANGE_VARIABLE%TOTAL_NUMBER_OF_DOFS),STAT=ERR)
+                   IF(ERR/=0) CALL FLAG_ERROR("Could not allocate Lagrange dof to column map.",ERR,ERROR,*999)
+                   !1-1 mapping for now
+                   DO dof_idx=1,LAGRANGE_VARIABLE%TOTAL_NUMBER_OF_DOFS
+                     column_idx=LAGRANGE_VARIABLE%DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(dof_idx)
+                     LINEAR_MAPPING%LAGRANGE_DOF_TO_COLUMN_MAP(dof_idx)=column_idx
+                   ENDDO
+                   CALL CONSTRAINT_MAPPING_VAR_TO_CONSTR_MATRICES_MAP_INIT( &
+                     & LINEAR_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP,ERR,ERROR,*999)
+                    LINEAR_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%VARIABLE_TYPE=CREATE_VALUES_CACHE%LINEAR_VARIABLE_TYPE
+                    CALL FIELD_VARIABLE_GET(DEPENDENT_FIELD,CREATE_VALUES_CACHE%LINEAR_VARIABLE_TYPE,FIELD_VARIABLE, &
+                      & ERR,ERROR,*999)
+                    LINEAR_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%VARIABLE=>FIELD_VARIABLE
+                    LINEAR_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%NUMBER_OF_CONSTRAINT_MATRICES=CREATE_VALUES_CACHE% &
+                      & NUMBER_OF_LINEAR_CONSTRAINT_MATRICES
+                    IF(CREATE_VALUES_CACHE%RHS_LAGRANGE_VARIABLE_TYPE/=0) &
+                      & LINEAR_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%NUMBER_OF_CONSTRAINT_MATRICES=-1
+                    !Allocate and initialise the variable to constraint matrices maps
+                    FIELD_VARIABLE=>LINEAR_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%VARIABLE
+                    IF(ASSOCIATED(FIELD_VARIABLE)) THEN
+                      IF(LINEAR_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%NUMBER_OF_CONSTRAINT_MATRICES==-1) THEN
+                        !!TODO: check if this can be removed and just allocate those variables that are actually used
+                        ALLOCATE(LINEAR_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%VARIABLE_DOF_TO_ROWS_MAP( &
+                          & FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS),STAT=ERR)
+                        IF(ERR/=0) CALL FLAG_ERROR("Could not allocate variable to constraint matrices maps dof to rows map.", &
+                          & ERR,ERROR,*999)
+                        LINEAR_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%VARIABLE_DOF_TO_ROWS_MAP=0
+                      ELSE IF(LINEAR_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%NUMBER_OF_CONSTRAINT_MATRICES>0) THEN
+                        ALLOCATE(LINEAR_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%CONSTRAINT_MATRIX_NUMBERS( &
+                          & LINEAR_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%NUMBER_OF_CONSTRAINT_MATRICES),STAT=ERR)
+                        IF(ERR/=0) &
+                          & CALL FLAG_ERROR("Could not allocate variable to constraint matrices maps constraint matrix numbers.", &
+                          & ERR,ERROR,*999)
+                        LINEAR_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%CONSTRAINT_MATRIX_NUMBERS=0
+ 
+                        ALLOCATE(LINEAR_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%VARIABLE_DOF_TO_ROWS_MAP( &
+                          & FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS),STAT=ERR)
+                        IF(ERR/=0) CALL FLAG_ERROR("Could not allocate variable to constraint matrices maps dof to rows map.", &
+                          & ERR,ERROR,*999)
+                        DO dof_idx=1,FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS
+                        !1-1 mappings for now.
+                        row_idx=FIELD_VARIABLE%DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(dof_idx)
+                        LINEAR_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%VARIABLE_DOF_TO_ROWS_MAP(row_idx)=dof_idx
+                        ENDDO !dof_idx
+                      ENDIF
+                    ENDIF
+                    !Allocate and initialise the constraint matrix to variable maps types
+                    ALLOCATE(LINEAR_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(LINEAR_MAPPING% &
+                      & NUMBER_OF_LINEAR_CONSTRAINT_MATRICES),STAT=ERR)
+                    IF(ERR/=0) CALL FLAG_ERROR("Could not allocate constraint matrix rows to variable maps.", &
+                      & ERR,ERROR,*999)
+                    !Loop over the constraint matrices and calculate the row mappings
+                    !The pointers below have been checked for association above.
+                    matrix_idx=1
+                    !Initialise and setup the constraint matrix
+                    CALL CONSTRAINT_MAPPING_CONSTR_MATRIX_TO_VAR_MAP_INIT(LINEAR_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP( &
+                      & matrix_idx),ERR,ERROR,*999)
+                    EQUATIONS_SET=>CONSTRAINT_DEPENDENT%EQUATIONS_SET
+                    IF(ASSOCIATED(EQUATIONS_SET)) THEN
+                      CALL FIELD_VARIABLE_GET(DEPENDENT_FIELD,CREATE_VALUES_CACHE%LINEAR_VARIABLE_TYPE,FIELD_VARIABLE, &
+                        & ERR,ERROR,*999)
+                      IF(ASSOCIATED(FIELD_VARIABLE)) THEN
+                        LINEAR_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(matrix_idx)%EQUATIONS_SET=>EQUATIONS_SET
+                        LINEAR_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(matrix_idx)%VARIABLE_TYPE=FIELD_VARIABLE%VARIABLE_TYPE
+                        LINEAR_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(matrix_idx)%VARIABLE=>FIELD_VARIABLE
+                        LINEAR_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(matrix_idx)%MATRIX_COEFFICIENT= &
+                          & CONSTRAINT_MAPPING%CREATE_VALUES_CACHE%LINEAR_MATRIX_COEFFICIENTS(matrix_idx)
+                        LINEAR_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(matrix_idx)%HAS_TRANSPOSE=CONSTRAINT_MAPPING% &
+                          & CREATE_VALUES_CACHE%LINEAR_HAS_TRANSPOSE(matrix_idx)
+                         !Set the number of rows
+                        LINEAR_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(matrix_idx)%NUMBER_OF_ROWS=FIELD_VARIABLE%NUMBER_OF_DOFS
+                        LINEAR_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(matrix_idx)%TOTAL_NUMBER_OF_ROWS= &
+                          & FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS
+                        LINEAR_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(matrix_idx)%NUMBER_OF_GLOBAL_ROWS= &
+                          & FIELD_VARIABLE%NUMBER_OF_GLOBAL_DOFS
+                        !Set the row mapping
+                        LINEAR_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(matrix_idx)%ROW_DOFS_MAPPING=> &
+                          & FIELD_VARIABLE%DOMAIN_MAPPING
+                        ALLOCATE(LINEAR_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(matrix_idx)%ROW_TO_VARIABLE_DOF_MAP( &
+                          & FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS),STAT=ERR)
+                        IF(ERR/=0) CALL FLAG_ERROR("Could not allocate variable dof to row map.",ERR,ERROR,*999)
+                        !1-1 mapping for now
+                        DO dof_idx=1,FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS
+                          row_idx=FIELD_VARIABLE%DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(dof_idx)
+                          LINEAR_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(matrix_idx)%ROW_TO_VARIABLE_DOF_MAP(row_idx)=dof_idx
+                        ENDDO !dof_idx
+                      ELSE
+                        CALL FLAG_ERROR("Dependent variable could not be found.",ERR,ERROR,*999)
+                      ENDIF
+                    ELSE
+                      CALL FLAG_ERROR("Equations set could not be found.",ERR,ERROR,*999)
+                    ENDIF
+                    !The pointers below have been checked for association above.
+                    SELECT CASE(CONSTRAINT_CONDITION%METHOD)
+                    CASE(CONSTRAINT_CONDITION_PENALTY_METHOD)
+                      !Sets up the Lagrange-(Penalty) constraint matrix mapping and calculate the row mappings
+                      matrix_idx=LINEAR_MAPPING%NUMBER_OF_LINEAR_CONSTRAINT_MATRICES !last of the constraint matrices
+                      !Initialise and setup the constraint matrix
+                      CALL CONSTRAINT_MAPPING_CONSTR_MATRIX_TO_VAR_MAP_INIT(LINEAR_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP( &
+                        & matrix_idx),ERR,ERROR,*999)
+                      CALL FIELD_VARIABLE_GET(LAGRANGE_FIELD,CREATE_VALUES_CACHE%LAGRANGE_VARIABLE_TYPE,LAGRANGE_VARIABLE, &
+                        & ERR,ERROR,*999)
+                      FIELD_VARIABLE=>LAGRANGE_VARIABLE
+                      CONSTRAINT_EQUATIONS=>CONSTRAINT_CONDITION%CONSTRAINT_EQUATIONS
+                      IF(ASSOCIATED(CONSTRAINT_EQUATIONS)) THEN
+                        IF(ASSOCIATED(FIELD_VARIABLE)) THEN
+                          LINEAR_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(matrix_idx)%CONSTRAINT_EQUATIONS=>CONSTRAINT_EQUATIONS
+                          LINEAR_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(matrix_idx)%VARIABLE_TYPE=FIELD_VARIABLE%VARIABLE_TYPE
+                          LINEAR_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(matrix_idx)%VARIABLE=>FIELD_VARIABLE
+                          LINEAR_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(matrix_idx)%MATRIX_COEFFICIENT=CONSTRAINT_MAPPING% &
+                            & CREATE_VALUES_CACHE%LINEAR_MATRIX_COEFFICIENTS(matrix_idx)
+                          LINEAR_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(matrix_idx)%HAS_TRANSPOSE=CONSTRAINT_MAPPING% &
+                            & CREATE_VALUES_CACHE%LINEAR_HAS_TRANSPOSE(matrix_idx)
+                            !Set the number of rows
+                          LINEAR_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(matrix_idx)%NUMBER_OF_ROWS=FIELD_VARIABLE%NUMBER_OF_DOFS
+                          LINEAR_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(matrix_idx)%TOTAL_NUMBER_OF_ROWS= &
+                            & FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS
+                          LINEAR_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(matrix_idx)%NUMBER_OF_GLOBAL_ROWS= &
+                            & FIELD_VARIABLE%NUMBER_OF_GLOBAL_DOFS
+                          !Set the row mapping
+                          LINEAR_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(matrix_idx)%ROW_DOFS_MAPPING=> &
+                            & FIELD_VARIABLE%DOMAIN_MAPPING
+                          ALLOCATE(LINEAR_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(matrix_idx)%ROW_TO_VARIABLE_DOF_MAP( &
+                            & FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS),STAT=ERR)
+                          IF(ERR/=0) CALL FLAG_ERROR("Could not allocate variable dof to row map.",ERR,ERROR,*999)
+                          !1-1 mapping for now
+                          DO dof_idx=1,FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS
+                            row_idx=FIELD_VARIABLE%DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(dof_idx)
+                            LINEAR_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(matrix_idx)% &
+                              & ROW_TO_VARIABLE_DOF_MAP(row_idx)=row_idx
+                          ENDDO !dof_idx
+                        ELSE
+                          CALL FLAG_ERROR("Lagrange variable could not be found.",ERR,ERROR,*999)
+                        ENDIF
+                      ELSE
+                        CALL FLAG_ERROR("Constraint equations could not be found.",ERR,ERROR,*999)
+                      ENDIF
+                    ENDSELECT
+                 ELSE
+                   CALL FLAG_ERROR("Linear mapping is not associated.",ERR,ERROR,*999)
+                 ENDIF
+               ENDIF
+ 
+                !Calculate nonlinear mappings
+                IF(CREATE_VALUES_CACHE%NUMBER_OF_JACOBIAN_CONSTRAINT_MATRICES>0) THEN                  
+                  CALL CONSTRAINT_MAPPING_NONLINEAR_MAPPING_INITIALISE(CONSTRAINT_MAPPING,ERR,ERROR,*999)
+                  NONLINEAR_MAPPING=>CONSTRAINT_MAPPING%NONLINEAR_MAPPING
+                  IF(ASSOCIATED(NONLINEAR_MAPPING)) THEN
+                    NONLINEAR_MAPPING%NUMBER_OF_JACOBIAN_CONSTRAINT_MATRICES= &
+                      & CREATE_VALUES_CACHE%NUMBER_OF_JACOBIAN_CONSTRAINT_MATRICES
+                    ALLOCATE(NONLINEAR_MAPPING%LAGRANGE_DOF_TO_COLUMN_MAP(LAGRANGE_VARIABLE%TOTAL_NUMBER_OF_DOFS),STAT=ERR)
+                    IF(ERR/=0) CALL FLAG_ERROR("Could not allocate Lagrange dof to column map.",ERR,ERROR,*999)
+                    !1-1 mapping for now
+                    DO dof_idx=1,LAGRANGE_VARIABLE%TOTAL_NUMBER_OF_DOFS
+                      column_idx=LAGRANGE_VARIABLE%DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(dof_idx)
+                      NONLINEAR_MAPPING%LAGRANGE_DOF_TO_COLUMN_MAP(dof_idx)=column_idx
+                    ENDDO
+                    CALL CONSTRAINT_MAPPING_VAR_TO_CONSTR_JACOBIAN_MAP_INIT( &
+                      & NONLINEAR_MAPPING%VAR_TO_CONSTRAINT_JACOBIAN_MAP,ERR,ERROR,*999)
+                    NONLINEAR_MAPPING%VAR_TO_CONSTRAINT_JACOBIAN_MAP%VARIABLE_TYPE=CREATE_VALUES_CACHE%JACOBIAN_VARIABLE_TYPE
+                    CALL FIELD_VARIABLE_GET(DEPENDENT_FIELD,CREATE_VALUES_CACHE%JACOBIAN_VARIABLE_TYPE,FIELD_VARIABLE, &
+                      & ERR,ERROR,*999)
+                    NONLINEAR_MAPPING%VAR_TO_CONSTRAINT_JACOBIAN_MAP%VARIABLE=>FIELD_VARIABLE
+                    NONLINEAR_MAPPING%VAR_TO_CONSTRAINT_JACOBIAN_MAP%NUMBER_OF_CONSTRAINT_JACOBIANS=CREATE_VALUES_CACHE% &
+                      & NUMBER_OF_JACOBIAN_CONSTRAINT_MATRICES
+                    IF(CREATE_VALUES_CACHE%RHS_LAGRANGE_VARIABLE_TYPE/=0) &
+                      & NONLINEAR_MAPPING%VAR_TO_CONSTRAINT_JACOBIAN_MAP%NUMBER_OF_CONSTRAINT_JACOBIANS=-1
+                    !Allocate and initialise the variable to constraint matrices maps
+                    FIELD_VARIABLE=>NONLINEAR_MAPPING%VAR_TO_CONSTRAINT_JACOBIAN_MAP%VARIABLE
+                    IF(ASSOCIATED(FIELD_VARIABLE)) THEN
+                      IF(NONLINEAR_MAPPING%VAR_TO_CONSTRAINT_JACOBIAN_MAP%NUMBER_OF_CONSTRAINT_JACOBIANS==-1) THEN
+                        !!TODO: check if this can be removed and just allocate those variables that are actually used
+                        ALLOCATE(NONLINEAR_MAPPING%VAR_TO_CONSTRAINT_JACOBIAN_MAP%VARIABLE_DOF_TO_ROWS_MAP( &
+                          & FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS),STAT=ERR)
+                        IF(ERR/=0) CALL FLAG_ERROR("Could not allocate variable to constraint matrices maps dof to rows map.", &
+                          & ERR,ERROR,*999)
+                        NONLINEAR_MAPPING%VAR_TO_CONSTRAINT_JACOBIAN_MAP%VARIABLE_DOF_TO_ROWS_MAP=0
+                      ELSE IF(NONLINEAR_MAPPING%VAR_TO_CONSTRAINT_JACOBIAN_MAP%NUMBER_OF_CONSTRAINT_JACOBIANS>0) THEN
+                        ALLOCATE(NONLINEAR_MAPPING%VAR_TO_CONSTRAINT_JACOBIAN_MAP%CONSTRAINT_JACOBIAN_NUMBERS( &
+                          & NONLINEAR_MAPPING%VAR_TO_CONSTRAINT_JACOBIAN_MAP%NUMBER_OF_CONSTRAINT_JACOBIANS),STAT=ERR)
+                        IF(ERR/=0) &
+                          & CALL FLAG_ERROR("Could not allocate variable to constraint matrices maps constraint matrix numbers.", &
+                          & ERR,ERROR,*999)
+                        NONLINEAR_MAPPING%VAR_TO_CONSTRAINT_JACOBIAN_MAP%CONSTRAINT_JACOBIAN_NUMBERS=0
+ 
+                        ALLOCATE(NONLINEAR_MAPPING%VAR_TO_CONSTRAINT_JACOBIAN_MAP%VARIABLE_DOF_TO_ROWS_MAP( &
+                          & FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS),STAT=ERR)
+                        IF(ERR/=0) CALL FLAG_ERROR("Could not allocate variable to constraint matrices maps dof to rows map.", &
+                          & ERR,ERROR,*999)
+                        DO dof_idx=1,FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS
+                        !1-1 mappings for now.
+                        row_idx=FIELD_VARIABLE%DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(dof_idx)
+                        NONLINEAR_MAPPING%VAR_TO_CONSTRAINT_JACOBIAN_MAP%VARIABLE_DOF_TO_ROWS_MAP(dof_idx)=row_idx
+                        ENDDO !dof_idx
+                      ENDIF
+                    ENDIF
+                    !Allocate and initialise the Jacobian constraint matrix to variable maps types
+                    ALLOCATE(NONLINEAR_MAPPING%CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAP(NONLINEAR_MAPPING% &
+                      & NUMBER_OF_JACOBIAN_CONSTRAINT_MATRICES),STAT=ERR)
+                    IF(ERR/=0) CALL FLAG_ERROR("Could not allocate constraint Jacobian rows to variable maps.", &
+                      & ERR,ERROR,*999)
+                    !Loop over the constraint matrices and calculate the row mappings
+                    !The pointers below have been checked for association above.
+                    matrix_idx=1
+                    !Initialise and setup the constraint matrix
+                    CALL CONSTRAINT_MAPPING_CONSTR_JACOBIAN_TO_VAR_MAP_INIT(NONLINEAR_MAPPING% &
+                      & CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAP(matrix_idx),ERR,ERROR,*999)
+                    EQUATIONS_SET=>CONSTRAINT_DEPENDENT%EQUATIONS_SET
+                    IF(ASSOCIATED(EQUATIONS_SET)) THEN
+                      CALL FIELD_VARIABLE_GET(DEPENDENT_FIELD,CREATE_VALUES_CACHE%JACOBIAN_VARIABLE_TYPE,FIELD_VARIABLE, &
+                        & ERR,ERROR,*999)
+                      IF(ASSOCIATED(FIELD_VARIABLE)) THEN
+                        NONLINEAR_MAPPING%CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAP(matrix_idx)%EQUATIONS_SET=>EQUATIONS_SET
+                        NONLINEAR_MAPPING%CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAP(matrix_idx)%VARIABLE_TYPE= &
+                          & FIELD_VARIABLE%VARIABLE_TYPE
+                        NONLINEAR_MAPPING%CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAP(matrix_idx)%VARIABLE=>FIELD_VARIABLE
+                        NONLINEAR_MAPPING%CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAP(matrix_idx)%JACOBIAN_COEFFICIENT= &
+                          & CONSTRAINT_MAPPING%CREATE_VALUES_CACHE%JACOBIAN_COEFFICIENT
+                        NONLINEAR_MAPPING%CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAP(matrix_idx)%HAS_TRANSPOSE=CONSTRAINT_MAPPING% &
+                          & CREATE_VALUES_CACHE%JACOBIAN_HAS_TRANSPOSE(matrix_idx)
+                         !Set the number of rows
+                        NONLINEAR_MAPPING%CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAP(matrix_idx)%NUMBER_OF_ROWS= &
+                          & FIELD_VARIABLE%NUMBER_OF_DOFS
+                        NONLINEAR_MAPPING%CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAP(matrix_idx)%TOTAL_NUMBER_OF_ROWS= &
+                          & FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS
+                        NONLINEAR_MAPPING%CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAP(matrix_idx)%NUMBER_OF_GLOBAL_ROWS= &
+                          & FIELD_VARIABLE%NUMBER_OF_GLOBAL_DOFS
+                        !Set the row mapping
+                        NONLINEAR_MAPPING%CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAP(matrix_idx)%ROW_DOFS_MAPPING=> &
+                          & FIELD_VARIABLE%DOMAIN_MAPPING
+                        ALLOCATE(NONLINEAR_MAPPING%CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAP(matrix_idx)%ROW_TO_VARIABLE_DOF_MAP( &
+                          & FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS),STAT=ERR)
+                        IF(ERR/=0) CALL FLAG_ERROR("Could not allocate variable dof to row map.",ERR,ERROR,*999)
+                        !1-1 mapping for now
+                        DO dof_idx=1,FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS
+                          row_idx=FIELD_VARIABLE%DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(dof_idx)
+                          NONLINEAR_MAPPING%CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAP(matrix_idx)%ROW_TO_VARIABLE_DOF_MAP(row_idx)=dof_idx
+                        ENDDO !dof_idx
+                      ELSE
+                        CALL FLAG_ERROR("Dependent variable could not be found.",ERR,ERROR,*999)
+                      ENDIF
+                    ELSE
+                      CALL FLAG_ERROR("Equations set could not be found.",ERR,ERROR,*999)
+                    ENDIF
+                    !The pointers below have been checked for association above.
+                    SELECT CASE(CONSTRAINT_CONDITION%METHOD)
+                    CASE(CONSTRAINT_CONDITION_PENALTY_METHOD)
+                      !Sets up the Lagrange-(Penalty) constraint matrix mapping and calculate the row mappings
+                      matrix_idx=NONLINEAR_MAPPING%NUMBER_OF_JACOBIAN_CONSTRAINT_MATRICES !last of the constraint matrices
+                      !Initialise and setup the constraint matrix
+                      CALL CONSTRAINT_MAPPING_CONSTR_JACOBIAN_TO_VAR_MAP_INIT(NONLINEAR_MAPPING% &
+                        & CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAP(matrix_idx),ERR,ERROR,*999)
+                      NULLIFY(LAGRANGE_VARIABLE)
+                      CALL FIELD_VARIABLE_GET(LAGRANGE_FIELD,CREATE_VALUES_CACHE%LAGRANGE_VARIABLE_TYPE,LAGRANGE_VARIABLE, &
+                        & ERR,ERROR,*999)
+                      NULLIFY(CONSTRAINT_EQUATIONS)
+                      NULLIFY(FIELD_VARIABLE)
+                      FIELD_VARIABLE=>LAGRANGE_VARIABLE
+                      CONSTRAINT_EQUATIONS=>CONSTRAINT_CONDITION%CONSTRAINT_EQUATIONS
+                      IF(ASSOCIATED(CONSTRAINT_EQUATIONS)) THEN
+                        IF(ASSOCIATED(FIELD_VARIABLE)) THEN
+                          NONLINEAR_MAPPING%CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAP(matrix_idx)%CONSTRAINT_EQUATIONS=> &
+                            & CONSTRAINT_EQUATIONS
+                          NONLINEAR_MAPPING%CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAP(matrix_idx)%VARIABLE_TYPE=FIELD_VARIABLE% &
+                            & VARIABLE_TYPE
+                          NONLINEAR_MAPPING%CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAP(matrix_idx)%VARIABLE=>FIELD_VARIABLE
+                          NONLINEAR_MAPPING%CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAP(matrix_idx)%JACOBIAN_COEFFICIENT= &
+                            & CONSTRAINT_MAPPING%CREATE_VALUES_CACHE%JACOBIAN_COEFFICIENT
+                          NONLINEAR_MAPPING%CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAP(matrix_idx)%HAS_TRANSPOSE=CONSTRAINT_MAPPING% &
+                            & CREATE_VALUES_CACHE%JACOBIAN_HAS_TRANSPOSE(matrix_idx)
+                            !Set the number of rows
+                          NONLINEAR_MAPPING%CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAP(matrix_idx)%NUMBER_OF_ROWS=FIELD_VARIABLE% &
+                            & NUMBER_OF_DOFS
+                          NONLINEAR_MAPPING%CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAP(matrix_idx)%TOTAL_NUMBER_OF_ROWS= &
+                            & FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS
+                          NONLINEAR_MAPPING%CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAP(matrix_idx)%NUMBER_OF_GLOBAL_ROWS= &
+                            & FIELD_VARIABLE%NUMBER_OF_GLOBAL_DOFS
+                          !Set the row mapping
+                          NONLINEAR_MAPPING%CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAP(matrix_idx)%ROW_DOFS_MAPPING=> &
+                            & FIELD_VARIABLE%DOMAIN_MAPPING
+                          ALLOCATE(NONLINEAR_MAPPING%CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAP(matrix_idx)%ROW_TO_VARIABLE_DOF_MAP( &
+                            & FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS),STAT=ERR)
+                          IF(ERR/=0) CALL FLAG_ERROR("Could not allocate variable dof to row map.",ERR,ERROR,*999)
+                          !1-1 mapping for now
+                          DO dof_idx=1,FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS
+                            row_idx=FIELD_VARIABLE%DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(dof_idx)
+                            NONLINEAR_MAPPING%CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAP(matrix_idx)% &
+                              & ROW_TO_VARIABLE_DOF_MAP(row_idx)=dof_idx
+                          ENDDO !dof_idx
+                        ELSE
+                          CALL FLAG_ERROR("Lagrange variable could not be found.",ERR,ERROR,*999)
+                        ENDIF
+                      ELSE
+                        CALL FLAG_ERROR("Constraint equations could not be found.",ERR,ERROR,*999)
+                      ENDIF
+                    ENDSELECT
+                  ELSE
+                    CALL FLAG_ERROR("Nonlinear mapping is not associated.",ERR,ERROR,*999)
+                  ENDIF
+                ENDIF
+ 
+               !Calculate RHS mappings
+               IF(CREATE_VALUES_CACHE%RHS_LAGRANGE_VARIABLE_TYPE/=0) THEN
+                 CALL CONSTRAINT_MAPPING_RHS_MAPPING_INITIALISE(CONSTRAINT_MAPPING,ERR,ERROR,*999)
+                 RHS_MAPPING=>CONSTRAINT_MAPPING%RHS_MAPPING
+                 IF(ASSOCIATED(RHS_MAPPING)) THEN
+                   RHS_MAPPING%RHS_VARIABLE_TYPE=CREATE_VALUES_CACHE%RHS_LAGRANGE_VARIABLE_TYPE
+                   LAGRANGE_VARIABLE=>LAGRANGE_FIELD%VARIABLE_TYPE_MAP(CREATE_VALUES_CACHE%RHS_LAGRANGE_VARIABLE_TYPE)%PTR
+                   RHS_MAPPING%RHS_VARIABLE=>LAGRANGE_VARIABLE
+                   RHS_MAPPING%RHS_VARIABLE_MAPPING=>LAGRANGE_VARIABLE%DOMAIN_MAPPING
+                   RHS_MAPPING%RHS_COEFFICIENT=CREATE_VALUES_CACHE%RHS_COEFFICIENT
+                   !Allocate and set up the row mappings
+                   ALLOCATE(RHS_MAPPING%RHS_DOF_TO_CONSTRAINT_ROW_MAP(LAGRANGE_VARIABLE%TOTAL_NUMBER_OF_DOFS),STAT=ERR)
+                   IF(ERR/=0) CALL FLAG_ERROR("Could not allocate rhs dof to constraint row map.",ERR,ERROR,*999)
+                   ALLOCATE(RHS_MAPPING%CONSTRAINT_ROW_TO_RHS_DOF_MAP(CONSTRAINT_MAPPING%TOTAL_NUMBER_OF_COLUMNS),STAT=ERR)
+                   IF(ERR/=0) CALL FLAG_ERROR("Could not allocate constraint row to dof map.",ERR,ERROR,*999)
+                   DO dof_idx=1,LAGRANGE_VARIABLE%TOTAL_NUMBER_OF_DOFS
+                     !1-1 mapping for now  
+                     row_idx=LAGRANGE_VARIABLE%DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(dof_idx)
+                     RHS_MAPPING%RHS_DOF_TO_CONSTRAINT_ROW_MAP(dof_idx)=row_idx
+                     RHS_MAPPING%CONSTRAINT_ROW_TO_RHS_DOF_MAP(row_idx)=dof_idx
+                   ENDDO !dof_idx
+                 ELSE
+                   CALL FLAG_ERROR("RHS mapping is not associated.",ERR,ERROR,*999)
+                 ENDIF
+               ENDIF
+             ELSE
+               CALL FLAG_ERROR("Constraint condition dependent is not associated.",ERR,ERROR,*999)
+             ENDIF
+           ELSE
+             CALL FLAG_ERROR("Constraint condition Lagrange is not associated.",ERR,ERROR,*999)
+           ENDIF
+         CASE(CONSTRAINT_CONDITION_AUGMENTED_LAGRANGE_METHOD)
+           CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+         CASE(CONSTRAINT_CONDITION_POINT_TO_POINT_METHOD)
+           CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+         CASE DEFAULT
+           LOCAL_ERROR="The constraint condition method of "// &
+             & TRIM(NUMBER_TO_VSTRING(CONSTRAINT_CONDITION%METHOD,"*",ERR,ERROR))//" is invalid."
+           CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
+         END SELECT
+       ELSE
+         CALL FLAG_ERROR("Constraint equations constraint condition is not associated.",ERR,ERROR,*999)
+       ENDIF
+     ELSE
+       CALL FLAG_ERROR("Constraint mapping create values cache is not associated.",ERR,ERROR,*999)
+     ENDIF
+   ELSE
+     CALL FLAG_ERROR("Constraint mapping is not associated.",ERR,ERROR,*999)
+   ENDIF
+
+    IF(DIAGNOSTICS1) THEN
+      CALL WRITE_STRING(DIAGNOSTIC_OUTPUT_TYPE,"Constraint mappings:",ERR,ERROR,*999)
+      CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"  Number of columns = ",CONSTRAINT_MAPPING%NUMBER_OF_COLUMNS,ERR,ERROR,*999)
+      CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"  Total number of columns = ",CONSTRAINT_MAPPING%TOTAL_NUMBER_OF_COLUMNS, &
+        & ERR,ERROR,*999)
+      CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"  Number of global columns = ",CONSTRAINT_MAPPING%NUMBER_OF_GLOBAL_COLUMNS, &
+        & ERR,ERROR,*999)
+      DYNAMIC_MAPPING=>CONSTRAINT_MAPPING%DYNAMIC_MAPPING
+      IF(ASSOCIATED(DYNAMIC_MAPPING)) THEN
+        CALL WRITE_STRING(DIAGNOSTIC_OUTPUT_TYPE,"  Dynamic mappings:",ERR,ERROR,*999)
+        CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"    Number of dynamic equations matrices = ",DYNAMIC_MAPPING% &
+          & NUMBER_OF_DYNAMIC_CONSTRAINT_MATRICES,ERR,ERROR,*999)
+        CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"    Dynamic stiffness matrix number = ",DYNAMIC_MAPPING% &
+          & STIFFNESS_MATRIX_NUMBER,ERR,ERROR,*999)
+        CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"    Dynamic damping matrix number = ",DYNAMIC_MAPPING% &
+          & DAMPING_MATRIX_NUMBER,ERR,ERROR,*999)
+        CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"    Dynamic mass matrix number = ",DYNAMIC_MAPPING% &
+          & MASS_MATRIX_NUMBER,ERR,ERROR,*999)
+        CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"    Dynamic variable type = ",DYNAMIC_MAPPING% &
+          & VARIABLE_TYPE,ERR,ERROR,*999)
+        CALL WRITE_STRING(DIAGNOSTIC_OUTPUT_TYPE,"    Variable to matrices mappings:",ERR,ERROR,*999)
+        CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"      Variable type : ", DYNAMIC_MAPPING%VARIABLE_TYPE,ERR,ERROR,*999)
+        IF(ASSOCIATED(DYNAMIC_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%VARIABLE)) THEN
+          CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"      Total number of DOFs = ",DYNAMIC_MAPPING% &
+            & VAR_TO_CONSTRAINT_MATRICES_MAP%VARIABLE%TOTAL_NUMBER_OF_DOFS,ERR,ERROR,*999)
+          CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"      Number of equations matrices = ",DYNAMIC_MAPPING% &
+            & VAR_TO_CONSTRAINT_MATRICES_MAP%NUMBER_OF_CONSTRAINT_MATRICES,ERR,ERROR,*999)
+          IF(DYNAMIC_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%NUMBER_OF_CONSTRAINT_MATRICES>0) THEN
+            CALL WRITE_STRING_VECTOR(DIAGNOSTIC_OUTPUT_TYPE,1,1,DYNAMIC_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP% &
+              & NUMBER_OF_CONSTRAINT_MATRICES,4,4,DYNAMIC_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP% &
+              & CONSTRAINT_MATRIX_NUMBERS,'("      Matrix numbers :",4(X,I12))','(22X,4(X,I12))',ERR,ERROR,*999) 
+            CALL WRITE_STRING(DIAGNOSTIC_OUTPUT_TYPE,"      Variable DOF to row maps :",ERR,ERROR,*999)
+            CALL WRITE_STRING_VECTOR(DIAGNOSTIC_OUTPUT_TYPE,1,1,DYNAMIC_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP% &
+              & VARIABLE%TOTAL_NUMBER_OF_DOFS,5,5,DYNAMIC_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP% &
+              & VARIABLE_DOF_TO_ROWS_MAP, &
+              & '("        Row numbers :",5(X,I13))','(24X,5(X,I13))',ERR,ERROR,*999) 
+          ENDIF
+        ENDIF
+        CALL WRITE_STRING(DIAGNOSTIC_OUTPUT_TYPE,"    Matrix to variable mappings:",ERR,ERROR,*999)
+        DO matrix_idx=1,DYNAMIC_MAPPING%NUMBER_OF_DYNAMIC_CONSTRAINT_MATRICES
+          CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"      Matrix number : ",matrix_idx,ERR,ERROR,*999)
+          CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"        Variable type = ",DYNAMIC_MAPPING% &
+            & CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(matrix_idx)%VARIABLE_TYPE,ERR,ERROR,*999)
+          CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"        Number of rows = ",DYNAMIC_MAPPING% &
+            & CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(matrix_idx)%NUMBER_OF_ROWS,ERR,ERROR,*999)
+          CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"        Matrix coefficient = ",DYNAMIC_MAPPING% &
+            & CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(matrix_idx)%MATRIX_COEFFICIENT,ERR,ERROR,*999)
+          CALL WRITE_STRING_VECTOR(DIAGNOSTIC_OUTPUT_TYPE,1,1,DYNAMIC_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(matrix_idx)% &
+            & NUMBER_OF_ROWS,5,5,DYNAMIC_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(matrix_idx)%ROW_TO_VARIABLE_DOF_MAP, &
+            & '("        Variable row to DOF maps :",5(X,I13))','(28X,5(X,I13))',ERR,ERROR,*999) 
+        ENDDO !matrix_idx
+        CALL WRITE_STRING(DIAGNOSTIC_OUTPUT_TYPE,"    Column mappings:",ERR,ERROR,*999)
+        CALL WRITE_STRING_VECTOR(DIAGNOSTIC_OUTPUT_TYPE,1,1,CONSTRAINT_MAPPING%TOTAL_NUMBER_OF_COLUMNS,5,5, &
+          & DYNAMIC_MAPPING%LAGRANGE_DOF_TO_COLUMN_MAP,'("    DOF to column map :",5(X,I13))','(21X,5(X,I13))', &
+          & ERR,ERROR,*999) 
+      ENDIF
+      LINEAR_MAPPING=>CONSTRAINT_MAPPING%LINEAR_MAPPING
+      IF(ASSOCIATED(LINEAR_MAPPING)) THEN
+        CALL WRITE_STRING(DIAGNOSTIC_OUTPUT_TYPE,"  Linear mappings:",ERR,ERROR,*999)
+        CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"    Number of linear constraint matrices = ",LINEAR_MAPPING% &
+          & NUMBER_OF_LINEAR_CONSTRAINT_MATRICES,ERR,ERROR,*999)
+        CALL WRITE_STRING(DIAGNOSTIC_OUTPUT_TYPE,"    Variable to matrices mappings:",ERR,ERROR,*999)
+        CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"      Variable type : ",LINEAR_MAPPING%VARIABLE_TYPE,ERR,ERROR,*999)
+        IF(ASSOCIATED(LINEAR_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%VARIABLE)) THEN
+          CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"      Total number of DOFs = ",LINEAR_MAPPING% &
+            & VAR_TO_CONSTRAINT_MATRICES_MAP%VARIABLE%TOTAL_NUMBER_OF_DOFS,ERR,ERROR,*999)
+          CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"      Number of equations matrices = ",LINEAR_MAPPING% &
+            & VAR_TO_CONSTRAINT_MATRICES_MAP%NUMBER_OF_CONSTRAINT_MATRICES,ERR,ERROR,*999)
+          IF(LINEAR_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%NUMBER_OF_CONSTRAINT_MATRICES>0) THEN
+            CALL WRITE_STRING_VECTOR(DIAGNOSTIC_OUTPUT_TYPE,1,1,LINEAR_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP% &
+              & NUMBER_OF_CONSTRAINT_MATRICES,4,4,LINEAR_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP% &
+              & CONSTRAINT_MATRIX_NUMBERS,'("      Matrix numbers :",4(X,I12))','(22X,4(X,I12))',ERR,ERROR,*999) 
+            CALL WRITE_STRING(DIAGNOSTIC_OUTPUT_TYPE,"      Variable DOF to row maps :",ERR,ERROR,*999)
+            CALL WRITE_STRING_VECTOR(DIAGNOSTIC_OUTPUT_TYPE,1,1,LINEAR_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP% &
+              & VARIABLE%TOTAL_NUMBER_OF_DOFS,5,5,LINEAR_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP% &
+              & VARIABLE_DOF_TO_ROWS_MAP, &
+              & '("        Row numbers :",5(X,I13))','(24X,5(X,I13))',ERR,ERROR,*999) 
+          ENDIF
+        ENDIF
+        CALL WRITE_STRING(DIAGNOSTIC_OUTPUT_TYPE,"    Matrix to variable mappings:",ERR,ERROR,*999)
+        DO matrix_idx=1,LINEAR_MAPPING%NUMBER_OF_LINEAR_CONSTRAINT_MATRICES
+          CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"      Matrix number : ",matrix_idx,ERR,ERROR,*999)
+          CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"        Variable type = ",LINEAR_MAPPING% &
+            & CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(matrix_idx)%VARIABLE_TYPE,ERR,ERROR,*999)
+          CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"        Number of rows = ",LINEAR_MAPPING% &
+            & CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(matrix_idx)%NUMBER_OF_ROWS,ERR,ERROR,*999)
+          CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"        Matrix coefficient = ",LINEAR_MAPPING% &
+            & CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(matrix_idx)%MATRIX_COEFFICIENT,ERR,ERROR,*999)
+          CALL WRITE_STRING_VECTOR(DIAGNOSTIC_OUTPUT_TYPE,1,1,LINEAR_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(matrix_idx)% &
+            & NUMBER_OF_ROWS,5,5,LINEAR_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(matrix_idx)%ROW_TO_VARIABLE_DOF_MAP, &
+            & '("        Variable row to DOF maps :",5(X,I13))','(28X,5(X,I13))',ERR,ERROR,*999) 
+        ENDDO !matrix_idx
+        CALL WRITE_STRING(DIAGNOSTIC_OUTPUT_TYPE,"    Column mappings:",ERR,ERROR,*999)
+        CALL WRITE_STRING_VECTOR(DIAGNOSTIC_OUTPUT_TYPE,1,1,CONSTRAINT_MAPPING%TOTAL_NUMBER_OF_COLUMNS,5,5, &
+          & LINEAR_MAPPING%LAGRANGE_DOF_TO_COLUMN_MAP,'("    DOF to column map :",5(X,I13))','(21X,5(X,I13))', &
+          & ERR,ERROR,*999) 
+      ENDIF
+      NONLINEAR_MAPPING=>CONSTRAINT_MAPPING%NONLINEAR_MAPPING
+      IF(ASSOCIATED(NONLINEAR_MAPPING)) THEN
+        CALL WRITE_STRING(DIAGNOSTIC_OUTPUT_TYPE,"  Nonlinear mappings:",ERR,ERROR,*999)
+        CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"    Number of nonlinear constraint matrices = ",NONLINEAR_MAPPING% &
+          & NUMBER_OF_JACOBIAN_CONSTRAINT_MATRICES,ERR,ERROR,*999)
+        CALL WRITE_STRING(DIAGNOSTIC_OUTPUT_TYPE,"    Variable to matrices mappings:",ERR,ERROR,*999)
+        CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"      Variable type : ",NONLINEAR_MAPPING%VARIABLE_TYPE,ERR,ERROR,*999)
+        IF(ASSOCIATED(NONLINEAR_MAPPING%VAR_TO_CONSTRAINT_JACOBIAN_MAP%VARIABLE)) THEN
+          CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"      Total number of DOFs = ",NONLINEAR_MAPPING% &
+            & VAR_TO_CONSTRAINT_JACOBIAN_MAP%VARIABLE%TOTAL_NUMBER_OF_DOFS,ERR,ERROR,*999)
+          CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"      Number of equations matrices = ",NONLINEAR_MAPPING% &
+            & VAR_TO_CONSTRAINT_JACOBIAN_MAP%NUMBER_OF_CONSTRAINT_JACOBIANS,ERR,ERROR,*999)
+          IF(NONLINEAR_MAPPING%VAR_TO_CONSTRAINT_JACOBIAN_MAP%NUMBER_OF_CONSTRAINT_JACOBIANS>0) THEN
+            CALL WRITE_STRING_VECTOR(DIAGNOSTIC_OUTPUT_TYPE,1,1,NONLINEAR_MAPPING%VAR_TO_CONSTRAINT_JACOBIAN_MAP% &
+              & NUMBER_OF_CONSTRAINT_JACOBIANS,4,4,NONLINEAR_MAPPING%VAR_TO_CONSTRAINT_JACOBIAN_MAP% &
+              & CONSTRAINT_JACOBIAN_NUMBERS,'("      Matrix numbers :",4(X,I12))','(22X,4(X,I12))',ERR,ERROR,*999) 
+            CALL WRITE_STRING(DIAGNOSTIC_OUTPUT_TYPE,"      Variable DOF to row maps :",ERR,ERROR,*999)
+            CALL WRITE_STRING_VECTOR(DIAGNOSTIC_OUTPUT_TYPE,1,1,NONLINEAR_MAPPING%VAR_TO_CONSTRAINT_JACOBIAN_MAP% &
+              & VARIABLE%TOTAL_NUMBER_OF_DOFS,5,5,NONLINEAR_MAPPING%VAR_TO_CONSTRAINT_JACOBIAN_MAP% &
+              & VARIABLE_DOF_TO_ROWS_MAP, &
+              & '("        Row numbers :",5(X,I13))','(24X,5(X,I13))',ERR,ERROR,*999) 
+          ENDIF
+        ENDIF
+        CALL WRITE_STRING(DIAGNOSTIC_OUTPUT_TYPE,"    Matrix to variable mappings:",ERR,ERROR,*999)
+        DO matrix_idx=1,NONLINEAR_MAPPING%NUMBER_OF_JACOBIAN_CONSTRAINT_MATRICES
+          CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"      Matrix number : ",matrix_idx,ERR,ERROR,*999)
+          CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"        Variable type = ",NONLINEAR_MAPPING% &
+            & CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAP(matrix_idx)%VARIABLE_TYPE,ERR,ERROR,*999)
+          CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"        Number of rows = ",NONLINEAR_MAPPING% &
+            & CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAP(matrix_idx)%NUMBER_OF_ROWS,ERR,ERROR,*999)
+          CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"        Matrix coefficient = ",NONLINEAR_MAPPING% &
+            & CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAP(matrix_idx)%JACOBIAN_COEFFICIENT,ERR,ERROR,*999)
+          CALL WRITE_STRING_VECTOR(DIAGNOSTIC_OUTPUT_TYPE,1,1,NONLINEAR_MAPPING%CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAP(matrix_idx)% &
+            & NUMBER_OF_ROWS,5,5,NONLINEAR_MAPPING%CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAP(matrix_idx)%ROW_TO_VARIABLE_DOF_MAP, &
+            & '("        Variable row to DOF maps :",5(X,I13))','(28X,5(X,I13))',ERR,ERROR,*999) 
+        ENDDO !matrix_idx
+        CALL WRITE_STRING(DIAGNOSTIC_OUTPUT_TYPE,"    Column mappings:",ERR,ERROR,*999)
+        CALL WRITE_STRING_VECTOR(DIAGNOSTIC_OUTPUT_TYPE,1,1,CONSTRAINT_MAPPING%TOTAL_NUMBER_OF_COLUMNS,5,5, &
+          & NONLINEAR_MAPPING%LAGRANGE_DOF_TO_COLUMN_MAP,'("    DOF to column map :",5(X,I13))','(21X,5(X,I13))', &
+          & ERR,ERROR,*999) 
+      ENDIF
+      RHS_MAPPING=>CONSTRAINT_MAPPING%RHS_MAPPING
+      IF(ASSOCIATED(RHS_MAPPING)) THEN
+        CALL WRITE_STRING(DIAGNOSTIC_OUTPUT_TYPE,"  RHS mappings:",ERR,ERROR,*999)
+        CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"    RHS variable type = ", &
+          & RHS_MAPPING%RHS_VARIABLE_TYPE,ERR,ERROR,*999)
+        CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"    Total number of RHS DOFs = ",RHS_MAPPING%RHS_VARIABLE% &
+          & TOTAL_NUMBER_OF_DOFS,ERR,ERROR,*999)
+        CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"    RHS coefficient = ",RHS_MAPPING%RHS_COEFFICIENT,ERR,ERROR,*999)
+        CALL WRITE_STRING(DIAGNOSTIC_OUTPUT_TYPE,"    Row mappings:",ERR,ERROR,*999)
+        CALL WRITE_STRING_VECTOR(DIAGNOSTIC_OUTPUT_TYPE,1,1,RHS_MAPPING%RHS_VARIABLE%TOTAL_NUMBER_OF_DOFS,5,5, &
+          & RHS_MAPPING%RHS_DOF_TO_CONSTRAINT_ROW_MAP,'("    DOF to row mappings :",5(X,I13))','(25X,5(X,I13))',ERR,ERROR,*999) 
+        CALL WRITE_STRING_VECTOR(DIAGNOSTIC_OUTPUT_TYPE,1,1,CONSTRAINT_MAPPING%TOTAL_NUMBER_OF_COLUMNS,5,5, &
+          & RHS_MAPPING%CONSTRAINT_ROW_TO_RHS_DOF_MAP,'("    Row to DOF mappings :",5(X,I13))','(25X,5(X,I13))',ERR,ERROR,*999) 
+      ENDIF
+
+    ENDIF
 
     CALL EXITS("CONSTRAINT_MAPPING_CALCULATE")
     RETURN
@@ -789,7 +983,7 @@ CONTAINS
             CONSTRAINT_MAPPING%CREATE_VALUES_CACHE%DYNAMIC_DAMPING_MATRIX_NUMBER=0
             CONSTRAINT_MAPPING%CREATE_VALUES_CACHE%DYNAMIC_MASS_MATRIX_NUMBER=0
             CONSTRAINT_MAPPING%CREATE_VALUES_CACHE%NUMBER_OF_LINEAR_CONSTRAINT_MATRICES=0
-            CONSTRAINT_MAPPING%CREATE_VALUES_CACHE%RESIDUAL_COEFFICIENT=1.0_DP
+            CONSTRAINT_MAPPING%CREATE_VALUES_CACHE%JACOBIAN_COEFFICIENT=1.0_DP
             CONSTRAINT_MAPPING%CREATE_VALUES_CACHE%LAGRANGE_VARIABLE_TYPE=0
             CONSTRAINT_MAPPING%CREATE_VALUES_CACHE%RHS_LAGRANGE_VARIABLE_TYPE=0
             CONSTRAINT_MAPPING%CREATE_VALUES_CACHE%RHS_COEFFICIENT=1.0_DP
@@ -1016,38 +1210,38 @@ CONTAINS
   END SUBROUTINE CONSTRAINT_MAPPING_DESTROY
  
  
-! !
-! !================================================================================================================================
-! !
+ !
+ !================================================================================================================================
+ !
  
-  !>Finalise an constraint matrix to variable maps and deallocate all memory.
-  SUBROUTINE CONSTRAINT_MAPPING_CONSTRAINT_MATRIX_TO_VAR_MAP_FINALISE(CONSTRAINT_MATRIX_TO_VAR_MAP,ERR,ERROR,*)
- 
+  !>Finalise a constraint matrix to variable maps and deallocate all memory.
+  SUBROUTINE CONSTRAINT_MAPPING_CONSTR_MATRIX_TO_VAR_MAP_FINALISE(CONSTRAINT_MATRIX_TO_VAR_MAP,ERR,ERROR,*)
+
     !Argument variables
     TYPE(CONSTRAINT_MATRIX_TO_VAR_MAP_TYPE) :: CONSTRAINT_MATRIX_TO_VAR_MAP !<The constraint matrix to variable map to finalise
     INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
-    !Local Variables
+   !Local Variables
  
-!    CALL ENTERS("CONSTRAINT_MAPPING_CONSTRAINT_MATRIX_TO_VAR_MAP_FINALISE",ERR,ERROR,*999)
-! 
-!    IF(ALLOCATED(CONSTRAINT_MATRIX_TO_VAR_MAP%ROW_TO_VARIABLE_DOF_MAP)) &
-!      & DEALLOCATE(CONSTRAINT_MATRIX_TO_VAR_MAP%ROW_TO_VARIABLE_DOF_MAP)
-!    
-!    CALL EXITS("CONSTRAINT_MAPPING_CONSTRAINT_MATRIX_TO_VAR_MAP_FINALISE")
+    CALL ENTERS("CONSTRAINT_MAPPING_CONSTR_MATRIX_TO_VAR_MAP_FINALISE",ERR,ERROR,*999)
+ 
+    IF(ALLOCATED(CONSTRAINT_MATRIX_TO_VAR_MAP%ROW_TO_VARIABLE_DOF_MAP)) &
+      & DEALLOCATE(CONSTRAINT_MATRIX_TO_VAR_MAP%ROW_TO_VARIABLE_DOF_MAP)
+    
+    CALL EXITS("CONSTRAINT_MAPPING_CONSTR_MATRIX_TO_VAR_MAP_FINALISE")
     RETURN
-!999 CALL ERRORS("CONSTRAINT_MAPPING_CONSTRAINT_MATRIX_TO_VAR_MAP_FINALISE",ERR,ERROR)    
-!    CALL EXITS("CONSTRAINT_MAPPING_CONSTRAINT_MATRIX_TO_VAR_MAP_FINALISE")
-!    RETURN 1
+999 CALL ERRORS("CONSTRAINT_MAPPING_CONSTR_MATRIX_TO_VAR_MAP_FINALISE",ERR,ERROR)    
+    CALL EXITS("CONSTRAINT_MAPPING_CONSTR_MATRIX_TO_VAR_MAP_FINALISE")
+    RETURN 1
    
-  END SUBROUTINE CONSTRAINT_MAPPING_CONSTRAINT_MATRIX_TO_VAR_MAP_FINALISE
+  END SUBROUTINE CONSTRAINT_MAPPING_CONSTR_MATRIX_TO_VAR_MAP_FINALISE
  
   !
   !================================================================================================================================
   !
  
   !>Initialise an constraint matrix to variable maps.
-  SUBROUTINE CONSTRAINT_MAPPING_CONSTR_MATRIX_TO_VAR_MAP_INITIALISE(CONSTRAINT_MATRIX_TO_VAR_MAP,ERR,ERROR,*)
+  SUBROUTINE CONSTRAINT_MAPPING_CONSTR_MATRIX_TO_VAR_MAP_INIT(CONSTRAINT_MATRIX_TO_VAR_MAP,ERR,ERROR,*)
  
     !Argument variables
     TYPE(CONSTRAINT_MATRIX_TO_VAR_MAP_TYPE) :: CONSTRAINT_MATRIX_TO_VAR_MAP !<The constraint matrix to variable map to initialise
@@ -1055,7 +1249,7 @@ CONTAINS
     TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
     !Local Variables
  
-    CALL ENTERS("CONSTRAINT_MAPPING_CONSTR_MATRIX_TO_VAR_MAP_INITIALISE",ERR,ERROR,*999)
+    CALL ENTERS("CONSTRAINT_MAPPING_CONSTR_MATRIX_TO_VAR_MAP_INIT",ERR,ERROR,*999)
  
     CONSTRAINT_MATRIX_TO_VAR_MAP%MATRIX_NUMBER=0
     CONSTRAINT_MATRIX_TO_VAR_MAP%VARIABLE_TYPE=0
@@ -1064,13 +1258,13 @@ CONTAINS
     CONSTRAINT_MATRIX_TO_VAR_MAP%MATRIX_COEFFICIENT=1.0_DP !Matrices in constraint condition are added by default
     NULLIFY(CONSTRAINT_MATRIX_TO_VAR_MAP%ROW_DOFS_MAPPING)
     
-    CALL EXITS("CONSTRAINT_MAPPING_CONSTR_MATRIX_TO_VAR_MAP_INITIALISE")
+    CALL EXITS("CONSTRAINT_MAPPING_CONSTR_MATRIX_TO_VAR_MAP_INIT")
     RETURN
-999 CALL ERRORS("CONSTRAINT_MAPPING_CONSTR_MATRIX_TO_VAR_MAP_INITIALISE",ERR,ERROR)    
-    CALL EXITS("CONSTRAINT_MAPPING_CONSTR_MATRIX_TO_VAR_MAP_INITIALISE")
+999 CALL ERRORS("CONSTRAINT_MAPPING_CONSTR_MATRIX_TO_VAR_MAP_INIT",ERR,ERROR)    
+    CALL EXITS("CONSTRAINT_MAPPING_CONSTR_MATRIX_TO_VAR_MAP_INIT")
     RETURN 1
    
-  END SUBROUTINE CONSTRAINT_MAPPING_CONSTR_MATRIX_TO_VAR_MAP_INITIALISE
+  END SUBROUTINE CONSTRAINT_MAPPING_CONSTR_MATRIX_TO_VAR_MAP_INIT
  
   !
   !================================================================================================================================
@@ -1084,19 +1278,19 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: ERR !<The error code 
     TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
     !Local Variables
-    INTEGER(INTG) :: matrix_idx,variable_type
+    INTEGER(INTG) :: matrix_idx
  
     CALL ENTERS("CONSTRAINT_MAPPING_DYNAMIC_MAPPING_FINALISE",ERR,ERROR,*999)
  
     IF(ASSOCIATED(DYNAMIC_MAPPING)) THEN
       CALL CONSTRAINT_MAPPING_VAR_TO_CONSTR_MATRICES_MAP_FINALISE(DYNAMIC_MAPPING% &
         & VAR_TO_CONSTRAINT_MATRICES_MAP,ERR,ERROR,*999)
-      IF(ALLOCATED(DYNAMIC_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS)) THEN
-        DO matrix_idx=1,SIZE(DYNAMIC_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS,1)
-          !CALL CONSTRAINT_MAPPING_CONSTRAINT_MATRIX_TO_VAR_MAP_FINALISE( &
-          !  & DYNAMIC_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx),ERR,ERROR,*999)
+      IF(ALLOCATED(DYNAMIC_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP)) THEN
+        DO matrix_idx=1,DYNAMIC_MAPPING%NUMBER_OF_DYNAMIC_CONSTRAINT_MATRICES
+          CALL CONSTRAINT_MAPPING_CONSTR_MATRIX_TO_VAR_MAP_FINALISE( &
+            & DYNAMIC_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(matrix_idx),ERR,ERROR,*999)
         ENDDO !matrix_idx
-        DEALLOCATE(DYNAMIC_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS)
+        DEALLOCATE(DYNAMIC_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP)
       ENDIF
       IF(ALLOCATED(DYNAMIC_MAPPING%LAGRANGE_DOF_TO_COLUMN_MAP)) &
         & DEALLOCATE(DYNAMIC_MAPPING%LAGRANGE_DOF_TO_COLUMN_MAP)
@@ -1140,7 +1334,6 @@ CONTAINS
         CONSTRAINT_MAPPING%DYNAMIC_MAPPING%DAMPING_MATRIX_NUMBER=0
         CONSTRAINT_MAPPING%DYNAMIC_MAPPING%MASS_MATRIX_NUMBER=0
         CONSTRAINT_MAPPING%DYNAMIC_MAPPING%VARIABLE_TYPE=0
-        NULLIFY(CONSTRAINT_MAPPING%DYNAMIC_MAPPING%VARIABLE)
       ENDIF
     ELSE
       CALL FLAG_ERROR("Constraint mapping is not associated.",ERR,ERROR,*998)
@@ -1625,7 +1818,7 @@ CONTAINS
   !
  
   !>Initialises a variable to equations Jacobian map.
-  SUBROUTINE CONSTRAINT_MAPPING_CONSTR_JACOBIAN_TO_VAR_MAP_INITIALISE(CONSTRAINT_JACOBIAN_TO_VAR_MAP,ERR,ERROR,*)
+  SUBROUTINE CONSTRAINT_MAPPING_CONSTR_JACOBIAN_TO_VAR_MAP_INIT(CONSTRAINT_JACOBIAN_TO_VAR_MAP,ERR,ERROR,*)
  
     !Argument variables
     TYPE(CONSTRAINT_JACOBIAN_TO_VAR_MAP_TYPE) :: CONSTRAINT_JACOBIAN_TO_VAR_MAP !<The constraint Jacobian to variable map to initialise
@@ -1633,7 +1826,7 @@ CONTAINS
     TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
     !Local Variables
  
-    CALL ENTERS("CONSTRAINT_MAPPING_CONSTR_JACOBIAN_TO_VAR_MAP_INITIALISE",ERR,ERROR,*999)
+    CALL ENTERS("CONSTRAINT_MAPPING_CONSTR_JACOBIAN_TO_VAR_MAP_INIT",ERR,ERROR,*999)
     
     CONSTRAINT_JACOBIAN_TO_VAR_MAP%VARIABLE_TYPE=0
     NULLIFY(CONSTRAINT_JACOBIAN_TO_VAR_MAP%VARIABLE)
@@ -1642,13 +1835,13 @@ CONTAINS
     CONSTRAINT_JACOBIAN_TO_VAR_MAP%JACOBIAN_COEFFICIENT=0
     NULLIFY(CONSTRAINT_JACOBIAN_TO_VAR_MAP%ROW_DOFS_MAPPING)    
     
-    CALL EXITS("CONSTRAINT_MAPPING_CONSTR_JACOBIAN_TO_VAR_MAP_INITIALISE")
+    CALL EXITS("CONSTRAINT_MAPPING_CONSTR_JACOBIAN_TO_VAR_MAP_INIT")
     RETURN
-999 CALL ERRORS("CONSTRAINT_MAPPING_CONSTR_JACOBIAN_TO_VAR_MAP_INITIALISE",ERR,ERROR)    
-    CALL EXITS("CONSTRAINT_MAPPING_CONSTR_JACOBIAN_TO_VAR_MAP_INITIALISE")
+999 CALL ERRORS("CONSTRAINT_MAPPING_CONSTR_JACOBIAN_TO_VAR_MAP_INIT",ERR,ERROR)    
+    CALL EXITS("CONSTRAINT_MAPPING_CONSTR_JACOBIAN_TO_VAR_MAP_INIT")
     RETURN 1
    
-  END SUBROUTINE CONSTRAINT_MAPPING_CONSTR_JACOBIAN_TO_VAR_MAP_INITIALISE
+  END SUBROUTINE CONSTRAINT_MAPPING_CONSTR_JACOBIAN_TO_VAR_MAP_INIT
  
   !
   !================================================================================================================================
@@ -1668,11 +1861,11 @@ CONTAINS
  
     IF(ASSOCIATED(CONSTRAINT_MAPPING)) THEN
       NULLIFY(CONSTRAINT_MAPPING%COLUMN_DOFS_MAPPING)
-      !CALL CONSTRAINT_MAPPING_DYNAMIC_MAPPING_FINALISE(CONSTRAINT_MAPPING%DYNAMIC_MAPPING,ERR,ERROR,*999)
-      !CALL CONSTRAINT_MAPPING_LINEAR_MAPPING_FINALISE(CONSTRAINT_MAPPING%LINEAR_MAPPING,ERR,ERROR,*999)
-      !CALL CONSTRAINT_MAPPING_NONLINEAR_MAPPING_FINALISE(CONSTRAINT_MAPPING%NONLINEAR_MAPPING,ERR,ERROR,*999)
-      !CALL CONSTRAINT_MAPPING_RHS_MAPPING_FINALISE(CONSTRAINT_MAPPING%RHS_MAPPING,ERR,ERROR,*999)
-      !CALL CONSTRAINT_MAPPING_CREATE_VALUES_CACHE_FINALISE(CONSTRAINT_MAPPING%CREATE_VALUES_CACHE,ERR,ERROR,*999)
+      CALL CONSTRAINT_MAPPING_DYNAMIC_MAPPING_FINALISE(CONSTRAINT_MAPPING%DYNAMIC_MAPPING,ERR,ERROR,*999)
+      CALL CONSTRAINT_MAPPING_LINEAR_MAPPING_FINALISE(CONSTRAINT_MAPPING%LINEAR_MAPPING,ERR,ERROR,*999)
+      CALL CONSTRAINT_MAPPING_NONLINEAR_MAPPING_FINALISE(CONSTRAINT_MAPPING%NONLINEAR_MAPPING,ERR,ERROR,*999)
+      CALL CONSTRAINT_MAPPING_RHS_MAPPING_FINALISE(CONSTRAINT_MAPPING%RHS_MAPPING,ERR,ERROR,*999)
+      CALL CONSTRAINT_MAPPING_CREATE_VALUES_CACHE_FINALISE(CONSTRAINT_MAPPING%CREATE_VALUES_CACHE,ERR,ERROR,*999)
       DEALLOCATE(CONSTRAINT_MAPPING)
     ENDIF
        
@@ -1746,19 +1939,19 @@ CONTAINS
    INTEGER(INTG), INTENT(OUT) :: ERR !<The error code 
    TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
    !Local Variables
-   INTEGER(INTG) :: matrix_idx,variable_type
+   INTEGER(INTG) :: matrix_idx
 
    CALL ENTERS("CONSTRAINT_MAPPING_LINEAR_MAPPING_FINALISE",ERR,ERROR,*999)
 
    IF(ASSOCIATED(LINEAR_MAPPING)) THEN
      CALL CONSTRAINT_MAPPING_VAR_TO_CONSTR_MATRICES_MAP_FINALISE(LINEAR_MAPPING% &
        & VAR_TO_CONSTRAINT_MATRICES_MAP,ERR,ERROR,*999)
-     DO matrix_idx=1,LINEAR_MAPPING%NUMBER_OF_LINEAR_CONSTRAINT_MATRICES
-       CALL CONSTRAINT_MAPPING_CONSTRAINT_MATRIX_TO_VAR_MAP_FINALISE( &
-         & LINEAR_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx),ERR,ERROR,*999)
-     ENDDO !matrix_idx
-     IF(ALLOCATED(LINEAR_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS)) THEN
-       DEALLOCATE(LINEAR_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS)
+     IF(ALLOCATED(LINEAR_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP)) THEN
+       DO matrix_idx=1,LINEAR_MAPPING%NUMBER_OF_LINEAR_CONSTRAINT_MATRICES
+         CALL CONSTRAINT_MAPPING_CONSTR_MATRIX_TO_VAR_MAP_FINALISE(LINEAR_MAPPING% &
+           & CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(matrix_idx),ERR,ERROR,*999)
+       ENDDO !matrix_idx
+       DEALLOCATE(LINEAR_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP)
      ENDIF
      IF(ALLOCATED(LINEAR_MAPPING%LAGRANGE_DOF_TO_COLUMN_MAP)) &
        & DEALLOCATE(LINEAR_MAPPING%LAGRANGE_DOF_TO_COLUMN_MAP)
@@ -1878,13 +2071,14 @@ CONTAINS
     CALL ENTERS("CONSTRAINT_MAPPING_NONLINEAR_MAPPING_FINALISE",ERR,ERROR,*999)
  
     IF(ASSOCIATED(NONLINEAR_MAPPING)) THEN
-      CALL CONSTRAINT_MAPPING_VAR_TO_CONSTR_JACOBIAN_MAP_FINALISE(NONLINEAR_MAPPING%VAR_TO_JACOBIAN_MAP,ERR,ERROR,*999)
-      DO matrix_idx=1,NONLINEAR_MAPPING%NUMBER_OF_JACOBIAN_CONSTRAINT_MATRICES
-        CALL CONSTRAINT_MAPPING_CONSTR_JACOBIAN_TO_VAR_MAP_FINALISE( &
-          & NONLINEAR_MAPPING%CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAP(matrix_idx),ERR,ERROR,*999)
-      ENDDO
-      IF(ALLOCATED(NONLINEAR_MAPPING%CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAP)) &
-        & DEALLOCATE(NONLINEAR_MAPPING%CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAP)
+      CALL CONSTRAINT_MAPPING_VAR_TO_CONSTR_JACOBIAN_MAP_FINALISE(NONLINEAR_MAPPING%VAR_TO_CONSTRAINT_JACOBIAN_MAP,ERR,ERROR,*999)
+      IF(ALLOCATED(NONLINEAR_MAPPING%CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAP)) THEN
+        DO matrix_idx=1,NONLINEAR_MAPPING%NUMBER_OF_JACOBIAN_CONSTRAINT_MATRICES
+          CALL CONSTRAINT_MAPPING_CONSTR_JACOBIAN_TO_VAR_MAP_FINALISE( &
+            & NONLINEAR_MAPPING%CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAP(matrix_idx),ERR,ERROR,*999)
+        ENDDO
+        DEALLOCATE(NONLINEAR_MAPPING%CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAP)
+      ENDIF
       IF(ALLOCATED(NONLINEAR_MAPPING%LAGRANGE_DOF_TO_COLUMN_MAP)) &
         & DEALLOCATE(NONLINEAR_MAPPING%LAGRANGE_DOF_TO_COLUMN_MAP)
       DEALLOCATE(NONLINEAR_MAPPING)
@@ -1922,7 +2116,7 @@ CONTAINS
         IF(ERR/=0) CALL FLAG_ERROR("Could not allocate constraint mapping nonlinear mapping.",ERR,ERROR,*999)
         CONSTRAINT_MAPPING%NONLINEAR_MAPPING%CONSTRAINT_MAPPING=>CONSTRAINT_MAPPING
         CONSTRAINT_MAPPING%NONLINEAR_MAPPING%NUMBER_OF_JACOBIAN_CONSTRAINT_MATRICES=0
-        CONSTRAINT_MAPPING%NONLINEAR_MAPPING%RESIDUAL_COEFFICIENT=1.0_DP
+        CONSTRAINT_MAPPING%NONLINEAR_MAPPING%JACOBIAN_COEFFICIENT=1.0_DP
       ENDIF
     ELSE
       CALL FLAG_ERROR("Equations is not associated.",ERR,ERROR,*998)
@@ -1941,23 +2135,23 @@ CONTAINS
   !
  
   !>Sets the coefficient applied to the constraint condition residual vector.
-  SUBROUTINE CONSTRAINT_MAPPING_RESIDUAL_COEFF_SET(CONSTRAINT_MAPPING,RESIDUAL_COEFFICIENT,ERR,ERROR,*)
+  SUBROUTINE CONSTRAINT_MAPPING_JACOBIAN_COEFF_SET(CONSTRAINT_MAPPING,JACOBIAN_COEFFICIENT,ERR,ERROR,*)
  
     !Argument variables
     TYPE(CONSTRAINT_MAPPING_TYPE), POINTER :: CONSTRAINT_MAPPING !<A pointer to the constraint mapping to set
-    REAL(DP), INTENT(IN) :: RESIDUAL_COEFFICIENT!<The coefficient applied to the constraint condition residual vector.
+    REAL(DP), INTENT(IN) :: JACOBIAN_COEFFICIENT!<The coefficient applied to the constraint condition residual vector.
     INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
     !Local Variables
  
-    CALL ENTERS("CONSTRAINT_MAPPING_RESIDUAL_COEFF_SET",ERR,ERROR,*999)
+    CALL ENTERS("CONSTRAINT_MAPPING_JACOBIAN_COEFF_SET",ERR,ERROR,*999)
  
     IF(ASSOCIATED(CONSTRAINT_MAPPING)) THEN
       IF(CONSTRAINT_MAPPING%CONSTRAINT_MAPPING_FINISHED) THEN
         CALL FLAG_ERROR("Constraint mapping have been finished.",ERR,ERROR,*999)
       ELSE
         IF(ASSOCIATED(CONSTRAINT_MAPPING%CREATE_VALUES_CACHE)) THEN
-          CONSTRAINT_MAPPING%CREATE_VALUES_CACHE%RESIDUAL_COEFFICIENT=RESIDUAL_COEFFICIENT
+          CONSTRAINT_MAPPING%CREATE_VALUES_CACHE%JACOBIAN_COEFFICIENT=JACOBIAN_COEFFICIENT
         ELSE
           CALL FLAG_ERROR("Constraint mapping create values cache is not associated",ERR,ERROR,*999)
         ENDIF
@@ -1966,12 +2160,12 @@ CONTAINS
       CALL FLAG_ERROR("Constraint mapping is not associated",ERR,ERROR,*999)
     ENDIF
        
-    CALL EXITS("CONSTRAINT_MAPPING_RESIDUAL_COEFF_SET")
+    CALL EXITS("CONSTRAINT_MAPPING_JACOBIAN_COEFF_SET")
     RETURN
-999 CALL ERRORS("CONSTRAINT_MAPPING_RESIDUAL_COEFF_SET",ERR,ERROR)
-    CALL EXITS("CONSTRAINT_MAPPING_RESIDUAL_COEFF_SET")
+999 CALL ERRORS("CONSTRAINT_MAPPING_JACOBIAN_COEFF_SET",ERR,ERROR)
+    CALL EXITS("CONSTRAINT_MAPPING_JACOBIAN_COEFF_SET")
     RETURN 1
-  END SUBROUTINE CONSTRAINT_MAPPING_RESIDUAL_COEFF_SET
+  END SUBROUTINE CONSTRAINT_MAPPING_JACOBIAN_COEFF_SET
  
   !
   !================================================================================================================================
@@ -2006,26 +2200,26 @@ CONTAINS
   !
  
   !>Initialises a variable to equations Jacobian map
-  SUBROUTINE CONSTRAINT_MAPPING_VAR_TO_CONSTR_JACOBIAN_MAP_INITIALISE(VAR_TO_EQUATIONS_JACOBIAN_MAP,ERR,ERROR,*)
+  SUBROUTINE CONSTRAINT_MAPPING_VAR_TO_CONSTR_JACOBIAN_MAP_INIT(VAR_TO_CONSTRAINT_JACOBIAN_MAP,ERR,ERROR,*)
  
     !Argument variables
-    TYPE(VAR_TO_EQUATIONS_JACOBIAN_MAP_TYPE) :: VAR_TO_EQUATIONS_JACOBIAN_MAP !<The variable to equations Jacobian map to initialise
+    TYPE(VAR_TO_CONSTRAINT_JACOBIAN_MAP_TYPE) :: VAR_TO_CONSTRAINT_JACOBIAN_MAP !<The variable to constraint Jacobian map to initialise
     INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
     !Local Variables
  
-    CALL ENTERS("CONSTRAINT_MAPPING_VAR_TO_CONSTR_JACOBIAN_MAP_INITIALISE",ERR,ERROR,*999)
+    CALL ENTERS("CONSTRAINT_MAPPING_VAR_TO_CONSTR_JACOBIAN_MAP_INIT",ERR,ERROR,*999)
     
-    VAR_TO_EQUATIONS_JACOBIAN_MAP%VARIABLE_TYPE=0
-    NULLIFY(VAR_TO_EQUATIONS_JACOBIAN_MAP%VARIABLE)
+    VAR_TO_CONSTRAINT_JACOBIAN_MAP%VARIABLE_TYPE=0
+    NULLIFY(VAR_TO_CONSTRAINT_JACOBIAN_MAP%VARIABLE)
     
-    CALL EXITS("CONSTRAINT_MAPPING_VAR_TO_CONSTR_JACOBIAN_MAP_INITIALISE")
+    CALL EXITS("CONSTRAINT_MAPPING_VAR_TO_CONSTR_JACOBIAN_MAP_INIT")
     RETURN
-999 CALL ERRORS("CONSTRAINT_MAPPING_VAR_TO_CONSTR_JACOBIAN_MAP_INITIALISE",ERR,ERROR)    
-    CALL EXITS("CONSTRAINT_MAPPING_VAR_TO_CONSTR_JACOBIAN_MAP_INITIALISE")
+999 CALL ERRORS("CONSTRAINT_MAPPING_VAR_TO_CONSTR_JACOBIAN_MAP_INIT",ERR,ERROR)    
+    CALL EXITS("CONSTRAINT_MAPPING_VAR_TO_CONSTR_JACOBIAN_MAP_INIT")
     RETURN 1
    
-  END SUBROUTINE CONSTRAINT_MAPPING_VAR_TO_CONSTR_JACOBIAN_MAP_INITIALISE
+  END SUBROUTINE CONSTRAINT_MAPPING_VAR_TO_CONSTR_JACOBIAN_MAP_INIT
  
   !
   !================================================================================================================================
@@ -2061,7 +2255,7 @@ CONTAINS
   !
  
   !>Initialise an constraint mapping constraint matrix map.
-  SUBROUTINE CONSTRAINT_MAPPING_VAR_TO_CONSTR_MATRICES_MAP_INITIALISE(VAR_TO_CONSTRAINT_MATRICES_MAP,ERR,ERROR,*)
+  SUBROUTINE CONSTRAINT_MAPPING_VAR_TO_CONSTR_MATRICES_MAP_INIT(VAR_TO_CONSTRAINT_MATRICES_MAP,ERR,ERROR,*)
  
     !Argument variables
     TYPE(VAR_TO_CONSTRAINT_MATRICES_MAP_TYPE) :: VAR_TO_CONSTRAINT_MATRICES_MAP !<The variable to constraint matrices map to initialise
@@ -2069,19 +2263,19 @@ CONTAINS
     TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
     !Local Variables
  
-    CALL ENTERS("CONSTRAINT_MAPPING_VAR_TO_CONSTR_MATRICES_MAP_INITIALISE",ERR,ERROR,*999)
+    CALL ENTERS("CONSTRAINT_MAPPING_VAR_TO_CONSTR_MATRICES_MAP_INIT",ERR,ERROR,*999)
  
     VAR_TO_CONSTRAINT_MATRICES_MAP%VARIABLE_TYPE=0
     NULLIFY(VAR_TO_CONSTRAINT_MATRICES_MAP%VARIABLE)
     VAR_TO_CONSTRAINT_MATRICES_MAP%NUMBER_OF_CONSTRAINT_MATRICES=0
     
-    CALL EXITS("CONSTRAINT_MAPPING_VAR_TO_CONSTR_MATRICES_MAP_INITIALISE")
+    CALL EXITS("CONSTRAINT_MAPPING_VAR_TO_CONSTR_MATRICES_MAP_INIT")
     RETURN
-999 CALL ERRORS("CONSTRAINT_MAPPING_VAR_TO_CONSTR_MATRICES_MAP_INITIALISE",ERR,ERROR)    
-    CALL EXITS("CONSTRAINT_MAPPING_VAR_TO_CONSTR_MATRICES_MAP_INITIALISE")
+999 CALL ERRORS("CONSTRAINT_MAPPING_VAR_TO_CONSTR_MATRICES_MAP_INIT",ERR,ERROR)    
+    CALL EXITS("CONSTRAINT_MAPPING_VAR_TO_CONSTR_MATRICES_MAP_INIT")
     RETURN 1
    
-  END SUBROUTINE CONSTRAINT_MAPPING_VAR_TO_CONSTR_MATRICES_MAP_INITIALISE
+  END SUBROUTINE CONSTRAINT_MAPPING_VAR_TO_CONSTR_MATRICES_MAP_INIT
  
   !
   !================================================================================================================================
