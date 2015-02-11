@@ -99,7 +99,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) ::       ERR !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) ::    ERROR !<The error string
     !Local Variables
-    INTEGER(INTG) :: row_idx,column_idx,dof_idx,matrix_idx,variable_idx,number_of_constraint_matrices
+    INTEGER(INTG) :: row_idx,column_idx,dof_idx,matrix_idx,number_of_constraint_matrices
     TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET
     TYPE(FIELD_TYPE), POINTER :: LAGRANGE_FIELD,DEPENDENT_FIELD
     TYPE(FIELD_VARIABLE_TYPE), POINTER :: FIELD_VARIABLE,LAGRANGE_VARIABLE
@@ -159,6 +159,8 @@ CONTAINS
                       column_idx=LAGRANGE_VARIABLE%DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(dof_idx)
                       DYNAMIC_MAPPING%LAGRANGE_DOF_TO_COLUMN_MAP(dof_idx)=column_idx
                     ENDDO
+                    ALLOCATE(DYNAMIC_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP,STAT=ERR)
+                    IF(ERR/=0) CALL FLAG_ERROR("Could not allocate variable to constraint matrices map.",ERR,ERROR,*999)
                     CALL CONSTRAINT_MAPPING_VAR_TO_CONSTR_MATRICES_MAP_INIT( &
                       & DYNAMIC_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP,ERR,ERROR,*999)
                     DYNAMIC_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%VARIABLE_TYPE=CREATE_VALUES_CACHE%DYNAMIC_VARIABLE_TYPE
@@ -230,6 +232,7 @@ CONTAINS
                       !Initialise and setup the constraint matrix
                       CALL CONSTRAINT_MAPPING_CONSTR_MATRIX_TO_VAR_MAP_INIT(DYNAMIC_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP( &
                         & matrix_idx),ERR,ERROR,*999)
+                      EQUATIONS_SET=>CONSTRAINT_DEPENDENT%EQUATIONS_SET
                       IF(ASSOCIATED(EQUATIONS_SET)) THEN
                         FIELD_VARIABLE=>DYNAMIC_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%VARIABLE
                         IF(ASSOCIATED(FIELD_VARIABLE)) THEN
@@ -334,6 +337,8 @@ CONTAINS
                      column_idx=LAGRANGE_VARIABLE%DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(dof_idx)
                      LINEAR_MAPPING%LAGRANGE_DOF_TO_COLUMN_MAP(dof_idx)=column_idx
                    ENDDO
+                   ALLOCATE(LINEAR_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP,STAT=ERR)
+                   IF(ERR/=0) CALL FLAG_ERROR("Could not allocate variable to constraint matrices map.",ERR,ERROR,*999)
                    CALL CONSTRAINT_MAPPING_VAR_TO_CONSTR_MATRICES_MAP_INIT( &
                      & LINEAR_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP,ERR,ERROR,*999)
                     LINEAR_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%VARIABLE_TYPE=CREATE_VALUES_CACHE%LINEAR_VARIABLE_TYPE
@@ -484,6 +489,8 @@ CONTAINS
                       column_idx=LAGRANGE_VARIABLE%DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(dof_idx)
                       NONLINEAR_MAPPING%LAGRANGE_DOF_TO_COLUMN_MAP(dof_idx)=column_idx
                     ENDDO
+                    ALLOCATE(NONLINEAR_MAPPING%VAR_TO_CONSTRAINT_JACOBIAN_MAP,STAT=ERR)
+                    IF(ERR/=0) CALL FLAG_ERROR("Could not allocate variable to constraint Jacobians map.",ERR,ERROR,*999)
                     CALL CONSTRAINT_MAPPING_VAR_TO_CONSTR_JACOBIAN_MAP_INIT( &
                       & NONLINEAR_MAPPING%VAR_TO_CONSTRAINT_JACOBIAN_MAP,ERR,ERROR,*999)
                     NONLINEAR_MAPPING%VAR_TO_CONSTRAINT_JACOBIAN_MAP%VARIABLE_TYPE=CREATE_VALUES_CACHE%JACOBIAN_VARIABLE_TYPE
@@ -958,7 +965,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
     !Local Variables
-    INTEGER(INTG) :: DUMMY_ERR,variable_idx,variable_type_idx,variable_type_idx2
+    INTEGER(INTG) :: DUMMY_ERR,variable_type_idx,variable_type_idx2
     TYPE(FIELD_TYPE), POINTER :: LAGRANGE_FIELD,CONSTRAINT_DEPENDENT_FIELD
     TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION
     TYPE(CONSTRAINT_DEPENDENT_TYPE), POINTER :: CONSTRAINT_DEPENDENT
@@ -1855,7 +1862,6 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: ERR !<The error code 
     TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
     !Local Variables
-    INTEGER(INTG) :: matrix_idx
  
     CALL ENTERS("CONSTRAINT_MAPPING_FINALISE",ERR,ERROR,*999)
  
@@ -2233,7 +2239,6 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
     !Local Variables
-    INTEGER(INTG) :: matrix_idx
  
     CALL ENTERS("CONSTRAINT_MAPPING_VAR_TO_CONSTR_MATRICES_MAP_FINALISE",ERR,ERROR,*999)
     

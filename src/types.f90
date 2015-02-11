@@ -2004,6 +2004,8 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     LOGICAL :: HAS_TRANSPOSE !<.TRUE. if the Jacobian matrix has a tranpose, .FALSE. if not.  
     TYPE(DISTRIBUTED_MATRIX_TYPE), POINTER :: JACOBIAN !<A pointer to the distributed jacobian matrix data
     TYPE(DISTRIBUTED_MATRIX_TYPE), POINTER :: JACOBIAN_TRANSPOSE !<A pointer to the distributed jacobian matrix transpose data
+    TYPE(DISTRIBUTED_VECTOR_TYPE), POINTER :: TEMP_VECTOR !<Temporary vector used for assembly. 
+    TYPE(DISTRIBUTED_VECTOR_TYPE), POINTER :: TEMP_TRANSPOSE_VECTOR !<Temporary vector used for assembly. 
     TYPE(ELEMENT_MATRIX_TYPE) :: ELEMENT_JACOBIAN !<The element matrix for this Jacobian matrix. This is not used if the Jacobian is not supplied.
     INTEGER(INTG) :: JACOBIAN_CALCULATION_TYPE !<The calculation type (analytic of finite difference) of the Jacobian.
   END TYPE CONSTRAINT_JACOBIAN_TYPE
@@ -2212,13 +2214,6 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
   !
 
   ! Constraint interpolation types
-
-  !>Contains information about the interpolation for a parameter set in constraint equations
-  TYPE CONSTRAINT_EQUATIONS_INTERPOLATION_SET_TYPE
-    TYPE(FIELD_INTERPOLATION_PARAMETERS_PTR_TYPE), POINTER :: INTERPOLATION_PARAMETERS(:) !<INTERPOLATION_PARAMETERS(field_variable_type). A pointer to the field_variable_type'th field interpolation parameters.
-    TYPE(FIELD_INTERPOLATED_POINT_PTR_TYPE), POINTER :: INTERPOLATED_POINT(:) !<INTERPOLATED_POINT(field_variable_type). A pointer to the field_variable_type'th field interpolated point. 
-    TYPE(FIELD_INTERPOLATED_POINT_METRICS_PTR_TYPE), POINTER :: INTERPOLATED_POINT_METRICS(:) !<INTERPOLATED_POINT_METRICS(field_variable_type). A pointer to the field_variable_type'th field interpolated point metrics.
-  END TYPE CONSTRAINT_EQUATIONS_INTERPOLATION_SET_TYPE
 
   !>Contains information on the interpolation for the constraint equations
   TYPE CONSTRAINT_EQUATIONS_INTERPOLATION_TYPE
