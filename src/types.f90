@@ -1969,7 +1969,8 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
   
   !>Contains information about an constraint matrix.
   TYPE CONSTRAINT_MATRIX_TYPE
-    TYPE(CONSTRAINT_MATRICES_TYPE), POINTER :: CONSTRAINT_MATRICES !<A pointer to the constraint matrices for the constraint matrix.
+    TYPE(CONSTRAINT_MATRICES_DYNAMIC_TYPE), POINTER :: DYNAMIC_MATRICES !<A pointer to the dynamic constraints matrices for the dynamic equation matrix.
+    TYPE(CONSTRAINT_MATRICES_LINEAR_TYPE), POINTER :: LINEAR_MATRICES !<A pointer to the linear constraints matrices for the linear equation matrix.
     INTEGER(INTG) :: MATRIX_NUMBER !<The number of the constraint matrix
     INTEGER(INTG) :: STORAGE_TYPE !<The storage (sparsity) type for this matrix
     INTEGER(INTG) :: STRUCTURE_TYPE !<The structure (sparsity) type for this matrix

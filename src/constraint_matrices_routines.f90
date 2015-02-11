@@ -168,7 +168,12 @@ CONTAINS
 
     IF(ASSOCIATED(CONSTRAINT_JACOBIAN)) THEN
       IF(ASSOCIATED(CONSTRAINT_JACOBIAN%JACOBIAN)) CALL DISTRIBUTED_MATRIX_DESTROY(CONSTRAINT_JACOBIAN%JACOBIAN,ERR,ERROR,*999)
-      IF(ASSOCIATED(CONSTRAINT_MATRIX%MATRIX_TRANSPOSE)) CALL DISTRIBUTED_MATRIX_DESTROY(CONSTRAINT_JACOBIAN%JACOBIAN_TRANSPOSE,ERR,ERROR,*999)
+      IF(ASSOCIATED(CONSTRAINT_JACOBIAN%JACOBIAN_TRANSPOSE))  &
+        & CALL DISTRIBUTED_MATRIX_DESTROY(CONSTRAINT_JACOBIAN%JACOBIAN_TRANSPOSE,ERR,ERROR,*999)
+      IF(ASSOCIATED(CONSTRAINT_JACOBIAN%TEMP_VECTOR)) &
+        & CALL DISTRIBUTED_VECTOR_DESTROY(CONSTRAINT_JACOBIAN%TEMP_VECTOR,ERR,ERROR,*999)
+      IF(ASSOCIATED(CONSTRAINT_JACOBIAN%TEMP_TRANSPOSE_VECTOR)) &
+        & CALL DISTRIBUTED_VECTOR_DESTROY(CONSTRAINT_JACOBIAN%TEMP_TRANSPOSE_VECTOR,ERR,ERROR,*999)
       CALL CONSTRAINT_MATRICES_ELEMENT_MATRIX_FINALISE(CONSTRAINT_JACOBIAN%ELEMENT_JACOBIAN,ERR,ERROR,*999)
     ENDIF
     
@@ -1609,6 +1614,8 @@ CONTAINS
         & ERR,ERROR,*999)
       CALL CONSTRAINT_MATRICES_ELEMENT_MATRIX_FINALISE(CONSTRAINT_MATRIX%ELEMENT_MATRIX,ERR,ERROR,*999)
       IF(ASSOCIATED(CONSTRAINT_MATRIX%TEMP_VECTOR)) CALL DISTRIBUTED_VECTOR_DESTROY(CONSTRAINT_MATRIX%TEMP_VECTOR,ERR,ERROR,*999)
+      IF(ASSOCIATED(CONSTRAINT_MATRIX%TEMP_TRANSPOSE_VECTOR)) &
+        & CALL DISTRIBUTED_VECTOR_DESTROY(CONSTRAINT_MATRIX%TEMP_TRANSPOSE_VECTOR,ERR,ERROR,*999)
     ENDIF
     
     CALL EXITS("CONSTRAINT_MATRIX_FINALISE")
@@ -1969,6 +1976,10 @@ CONTAINS
             IF(ASSOCIATED(JACOBIAN_MATRIX)) THEN        
               CALL WRITE_STRING(ID,"Jacobian matrix:",ERR,ERROR,*999)
               CALL DISTRIBUTED_MATRIX_OUTPUT(ID,JACOBIAN_MATRIX%JACOBIAN,ERR,ERROR,*999)
+              IF(JACOBIAN_MATRIX%HAS_TRANSPOSE) THEN
+                CALL WRITE_STRING(ID,"Transposed Jacobian matrix:",ERR,ERROR,*999)
+                CALL DISTRIBUTED_MATRIX_OUTPUT(ID,JACOBIAN_MATRIX%JACOBIAN_TRANSPOSE,ERR,ERROR,*999)
+              ENDIF
             ELSE
               LOCAL_ERROR="Jacobian matrix for Jacobian matrix index "// &
                 & TRIM(NUMBER_TO_VSTRING(jacobian_matrix_idx,"*",ERR,ERROR))//" is not associated."
@@ -2265,6 +2276,10 @@ CONTAINS
             IF(ASSOCIATED(CONSTRAINT_MATRIX)) THEN
               CALL WRITE_STRING_VALUE(ID,"Constraint matrix : ",matrix_idx,ERR,ERROR,*999)
               CALL DISTRIBUTED_MATRIX_OUTPUT(ID,CONSTRAINT_MATRIX%MATRIX,ERR,ERROR,*999)
+              IF(CONSTRAINT_MATRIX%HAS_TRANSPOSE) THEN
+                CALL WRITE_STRING(ID,"Transposed matrix:",ERR,ERROR,*999)
+                CALL DISTRIBUTED_MATRIX_OUTPUT(ID,CONSTRAINT_MATRIX%MATRIX_TRANSPOSE,ERR,ERROR,*999)
+              ENDIF
             ELSE
               CALL FLAG_ERROR("Constraint matrix is not associated.",ERR,ERROR,*999)
             ENDIF
@@ -2279,6 +2294,10 @@ CONTAINS
             IF(ASSOCIATED(CONSTRAINT_MATRIX)) THEN
               CALL WRITE_STRING_VALUE(ID,"Constraint matrix : ",matrix_idx,ERR,ERROR,*999)
               CALL DISTRIBUTED_MATRIX_OUTPUT(ID,CONSTRAINT_MATRIX%MATRIX,ERR,ERROR,*999)
+              IF(CONSTRAINT_MATRIX%HAS_TRANSPOSE) THEN
+                CALL WRITE_STRING(ID,"Transposed matrix:",ERR,ERROR,*999)
+                CALL DISTRIBUTED_MATRIX_OUTPUT(ID,CONSTRAINT_MATRIX%MATRIX_TRANSPOSE,ERR,ERROR,*999)
+              ENDIF
             ELSE
               CALL FLAG_ERROR("Constraint matrix is not associated.",ERR,ERROR,*999)
             ENDIF
@@ -2964,13 +2983,13 @@ CONTAINS
           IF(CONSTRAINT_MAPPING%CONSTRAINT_MAPPING_FINISHED) THEN
             ALLOCATE(CONSTRAINT_EQUATIONS%CONSTRAINT_MATRICES,STAT=ERR)
             IF(ERR/=0) CALL FLAG_ERROR("Could not allocate equations constraint matrices.",ERR,ERROR,*999)
-            CONSTRAINT_EQUATIONS%CONSTRAINT_MATRICES%CONSTRAINT_EQUATIONSEQUATIONS
+            CONSTRAINT_EQUATIONS%CONSTRAINT_MATRICES%CONSTRAINT_EQUATIONS
             CONSTRAINT_EQUATIONS%CONSTRAINT_MATRICES%CONSTRAINT_MATRICES_FINISHED=.FALSE.
             CONSTRAINT_EQUATIONS%CONSTRAINT_MATRICES%CONSTRAINT_MAPPING=>CONSTRAINT_MAPPING
             NULLIFY(CONSTRAINT_EQUATIONS%CONSTRAINT_MATRICES%SOLVER_MAPPING)
-            CONSTRAINT_EQUATIONS%CONSTRAINT_MATRICES%NUMBER_OF_ROWS=CONSTRAINT_MAPPING%NUMBER_OF_ROWS
-            CONSTRAINT_EQUATIONS%CONSTRAINT_MATRICES%TOTAL_NUMBER_OF_ROWS=CONSTRAINT_MAPPING%TOTAL_NUMBER_OF_ROWS
-            CONSTRAINT_EQUATIONS%CONSTRAINT_MATRICES%NUMBER_OF_GLOBAL_ROWS=CONSTRAINT_MAPPING%NUMBER_OF_GLOBAL_ROWS
+            CONSTRAINT_EQUATIONS%CONSTRAINT_MATRICES%NUMBER_OF_COLUMNS=CONSTRAINT_MAPPING%NUMBER_OF_COLUMNS
+            CONSTRAINT_EQUATIONS%CONSTRAINT_MATRICES%TOTAL_NUMBER_OF_COLUMNS=CONSTRAINT_MAPPING%TOTAL_NUMBER_OF_COLUMNS
+            CONSTRAINT_EQUATIONS%CONSTRAINT_MATRICES%NUMBER_OF_GLOBAL_COLUMNS=CONSTRAINT_MAPPING%NUMBER_OF_GLOBAL_COLUMNS
             NULLIFY(CONSTRAINT_EQUATIONS%CONSTRAINT_MATRICES%DYNAMIC_MATRICES)
             NULLIFY(CONSTRAINT_EQUATIONS%CONSTRAINT_MATRICES%LINEAR_MATRICES)
             NULLIFY(CONSTRAINT_EQUATIONS%CONSTRAINT_MATRICES%NONLINEAR_MATRICES)
@@ -3034,6 +3053,9 @@ CONTAINS
             IF(ASSOCIATED(CONSTRAINT_MATRIX)) THEN
               IF(CONSTRAINT_MATRIX%UPDATE_MATRIX) THEN
                 CALL DISTRIBUTED_MATRIX_ALL_VALUES_SET(CONSTRAINT_MATRIX%MATRIX,VALUE,ERR,ERROR,*999)
+                IF(CONSTRAINT_MATRIX%HAS_TRANSPOSE) THEN
+                  CALL DISTRIBUTED_MATRIX_ALL_VALUES_SET(CONSTRAINT_MATRIX%MATRIX_TRANSPOSE,VALUE,ERR,ERROR,*999)
+                ENDIF
               ENDIF
             ELSE
               CALL FLAG_ERROR("Constraint matrix is not associated.",ERR,ERROR,*999)
@@ -3052,6 +3074,9 @@ CONTAINS
             IF(ASSOCIATED(CONSTRAINT_MATRIX)) THEN
               IF(CONSTRAINT_MATRIX%UPDATE_MATRIX) THEN
                 CALL DISTRIBUTED_MATRIX_ALL_VALUES_SET(CONSTRAINT_MATRIX%MATRIX,VALUE,ERR,ERROR,*999)
+                IF(CONSTRAINT_MATRIX%HAS_TRANSPOSE) THEN
+                  CALL DISTRIBUTED_MATRIX_ALL_VALUES_SET(CONSTRAINT_MATRIX%MATRIX_TRANSPOSE,VALUE,ERR,ERROR,*999)
+                ENDIF
               ENDIF
             ELSE
               CALL FLAG_ERROR("Constraint matrix is not associated.",ERR,ERROR,*999)
@@ -3069,6 +3094,9 @@ CONTAINS
             IF(ASSOCIATED(JACOBIAN_MATRIX)) THEN
               IF(JACOBIAN_MATRIX%UPDATE_JACOBIAN) THEN
                 CALL DISTRIBUTED_MATRIX_ALL_VALUES_SET(JACOBIAN_MATRIX%JACOBIAN,VALUE,ERR,ERROR,*999)
+                IF(JACOBIAN_MATRIX%HAS_TRANSPOSE) THEN
+                  CALL DISTRIBUTED_MATRIX_ALL_VALUES_SET(JACOBIAN_MATRIX%JACOBIAN_TRANSPOSE,VALUE,ERR,ERROR,*999)
+                ENDIF
               ENDIF
             ELSE
               CALL FLAG_ERROR("Jacobian matrix is not associated.",ERR,ERROR,*999)
@@ -3102,12 +3130,6 @@ CONTAINS
           ENDIF
         ENDIF
       ENDIF
-      IF(SELECTION_TYPE==CONSTRAINT_MATRICES_ALL.OR. &
-        & SELECTION_TYPE==CONSTRAINT_MATRICES_DYNAMIC_ONLY.OR. &
-        & SELECTION_TYPE==CONSTRAINT_MATRICES_LINEAR_ONLY.OR. &
-        & SELECTION_TYPE==CONSTRAINT_MATRICES_NONLINEAR_ONLY.OR. &
-        & SELECTION_TYPE==CONSTRAINT_MATRICES_VECTORS_ONLY) THEN    
-      ENDIF
     ELSE
       CALL FLAG_ERROR("Constraint matrices is not associated.",ERR,ERROR,*999)
     ENDIF
@@ -3122,7 +3144,907 @@ CONTAINS
   !
   !================================================================================================================================
   !
+  !>Caclulates the matrix structure (sparsity) for a equations matrix.
+  SUBROUTINE EquationsMatrix_StructureCalculate(equationsMatrix,numberOfNonZeros,rowIndices,columnIndices,list,err,error,*)
 
+    !Argument variables
+    TYPE(EQUATIONS_MATRIX_TYPE), POINTER :: equationsMatrix !<A pointer to the equations matrix to calculate the structure for
+    INTEGER(INTG), INTENT(OUT) :: numberOfNonZeros !<On return the number of non-zeros in the matrix
+    INTEGER(INTG), POINTER :: rowIndices(:) !<On return a pointer to row location indices in compressed row format. The pointer must be NULL on entry and the calling routine is responsible for deallocation.
+    INTEGER(INTG), POINTER :: columnIndices(:) !<On return a pointer to the column location indices in compressed row format. The pointer must be NULL on entry and the calling routine is responsible for deallocation.
+    type(LinkedList),pointer :: list(:) 
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+    INTEGER(INTG) ::  columnIdx,dummyErr,elementIdx,globalColumn,localColumn,local_ny,matrixNumber,mk,mp,ne,nh,nh2,nn,nnk,np
+    INTEGER(INTG) ::  numberOfColumns,nyy,nyyg,npg,nhg,local_cols,local_dof,mv
+    INTEGER(INTG) :: dofIdx,nodeIdx,componentIdx,localDofIdx
+    INTEGER(INTG) :: versionIdx,derivativeIdx,numberOfDerivatives,numberOfVersions
+    INTEGER(INTG), ALLOCATABLE :: columns(:)
+    REAL(DP) :: sparsity
+    TYPE(BASIS_TYPE), POINTER :: basis
+    TYPE(DOMAIN_MAPPING_TYPE), POINTER :: dependentDofsDomainMapping
+    TYPE(DOMAIN_ELEMENTS_TYPE), POINTER :: domainElements
+    TYPE(DOMAIN_NODES_TYPE), POINTER :: domainNodes
+    TYPE(EQUATIONS_TYPE), POINTER :: equations
+    TYPE(EQUATIONS_MAPPING_TYPE), POINTER :: equationsMapping
+    TYPE(EQUATIONS_MAPPING_DYNAMIC_TYPE), POINTER :: dynamicMapping
+    TYPE(EQUATIONS_MAPPING_LINEAR_TYPE), POINTER :: linearMapping
+    TYPE(EQUATIONS_MATRICES_TYPE), POINTER :: equationsMatrices
+    TYPE(EQUATIONS_MATRICES_DYNAMIC_TYPE), POINTER :: dynamicMatrices
+    TYPE(EQUATIONS_MATRICES_LINEAR_TYPE), POINTER :: linearMatrices
+    TYPE(EQUATIONS_SET_TYPE), POINTER :: equationsSet
+    TYPE(FIELD_TYPE), POINTER :: dependentField
+    TYPE(FIELD_DOF_TO_PARAM_MAP_TYPE), POINTER :: dependentDofsParamMapping
+    TYPE(FIELD_VARIABLE_TYPE), POINTER :: fieldVariable
+    TYPE(LIST_PTR_TYPE), ALLOCATABLE :: columnIndicesLists(:)
+    TYPE(VARYING_STRING) :: dummyError,localError
+    CALL ENTERS("EquationsMatrix_StructureCalculate",err,error,*998)
+
+    numberOfNonZeros=0
+    IF(ASSOCIATED(equationsMatrix)) THEN
+      IF(.NOT.ASSOCIATED(rowIndices)) THEN
+        IF(.NOT.ASSOCIATED(columnIndices)) THEN
+          matrixNumber=equationsMatrix%MATRIX_NUMBER
+          SELECT CASE(equationsMatrix%STRUCTURE_TYPE)
+          CASE(EQUATIONS_MATRIX_NO_STRUCTURE)
+            CALL FLAG_ERROR("There is no structure to calculate for a matrix with no structure.",err,error,*998)
+          CASE(EQUATIONS_MATRIX_FEM_STRUCTURE)
+            SELECT CASE(equationsMatrix%STORAGE_TYPE)
+            CASE(MATRIX_COMPRESSED_ROW_STORAGE_TYPE)
+              linearMatrices=>equationsMatrix%LINEAR_MATRICES
+              dynamicMatrices=>equationsMatrix%DYNAMIC_MATRICES
+              IF(ASSOCIATED(dynamicMatrices).OR.ASSOCIATED(linearMatrices)) THEN
+                IF(ASSOCIATED(dynamicMatrices)) THEN
+                  equationsMatrices=>dynamicMatrices%EQUATIONS_MATRICES
+                ELSE
+                  equationsMatrices=>linearMatrices%EQUATIONS_MATRICES
+                ENDIF
+                IF(ASSOCIATED(equationsMatrices)) THEN
+                  equations=>equationsMatrices%EQUATIONS
+                  IF(ASSOCIATED(equations)) THEN
+                    equationsMapping=>equationsMatrices%EQUATIONS_MAPPING
+                    IF(ASSOCIATED(equationsMapping)) THEN
+                      dynamicMapping=>equationsMapping%DYNAMIC_MAPPING
+                      linearMapping=>equationsMapping%LINEAR_MAPPING
+                      IF(ASSOCIATED(dynamicMapping).OR.ASSOCIATED(linearMapping)) THEN
+                        equationsSet=>equations%EQUATIONS_SET
+                        IF(ASSOCIATED(equationsSet)) THEN
+                          dependentField=>equationsSet%DEPENDENT%DEPENDENT_FIELD
+                          IF(ASSOCIATED(dependentField)) THEN
+                            IF(ASSOCIATED(dynamicMatrices)) THEN
+                              fieldVariable=>dynamicMapping%EQUATIONS_MATRIX_TO_VAR_MAPS(matrixNumber)%VARIABLE
+                            ELSE
+                              fieldVariable=>linearMapping%EQUATIONS_MATRIX_TO_VAR_MAPS(matrixNumber)%VARIABLE
+                            ENDIF
+                            IF(ASSOCIATED(fieldVariable)) THEN
+                              dependentDofsDomainMapping=>fieldVariable%DOMAIN_MAPPING
+                              IF(ASSOCIATED(dependentDofsDomainMapping)) THEN
+                                dependentDofsParamMapping=>fieldVariable%DOF_TO_PARAM_MAP
+                                IF(ASSOCIATED(dependentDofsParamMapping)) THEN
+                                  !Allocate lists
+                                  ALLOCATE(columnIndicesLists(dependentDofsDomainMapping%TOTAL_NUMBER_OF_LOCAL),STAT=ERR)
+                                  IF(ERR/=0) CALL FLAG_ERROR("Could not allocate column indices lists.",err,error,*999)
+                                  !Allocate row indices
+                                  ALLOCATE(rowIndices(dependentDofsDomainMapping%TOTAL_NUMBER_OF_LOCAL+1),STAT=ERR)
+                                  IF(ERR/=0) CALL FLAG_ERROR("Could not allocate row indices.",err,error,*999)
+                                  rowIndices(1)=1
+                                  
+                                  !First, loop over the rows and calculate the number of non-zeros
+                                  numberOfNonZeros=0
+                                  DO local_ny=1,dependentDofsDomainMapping%TOTAL_NUMBER_OF_LOCAL
+                                    IF(dependentDofsParamMapping%DOF_TYPE(1,local_ny)==FIELD_NODE_DOF_TYPE) THEN
+                                      nyy=dependentDofsParamMapping%DOF_TYPE(2,local_ny)!value for a particular field dof (local_ny)
+                                      np=dependentDofsParamMapping%NODE_DOF2PARAM_MAP(3,nyy)!node number (np) of the field parameter
+                                      nh=dependentDofsParamMapping%NODE_DOF2PARAM_MAP(4,nyy)!component number (nh) of the field parameter
+                                      domainNodes=>fieldVariable%COMPONENTS(nh)%DOMAIN%TOPOLOGY%NODES
+                                      
+                                      !Set up list
+                                      NULLIFY(columnIndicesLists(local_ny)%PTR)
+                                      CALL LIST_CREATE_START(columnIndicesLists(local_ny)%PTR,err,error,*999)
+                                      CALL LIST_DATA_TYPE_SET(columnIndicesLists(local_ny)%PTR,LIST_INTG_TYPE,err,error,*999)
+                                      CALL LIST_INITIAL_SIZE_SET(columnIndicesLists(local_ny)%PTR,domainNodes%NODES(np)% &
+                                        & NUMBER_OF_SURROUNDING_ELEMENTS*fieldVariable%COMPONENTS(nh)% &
+                                        & maxNumberElementInterpolationParameters,err,error,*999)
+                                      CALL LIST_CREATE_FINISH(columnIndicesLists(local_ny)%PTR,err,error,*999)
+                                      !Loop over all elements containing the dof
+                                      DO elementIdx=1,domainNodes%NODES(np)%NUMBER_OF_SURROUNDING_ELEMENTS
+                                        ne=domainNodes%NODES(np)%SURROUNDING_ELEMENTS(elementIdx)
+                                        DO nh2=1,fieldVariable%NUMBER_OF_COMPONENTS
+                                          domainElements=>fieldVariable%COMPONENTS(nh2)%DOMAIN%TOPOLOGY%ELEMENTS
+                                          basis=>domainElements%ELEMENTS(ne)%BASIS
+                                          DO nn=1,basis%NUMBER_OF_NODES
+                                            mp=domainElements%ELEMENTS(ne)%ELEMENT_NODES(nn)
+                                            DO nnk=1,basis%NUMBER_OF_DERIVATIVES(nn)
+                                              mk=domainElements%ELEMENTS(ne)%ELEMENT_DERIVATIVES(nnk,nn)
+                                              mv=domainElements%ELEMENTS(ne)%elementVersions(nnk,nn)
+                                              !Find the local and global column and add the global column to the indices list
+                                              localColumn=fieldVariable%COMPONENTS(nh2)%PARAM_TO_DOF_MAP%NODE_PARAM2DOF_MAP% &
+                                                & NODES(mp)%DERIVATIVES(mk)%VERSIONS(mv)
+                                              globalColumn=fieldVariable%DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(localColumn)
+                                          
+                                              CALL LIST_ITEM_ADD(columnIndicesLists(local_ny)%PTR,globalColumn,err,error,*999)
+                                                
+                                            ENDDO !mk
+                                          ENDDO !nn
+                                        ENDDO !nh2
+                                      ENDDO !elementIdx
+                                      CALL LIST_REMOVE_DUPLICATES(columnIndicesLists(local_ny)%PTR,err,error,*999)
+                                      CALL LIST_NUMBER_OF_ITEMS_GET(columnIndicesLists(local_ny)%PTR,numberOfColumns, &
+                                        & err,error,*999)
+                                      numberOfNonZeros=numberOfNonZeros+numberOfColumns
+                                      rowIndices(local_ny+1)=numberOfNonZeros+1
+                                    ELSE
+                                      localError="Local dof number "//TRIM(NUMBER_TO_VSTRING(local_ny,"*",err,error))// &
+                                        & " is not a node based dof."
+                                      CALL FLAG_ERROR(localError,err,error,*999)
+                                    ENDIF
+                                  ENDDO !local_ny
+                                  
+                                  
+                                  !Allocate and setup the column locations
+                                  ALLOCATE(columnIndices(numberOfNonZeros),STAT=ERR)
+
+                                  ALLOCATE(list(dependentDofsDomainMapping%NUMBER_OF_GLOBAL))
+
+                                  IF(ERR/=0) CALL FLAG_ERROR("Could not allocate column indices.",err,error,*999)
+                                  DO local_ny=1,dependentDofsDomainMapping%TOTAL_NUMBER_OF_LOCAL
+                                   
+                                    CALL LIST_DETACH_AND_DESTROY(columnIndicesLists(local_ny)%PTR,numberOfColumns,columns, &
+                                      & err,error,*999)        
+                                    DO columnIdx=1,numberOfColumns
+                                      !COLUMNS store the list of nonzero column indices for each local row (local_ny)
+                                      columnIndices(rowIndices(local_ny)+columnIdx-1)=columns(columnIdx) 
+
+                                      ! global to local columns
+                                       IF(ASSOCIATED(linearMapping).OR.ASSOCIATED(dynamicMapping)) THEN
+                                         IF(ASSOCIATED(dynamicMatrices)) THEN
+                                           local_cols=equationsMatrices%equations_mapping%dynamic_mapping &
+                                             & %equations_matrix_to_var_maps(1)%column_dofs_mapping%global_to_local_map &
+                                             & (columns(columnIdx))%LOCAL_NUMBER(1)
+                                           local_dof = local_cols
+                                           ! Column to dof mapping?
+                                           !local_dof=equationsMatrices%equations_mapping%dynamic_mapping% &
+                                            ! & equations_matrix_to_var_maps(1)%column_to_dof_map(local_cols)
+                                         ELSE
+                                           local_cols=equationsMatrices%equations_mapping%linear_mapping &
+                                             & %equations_matrix_to_var_maps(1)%column_dofs_mapping%global_to_local_map &
+                                             & (columns(columnIdx))%LOCAL_NUMBER(1)
+                                           local_dof = local_cols
+                                         ENDIF
+                                       ENDIF
+                                       nyyg=dependentDofsParamMapping%DOF_TYPE(2,local_dof)
+                                       npg=dependentDofsParamMapping%NODE_DOF2PARAM_MAP(3,nyyg)
+                                       nhg=dependentDofsParamMapping%NODE_DOF2PARAM_MAP(4,nyyg)
+                                       domainNodes=>fieldVariable%COMPONENTS(nhg)%DOMAIN%TOPOLOGY%NODES
+                            
+                                      ! Check whether boundary node    
+                                      IF(domainNodes%NODES(npg)%BOUNDARY_NODE)THEN
+                                        CALL LinkedList_Add(list(columns(columnIdx)),local_ny)
+                                      ENDIF
+                                    
+                                    ENDDO !columnIdx
+                                    DEALLOCATE(columns)                                    
+                                  ENDDO !local_ny
+
+                                 
+                                  IF(DIAGNOSTICS1) THEN
+                                    CALL WRITE_STRING(DIAGNOSTIC_OUTPUT_TYPE,"Equations matrix structure:",err,error,*999)
+                                    CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"Equations matrix number : ",matrixNumber, &
+                                      & err,error,*999)
+                                    CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"  Number of rows = ", &
+                                      & dependentDofsDomainMapping%TOTAL_NUMBER_OF_LOCAL,err,error,*999)
+                                    CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"  Number of columns = ", &
+                                      & dependentDofsDomainMapping%NUMBER_OF_GLOBAL,err,error,*999)
+                                    CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"  Number of non zeros = ", &
+                                      & numberOfNonZeros,err,error,*999)
+                                    IF(dependentDofsDomainMapping%TOTAL_NUMBER_OF_LOCAL* &
+                                      & dependentDofsDomainMapping%NUMBER_OF_GLOBAL/=0) THEN
+                                      sparsity=(1.0_DP-REAL(numberOfNonZeros,DP)/REAL(dependentDofsDomainMapping% &
+                                        & TOTAL_NUMBER_OF_LOCAL*dependentDofsDomainMapping%NUMBER_OF_GLOBAL,DP))*100.0_DP
+                                      CALL WRITE_STRING_FMT_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"  Sparsity (% of zeros) = ", &
+                                        & sparsity,"F6.2",err,error,*999)
+                                    ENDIF
+                                    CALL WRITE_STRING_VECTOR(DIAGNOSTIC_OUTPUT_TYPE,1,1,dependentDofsDomainMapping% &
+                                      & TOTAL_NUMBER_OF_LOCAL+1,8,8,rowIndices,'("  Row indices    :",8(X,I13))', &
+                                      & '(18X,8(X,I13))',err,error,*999)
+                                    CALL WRITE_STRING_VECTOR(DIAGNOSTIC_OUTPUT_TYPE,1,1,numberOfNonZeros,8,8,columnIndices, &
+                                      & '("  Column indices :",8(X,I13))','(18X,8(X,I13))', err,error,*999)
+                                  ENDIF
+                                ELSE
+                                  CALL FLAG_ERROR("Dependent dofs parameter mapping is not associated.",err,error,*999)
+                                ENDIF
+                              ELSE
+                                CALL FLAG_ERROR("Dependent dofs domain mapping is not associated.",err,error,*999)
+                              ENDIF
+                            ELSE
+                              CALL FLAG_ERROR("Dependent field variable is not associated.",err,error,*999)
+                            ENDIF
+                          ELSE
+                            CALL FLAG_ERROR("Equations set dependent field is not associated.",err,error,*999)
+                          ENDIF
+                        ELSE
+                          CALL FLAG_ERROR("Equations set is not associated.",err,error,*999)
+                        ENDIF
+                      ELSE
+                        CALL FLAG_ERROR("Either equations mapping dynamic mapping or linear mapping is not associated.", &
+                          & err,error,*999)
+                      ENDIF
+                    ELSE
+                      CALL FLAG_ERROR("Equations mapping is not associated.",err,error,*999)
+                    ENDIF
+                  ELSE
+                    CALL FLAG_ERROR("Equations is not associated.",err,error,*999)
+                  ENDIF
+                ELSE
+                  CALL FLAG_ERROR("Dynamic or linear matrices equations matrices is not associated.",err,error,*999)
+                ENDIF
+              ELSE
+                CALL FLAG_ERROR("Either equations matrix dynamic or linear matrices is not associated.",err,error,*999)
+              ENDIF
+            CASE DEFAULT
+              localError="The matrix storage type of "// &
+                & TRIM(NUMBER_TO_VSTRING(equationsMatrix%STORAGE_TYPE,"*",err,error))//" is invalid."
+              CALL FLAG_ERROR(localError,err,error,*999)
+            END SELECT
+
+          CASE(EquationsMatrix_NodalStructure)
+            SELECT CASE(equationsMatrix%STORAGE_TYPE)
+            CASE(MATRIX_COMPRESSED_ROW_STORAGE_TYPE)
+              linearMatrices=>equationsMatrix%LINEAR_MATRICES
+              dynamicMatrices=>equationsMatrix%DYNAMIC_MATRICES
+              IF(ASSOCIATED(dynamicMatrices).OR.ASSOCIATED(linearMatrices)) THEN
+                IF(ASSOCIATED(dynamicMatrices)) THEN
+                  equationsMatrices=>dynamicMatrices%EQUATIONS_MATRICES
+                ELSE
+                  equationsMatrices=>linearMatrices%EQUATIONS_MATRICES
+                ENDIF
+                IF(ASSOCIATED(equationsMatrices)) THEN
+                  equations=>equationsMatrices%EQUATIONS
+                  IF(ASSOCIATED(equations)) THEN
+                    equationsMapping=>equationsMatrices%EQUATIONS_MAPPING
+                    IF(ASSOCIATED(equationsMapping)) THEN
+                      dynamicMapping=>equationsMapping%DYNAMIC_MAPPING
+                      linearMapping=>equationsMapping%LINEAR_MAPPING
+                      IF(ASSOCIATED(dynamicMapping).OR.ASSOCIATED(linearMapping)) THEN
+                        equationsSet=>equations%EQUATIONS_SET
+                        IF(ASSOCIATED(equationsSet)) THEN
+                          dependentField=>equationsSet%DEPENDENT%DEPENDENT_FIELD
+                          IF(ASSOCIATED(dependentField)) THEN
+                            IF(ASSOCIATED(dynamicMatrices)) THEN
+                              fieldVariable=>dynamicMapping%EQUATIONS_MATRIX_TO_VAR_MAPS(matrixNumber)%VARIABLE
+                            ELSE
+                              fieldVariable=>linearMapping%EQUATIONS_MATRIX_TO_VAR_MAPS(matrixNumber)%VARIABLE
+                            ENDIF
+                            IF(ASSOCIATED(fieldVariable)) THEN
+                              dependentDofsDomainMapping=>fieldVariable%DOMAIN_MAPPING
+                              IF(ASSOCIATED(dependentDofsDomainMapping)) THEN
+                                dependentDofsParamMapping=>fieldVariable%DOF_TO_PARAM_MAP
+                                IF(ASSOCIATED(dependentDofsParamMapping)) THEN
+                                  !Allocate lists
+                                  ALLOCATE(columnIndicesLists(dependentDofsDomainMapping%TOTAL_NUMBER_OF_LOCAL),STAT=ERR)
+                                  IF(ERR/=0) CALL FLAG_ERROR("Could not allocate column indices lists.",err,error,*999)
+                                  !Allocate row indices
+                                  ALLOCATE(rowIndices(dependentDofsDomainMapping%TOTAL_NUMBER_OF_LOCAL+1),STAT=ERR)
+                                  IF(ERR/=0) CALL FLAG_ERROR("Could not allocate row indices.",err,error,*999)
+                                  rowIndices(1)=1
+                                  
+                                  !First, loop over the rows and calculate the number of non-zeros
+                                  numberOfNonZeros=0
+                                  DO localDofIdx=1,dependentDofsDomainMapping%TOTAL_NUMBER_OF_LOCAL
+                                    IF(dependentDofsParamMapping%DOF_TYPE(1,localDofIdx)==FIELD_NODE_DOF_TYPE) THEN
+                                      dofIdx=dependentDofsParamMapping%DOF_TYPE(2,localDofIdx)!value for a particular field dof (localDofIdx)
+                                      nodeIdx=dependentDofsParamMapping%NODE_DOF2PARAM_MAP(3,dofIdx)!node number (np) of the field parameter
+                                      componentIdx=dependentDofsParamMapping%NODE_DOF2PARAM_MAP(4,dofIdx)!component number (nh) of the field parameter
+                                      domainNodes=>fieldVariable%COMPONENTS(componentIdx)%DOMAIN%TOPOLOGY%NODES
+                                      
+                                      !Set up list
+                                      NULLIFY(columnIndicesLists(localDofIdx)%PTR)
+                                      CALL LIST_CREATE_START(columnIndicesLists(localDofIdx)%PTR,err,error,*999)
+                                      CALL LIST_DATA_TYPE_SET(columnIndicesLists(localDofIdx)%PTR,LIST_INTG_TYPE,err,error,*999)
+
+                                      CALL LIST_INITIAL_SIZE_SET(columnIndicesLists(localDofIdx)%PTR, &
+                                        & fieldVariable%NUMBER_OF_COMPONENTS* &
+                                        & fieldVariable%maxNumberElementInterpolationParameters,err,error,*999)
+
+                                      CALL LIST_CREATE_FINISH(columnIndicesLists(localDofIdx)%PTR,err,error,*999)
+                                      !Loop over all components,nodes,derivatives, and versions
+                                      DO componentIdx=1,fieldVariable%NUMBER_OF_COMPONENTS
+                                        numberOfDerivatives=fieldVariable%components(componentIdx)%domain%topology% &
+                                         & nodes%nodes(nodeIdx)%NUMBER_OF_DERIVATIVES
+                                        DO derivativeIdx=1,numberOfDerivatives
+                                          numberOfVersions=fieldVariable%components(componentIdx)%domain%topology% &
+                                           & nodes%nodes(nodeIdx)%derivatives(derivativeIdx)%numberOfVersions
+                                          DO versionIdx=1,numberOfVersions
+                                            localColumn=fieldVariable%COMPONENTS(componentIdx)%PARAM_TO_DOF_MAP% &
+                                             & NODE_PARAM2DOF_MAP%NODES(nodeIdx)%DERIVATIVES(derivativeIdx)%VERSIONS(versionIdx)
+                                            globalColumn=fieldVariable%DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(localColumn)
+
+                                            CALL LIST_ITEM_ADD(columnIndicesLists(localDofIdx)%PTR,globalColumn,err,error,*999)
+                                            
+                                          ENDDO !versionIdx
+                                        ENDDO !derivativeIdx
+                                      ENDDO !componentIdx
+
+                                      CALL LIST_REMOVE_DUPLICATES(columnIndicesLists(localDofIdx)%PTR,err,error,*999)
+                                      CALL LIST_NUMBER_OF_ITEMS_GET(columnIndicesLists(localDofIdx)%PTR,numberOfColumns, &
+                                        & err,error,*999)
+                                      numberOfNonZeros=numberOfNonZeros+numberOfColumns
+                                      rowIndices(localDofIdx+1)=numberOfNonZeros+1
+                                    ELSE
+                                      localError="Local dof number "//TRIM(NUMBER_TO_VSTRING(localDofIdx,"*",err,error))// &
+                                        & " is not a node based dof."
+                                      CALL FLAG_ERROR(localError,err,error,*999)
+                                    ENDIF
+                                  ENDDO !localDofIdx
+                                  
+                                  !Allocate and setup the column locations
+                                  ALLOCATE(columnIndices(numberOfNonZeros),STAT=ERR)
+                                  ALLOCATE(list(dependentDofsDomainMapping%NUMBER_OF_GLOBAL))
+
+                                  IF(ERR/=0) CALL FLAG_ERROR("Could not allocate column indices.",err,error,*999)
+                                  DO localDofIdx=1,dependentDofsDomainMapping%TOTAL_NUMBER_OF_LOCAL
+                                   
+                                    CALL LIST_DETACH_AND_DESTROY(columnIndicesLists(localDofIdx)%PTR,numberOfColumns,columns, &
+                                      & err,error,*999)        
+                                    DO columnIdx=1,numberOfColumns
+                                      !columns store the list of nonzero column indices for each local row (localDofIdx)
+                                      columnIndices(rowIndices(localDofIdx)+columnIdx-1)=columns(columnIdx) 
+
+                                      ! global to local columns
+                                       IF(ASSOCIATED(linearMapping).OR.ASSOCIATED(dynamicMapping)) THEN
+                                         IF(ASSOCIATED(dynamicMatrices)) THEN
+                                           local_cols=equationsMatrices%equations_mapping%dynamic_mapping &
+                                             & %equations_matrix_to_var_maps(1)%column_dofs_mapping%global_to_local_map &
+                                             & (columns(columnIdx))%LOCAL_NUMBER(1)
+                                           local_dof = local_cols
+                                           ! Column to dof mapping?
+                                           !local_dof=equationsMatrices%equations_mapping%dynamic_mapping% &
+                                            ! & equations_matrix_to_var_maps(1)%column_to_dof_map(local_cols)
+                                         ELSE
+                                           local_cols=equationsMatrices%equations_mapping%linear_mapping &
+                                             & %equations_matrix_to_var_maps(1)%column_dofs_mapping%global_to_local_map &
+                                             & (columns(columnIdx))%LOCAL_NUMBER(1)
+                                           local_dof = local_cols
+                                         ENDIF
+                                       ENDIF
+                                       nyyg=dependentDofsParamMapping%DOF_TYPE(2,local_dof)
+                                       npg=dependentDofsParamMapping%NODE_DOF2PARAM_MAP(3,nyyg)
+                                       nhg=dependentDofsParamMapping%NODE_DOF2PARAM_MAP(4,nyyg)
+                                       domainNodes=>fieldVariable%COMPONENTS(nhg)%DOMAIN%TOPOLOGY%NODES
+                            
+                                      ! Check whether boundary node    
+                                      IF(domainNodes%NODES(npg)%BOUNDARY_NODE)THEN
+                                        CALL LinkedList_Add(list(columns(columnIdx)),localDofIdx)
+                                      ENDIF
+                                    
+                                    ENDDO !columnIdx
+                                    DEALLOCATE(columns)                                    
+                                  ENDDO !localDofIdx
+                                 
+                                  IF(DIAGNOSTICS1) THEN
+                                    CALL WRITE_STRING(DIAGNOSTIC_OUTPUT_TYPE,"Equations matrix structure:",err,error,*999)
+                                    CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"Equations matrix number : ",matrixNumber, &
+                                      & err,error,*999)
+                                    CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"  Number of rows = ", &
+                                      & dependentDofsDomainMapping%TOTAL_NUMBER_OF_LOCAL,err,error,*999)
+                                    CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"  Number of columns = ", &
+                                      & dependentDofsDomainMapping%NUMBER_OF_GLOBAL,err,error,*999)
+                                    CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"  Number of non zeros = ", &
+                                      & numberOfNonZeros,err,error,*999)
+                                    IF(dependentDofsDomainMapping%TOTAL_NUMBER_OF_LOCAL* &
+                                      & dependentDofsDomainMapping%NUMBER_OF_GLOBAL/=0) THEN
+                                      sparsity=(1.0_DP-REAL(numberOfNonZeros,DP)/REAL(dependentDofsDomainMapping% &
+                                        & TOTAL_NUMBER_OF_LOCAL*dependentDofsDomainMapping%NUMBER_OF_GLOBAL,DP))*100.0_DP
+                                      CALL WRITE_STRING_FMT_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"  Sparsity (% of zeros) = ", &
+                                        & sparsity,"F6.2",err,error,*999)
+                                    ENDIF
+                                    CALL WRITE_STRING_VECTOR(DIAGNOSTIC_OUTPUT_TYPE,1,1,dependentDofsDomainMapping% &
+                                      & TOTAL_NUMBER_OF_LOCAL+1,8,8,rowIndices,'("  Row indices    :",8(X,I13))', &
+                                      & '(18X,8(X,I13))',err,error,*999)
+                                    CALL WRITE_STRING_VECTOR(DIAGNOSTIC_OUTPUT_TYPE,1,1,numberOfNonZeros,8,8,columnIndices, &
+                                      & '("  Column indices :",8(X,I13))','(18X,8(X,I13))', err,error,*999)
+                                  ENDIF
+                                ELSE
+                                  CALL FLAG_ERROR("Dependent dofs parameter mapping is not associated.",err,error,*999)
+                                ENDIF
+                              ELSE
+                                CALL FLAG_ERROR("Dependent dofs domain mapping is not associated.",err,error,*999)
+                              ENDIF
+                            ELSE
+                              CALL FLAG_ERROR("Dependent field variable is not associated.",err,error,*999)
+                            ENDIF
+                          ELSE
+                            CALL FLAG_ERROR("Equations set dependent field is not associated.",err,error,*999)
+                          ENDIF
+                        ELSE
+                          CALL FLAG_ERROR("Equations set is not associated.",err,error,*999)
+                        ENDIF
+                      ELSE
+                        CALL FLAG_ERROR("Either equations mapping dynamic mapping or linear mapping is not associated.", &
+                          & err,error,*999)
+                      ENDIF
+                    ELSE
+                      CALL FLAG_ERROR("Equations mapping is not associated.",err,error,*999)
+                    ENDIF
+                  ELSE
+                    CALL FLAG_ERROR("Equations is not associated.",err,error,*999)
+                  ENDIF
+                ELSE
+                  CALL FLAG_ERROR("Dynamic or linear matrices equations matrices is not associated.",err,error,*999)
+                ENDIF
+              ELSE
+                CALL FLAG_ERROR("Either equations matrix dynamic or linear matrices is not associated.",err,error,*999)
+              ENDIF
+
+            CASE DEFAULT
+              localError="The matrix storage type of "// &
+                & TRIM(NUMBER_TO_VSTRING(equationsMatrix%STORAGE_TYPE,"*",err,error))//" is invalid."
+              CALL FLAG_ERROR(localError,err,error,*999)
+            END SELECT
+
+          CASE(EQUATIONS_MATRIX_DIAGONAL_STRUCTURE)
+            CALL FLAG_ERROR("There is not structure to calculate for a diagonal matrix.",err,error,*998)
+          CASE DEFAULT
+            localError="The matrix structure type of "// &
+              & TRIM(NUMBER_TO_VSTRING(equationsMatrix%STRUCTURE_TYPE,"*",err,error))//" is invalid."
+            CALL FLAG_ERROR(localError,err,error,*998)
+          END SELECT
+        ELSE
+          CALL FLAG_ERROR("Column indices is already associated.",err,error,*998)
+        ENDIF
+      ELSE
+        CALL FLAG_ERROR("Row indieces is already associated.",err,error,*998)
+      ENDIF
+    ELSE
+      CALL FLAG_ERROR("Equations matrix is not associated.",err,error,*999)
+    ENDIF
+      
+    CALL EXITS("EquationsMatrix_StructureCalculate")
+    RETURN
+999 IF(ASSOCIATED(rowIndices)) DEALLOCATE(rowIndices)
+    IF(ASSOCIATED(columnIndices)) DEALLOCATE(columnIndices)
+    IF(ALLOCATED(columns)) DEALLOCATE(columns)
+    IF(ALLOCATED(columnIndicesLists)) THEN
+      DO localDofIdx=1,dependentDofsDomainMapping%TOTAL_NUMBER_OF_LOCAL
+        IF(ASSOCIATED(columnIndicesLists(localDofIdx)%PTR)) &
+          & CALL LIST_DESTROY(columnIndicesLists(localDofIdx)%PTR,dummyErr,dummyError,*998)
+      ENDDO !localDofIdx
+      DEALLOCATE(columnIndicesLists)
+    ENDIF
+998 CALL ERRORS("EquationsMatrix_StructureCalculate",err,error)
+    CALL EXITS("EquationsMatrix_StructureCalculate")
+    RETURN 1
+  END SUBROUTINE EquationsMatrix_StructureCalculate
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Calculates the matrix structure (sparsity) for an constraint matrix.
+  SUBROUTINE CONSTRAINT_MATRIX_STRUCTURE_CALCULATE(CONSTRAINT_MATRIX,NUMBER_OF_NON_ZEROS,ROW_INDICES,COLUMN_INDICES, &
+    & TRANSPOSE_ROW_INDICES,TRANSPOSE_COLUMN_INDICES,ERR,ERROR,*)
+
+    !Argument variables
+    TYPE(CONSTRAINT_MATRIX_TYPE), POINTER :: CONSTRAINT_MATRIX !<A pointer to the constraint matrix to calculate the strucute for
+    INTEGER(INTG), INTENT(OUT) :: NUMBER_OF_NON_ZEROS !<On return, the number of non-zeros in the matrix
+    INTEGER(INTG), POINTER :: ROW_INDICES(:) !<On return, a pointer to row location indices in compressed row format. The pointer must be NULL on entry and the calling routine is responsible for deallocation.
+    INTEGER(INTG), POINTER :: COLUMN_INDICES(:) !<On return, a pointer to the column location indices in compressed row format. The pointer must be NULL on entry and the calling routine is responsible for deallocation.
+    INTEGER(INTG), POINTER :: TRANSPOSE_ROW_INDICES(:) !<On return, if the constraint matrix has a transpose a pointer to transpose row location indices in compressed row format. The pointer must be NULL on entry and the calling routine is responsible for deallocation.
+    INTEGER(INTG), POINTER :: TRANSPOSE_COLUMN_INDICES(:) !<On return, if the constraint matrix has a transpose a pointer to the transpose column location indices in compressed row format. The pointer must be NULL on entry and the calling routine is responsible for deallocation.
+    INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
+    !Local Variables
+   INTEGER(INTG) :: column_version,column_derivative,column_idx,column_component_idx,column_local_derivative_idx, &
+     & column_local_node_idx, column_node,DUMMY_ERR,domain_element,global_column,global_row,constraint_element_idx, &
+     & CONSTRAINT_MESH_INDEX,local_column,local_row,MATRIX_NUMBER,NUMBER_OF_COLUMNS,NUMBER_OF_ROWS,row_component_idx, &
+     & row_version,row_derivative,row_local_derivative_idx,row_idx,row_local_node_idx,row_node,TRANSPOSE_NUMBER_OF_NON_ZEROS
+    INTEGER(INTG), ALLOCATABLE :: COLUMNS(:),TRANSPOSE_COLUMNS(:)
+    REAL(DP) :: SPARSITY
+    TYPE(BASIS_TYPE), POINTER :: COLUMN_BASIS,ROW_BASIS
+    TYPE(DOMAIN_MAPPING_TYPE), POINTER :: COLUMN_DOFS_DOMAIN_MAPPING,ROW_DOFS_DOMAIN_MAPPING
+    TYPE(DOMAIN_ELEMENTS_TYPE), POINTER :: COLUMN_DOMAIN_ELEMENTS,ROW_DOMAIN_ELEMENTS
+    TYPE(CONSTRAINT_TYPE), POINTER :: CONSTRAINT
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION
+    TYPE(CONSTRAINT_EQUATIONS_TYPE), POINTER :: CONSTRAINT_EQUATIONS
+    TYPE(CONSTRAINT_MAPPING_TYPE), POINTER :: CONSTRAINT_MAPPING
+    TYPE(CONSTRAINT_MATRICES_TYPE), POINTER :: CONSTRAINT_MATRICES
+    TYPE(CONSTRAINT_MESH_CONNECTIVITY_TYPE), POINTER :: MESH_CONNECTIVITY
+    TYPE(FIELD_DOF_TO_PARAM_MAP_TYPE), POINTER :: COLUMN_DOFS_PARAM_MAPPING,ROW_DOFS_PARAM_MAPPING
+    TYPE(FIELD_VARIABLE_TYPE), POINTER :: COLUMN_VARIABLE,ROW_VARIABLE
+    TYPE(LIST_PTR_TYPE), ALLOCATABLE :: COLUMN_INDICES_LISTS(:)
+    TYPE(LIST_PTR_TYPE), ALLOCATABLE :: TRANSPOSE_COLUMN_INDICES_LISTS(:)
+    TYPE(VARYING_STRING) :: DUMMY_ERROR,LOCAL_ERROR
+
+    CALL ENTERS("CONSTRAINT_MATRIX_STRUCTURE_CALCULATE",ERR,ERROR,*999)
+
+    IF(ASSOCIATED(CONSTRAINT_MATRIX)) THEN
+      IF(.NOT.ASSOCIATED(ROW_INDICES)) THEN
+        IF(.NOT.ASSOCIATED(COLUMN_INDICES)) THEN
+          IF(.NOT.ASSOCIATED(TRANSPOSE_ROW_INDICES)) THEN
+            IF(.NOT.ASSOCIATED(TRANSPOSE_COLUMN_INDICES)) THEN
+              MATRIX_NUMBER=CONSTRAINT_MATRIX%MATRIX_NUMBER
+              SELECT CASE(CONSTRAINT_MATRIX%STRUCTURE_TYPE)
+              CASE(CONSTRAINT_MATRIX_NO_STRUCTURE)
+                CALL FLAG_ERROR("There is no structure to calculate for a matrix with no structure.",ERR,ERROR,*998)
+              CASE(CONSTRAINT_MATRIX_FEM_STRUCTURE)
+                SELECT CASE(CONSTRAINT_MATRIX%STORAGE_TYPE)
+                CASE(MATRIX_COMPRESSED_ROW_STORAGE_TYPE)
+              LINEAR_MATRICES=>CONSTRAINT_MATRIX%LINEAR_MATRICES
+              DYNAMIC_MATRICES=>CONSTRAINT_MATRIX%DYNAMIC_MATRICES
+              IF(ASSOCIATED(DYNAMIC_MATRICES) THEN
+                CONSTRAINT_MATRICES=>DYNAMIC_MATRICES%CONSTRAINT_MATRICES
+              ELSE IF(ASSOCIATED(LINEAR_MATRICES))
+                CONSTRAINT_MATRICES=>LINEAR_MATRICES%CONSTRAINT_MATRICES
+              ELSE
+                CALL FLAG_ERROR("Dynamic or linear matrices constraint matrices is not associated.",err,error,*999)
+              ENDIF
+                IF(ASSOCIATED(CONSTRAINT_MATRICES)) THEN
+                  CONSTRAINT_EQUATIONS=>CONSTRAINT_MATRICES%CONSTRAINT_EQUATIONS
+                  IF(ASSOCIATED(CONSTRAINT_EQUATIONS)) THEN
+                    CONSTRAINT_MAPPING=>CONSTRAINT_MATRICES%CONSTRAINT_MAPPING
+                    IF(ASSOCIATED(CONSTRAINT_MAPPING)) THEN
+                      CONSTRAINT_CONDITION=>CONSTRAINT_EQUATIONS%CONSTRAINT_CONDITION
+                      IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
+                        CONSTRAINT=>CONSTRAINT_CONDITION%CONSTRAINT
+                        IF(ASSOCIATED(CONSTRAINT)) THEN
+                            ROW_VARIABLE=>CONSTRAINT_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS(MATRIX_NUMBER)%VARIABLE
+                            IF(ASSOCIATED(ROW_VARIABLE)) THEN
+                              COLUMN_VARIABLE=>CONSTRAINT_MAPPING%LAGRANGE_VARIABLE
+                              IF(ASSOCIATED(COLUMN_VARIABLE)) THEN
+                                ROW_DOFS_DOMAIN_MAPPING=>ROW_VARIABLE%DOMAIN_MAPPING
+                                IF(ASSOCIATED(ROW_DOFS_DOMAIN_MAPPING)) THEN
+                                  COLUMN_DOFS_DOMAIN_MAPPING=>COLUMN_VARIABLE%DOMAIN_MAPPING
+                                  IF(ASSOCIATED(COLUMN_DOFS_DOMAIN_MAPPING)) THEN
+                                    ROW_DOFS_PARAM_MAPPING=>ROW_VARIABLE%DOF_TO_PARAM_MAP
+                                    IF(ASSOCIATED(ROW_DOFS_PARAM_MAPPING)) THEN
+                                      COLUMN_DOFS_PARAM_MAPPING=>COLUMN_VARIABLE%DOF_TO_PARAM_MAP
+                                      IF(ASSOCIATED(COLUMN_DOFS_PARAM_MAPPING)) THEN
+                                        !Allocate lists
+                                        ALLOCATE(COLUMN_INDICES_LISTS(ROW_DOFS_DOMAIN_MAPPING%TOTAL_NUMBER_OF_LOCAL),STAT=ERR)
+                                        IF(ERR/=0) CALL FLAG_ERROR("Could not allocate column indices lists.",ERR,ERROR,*999)
+                                        !Allocate row indices
+                                        ALLOCATE(ROW_INDICES(ROW_DOFS_DOMAIN_MAPPING%TOTAL_NUMBER_OF_LOCAL+1),STAT=ERR)
+                                        IF(ERR/=0) CALL FLAG_ERROR("Could not allocate row indices.",ERR,ERROR,*999)
+                                        ROW_INDICES(1)=1
+                                        DO local_row=1,ROW_DOFS_DOMAIN_MAPPING%TOTAL_NUMBER_OF_LOCAL
+                                          !Set up list
+                                          NULLIFY(COLUMN_INDICES_LISTS(local_row)%PTR)
+                                          CALL LIST_CREATE_START(COLUMN_INDICES_LISTS(local_row)%PTR,ERR,ERROR,*999)
+                                          CALL LIST_DATA_TYPE_SET(COLUMN_INDICES_LISTS(local_row)%PTR,LIST_INTG_TYPE, &
+                                            & ERR,ERROR,*999)
+                                          CALL LIST_INITIAL_SIZE_SET(COLUMN_INDICES_LISTS(local_row)%PTR,50,ERR,ERROR,*999)
+                                          CALL LIST_CREATE_FINISH(COLUMN_INDICES_LISTS(local_row)%PTR,ERR,ERROR,*999)
+                                        ENDDO !local_row
+                                        IF(CONSTRAINT_MATRIX%HAS_TRANSPOSE) THEN
+                                          !Allocate transpose lists
+                                          ALLOCATE(TRANSPOSE_COLUMN_INDICES_LISTS(COLUMN_DOFS_DOMAIN_MAPPING% &
+                                            & TOTAL_NUMBER_OF_LOCAL),STAT=ERR)
+                                          IF(ERR/=0) CALL FLAG_ERROR("Could not allocate transpose column indices lists.", &
+                                            & ERR,ERROR,*999)
+                                          DO local_column=1,COLUMN_DOFS_DOMAIN_MAPPING%TOTAL_NUMBER_OF_LOCAL
+                                            !Set up list
+                                            NULLIFY(TRANSPOSE_COLUMN_INDICES_LISTS(local_column)%PTR)
+                                            CALL LIST_CREATE_START(TRANSPOSE_COLUMN_INDICES_LISTS(local_column)%PTR, &
+                                              & ERR,ERROR,*999)
+                                            CALL LIST_DATA_TYPE_SET(TRANSPOSE_COLUMN_INDICES_LISTS(local_column)%PTR, &
+                                              & LIST_INTG_TYPE,ERR,ERROR,*999)
+                                            CALL LIST_INITIAL_SIZE_SET(TRANSPOSE_COLUMN_INDICES_LISTS(local_column)%PTR,50, &
+                                              & ERR,ERROR,*999)
+                                            CALL LIST_CREATE_FINISH(TRANSPOSE_COLUMN_INDICES_LISTS(local_column)%PTR, &
+                                              & ERR,ERROR,*999)
+                                          ENDDO !local_column
+                                          !Allocate transpose row indices
+                                          ALLOCATE(TRANSPOSE_ROW_INDICES(COLUMN_DOFS_DOMAIN_MAPPING%TOTAL_NUMBER_OF_LOCAL+1), &
+                                            & STAT=ERR)
+                                          IF(ERR/=0) CALL FLAG_ERROR("Could not allocate transpose row indices.",ERR,ERROR,*999)
+                                        ENDIF
+                                        NUMBER_OF_NON_ZEROS=0
+                                        DO local_column=1,COLUMN_DOFS_DOMAIN_MAPPING%TOTAL_NUMBER_OF_LOCAL
+                                          SELECT CASE(COLUMN_DOFS_PARAM_MAPPING%DOF_TYPE(1,local_column))
+                                          CASE(FIELD_NODE_DOF_TYPE)
+                                            column_field_dof_idx=columnDofsParamMapping%DOF_TYPE(2,local_column)!value for a particular field dof (local_ny)
+                                            column_node_idx=columnDofsParamMapping%NODE_DOF2PARAM_MAP(3,column_field_dof_idx)
+                                            column_component_idx=columnDofsParamMapping%NODE_DOF2PARAM_MAP(4,column_field_dof_idx)
+                                            DOMAIN_NODES=>columnVariable%COMPONENTS(column_component_idx)%DOMAIN%TOPOLOGY%NODES
+                                            !Set up list
+                                            NULLIFY(COLUMN_INDICES_LISTS(local_column)%PTR)
+                                            CALL LIST_CREATE_START(COLUMN_INDICES_LISTS(local_column)%PTR,err,error,*999)
+                                            CALL LIST_DATA_TYPE_SET(COLUMN_INDICES_LISTS(local_column)%PTR, &
+                                              & LIST_INTG_TYPE,err,error,*999)
+                                            CALL LIST_INITIAL_SIZE_SET(COLUMN_INDICES_LISTS(local_column)%PTR, &
+                                              & DOMAIN_NODES%NODES(column_node_idx)%NUMBER_OF_SURROUNDING_ELEMENTS* &
+                                              & COLUMN_VARIABLE%COMPONENTS(column_component_idx)% &
+                                              & maxNumberElementInterpolationParameters,err,error,*999)
+                                            CALL LIST_CREATE_FINISH(COLUMN_INDICES_LISTS(local_column)%PTR,err,error,*999)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                        !Loop over the number of components in the Lagrange multipler variable
+                                        DO column_component_idx=1,COLUMN_VARIABLE%NUMBER_OF_COMPONENTS
+                                          IF(COLUMN_VARIABLE%COMPONENTS(column_component_idx)%INTERPOLATION_TYPE== &
+                                            & FIELD_NODE_BASED_INTERPOLATION) THEN
+                                            !Loop over the elements in the constraint mesh
+                                            COLUMN_DOMAIN_ELEMENTS=>COLUMN_VARIABLE%COMPONENTS(column_component_idx)%DOMAIN% &
+                                              & TOPOLOGY%ELEMENTS
+                                            DO constraint_element_idx=1,COLUMN_DOMAIN_ELEMENTS%TOTAL_NUMBER_OF_ELEMENTS
+                                              COLUMN_BASIS=>COLUMN_DOMAIN_ELEMENTS%ELEMENTS(constraint_element_idx)%BASIS
+                                              !Loop over the column DOFs in the element
+                                              DO column_local_node_idx=1,COLUMN_BASIS%NUMBER_OF_NODES
+                                                column_node=COLUMN_DOMAIN_ELEMENTS%ELEMENTS(constraint_element_idx)% &
+                                                  & ELEMENT_NODES(column_local_node_idx)
+                                                DO column_local_derivative_idx=1,COLUMN_BASIS% &
+                                                  & NUMBER_OF_DERIVATIVES(column_local_node_idx)
+                                                  column_derivative=COLUMN_DOMAIN_ELEMENTS%ELEMENTS(constraint_element_idx)% &
+                                                    & ELEMENT_DERIVATIVES(column_local_derivative_idx,column_local_node_idx)
+                                                  column_version=COLUMN_DOMAIN_ELEMENTS%ELEMENTS(constraint_element_idx)% &
+                                                    & elementVersions(column_local_derivative_idx,column_local_node_idx)
+                                                  local_column=COLUMN_VARIABLE%COMPONENTS(column_component_idx)% &
+                                                    & PARAM_TO_DOF_MAP%NODE_PARAM2DOF_MAP%NODES(column_node)% &
+                                                    & DERIVATIVES(column_derivative)%VERSIONS(column_version)
+                                                  global_column=COLUMN_DOFS_DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(local_column)
+                                                  !Loop over the components in the dependent variable
+                                                  DO row_component_idx=1,ROW_VARIABLE%NUMBER_OF_COMPONENTS
+                                                    SELECT CASE(ROW_VARIABLE%COMPONENTS(row_component_idx)%INTERPOLATION_TYPE)
+                                                    CASE(FIELD_CONSTANT_INTERPOLATION)
+                                                      local_row=ROW_VARIABLE%COMPONENTS(row_component_idx)%PARAM_TO_DOF_MAP% &
+                                                        & CONSTANT_PARAM2DOF_MAP
+                                                      CALL LIST_ITEM_ADD(COLUMN_INDICES_LISTS(local_row)%PTR,global_column, &
+                                                        & ERR,ERROR,*999)
+                                                      IF(CONSTRAINT_MATRIX%HAS_TRANSPOSE) THEN
+                                                        global_row=ROW_VARIABLE%DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(local_row)
+                                                        CALL LIST_ITEM_ADD(TRANSPOSE_COLUMN_INDICES_LISTS(local_column)%PTR, &
+                                                          & global_row,ERR,ERROR,*999)
+                                                      ENDIF
+                                                    CASE(FIELD_ELEMENT_BASED_INTERPOLATION)
+                                                      domain_element=MESH_CONNECTIVITY% &
+                                                        & ELEMENT_CONNECTIVITY(constraint_element_idx,CONSTRAINT_MESH_INDEX)% &
+                                                        & COUPLED_MESH_ELEMENT_NUMBER
+                                                      local_row=ROW_VARIABLE%COMPONENTS(row_component_idx)%PARAM_TO_DOF_MAP% &
+                                                        & ELEMENT_PARAM2DOF_MAP%ELEMENTS(domain_element)
+                                                      CALL LIST_ITEM_ADD(COLUMN_INDICES_LISTS(local_row)%PTR,global_column, &
+                                                        & ERR,ERROR,*999)
+                                                      IF(CONSTRAINT_MATRIX%HAS_TRANSPOSE) THEN
+                                                        global_row=ROW_VARIABLE%DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(local_row)
+                                                        CALL LIST_ITEM_ADD(TRANSPOSE_COLUMN_INDICES_LISTS(local_column)%PTR, &
+                                                          & global_row,ERR,ERROR,*999)
+                                                      ENDIF
+                                                    CASE(FIELD_NODE_BASED_INTERPOLATION)
+                                                      ROW_DOMAIN_ELEMENTS=>ROW_VARIABLE%COMPONENTS(row_component_idx)%DOMAIN% &
+                                                        & TOPOLOGY%ELEMENTS
+                                                      domain_element=MESH_CONNECTIVITY%ELEMENT_CONNECTIVITY( &
+                                                        & constraint_element_idx,CONSTRAINT_MESH_INDEX)%COUPLED_MESH_ELEMENT_NUMBER
+                                                      ROW_BASIS=>ROW_DOMAIN_ELEMENTS%ELEMENTS(domain_element)%BASIS
+                                                      !Loop over the row DOFs in the domain mesh element
+                                                      DO row_local_node_idx=1,ROW_BASIS%NUMBER_OF_NODES
+                                                        row_node=ROW_DOMAIN_ELEMENTS%ELEMENTS(domain_element)% &
+                                                          & ELEMENT_NODES(row_local_node_idx)
+                                                        DO row_local_derivative_idx=1,ROW_BASIS% &
+                                                          & NUMBER_OF_DERIVATIVES(row_local_node_idx)
+                                                          row_derivative=ROW_DOMAIN_ELEMENTS%ELEMENTS(domain_element)% &
+                                                            & ELEMENT_DERIVATIVES(row_local_derivative_idx,row_local_node_idx)
+                                                          row_version=ROW_DOMAIN_ELEMENTS%ELEMENTS(domain_element)% &
+                                                            & elementVersions(row_local_derivative_idx,row_local_node_idx)
+                                                          local_row=ROW_VARIABLE%COMPONENTS(row_component_idx)% &
+                                                            & PARAM_TO_DOF_MAP%NODE_PARAM2DOF_MAP%NODES(row_node)% &
+                                                            & DERIVATIVES(row_derivative)%VERSIONS(row_version)
+                                                          CALL LIST_ITEM_ADD(COLUMN_INDICES_LISTS(local_row)%PTR,global_column, &
+                                                            & ERR,ERROR,*999)
+                                                          IF(CONSTRAINT_MATRIX%HAS_TRANSPOSE) THEN
+                                                            global_row=ROW_VARIABLE%DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(local_row)
+                                                            CALL LIST_ITEM_ADD(TRANSPOSE_COLUMN_INDICES_LISTS(local_column)%PTR, &
+                                                              & global_row,ERR,ERROR,*999)
+                                                          ENDIF
+                                                        ENDDO !row_local_derivative_idx
+                                                      ENDDO !row_local_node_idx
+                                                    CASE(FIELD_GRID_POINT_BASED_INTERPOLATION)
+                                                      CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+                                                    CASE(FIELD_GAUSS_POINT_BASED_INTERPOLATION)
+                                                      CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+                                                    CASE DEFAULT
+                                                      LOCAL_ERROR="The row variable interpolation type of "// &
+                                                        & TRIM(NUMBER_TO_VSTRING(ROW_VARIABLE%COMPONENTS(row_component_idx)% &
+                                                        INTERPOLATION_TYPE,"*",ERR,ERROR))//" is invalid."
+                                                      CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
+                                                    END SELECT
+                                                  ENDDO !row_component_idx
+                                                ENDDO !column_local_derivative_idx
+                                              ENDDO !column_local_node_idx
+                                            ENDDO !constraint_element_idx
+                                          ELSE
+                                            CALL FLAG_ERROR("Only node based fields implemented.",ERR,ERROR,*999)
+                                          ENDIF
+                                        ENDDO !column_component_idx
+                                        DO local_row=1,ROW_DOFS_DOMAIN_MAPPING%TOTAL_NUMBER_OF_LOCAL
+                                          CALL LIST_REMOVE_DUPLICATES(COLUMN_INDICES_LISTS(local_row)%PTR,ERR,ERROR,*999)
+                                          CALL LIST_NUMBER_OF_ITEMS_GET(COLUMN_INDICES_LISTS(local_row)%PTR,NUMBER_OF_COLUMNS, &
+                                            & ERR,ERROR,*999)
+                                          NUMBER_OF_NON_ZEROS=NUMBER_OF_NON_ZEROS+NUMBER_OF_COLUMNS
+                                          ROW_INDICES(local_row+1)=NUMBER_OF_NON_ZEROS+1
+                                        ENDDO !local_row
+                                        IF(CONSTRAINT_MATRIX%HAS_TRANSPOSE) THEN
+                                          TRANSPOSE_NUMBER_OF_NON_ZEROS=0
+                                          TRANSPOSE_ROW_INDICES(1)=1
+                                          DO local_column=1,COLUMN_DOFS_DOMAIN_MAPPING%TOTAL_NUMBER_OF_LOCAL
+                                            CALL LIST_REMOVE_DUPLICATES(TRANSPOSE_COLUMN_INDICES_LISTS(local_column)%PTR, &
+                                              & ERR,ERROR,*999)
+                                            CALL LIST_NUMBER_OF_ITEMS_GET(TRANSPOSE_COLUMN_INDICES_LISTS(local_column)%PTR, &
+                                              & NUMBER_OF_COLUMNS,ERR,ERROR,*999)
+                                            TRANSPOSE_NUMBER_OF_NON_ZEROS=TRANSPOSE_NUMBER_OF_NON_ZEROS+NUMBER_OF_COLUMNS
+                                            TRANSPOSE_ROW_INDICES(local_column+1)=TRANSPOSE_NUMBER_OF_NON_ZEROS+1
+                                          ENDDO !local_column
+                                          !Sanity check - the number of non-zeros should be the same
+                                          IF(TRANSPOSE_NUMBER_OF_NON_ZEROS/=NUMBER_OF_NON_ZEROS) THEN
+                                            LOCAL_ERROR="Invalid number of non-zeros. The number of non-zeros in the "// &
+                                              & "transposed matrix ("//TRIM(NUMBER_TO_VSTRING(TRANSPOSE_NUMBER_OF_NON_ZEROS, &
+                                              & "*",ERR,ERROR))//") does not match the number of non-zeros in the constraint "// &
+                                              & "matrix ("//TRIM(NUMBER_TO_VSTRING(TRANSPOSE_NUMBER_OF_NON_ZEROS,"*",ERR, &
+                                              & ERROR))//")."
+                                            CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
+                                          ENDIF
+                                        ENDIF
+                                        !Allocate and setup the column locations
+                                        ALLOCATE(COLUMN_INDICES(NUMBER_OF_NON_ZEROS),STAT=ERR)
+                                        IF(ERR/=0) CALL FLAG_ERROR("Could not allocate column indices.",ERR,ERROR,*999)
+                                        DO local_row=1,ROW_DOFS_DOMAIN_MAPPING%TOTAL_NUMBER_OF_LOCAL
+                                          CALL LIST_DETACH_AND_DESTROY(COLUMN_INDICES_LISTS(local_row)%PTR,NUMBER_OF_COLUMNS, &
+                                            & COLUMNS,ERR,ERROR,*999)
+                                          DO column_idx=1,NUMBER_OF_COLUMNS
+                                            COLUMN_INDICES(ROW_INDICES(local_row)+column_idx-1)=COLUMNS(column_idx)
+                                          ENDDO !column_idx
+                                          DEALLOCATE(COLUMNS)
+                                        ENDDO !local_row
+                                        IF(CONSTRAINT_MATRIX%HAS_TRANSPOSE) THEN
+                                          !Allocate and setup the column locations
+                                          ALLOCATE(TRANSPOSE_COLUMN_INDICES(NUMBER_OF_NON_ZEROS),STAT=ERR)
+                                          IF(ERR/=0) &
+                                            & CALL FLAG_ERROR("Could not allocate transpose column indices.",ERR,ERROR,*999)
+                                          DO local_column=1,COLUMN_DOFS_DOMAIN_MAPPING%TOTAL_NUMBER_OF_LOCAL
+                                            CALL LIST_DETACH_AND_DESTROY(TRANSPOSE_COLUMN_INDICES_LISTS(local_column)%PTR, &
+                                              & NUMBER_OF_ROWS,TRANSPOSE_COLUMNS,ERR,ERROR,*999)
+                                            DO row_idx=1,NUMBER_OF_ROWS
+                                              TRANSPOSE_COLUMN_INDICES(TRANSPOSE_ROW_INDICES(local_column)+row_idx-1)= &
+                                                & TRANSPOSE_COLUMNS(row_idx)
+                                            ENDDO !row_idx
+                                            DEALLOCATE(TRANSPOSE_COLUMNS)
+                                          ENDDO !local_column
+                                        ENDIF
+                                        IF(DIAGNOSTICS1) THEN
+                                          CALL WRITE_STRING(DIAGNOSTIC_OUTPUT_TYPE,"Constraint matrix structure:",ERR,ERROR,*999)
+                                          CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"Constraint matrix number : ", &
+                                            & MATRIX_NUMBER,ERR,ERROR,*999)
+                                          CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"  Number of rows = ", &
+                                            & ROW_DOFS_DOMAIN_MAPPING%TOTAL_NUMBER_OF_LOCAL,ERR,ERROR,*999)
+                                          CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"  Number of columns = ", &
+                                            & COLUMN_DOFS_DOMAIN_MAPPING%NUMBER_OF_GLOBAL,ERR,ERROR,*999)
+                                          CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"  Number of non zeros = ", &
+                                            & NUMBER_OF_NON_ZEROS,ERR,ERROR,*999)
+                                          IF(ROW_DOFS_DOMAIN_MAPPING%TOTAL_NUMBER_OF_LOCAL* &
+                                            & COLUMN_DOFS_DOMAIN_MAPPING%NUMBER_OF_GLOBAL/=0) THEN
+                                            SPARSITY=REAL(NUMBER_OF_NON_ZEROS,DP)/REAL(ROW_DOFS_DOMAIN_MAPPING% &
+                                              & TOTAL_NUMBER_OF_LOCAL*COLUMN_DOFS_DOMAIN_MAPPING%NUMBER_OF_GLOBAL,DP)*100.0_DP
+                                            CALL WRITE_STRING_FMT_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"  Sparsity (%) = ",SPARSITY, &
+                                              & "F6.2",ERR,ERROR,*999)
+                                          ENDIF
+                                          CALL WRITE_STRING_VECTOR(DIAGNOSTIC_OUTPUT_TYPE,1,1,ROW_DOFS_DOMAIN_MAPPING% &
+                                            & TOTAL_NUMBER_OF_LOCAL+1,5,5,ROW_INDICES, &
+                                            & '("  Row indices              :",5(X,I13))','(28X,5(X,I13))',ERR,ERROR,*999)
+                                          CALL WRITE_STRING_VECTOR(DIAGNOSTIC_OUTPUT_TYPE,1,1,NUMBER_OF_NON_ZEROS,8,8, &
+                                            & COLUMN_INDICES,'("  Column indices           :",5(X,I13))','(28X,5(X,I13))', &
+                                            & ERR,ERROR,*999)
+                                          IF(CONSTRAINT_MATRIX%HAS_TRANSPOSE) THEN 
+                                            CALL WRITE_STRING_VECTOR(DIAGNOSTIC_OUTPUT_TYPE,1,1,COLUMN_DOFS_DOMAIN_MAPPING% &
+                                              & TOTAL_NUMBER_OF_LOCAL+1,5,5,TRANSPOSE_ROW_INDICES, &
+                                              & '("  Transpose row indices    :",5(X,I13))','(28X,5(X,I13))',ERR,ERROR,*999)
+                                            CALL WRITE_STRING_VECTOR(DIAGNOSTIC_OUTPUT_TYPE,1,1,NUMBER_OF_NON_ZEROS,8,8, &
+                                              & TRANSPOSE_COLUMN_INDICES,'("  Transpose column indices :",5(X,I13))', &
+                                              & '(28X,5(X,I13))',ERR,ERROR,*999)
+                                          ENDIF
+                                        ENDIF
+                                      ELSE
+                                        CALL FLAG_ERROR("Column dofs parameter mapping is not associated.",ERR,ERROR,*999)
+                                      ENDIF
+                                    ELSE
+                                      CALL FLAG_ERROR("Row dofs parameter mapping is not associated.",ERR,ERROR,*999)
+                                    ENDIF
+                                  ELSE
+                                    CALL FLAG_ERROR("Column dofs domain mapping is not associated.",ERR,ERROR,*999)
+                                  ENDIF
+                                ELSE
+                                  CALL FLAG_ERROR("Row dofs domain mapping is not associated.",ERR,ERROR,*999)
+                                ENDIF
+                              ELSE
+                                CALL FLAG_ERROR("Column field variable is not associated.",ERR,ERROR,*999)
+                              ENDIF
+                            ELSE
+                              CALL FLAG_ERROR("Row field variable is not associated.",ERR,ERROR,*999)
+                            ENDIF
+                        ELSE
+                          CALL FLAG_ERROR("Constraint condition constraint is not associated.",ERR,ERROR,*999)
+                        ENDIF
+                      ELSE
+                        CALL FLAG_ERROR("Constraint condition is not associated.",ERR,ERROR,*999)
+                      ENDIF
+                    ELSE
+                      CALL FLAG_ERROR("Constraint mapping is not associated.",ERR,ERROR,*999)
+                    ENDIF
+                  ELSE
+                    CALL FLAG_ERROR("Constraint equations is not associated.",ERR,ERROR,*999)
+                  ENDIF
+                ELSE
+                  CALL FLAG_ERROR("Constraint matrices is not associated.",ERR,ERROR,*999)
+                ENDIF
+                CASE DEFAULT
+                  LOCAL_ERROR="The matrix storage type of "// &
+                    & TRIM(NUMBER_TO_VSTRING(CONSTRAINT_MATRIX%STORAGE_TYPE,"*",ERR,ERROR))//" is invalid."
+                  CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
+                END SELECT
+              CASE DEFAULT
+                LOCAL_ERROR="The matrix structure type of "// &
+                  & TRIM(NUMBER_TO_VSTRING(CONSTRAINT_MATRIX%STRUCTURE_TYPE,"*",ERR,ERROR))//" is invalid."
+                CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*998)
+              END SELECT
+            ELSE
+              CALL FLAG_ERROR("Transpose column indices is already associated.",ERR,ERROR,*998)
+            ENDIF
+          ELSE
+            CALL FLAG_ERROR("Transpose row indieces is already associated.",ERR,ERROR,*998)
+          ENDIF
+        ELSE
+          CALL FLAG_ERROR("Column indices is already associated.",ERR,ERROR,*998)
+        ENDIF
+      ELSE
+        CALL FLAG_ERROR("Row indieces is already associated.",ERR,ERROR,*998)
+      ENDIF
+    ELSE
+      CALL FLAG_ERROR("Constraint matrix is not associated.",ERR,ERROR,*998)
+    ENDIF
+     
+    CALL EXITS("CONSTRAINT_MATRIX_STRUCTURE_CALCULATE")
+    RETURN
+999 IF(ASSOCIATED(ROW_INDICES)) DEALLOCATE(ROW_INDICES)
+    IF(ASSOCIATED(COLUMN_INDICES)) DEALLOCATE(COLUMN_INDICES)
+    IF(ASSOCIATED(TRANSPOSE_ROW_INDICES)) DEALLOCATE(TRANSPOSE_ROW_INDICES)
+    IF(ASSOCIATED(TRANSPOSE_COLUMN_INDICES)) DEALLOCATE(TRANSPOSE_COLUMN_INDICES)
+    IF(ALLOCATED(COLUMNS)) DEALLOCATE(COLUMNS)
+    IF(ALLOCATED(TRANSPOSE_COLUMNS)) DEALLOCATE(TRANSPOSE_COLUMNS)
+    IF(ALLOCATED(COLUMN_INDICES_LISTS)) THEN
+      DO local_row=1,SIZE(COLUMN_INDICES_LISTS,1)
+        IF(ASSOCIATED(COLUMN_INDICES_LISTS(local_row)%PTR)) &
+          & CALL LIST_DESTROY(COLUMN_INDICES_LISTS(local_row)%PTR,DUMMY_ERR,DUMMY_ERROR,*998)
+      ENDDO !local_row
+      DEALLOCATE(COLUMN_INDICES_LISTS)
+    ENDIF
+    IF(ALLOCATED(TRANSPOSE_COLUMN_INDICES_LISTS)) THEN
+      DO local_column=1,SIZE(TRANSPOSE_COLUMN_INDICES_LISTS,1)
+        IF(ASSOCIATED(TRANSPOSE_COLUMN_INDICES_LISTS(local_column)%PTR)) &
+          & CALL LIST_DESTROY(TRANSPOSE_COLUMN_INDICES_LISTS(local_column)%PTR,DUMMY_ERR,DUMMY_ERROR,*998)
+      ENDDO !local_row
+      DEALLOCATE(TRANSPOSE_COLUMN_INDICES_LISTS)
+    ENDIF
+998 CALL ERRORS("CONSTRAINT_MATRIX_STRUCTURE_CALCULATE",ERR,ERROR)
+    CALL EXITS("CONSTRAINT_MATRIX_STRUCTURE_CALCULATE")
+    RETURN 1
+    
+  END SUBROUTINE CONSTRAINT_MATRIX_STRUCTURE_CALCULATE
+
+  !
+  !================================================================================================================================
+  !
   !>Caclulates the matrix structure (sparsity) for a constraint matrix.
   SUBROUTINE ConstraintMatrix_StructureCalculate(constraintMatrix,numberOfNonZeros,rowIndices,columnIndices,list,err,error,*)
 
