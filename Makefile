@@ -911,6 +911,7 @@ $(OBJECT_DIR)/constraint_equations_routines.o	:	$(SOURCE_DIR)/constraint_equatio
 	$(OBJECT_DIR)/field_routines.o \
 	$(OBJECT_DIR)/constraint_conditions_constants.o \
 	$(OBJECT_DIR)/constraint_mapping_routines.o \
+	$(OBJECT_DIR)/constraint_matrices_constants.o \
 	$(OBJECT_DIR)/constraint_matrices_routines.o \
 	$(OBJECT_DIR)/iso_varying_string.o \
 	$(OBJECT_DIR)/kinds.o \

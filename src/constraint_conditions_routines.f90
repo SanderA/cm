@@ -112,7 +112,7 @@ CONTAINS
     CALL ENTERS("CONSTRAINT_CONDITION_ASSEMBLE",ERR,ERROR,*999)
 
     IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
-      CONSTRAINT_EQUATIONS=>CONSTRAINT_CONDITION%EQUATIONS
+      CONSTRAINT_EQUATIONS=>CONSTRAINT_CONDITION%CONSTRAINT_EQUATIONS
       IF(ASSOCIATED(EQUATIONS)) THEN
         IF(CONSTRAINT_EQUATIONS%CONSTRAINT_EQUATIONS_FINISHED) THEN
           SELECT CASE(CONSTRAINT_CONDITION%METHOD)
@@ -258,7 +258,7 @@ CONTAINS
     IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
       LAGRANGE_FIELD=>CONSTRAINT_CONDITION%LAGRANGE%LAGRANGE_FIELD
       IF(ASSOCIATED(LAGRANGE_FIELD)) THEN
-        CONSTRAINT_EQUATIONS=>CONSTRAINT_CONDITION%EQUATIONS
+        CONSTRAINT_EQUATIONS=>CONSTRAINT_CONDITION%CONSTRAINT_EQUATIONS
         IF(ASSOCIATED(EQUATIONS)) THEN
           CONSTRAINT_MATRICES=>CONSTRAINT_EQUATIONS%CONSTRAINT_MATRICES
           IF(ASSOCIATED(CONSTRAINT_MATRICES)) THEN
@@ -280,10 +280,10 @@ CONTAINS
               USER_ELAPSED=USER_TIME2(1)-USER_TIME1(1)
               SYSTEM_ELAPSED=SYSTEM_TIME2(1)-SYSTEM_TIME1(1)
               CALL WRITE_STRING(GENERAL_OUTPUT_TYPE,"",ERR,ERROR,*999)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for constraint conditionup and initialisation = ",USER_ELAPSED, &
-                & ERR,ERROR,*999)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for constraint conditionup and initialisation = ",SYSTEM_ELAPSED, &
-                & ERR,ERROR,*999)
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for constraint conditionup and initialisation = ", &
+                & USER_ELAPSED,ERR,ERROR,*999)
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for constraint conditionup and initialisation = ", &
+                & SYSTEM_ELAPSED,ERR,ERROR,*999)
               ELEMENT_USER_ELAPSED=0.0_SP
               ELEMENT_SYSTEM_ELAPSED=0.0_SP
             ENDIF
@@ -305,10 +305,10 @@ CONTAINS
               ELEMENT_USER_ELAPSED=USER_ELAPSED
               ELEMENT_SYSTEM_ELAPSED=SYSTEM_ELAPSED
               CALL WRITE_STRING(GENERAL_OUTPUT_TYPE,"",ERR,ERROR,*999)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for internal constraint equations assembly = ",USER_ELAPSED, &
-                & ERR,ERROR,*999)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for internal constraint equations assembly = ",SYSTEM_ELAPSED, &
-                & ERR,ERROR,*999)
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for internal constraint equations assembly = ", &
+                & USER_ELAPSED,ERR,ERROR,*999)
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for internal constraint equations assembly = ", &
+                & SYSTEM_ELAPSED,ERR,ERROR,*999)
              ENDIF
             !Output timing information if required
             IF(CONSTRAINT_EQUATIONS%OUTPUT_TYPE>=EQUATIONS_TIMING_OUTPUT) THEN
@@ -337,10 +337,10 @@ CONTAINS
               SYSTEM_ELAPSED=SYSTEM_TIME5(1)-SYSTEM_TIME4(1)
               ELEMENT_USER_ELAPSED=ELEMENT_USER_ELAPSED+USER_ELAPSED
               ELEMENT_SYSTEM_ELAPSED=ELEMENT_SYSTEM_ELAPSED+USER_ELAPSED
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for boundary+ghost constraint equations assembly = ",USER_ELAPSED, &
-                & ERR,ERROR,*999)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for boundary+ghost constraint equations assembly = ",SYSTEM_ELAPSED, &
-                & ERR,ERROR,*999)
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for boundary+ghost constraint equations assembly = ", &
+                & USER_ELAPSED,ERR,ERROR,*999)
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for boundary+ghost constraint equations assembly = ", &
+                & SYSTEM_ELAPSED,ERR,ERROR,*999)
               IF(NUMBER_OF_TIMES>0) THEN
                 CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average element user time for constraint equations assembly = ", &
                   & ELEMENT_USER_ELAPSED/NUMBER_OF_TIMES,ERR,ERROR,*999)
@@ -418,7 +418,7 @@ CONTAINS
     IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
       LAGRANGE_FIELD=>CONSTRAINT_CONDITION%LAGRANGE%LAGRANGE_FIELD
       IF(ASSOCIATED(LAGRANGE_FIELD)) THEN
-        CONSTRAINT_EQUATIONS=>CONSTRAINT_CONDITION%EQUATIONS
+        CONSTRAINT_EQUATIONS=>CONSTRAINT_CONDITION%CONSTRAINT_EQUATIONS
         IF(ASSOCIATED(EQUATIONS)) THEN
           CONSTRAINT_MATRICES=>CONSTRAINT_EQUATIONS%CONSTRAINT_MATRICES
           IF(ASSOCIATED(CONSTRAINT_MATRICES)) THEN
@@ -451,10 +451,10 @@ CONTAINS
               CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME2,ERR,ERROR,*999)
               USER_ELAPSED=USER_TIME2(1)-USER_TIME1(1)
               SYSTEM_ELAPSED=SYSTEM_TIME2(1)-SYSTEM_TIME1(1)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for constraint condition setup and initialisation = ",USER_ELAPSED, &
-                & ERR,ERROR,*999)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for constraint condition setup and initialisation = ",SYSTEM_ELAPSED, &
-                & ERR,ERROR,*999)
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for constraint condition setup and initialisation = ", &
+                & USER_ELAPSED,ERR,ERROR,*999)
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for constraint condition setup and initialisation = ", &
+                & SYSTEM_ELAPSED,ERR,ERROR,*999)
               ELEMENT_USER_ELAPSED=0.0_SP
               ELEMENT_SYSTEM_ELAPSED=0.0_SP
             ENDIF
@@ -492,10 +492,10 @@ CONTAINS
               ELEMENT_USER_ELAPSED=USER_ELAPSED
               ELEMENT_SYSTEM_ELAPSED=SYSTEM_ELAPSED
               CALL WRITE_STRING(GENERAL_OUTPUT_TYPE,"",ERR,ERROR,*999)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for internal constraint equations assembly = ",USER_ELAPSED, &
-                & ERR,ERROR,*999)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for internal constraint equations assembly = ",SYSTEM_ELAPSED, &
-                & ERR,ERROR,*999)
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for internal constraint equations assembly = ", &
+                & USER_ELAPSED,ERR,ERROR,*999)
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for internal constraint equations assembly = ", &
+                & SYSTEM_ELAPSED,ERR,ERROR,*999)
              ENDIF
             !Output timing information if required
             IF(CONSTRAINT_EQUATIONS%OUTPUT_TYPE>=EQUATIONS_TIMING_OUTPUT) THEN
@@ -530,10 +530,10 @@ CONTAINS
               SYSTEM_ELAPSED=SYSTEM_TIME5(1)-SYSTEM_TIME4(1)
               ELEMENT_USER_ELAPSED=ELEMENT_USER_ELAPSED+USER_ELAPSED
               ELEMENT_SYSTEM_ELAPSED=ELEMENT_SYSTEM_ELAPSED+USER_ELAPSED
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for boundary+ghost constraint equations assembly = ",USER_ELAPSED, &
-                & ERR,ERROR,*999)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for boundary+ghost constraint equations assembly = ",SYSTEM_ELAPSED, &
-                & ERR,ERROR,*999)
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for boundary+ghost constraint equations assembly = ", &
+                & USER_ELAPSED,ERR,ERROR,*999)
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for boundary+ghost constraint equations assembly = ", &
+                & SYSTEM_ELAPSED,ERR,ERROR,*999)
               IF(NUMBER_OF_TIMES>0) THEN
                 CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average element user time for constraint equations assembly = ", &
                   & ELEMENT_USER_ELAPSED/NUMBER_OF_TIMES,ERR,ERROR,*999)
@@ -611,7 +611,7 @@ CONTAINS
     IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
       LAGRANGE_FIELD=>CONSTRAINT_CONDITION%LAGRANGE%LAGRANGE_FIELD
       IF(ASSOCIATED(LAGRANGE_FIELD)) THEN
-        CONSTRAINT_EQUATIONS=>CONSTRAINT_CONDITION%EQUATIONS
+        CONSTRAINT_EQUATIONS=>CONSTRAINT_CONDITION%CONSTRAINT_EQUATIONS
         IF(ASSOCIATED(EQUATIONS)) THEN
           CONSTRAINT_MATRICES=>CONSTRAINT_EQUATIONS%CONSTRAINT_MATRICES
           IF(ASSOCIATED(CONSTRAINT_MATRICES)) THEN
@@ -632,10 +632,10 @@ CONTAINS
               CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME2,ERR,ERROR,*999)
               USER_ELAPSED=USER_TIME2(1)-USER_TIME1(1)
               SYSTEM_ELAPSED=SYSTEM_TIME2(1)-SYSTEM_TIME1(1)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for constraint conditionup and initialisation = ",USER_ELAPSED, &
-                & ERR,ERROR,*999)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for constraint conditionup and initialisation = ",SYSTEM_ELAPSED, &
-                & ERR,ERROR,*999)
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for constraint conditionup and initialisation = ", &
+                & USER_ELAPSED,ERR,ERROR,*999)
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for constraint conditionup and initialisation = ", &
+                & SYSTEM_ELAPSED,ERR,ERROR,*999)
               ELEMENT_USER_ELAPSED=0.0_SP
               ELEMENT_SYSTEM_ELAPSED=0.0_SP
             ENDIF
@@ -657,10 +657,10 @@ CONTAINS
               ELEMENT_USER_ELAPSED=USER_ELAPSED
               ELEMENT_SYSTEM_ELAPSED=SYSTEM_ELAPSED
               CALL WRITE_STRING(GENERAL_OUTPUT_TYPE,"",ERR,ERROR,*999)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for internal constraint equations assembly = ",USER_ELAPSED, &
-                & ERR,ERROR,*999)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for internal constraint equations assembly = ",SYSTEM_ELAPSED, &
-                & ERR,ERROR,*999)
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for internal constraint equations assembly = ", &
+                & USER_ELAPSED,ERR,ERROR,*999)
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for internal constraint equations assembly = ", &
+                & SYSTEM_ELAPSED,ERR,ERROR,*999)
             ENDIF
             !Output timing information if required
             IF(CONSTRAINT_EQUATIONS%OUTPUT_TYPE>=EQUATIONS_TIMING_OUTPUT) THEN
@@ -689,10 +689,10 @@ CONTAINS
               SYSTEM_ELAPSED=SYSTEM_TIME5(1)-SYSTEM_TIME4(1)
               ELEMENT_USER_ELAPSED=ELEMENT_USER_ELAPSED+USER_ELAPSED
               ELEMENT_SYSTEM_ELAPSED=ELEMENT_SYSTEM_ELAPSED+USER_ELAPSED
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for boundary+ghost constraint equations assembly = ",USER_ELAPSED, &
-                & ERR,ERROR,*999)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for boundary+ghost constraint equations assembly = ",SYSTEM_ELAPSED, &
-                & ERR,ERROR,*999)
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for boundary+ghost constraint equations assembly = ", &
+                & USER_ELAPSED,ERR,ERROR,*999)
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for boundary+ghost constraint equations assembly = ", &
+                & SYSTEM_ELAPSED,ERR,ERROR,*999)
               IF(NUMBER_OF_TIMES>0) THEN
                 CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average element user time for constraint equations assembly = ", &
                   & ELEMENT_USER_ELAPSED/NUMBER_OF_TIMES,ERR,ERROR,*999)
@@ -808,13 +808,14 @@ CONTAINS
     TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
     !Local Variables
     INTEGER(INTG) :: DUMMY_ERR,constraint_conditions_idx
-    TYPE(CONSTRAINT_TYPE), POINTER :: GEOMETRIC_CONSTRAINT
     TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: NEW_CONSTRAINT_CONDITION
     TYPE(CONSTRAINT_CONDITION_PTR_TYPE), POINTER :: NEW_CONSTRAINT_CONDITIONS(:)
+    TYPE(REGION_TYPE), POINTER :: GEOMETRIC_FIELD_REGION
     TYPE(VARYING_STRING) :: DUMMY_ERROR,LOCAL_ERROR
  
     NULLIFY(NEW_CONSTRAINT_CONDITION)
     NULLIFY(NEW_CONSTRAINT_CONDITIONS)
+    NULLIFY(GEOMETRIC_FIELD_REGION)
 
     CALL ENTERS("CONSTRAINT_CONDITION_CREATE_START",ERR,ERROR,*997)
 
@@ -916,7 +917,7 @@ CONTAINS
     CALL ENTERS("CONSTRAINT_CONDITION_DEPENDENT_FINALISE",ERR,ERROR,*999)
 
     IF(ASSOCIATED(CONSTRAINT_DEPENDENT)) THEN
-      IF(ASSOCIATED(CONSTRAINT_DEPENDENT%EQUATIONS_SETS)) DEALLOCATE(CONSTRAINT_DEPENDENT%EQUATIONS_SETS)
+      IF(ASSOCIATED(CONSTRAINT_DEPENDENT%CONSTRAINT_CONDITION)) DEALLOCATE(CONSTRAINT_DEPENDENT%CONSTRAINT_CONDITION)
       DEALLOCATE(CONSTRAINT_DEPENDENT)
     ENDIF
        
@@ -951,7 +952,7 @@ CONTAINS
         ALLOCATE(CONSTRAINT_CONDITION%DEPENDENT,STAT=ERR)
         IF(ERR/=0) CALL FLAG_ERROR("Could not allocate constraint condition dependent.",ERR,ERROR,*999)
         CONSTRAINT_CONDITION%DEPENDENT%CONSTRAINT_CONDITION=>CONSTRAINT_CONDITION
-        NULLIFY(CONSTRAINT_CONDITION%DEPENDENT%EQUATIONS_SETS)
+        NULLIFY(CONSTRAINT_CONDITION%DEPENDENT%CONSTRAINT_CONDITION)
       ENDIF
     ELSE
       CALL FLAG_ERROR("Constraint condition is not associated.",ERR,ERROR,*999)
@@ -1072,9 +1073,9 @@ CONTAINS
             CALL CONSTRAINT_MAPPING_LAGRANGE_VARIABLE_TYPE_SET(CONSTRAINT_MAPPING,FIELD_U_VARIABLE_TYPE,ERR,ERROR,*999)
             SELECT CASE(CONSTRAINT_CONDITION%METHOD)
             CASE(CONSTRAINT_CONDITION_LAGRANGE_MULTIPLIERS_METHOD)
-              number_of_dependent_variables=CONSTRAINT_DEPENDENT%NUMBER_OF_DEPENDENT_VARIABLES
+              number_of_dependent_variables=1
             CASE(CONSTRAINT_CONDITION_PENALTY_METHOD)
-              number_of_dependent_variables=CONSTRAINT_DEPENDENT%NUMBER_OF_DEPENDENT_VARIABLES+1
+              number_of_dependent_variables=2
             ENDSELECT
             CALL CONSTRAINT_MAPPING_MATRICES_NUMBER_SET(CONSTRAINT_MAPPING,number_of_dependent_variables,ERR,ERROR,*999)
             ALLOCATE(MATRICES_TRANSPOSE(number_of_dependent_variables),STAT=ERR)

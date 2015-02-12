@@ -54,11 +54,19 @@ MODULE CONSTRAINT_MATRICES_CONSTANTS
   !> \brief Constraint matrices time dependency types
   !> \see CONSTRAINT_MATRICES_ROUTINES
   !>@{
-  INTEGER(INTG), PARAMETER :: NUMBER_OF_CONSTRAINT_MATRIX_TYPES=4
+  INTEGER(INTG), PARAMETER :: NUMBER_OF_CONSTRAINT_MATRIX_TYPES=3
   INTEGER(INTG), PARAMETER :: CONSTRAINT_MATRIX_STATIC=1 !<Constraint matrix is of static type \see CONSTRAINT_MATRICES_ROUTINES_ConstraintMatricesTimeDependenceTypes,CONSTRAINT_MATRICES_ROUTINES
-  INTEGER(INTG), PARAMETER :: CONSTRAINT_MATRIX_QUASI_STATIC=2 !<Constraint matrix is of quasi-static type \see CONSTRAINT_MATRICES_ROUTINES_ConstraintMatricesTimeDependenceTypes,CONSTRAINT_MATRICES_ROUTINES
-  INTEGER(INTG), PARAMETER :: CONSTRAINT_MATRIX_FIRST_ORDER_DYNAMIC=3 !<Constraint matrix is of first order dynamic type \see CONSTRAINT_MATRICES_ROUTINES_ConstraintMatricesTimeDependenceTypes,CONSTRAINT_MATRICES_ROUTINES
-  INTEGER(INTG), PARAMETER :: CONSTRAINT_MATRIX_SECOND_ORDER_DYNAMIC=4 !<Constraint matrix is of second order dynamic type \see CONSTRAINT_MATRICES_ROUTINES_ConstraintMatricesTimeDependenceTypes,CONSTRAINT_MATRICES_ROUTINES
+  INTEGER(INTG), PARAMETER :: CONSTRAINT_MATRIX_FIRST_ORDER_DYNAMIC=2 !<Constraint matrix is of first order dynamic type \see CONSTRAINT_MATRICES_ROUTINES_ConstraintMatricesTimeDependenceTypes,CONSTRAINT_MATRICES_ROUTINES
+  INTEGER(INTG), PARAMETER :: CONSTRAINT_MATRIX_SECOND_ORDER_DYNAMIC=3 !<Constraint matrix is of second order dynamic type \see CONSTRAINT_MATRICES_ROUTINES_ConstraintMatricesTimeDependenceTypes,CONSTRAINT_MATRICES_ROUTINES
   !>@}
+
+  !> \addtogroup CONSTRAINT_MATRICES_CONSTANTS_DynamicMatrixTypes CONSTRAINT_MATRICES_CONSTANTS:DynamicMatrixTypes
+  !> \brief Type of matrix in a dynamic constraint condition
+  !>@{
+  INTEGER(INTG), PARAMETER :: CONSTRAINT_MATRIX_STIFFNESS=1 !<A stiffness matrix (multiplies displacement values)
+  INTEGER(INTG), PARAMETER :: CONSTRAINT_MATRIX_DAMPING=2 !<A damping matrix (multiplies velocity values)
+  INTEGER(INTG), PARAMETER :: CONSTRAINT_MATRIX_MASS=3 !<A mass matrix (multiplies acceleration values)
+  !>@}
+  
 
 END MODULE CONSTRAINT_MATRICES_CONSTANTS
