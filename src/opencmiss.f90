@@ -1471,8 +1471,6 @@ MODULE OPENCMISS
     
   PUBLIC CMISSConstraintCondition_CreateFinish,CMISSConstraintCondition_CreateStart
 
-  PUBLIC CMISSConstraintCondition_DependentVariableAdd
-
   PUBLIC CMISSConstraintCondition_Destroy
 
   PUBLIC CMISSConstraintCondition_EquationsCreateFinish,CMISSConstraintCondition_EquationsCreateStart
@@ -1516,8 +1514,6 @@ MODULE OPENCMISS
   !Constraints
   PUBLIC CMISS_NUMBER_OF_CONSTRAINT_MATRIX_TYPES,CMISS_CONSTRAINT_MATRIX_STATIC, &
     & CMISS_CONSTRAINT_MATRIX_FIRST_ORDER_DYNAMIC,CMISS_CONSTRAINT_MATRIX_SECOND_ORDER_DYNAMIC
-  
-  PUBLIC CMISSConstraintMatrices_TimeDependenceTypeSet,CMISSConstraintMatrices_TimeDependenceTypeGet
 
 !!==================================================================================================================================
 !!
@@ -16023,7 +16019,7 @@ CONTAINS
     NULLIFY(CONSTRAINT_CONDITION)
     CALL REGION_USER_NUMBER_FIND(regionUserNumber,REGION,err,error,*999)
     IF(ASSOCIATED(REGION)) THEN
-      CALL CONSTRAINT_CONDITION_USER_NUMBER_FIND(constraintConditionUserNumber,CONSTRAINT,CONSTRAINT_CONDITION,err,error,*999)
+      CALL CONSTRAINT_CONDITION_USER_NUMBER_FIND(constraintConditionUserNumber,REGION,CONSTRAINT_CONDITION,err,error,*999)
       IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
         CALL CONSTRAINT_CONDITION_CREATE_FINISH(CONSTRAINT_CONDITION,err,error,*999)
       ELSE
@@ -16099,7 +16095,7 @@ CONTAINS
     NULLIFY(CONSTRAINT_CONDITION)
     CALL REGION_USER_NUMBER_FIND(regionUserNumber,REGION,err,error,*999)
     IF(ASSOCIATED(REGION)) THEN
-      CALL FIELD_USER_NUMBER_FIND(geometricFieldUserNumber,CONSTRAINT,GEOMETRIC_FIELD,err,error,*999)
+      CALL FIELD_USER_NUMBER_FIND(geometricFieldUserNumber,REGION,GEOMETRIC_FIELD,err,error,*999)
       IF(ASSOCIATED(GEOMETRIC_FIELD)) THEN
         CALL CONSTRAINT_CONDITION_CREATE_START(constraintConditionUserNumber,REGION,GEOMETRIC_FIELD,CONSTRAINT_CONDITION, &
           & err,error,*999)
@@ -16541,7 +16537,7 @@ CONTAINS
     NULLIFY(LAGRANGE_FIELD)
     CALL REGION_USER_NUMBER_FIND(regionUserNumber,REGION,err,error,*999)
     IF(ASSOCIATED(REGION)) THEN
-      CALL CONSTRAINT_CONDITION_USER_NUMBER_FIND(constraintUserNumber,REGION,CONSTRAINT_CONDITION,err,error,*999)
+      CALL CONSTRAINT_CONDITION_USER_NUMBER_FIND(regionUserNumber,REGION,CONSTRAINT_CONDITION,err,error,*999)
       IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
         CALL CONSTRAINT_CONDITION_LAGRANGE_FIELD_CREATE_START(CONSTRAINT_CONDITION,lagrangeFieldUserNumber,LAGRANGE_FIELD, &
           & err,error,*999)
@@ -16693,7 +16689,7 @@ CONTAINS
     NULLIFY(PENALTY_FIELD)
     CALL REGION_USER_NUMBER_FIND(RegionUserNumber,REGION,Err,ERROR,*999)
     IF(ASSOCIATED(REGION)) THEN
-      CALL CONSTRAINT_CONDITION_USER_NUMBER_FIND(ConstraintUserNumber,REGION,CONSTRAINT_CONDITION,Err,ERROR,*999)
+      CALL CONSTRAINT_CONDITION_USER_NUMBER_FIND(RegionUserNumber,REGION,CONSTRAINT_CONDITION,Err,ERROR,*999)
       IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
         CALL CONSTRAINT_CONDITION_PENALTY_FIELD_CREATE_START(CONSTRAINT_CONDITION,PenaltyFieldUserNumber,PENALTY_FIELD, &
           & Err,ERROR,*999)
@@ -16775,11 +16771,10 @@ CONTAINS
         IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
           CALL CONSTRAINT_CONDITION_METHOD_GET(CONSTRAINT_CONDITION,constraintConditionMethod,err,error,*999)
         ELSE
-          LOCAL_ERROR="An constraint condition with an user number of "// &
+          LOCAL_ERROR="A constraint condition with an user number of "// &
             & TRIM(NUMBER_TO_VSTRING(constraintConditionUserNumber,"*",err,error))// &
             & " does not exist on the region with a user number of "// &
-            & TRIM(NUMBER_TO_VSTRING(constraintUserNumber,"*",err,error))// &
-            & " defined on a region with a user number of "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//"."
+            & TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//"."
           CALL FLAG_ERROR(LOCAL_ERROR,err,error,*999)
         END IF
     ELSE
@@ -17129,7 +17124,7 @@ CONTAINS
   !
 
   !>Sets/changes the output type for an constraint equations identified by a user number.
-  SUBROUTINE CMISSConstraintEquations_OutputTypeSetNumber(regionUserNumber,constraintUserNumber,constraintConditionUserNumber, &
+  SUBROUTINE CMISSConstraintEquations_OutputTypeSetNumber(regionUserNumber,constraintConditionUserNumber, &
     & outputType,err)
 
     !Argument variables
@@ -17305,7 +17300,7 @@ CONTAINS
     NULLIFY(CONSTRAINT_EQUATIONS)
     CALL REGION_USER_NUMBER_FIND(regionUserNumber,REGION,err,error,*999)
     IF(ASSOCIATED(REGION)) THEN
-      CALL CONSTRAINT_CONDITION_USER_NUMBER_FIND(constraintConditionUserNumber,CONSTRAINT,CONSTRAINT_CONDITION,err,error,*999)
+      CALL CONSTRAINT_CONDITION_USER_NUMBER_FIND(constraintConditionUserNumber,REGION,CONSTRAINT_CONDITION,err,error,*999)
       IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
         CALL CONSTRAINT_CONDITION_EQUATIONS_GET(CONSTRAINT_CONDITION,CONSTRAINT_EQUATIONS,err,error,*999)
         CALL CONSTRAINT_EQUATIONS_SPARSITY_TYPE_SET(CONSTRAINT_EQUATIONS,sparsityType,err,error,*999)

@@ -1049,7 +1049,7 @@ CONTAINS
                             !Default the number of Jacobia constraint matrices to the number of added dependent variables
                             CONSTRAINT_MAPPING%CREATE_VALUES_CACHE%NUMBER_OF_JACOBIAN_CONSTRAINT_MATRICES=1
                           CASE(CONSTRAINT_CONDITION_PENALTY_METHOD)
-                            !Default the number of Jacobia constraint matrices to the number of added dependent variables plus a
+                            !Default the number of Jacobian constraint matrices to the number of added dependent variables plus a
                             !single Lagrange variable
                             CONSTRAINT_MAPPING%CREATE_VALUES_CACHE%NUMBER_OF_JACOBIAN_CONSTRAINT_MATRICES=2
                           END SELECT

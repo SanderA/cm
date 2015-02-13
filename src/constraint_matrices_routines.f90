@@ -93,14 +93,6 @@ MODULE CONSTRAINT_MATRICES_ROUTINES
   INTEGER(INTG), PARAMETER :: CONSTRAINT_MATRICES_VECTORS_ONLY=12 !<Assemble only the constraint vectors \see CONSTRAINT_MATRICES_ROUTINES::SelectMatricesTypes,CONSTRAINT_MATRICES_ROUTINES
   !>@}
 
-  !> \addtogroup CONSTRAINT_MATRICES_ROUTINES_JacobianCalculationTypes CONSTRAINT_MATRICES_ROUTINES:JacobianCalculationTypes
-  !> \brief Jacobian calculation types
-  !>@{
-  INTEGER(INTG), PARAMETER :: CONSTRAINT_JACOBIAN_FINITE_DIFFERENCE_CALCULATED=1 !<Use finite differencing to calculate the Jacobian
-  INTEGER(INTG), PARAMETER :: CONSTRAINT_JACOBIAN_ANALYTIC_CALCULATED=2 !<Use an analytic Jacobian evaluation
-  !>@}
-  !>@}
-
   !Module types
 
   !Module variables
@@ -121,8 +113,6 @@ MODULE CONSTRAINT_MATRICES_ROUTINES
 
   PUBLIC CONSTRAINT_MATRICES_SPARSE_MATRICES,CONSTRAINT_MATRICES_FULL_MATRICES
 
-  PUBLIC CONSTRAINT_JACOBIAN_FINITE_DIFFERENCE_CALCULATED,CONSTRAINT_JACOBIAN_ANALYTIC_CALCULATED
-
   PUBLIC CONSTRAINT_MATRICES_CREATE_FINISH,CONSTRAINT_MATRICES_CREATE_START,CONSTRAINT_MATRICES_DESTROY
 
   !!TODO check if the elements should be create/destroy rather than initialise/finalise
@@ -131,8 +121,6 @@ MODULE CONSTRAINT_MATRICES_ROUTINES
 
   PUBLIC CONSTRAINT_MATRICES_ELEMENT_MATRIX_CALCULATE,CONSTRAINT_MATRICES_ELEMENT_MATRIX_FINALISE, &
     & CONSTRAINT_MATRICES_ELEMENT_MATRIX_INITIALISE,CONSTRAINT_MATRICES_ELEMENT_MATRIX_SETUP
-
-  PUBLIC ConstraintMatrices_JacobianTypesSet
 
   PUBLIC CONSTRAINT_MATRICES_ELEMENT_VECTOR_CALCULATE,CONSTRAINT_MATRICES_ELEMENT_VECTOR_FINALISE, &
     & CONSTRAINT_MATRICES_ELEMENT_VECTOR_INITIALISE,CONSTRAINT_MATRICES_ELEMENT_VECTOR_SETUP
@@ -234,8 +222,6 @@ CONTAINS
                 NULLIFY(NONLINEAR_MATRICES%JACOBIANS(MATRIX_NUMBER)%PTR%JACOBIAN_TRANSPOSE)
                 CALL CONSTRAINT_MATRICES_ELEMENT_MATRIX_INITIALISE(NONLINEAR_MATRICES%JACOBIANS(MATRIX_NUMBER)%PTR% &
                     & ELEMENT_JACOBIAN,ERR,ERROR,*999)
-                NONLINEAR_MATRICES%JACOBIANS(MATRIX_NUMBER)%PTR%JACOBIAN_CALCULATION_TYPE= &
-                  & CONSTRAINT_JACOBIAN_FINITE_DIFFERENCE_CALCULATED
               ENDIF
             ELSE
               CALL FLAG_ERROR("Constraint matrices nonlinear matrieces Jacobian is not allocated.",ERR,ERROR,*999)
@@ -2055,66 +2041,6 @@ CONTAINS
     RETURN 1
   END SUBROUTINE CONSTRAINT_MATRICES_JACOBIAN_OUTPUT
   
-  !
-  !================================================================================================================================
-  !
-
-  !>Sets the Jacobian calculation types of the residual variables
-  SUBROUTINE ConstraintMatrices_JacobianTypesSet(constraintMatrices,jacobianTypes,err,error,*)
-
-    !Argument variables
-    TYPE(CONSTRAINT_MATRICES_TYPE), POINTER :: constraintMatrices !<A pointer to the constraint matrices to set the Jacobian type for.
-    INTEGER(INTG), INTENT(IN) :: jacobianTypes(:) !<jacobianTypes(matrix_idx). The Jacobian calculation type for the matrix_idx'th Jacobian matrix.
-    INTEGER(INTG), INTENT(OUT) :: err !<The error code
-    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
-    !Local Variables
-    TYPE(CONSTRAINT_MATRICES_NONLINEAR_TYPE), POINTER :: nonlinearMatrices
-    INTEGER(INTG) :: matrixIdx,numberOfjacobians,jacobianType
-    TYPE(VARYING_STRING) :: localError
-
-    CALL ENTERS("ConstraintMatrices_JacobianTypesSet",err,error,*999)
-
-    IF(ASSOCIATED(constraintMatrices)) THEN
-      IF(constraintMatrices%CONSTRAINT_MATRICES_FINISHED) THEN
-        CALL FLAG_ERROR("Constraint matrices have been finished.",err,error,*999)
-      ELSE
-        nonlinearMatrices=>constraintMatrices%NONLINEAR_MATRICES
-        IF(ASSOCIATED(nonlinearMatrices)) THEN
-          numberOfJacobians=SIZE(jacobianTypes,1)
-          IF(numberOfJacobians==nonlinearMatrices%NUMBER_OF_JACOBIANS) THEN
-            DO matrixIdx=1,numberOfJacobians
-              jacobianType=jacobianTypes(matrixIdx)
-              SELECT CASE(jacobianType)
-              CASE(CONSTRAINT_JACOBIAN_FINITE_DIFFERENCE_CALCULATED, &
-                  & CONSTRAINT_JACOBIAN_ANALYTIC_CALCULATED)
-                nonlinearMatrices%JACOBIANS(matrixIdx)%PTR%JACOBIAN_CALCULATION_TYPE=jacobianType
-              CASE DEFAULT
-                localError="Invalid Jacobian calculation type of " &
-                  & //TRIM(NUMBER_TO_VSTRING(jacobianType,"*",err,error))//"."
-                CALL FLAG_ERROR(localError,err,error,*999)
-              END SELECT
-            END DO
-          ELSE
-            localError="Invalid number of Jacobian calculation types. The number of types " &
-              & //TRIM(NUMBER_TO_VSTRING(numberOfJacobians,"*",err,error)) &
-              & //" should be "//TRIM(NUMBER_TO_VSTRING(nonlinearMatrices%NUMBER_OF_JACOBIANS,"*",err,error))
-            CALL FLAG_ERROR(localError,err,error,*999)
-          ENDIF
-        ELSE
-          CALL FLAG_ERROR("Constraint matrices nonlinear matrices are not associated",err,error,*999)
-        ENDIF
-      ENDIF
-    ELSE
-      CALL FLAG_ERROR("Constraint matrices are not associated",err,error,*999)
-    ENDIF
-
-    CALL EXITS("ConstraintMatrices_JacobianTypesSet")
-    RETURN
-999 CALL ERRORS("ConstraintMatrices_JacobianTypesSet",err,error)
-    CALL EXITS("ConstraintMatrices_JacobianTypesSet")
-    RETURN 1
-  END SUBROUTINE ConstraintMatrices_JacobianTypesSet
-
   !
   !================================================================================================================================
   !
