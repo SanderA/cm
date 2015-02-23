@@ -3183,6 +3183,17 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     TYPE(CONSTRAINT_TO_SOLVER_MAPS_TYPE), POINTER :: PTR !<A pointer to the constraint to solver maps
   END TYPE CONSTRAINT_TO_SOLVER_MAPS_PTR_TYPE
 
+  TYPE CONSTRAINT_JACOBIAN_TO_SOLVER_MAPS_TYPE
+    INTEGER(INTG) :: CONSTRAINT_MATRIX_NUMBER !<The constraint Jacobian matrix number being mapped.
+    INTEGER(INTG) :: SOLVER_MATRIX_NUMBER !<The solver Jacobian matrix number being mapped.
+    TYPE(CONSTRAINT_JACOBIAN_TYPE), POINTER :: CONSTRAINT_JACOBIAN !<A pointer to the constraint Jacobian matrix being mapped.
+    TYPE(SOLVER_MATRIX_TYPE), POINTER :: SOLVER_MATRIX !<A pointer to the solver matrix being mapped.
+  END TYPE CONSTRAINT_JACOBIAN_TO_SOLVER_MAPS_TYPE
+
+  TYPE CONSTRAINT_JACOBIAN_TO_SOLVER_MAPS_PTR_TYPE
+    TYPE(CONSTRAINT_JACOBIAN_TO_SOLVER_MAPS_TYPE), POINTER :: PTR !<A pointer to the Jacobian to solver map
+  END TYPE CONSTRAINT_JACOBIAN_TO_SOLVER_MAPS_PTR_TYPE
+
   TYPE INTERFACE_TO_SOLVER_MAPS_TYPE
     INTEGER(INTG) :: INTERFACE_MATRIX_NUMBER !<The interface matrix number being mapped.
     INTEGER(INTG) :: SOLVER_MATRIX_NUMBER !<The solver matrix number being mapped.
@@ -3292,7 +3303,8 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     INTEGER(INTG) :: NUMBER_OF_DYNAMIC_CONSTRAINT_MATRICES !<The number of dynamic constraint equations matrices mapped to this solver matrix
     TYPE(CONSTRAINT_TO_SOLVER_MAPS_PTR_TYPE), ALLOCATABLE :: DYNAMIC_CONSTRAINT_TO_SOLVER_MATRIX_MAPS(:) !<DYNAMIC_CONSTRAINT_TO_SOLVER_MATRIX_MAPS(equations_matrix_idx). The maps from the constraint_matrix_idx'th dynamic constraint matrix to solver matrix
     INTEGER(INTG) :: NUMBER_OF_CONSTRAINT_JACOBIANS !<The number of nonlinear constraint equations Jacobian matrices mapped to this solver matrix
-    TYPE(JACOBIAN_TO_SOLVER_MAP_PTR_TYPE), ALLOCATABLE :: JACOBIAN_TO_SOLVER_MATRIX_MAPS(:) !<JACOBIAN_TO_SOLVER_MATRIX_MAPS(constraint_matrix_idx). The map from the constraint_matrix_idx'th Jacobian matrix to the solver matrix
+    TYPE(CONSTRAINT_JACOBIAN_TO_SOLVER_MAPS_PTR_TYPE), ALLOCATABLE :: JACOBIAN_TO_SOLVER_MATRIX_MAPS(:) !<JACOBIAN_TO_SOLVER_MATRIX_MAPS(constraint_matrix_idx). The map from the constraint_matrix_idx'th Jacobian matrix to the solver matrix
+    TYPE(EQUATIONS_COL_TO_SOLVER_COLS_MAP_TYPE), ALLOCATABLE :: CONSTRAINT_COL_TO_SOLVER_COLS_MAP(:) !<CONSTRAINT_COL_SOLVER_COL_MAP(column_idx). The mapping from the column_idx'th column of this constraint matrix to the solver matrix columns.
   END TYPE CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM_TYPE
 
   !>Contains information on the mapping from an constraint condition column to a solver row.
@@ -3309,6 +3321,13 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     TYPE(CONSTRAINT_TO_SOLVER_MAPS_PTR_TYPE), ALLOCATABLE :: CONSTRAINT_TO_SOLVER_MATRIX_MAPS(:) !<EQUATIONS_TO_SOLVER_MATRIX_MAPS(solver_matrix_idx). The maps from the equation matrix to the solver_matrix_idx'th solver matrix
     TYPE(CONSTRAINT_ROW_TO_SOLVER_ROWS_MAP_TYPE), ALLOCATABLE :: CONSTRAINT_ROW_TO_SOLVER_ROWS_MAP(:) !<CONSTRAINT_ROW_TO_SOLVER_ROW_MAP(constraint_row_idx). The mapping from the constraint_row_idx'th constraint matrix to a solver row.
   END TYPE CONSTRAINT_TO_SOLVER_MATRIX_MAPS_CM_TYPE
+
+  TYPE CONSTRAINT_TO_SOLVER_MATRIX_MAPS_JM_TYPE
+    INTEGER(INTG) :: CONSTRAINT_MATRIX_NUMBER !<The solver matrix number being mapped.
+    TYPE(CONSTRAINT_JACOBIAN_TYPE), POINTER :: JACOBIAN_MATRIX !<A pointer to the Jacobian matrix being mapped.
+    TYPE(SOLVER_MATRIX_TYPE), POINTER :: SOLVER_MATRIX !<A pointer to the solver matrix being mapped.
+    TYPE(CONSTRAINT_ROW_TO_SOLVER_ROWS_MAP_TYPE), ALLOCATABLE :: CONSTRAINT_JACOBIAN_ROW_TO_SOLVER_ROWS_MAP(:) !<CONSTRAINT_JACOBIAN_ROW_TO_SOLVER_ROWS_MAP(row_idx). The mapping from the row_idx'th row of the Jacobian matrix to the solver matrix row.
+  END TYPE CONSTRAINT_TO_SOLVER_MATRIX_MAPS_JM_TYPE
 
   TYPE CONSTRAINT_TO_SOLVER_MATRIX_MAPS_EQUATIONS_TYPE
     INTEGER(INTG) :: EQUATIONS_SET_INDEX
@@ -3332,7 +3351,7 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     TYPE(CONSTRAINT_TO_SOLVER_MATRIX_MAPS_EQUATIONS_TYPE), ALLOCATABLE :: CONSTRAINT_TO_SOLVER_MATRIX_MAPS_EQUATIONS(:) !<CONSTRAINT_TO_SOLVER_MATRIX_MAPS_EQUATIONS(equations_set_idx). The equations set information of the equations_set_idx'th equations set that the constraint condition affects.
     TYPE(CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM_TYPE), ALLOCATABLE :: CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(:) !<CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx). The mappings from the constraint matrices in this constraint condition to the solver_matrix_idx'th solver_matrix
     TYPE(CONSTRAINT_TO_SOLVER_MATRIX_MAPS_CM_TYPE), ALLOCATABLE :: CONSTRAINT_TO_SOLVER_MATRIX_MAPS_CM(:) !<CONSTRAINT_TO_SOLVER_MATRIX_MAPS_CM(constraint_matrix_idx). The mappings from the constraint_matrix_idx'th constraint matrix in this constraint condition to the solver_matrices.
-    TYPE(JACOBIAN_TO_SOLVER_MAP_PTR_TYPE), ALLOCATABLE :: CONSTRAINT_TO_SOLVER_MATRIX_MAPS_JM(:) !<JACOBIAN_TO_SOLVER_MATRIX_MAPS_JM(jacobian_idx). The mappings from the jacobian_idx'th Jacobian matrix in this constraint condition to the solver_matrices.
+    TYPE(CONSTRAINT_TO_SOLVER_MATRIX_MAPS_JM_TYPE), ALLOCATABLE :: CONSTRAINT_TO_SOLVER_MATRIX_MAPS_JM(:) !<JACOBIAN_TO_SOLVER_MATRIX_MAPS_JM(jacobian_idx). The mappings from the jacobian_idx'th Jacobian matrix in this constraint condition to the solver_matrices.
     TYPE(CONSTRAINT_COLUMN_TO_SOLVER_ROWS_MAP_TYPE), ALLOCATABLE :: CONSTRAINT_COLUMN_TO_SOLVER_ROWS_MAPS(:) !<CONSTRAINT_COLUMN_TO_SOLVER_ROW_MAP(constraint_column_idx). The mapping from the constraint_column_idx'th constraint column to a solver row.
   END TYPE CONSTRAINT_CONDITION_TO_SOLVER_MAP_TYPE
 
@@ -3465,6 +3484,7 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     TYPE(SOLVER_MATRIX_TYPE), POINTER :: SOLVER_MATRIX !<A pointer to the solver matrix being mappind
     INTEGER(INTG) :: NUMBER_OF_COLUMNS !<The number of columns in this distributed solver matrix
     TYPE(SOLVER_COL_TO_EQUATIONS_SET_MAP_TYPE), ALLOCATABLE :: SOLVER_COL_TO_EQUATIONS_SET_MAPS(:) !<SOLVER_TO_EQUATIONS_SET_MAP(equations_set_idx). The solver columns to equations matrix maps for the equations_set_idx'th equations set.
+    TYPE(SOLVER_COL_TO_CONSTRAINT_MAP_TYPE), ALLOCATABLE :: SOLVER_COL_TO_CONSTRAINT_MAPS(:) !<SOLVER_COL_TO_CONSTRAINT_MAPS(constraint_condition_idx). The solver columns to constraint matrix maps for the constraint_condition_idx'th constraint condition.
     TYPE(SOLVER_COL_TO_INTERFACE_MAP_TYPE), ALLOCATABLE :: SOLVER_COL_TO_INTERFACE_MAPS(:) !<SOLVER_COL_TO_INTERFACE_MAPS(interface_condition_idx). The solver columns to interface matrix maps for the interface_condition_idx'th interface condition.
     INTEGER(INTG) :: NUMBER_OF_DOFS !<The number of local dofs (excluding ghost values) in the solver vector associated with this solver matrix
     INTEGER(INTG) :: TOTAL_NUMBER_OF_DOFS !<The number of local dofs (including ghost values) in the solver vector associated with this solver matrix
