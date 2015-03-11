@@ -3833,42 +3833,60 @@ CONTAINS
                                       & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
                                       & LAGRANGE_VARIABLE_TO_SOLVER_COL_MAP%ADDITIVE_CONSTANTS(eqnLocalDof)=0.0_DP
                                       !Set up the equations columns -> solver columns mapping
-                                      constraint_column=CONSTRAINT_MAPPING%LAGRANGE_DOF_TO_COLUMN_MAP(local_dof)
+                                      IF(ASSOCIATED(CONSTRAINT_MAPPING%DYNAMIC_MAPPING)) THEN
+                                        constraint_column=CONSTRAINT_MAPPING%DYNAMIC_MAPPING%LAGRANGE_DOF_TO_COLUMN_MAP(local_dof)
+                                      ELSE IF(ASSOCIATED(CONSTRAINT_MAPPING%LINEAR_MAPPING)) THEN
+                                        constraint_column=CONSTRAINT_MAPPING%LINEAR_MAPPING%LAGRANGE_DOF_TO_COLUMN_MAP(local_dof)
+                                      ELSE IF(ASSOCIATED(CONSTRAINT_MAPPING%NONLINEAR_MAPPING)) THEN
+                                        constraint_column=CONSTRAINT_MAPPING%NONLINEAR_MAPPING%LAGRANGE_DOF_TO_COLUMN_MAP(local_dof)
+                                      ENDIF
                                       !Allocate the equation to solver map column items.
                                       ALLOCATE(SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
-                                        & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%CONSTRAINT_COL_TO_SOLVER_COLS_MAP( &
-                                        & constraint_column)%SOLVER_COLS(1),STAT=ERR)
+                                        & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
+                                        & CONSTRAINT_COL_TO_SOLVER_COLS_MAP(constraint_column)%SOLVER_COLS(1),STAT=ERR)
                                       IF(ERR/=0) CALL  FLAG_ERROR("Could not allocate constraint column to solver columns map "// &
                                         & "solver colums.",ERR,ERROR,*999)
                                       ALLOCATE(SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
-                                        & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%CONSTRAINT_COL_TO_SOLVER_COLS_MAP( &
-                                        & constraint_column)%COUPLING_COEFFICIENTS(1),STAT=ERR)
+                                        & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
+                                        & CONSTRAINT_COL_TO_SOLVER_COLS_MAP(constraint_column)%COUPLING_COEFFICIENTS(1),STAT=ERR)
                                       IF(ERR/=0) CALL FLAG_ERROR("Could not allocate constraint column to solver columns map "// &
                                         & "coupling coefficients.",ERR,ERROR,*999)
                                       SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
-                                        & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%CONSTRAINT_COL_TO_SOLVER_COLS_MAP( &
-                                        & constraint_column)%NUMBER_OF_SOLVER_COLS=1
+                                        & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
+                                        & CONSTRAINT_COL_TO_SOLVER_COLS_MAP(constraint_column)%NUMBER_OF_SOLVER_COLS=1
                                       SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
-                                        & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%CONSTRAINT_COL_TO_SOLVER_COLS_MAP( &
-                                        & constraint_column)%SOLVER_COLS(1)=solver_global_dof
+                                        & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
+                                        & CONSTRAINT_COL_TO_SOLVER_COLS_MAP(constraint_column)%SOLVER_COLS(1)=solver_global_dof
                                       SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
-                                        & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%CONSTRAINT_COL_TO_SOLVER_COLS_MAP( &
-                                        & constraint_column)%COUPLING_COEFFICIENTS(1)=couplingCoefficient
+                                        & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
+                                        & CONSTRAINT_COL_TO_SOLVER_COLS_MAP(constraint_column)%COUPLING_COEFFICIENTS(1)= &
+                                        & couplingCoefficient
                                     ENDIF
                                   ELSE
                                     !Set up the equations variables -> solver columns mapping
                                     SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
-                                    & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%DEPENDENT_VARIABLE_TO_SOLVER_COL_MAPS( &
-                                    & constraint_matrix_idx)%COLUMN_NUMBERS(eqnLocalDof)=solver_global_dof
+                                    & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
+                                    & DEPENDENT_VARIABLE_TO_SOLVER_COL_MAPS(constraint_matrix_idx)%COLUMN_NUMBERS(eqnLocalDof)= &
+                                    & solver_global_dof
                                     SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
-                                    & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%DEPENDENT_VARIABLE_TO_SOLVER_COL_MAPS( &
-                                    & constraint_matrix_idx)%COUPLING_COEFFICIENTS(eqnLocalDof)=couplingCoefficient
+                                    & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
+                                    & DEPENDENT_VARIABLE_TO_SOLVER_COL_MAPS(constraint_matrix_idx)% &
+                                    & COUPLING_COEFFICIENTS(eqnLocalDof)=couplingCoefficient
                                     SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
-                                    & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%DEPENDENT_VARIABLE_TO_SOLVER_COL_MAPS( &
-                                    & constraint_matrix_idx)%ADDITIVE_CONSTANTS(eqnLocalDof)=0.0_DP
+                                    & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
+                                    & DEPENDENT_VARIABLE_TO_SOLVER_COL_MAPS(constraint_matrix_idx)% &
+                                    & ADDITIVE_CONSTANTS(eqnLocalDof)=0.0_DP
                                     !Set up the equations columns -> solver columns mapping
-                                    constraint_row=CONSTRAINT_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS(constraint_matrix_idx)% &
-                                      & VARIABLE_DOF_TO_ROW_MAP(eqnLocalDof)
+                                    IF(ASSOCIATED(CONSTRAINT_MAPPING%DYNAMIC_MAPPING)) THEN
+                                      constraint_row=CONSTRAINT_MAPPING%DYNAMIC_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP% &
+                                       & VARIABLE_DOF_TO_ROWS_MAP(eqnLocalDof)
+                                    ELSE IF(ASSOCIATED(CONSTRAINT_MAPPING%LINEAR_MAPPING)) THEN
+                                      constraint_row=CONSTRAINT_MAPPING%LINEAR_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP% &
+                                       & VARIABLE_DOF_TO_ROWS_MAP(eqnLocalDof)
+                                    ELSE IF(ASSOCIATED(CONSTRAINT_MAPPING%NONLINEAR_MAPPING)) THEN
+                                      constraint_row=CONSTRAINT_MAPPING%NONLINEAR_MAPPING%VAR_TO_CONSTRAINT_JACOBIAN_MAP% &
+                                       & VARIABLE_DOF_TO_ROWS_MAP(eqnLocalDof)
+                                    ENDIF
                                     !Allocate the equation to solver map column items.
                                     ALLOCATE(SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
                                       & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
@@ -3896,7 +3914,8 @@ CONTAINS
                                       & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
                                       & CONSTRAINT_EQUATIONS_TO_SOLVER_MATRIX_MAPS(constraint_matrix_idx)%PTR% &
                                       & CONSTRAINT_ROW_TO_SOLVER_COLS_MAP(constraint_row)%COUPLING_COEFFICIENTS(1)= &
-                                      & CONSTRAINT_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS(constraint_matrix_idx)%MATRIX_COEFFICIENT
+                                      & CONSTRAINT_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAPS(constraint_matrix_idx)% &
+                                      & MATRIX_COEFFICIENT
                                   ENDIF
                                 END DO
                               ELSE !rank /= myrank
