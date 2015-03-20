@@ -136,8 +136,9 @@ CONTAINS
       & matrix_variable_idx,myrank,NUMBER_OF_COLUMNS,NUMBER_OF_DYNAMIC_EQUATIONS_MATRICES,NUMBER_OF_EQUATIONS_COLUMNS, &
       & NUMBER_OF_EQUATIONS_SETS,NUMBER_OF_EQUATIONS_VARIABLES,NUMBER_OF_CONSTRAINTS,NUMBER_OF_CONSTRAINT_COLUMNS, &
       & NUMBER_OF_CONSTRAINT_ROWS,NUMBER_OF_CONSTRAINT_VARIABLES,NUMBER_OF_CONSTRAINT_MATRICES, &
-      & NUMBER_OF_INTERFACES,NUMBER_OF_INTERFACE_COLUMNS, &
-      & NUMBER_OF_INTERFACE_ROWS,NUMBER_OF_INTERFACE_VARIABLES,NUMBER_OF_GLOBAL_SOLVER_DOFS,NUMBER_OF_GLOBAL_SOLVER_ROWS, &
+      & NUMBER_OF_INTERFACES,NUMBER_OF_INTERFACE_COLUMNS,NUMBER_OF_INTERFACE_ROWS, &
+      & NUMBER_OF_DYNAMIC_CONSTRAINT_MATRICES,NUMBER_OF_LINEAR_CONSTRAINT_MATRICES, &
+      & NUMBER_OF_INTERFACE_VARIABLES,NUMBER_OF_GLOBAL_SOLVER_DOFS,NUMBER_OF_GLOBAL_SOLVER_ROWS, &
       & NUMBER_OF_LINEAR_EQUATIONS_MATRICES,NUMBER_OF_LOCAL_SOLVER_DOFS,NUMBER_OF_LOCAL_SOLVER_ROWS,NUMBER_OF_RANK_COLS, &
       & NUMBER_OF_RANK_ROWS,NUMBER_OF_VARIABLES,rank,rank_idx,row_idx,ROW_LIST_ITEM(4),ROW_RANK,solver_global_dof, &
       & solver_matrix_idx,solver_variable_idx,TOTAL_NUMBER_OF_LOCAL_SOLVER_DOFS,variable_idx, &
@@ -3684,6 +3685,20 @@ CONTAINS
                         CASE(CONSTRAINT_CONDITION_LAGRANGE_MULTIPLIERS_METHOD,CONSTRAINT_CONDITION_PENALTY_METHOD)
                           CONSTRAINT_EQUATIONS=>CONSTRAINT_CONDITION%CONSTRAINT_EQUATIONS
                           CONSTRAINT_MAPPING=>CONSTRAINT_EQUATIONS%CONSTRAINT_MAPPING
+                          CONSTRAINT_DYNAMIC_MAPPING=>CONSTRAINT_MAPPING%DYNAMIC_MAPPING
+                          CONSTRAINT_LINEAR_MAPPING=>CONSTRAINT_MAPPING%LINEAR_MAPPING
+                          CONSTRAINT_NONLINEAR_MAPPING=>CONSTRAINT_MAPPING%NONLINEAR_MAPPING
+
+                          NUMBER_OF_DYNAMIC_CONSTRAINT_MATRICES=0
+                          NUMBER_OF_LINEAR_CONSTRAINT_MATRICES=0
+                          IF(ASSOCIATED(CONSTRAINT_DYNAMIC_MAPPING)) THEN
+                              NUMBER_OF_DYNAMIC_CONSTRAINT_MATRICES=CONSTRAINT_DYNAMIC_MAPPING% &
+                            & VAR_TO_CONSTRAINT_MATRICES_MAP%NUMBER_OF_CONSTRAINT_MATRICES
+                          ENDIF
+                          IF(ASSOCIATED(CONSTRAINT_LINEAR_MAPPING)) THEN
+                            NUMBER_OF_LINEAR_CONSTRAINT_MATRICES=CONSTRAINT_LINEAR_MAPPING% &
+                            & VAR_TO_CONSTRAINT_MATRICES_MAP%NUMBER_OF_CONSTRAINT_MATRICES
+                          ENDIF
  
                           !Loop over the variables
                           ! This is not only a Lagrange variable (it could be a equationset variable) - rename for clarity.
@@ -3833,12 +3848,12 @@ CONTAINS
                                       & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
                                       & LAGRANGE_VARIABLE_TO_SOLVER_COL_MAP%ADDITIVE_CONSTANTS(eqnLocalDof)=0.0_DP
                                       !Set up the equations columns -> solver columns mapping
-                                      IF(ASSOCIATED(CONSTRAINT_MAPPING%DYNAMIC_MAPPING)) THEN
-                                        constraint_column=CONSTRAINT_MAPPING%DYNAMIC_MAPPING%LAGRANGE_DOF_TO_COLUMN_MAP(local_dof)
-                                      ELSE IF(ASSOCIATED(CONSTRAINT_MAPPING%LINEAR_MAPPING)) THEN
-                                        constraint_column=CONSTRAINT_MAPPING%LINEAR_MAPPING%LAGRANGE_DOF_TO_COLUMN_MAP(local_dof)
-                                      ELSE IF(ASSOCIATED(CONSTRAINT_MAPPING%NONLINEAR_MAPPING)) THEN
-                                        constraint_column=CONSTRAINT_MAPPING%NONLINEAR_MAPPING%LAGRANGE_DOF_TO_COLUMN_MAP(local_dof)
+                                      IF(ASSOCIATED(CONSTRAINT_DYNAMIC_MAPPING)) THEN
+                                        constraint_column=CONSTRAINT_DYNAMIC_MAPPING%LAGRANGE_DOF_TO_COLUMN_MAP(local_dof)
+                                      ELSE IF(ASSOCIATED(CONSTRAINT_LINEAR_MAPPING)) THEN
+                                        constraint_column=CONSTRAINT_LINEAR_MAPPING%LAGRANGE_DOF_TO_COLUMN_MAP(local_dof)
+                                      ELSE IF(ASSOCIATED(CONSTRAINT_NONLINEAR_MAPPING)) THEN
+                                        constraint_column=CONSTRAINT_NONLINEAR_MAPPING%LAGRANGE_DOF_TO_COLUMN_MAP(local_dof)
                                       ENDIF
                                       !Allocate the equation to solver map column items.
                                       ALLOCATE(SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
@@ -3877,14 +3892,14 @@ CONTAINS
                                     & DEPENDENT_VARIABLE_TO_SOLVER_COL_MAPS(constraint_matrix_idx)% &
                                     & ADDITIVE_CONSTANTS(eqnLocalDof)=0.0_DP
                                     !Set up the equations columns -> solver columns mapping
-                                    IF(ASSOCIATED(CONSTRAINT_MAPPING%DYNAMIC_MAPPING)) THEN
-                                      constraint_row=CONSTRAINT_MAPPING%DYNAMIC_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP% &
+                                    IF(ASSOCIATED(CONSTRAINT_DYNAMIC_MAPPING)) THEN
+                                      constraint_row=CONSTRAINT_DYNAMIC_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP% &
                                        & VARIABLE_DOF_TO_ROWS_MAP(eqnLocalDof)
-                                    ELSE IF(ASSOCIATED(CONSTRAINT_MAPPING%LINEAR_MAPPING)) THEN
-                                      constraint_row=CONSTRAINT_MAPPING%LINEAR_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP% &
+                                    ELSE IF(ASSOCIATED(CONSTRAINT_LINEAR_MAPPING)) THEN
+                                      constraint_row=CONSTRAINT_LINEAR_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP% &
                                        & VARIABLE_DOF_TO_ROWS_MAP(eqnLocalDof)
-                                    ELSE IF(ASSOCIATED(CONSTRAINT_MAPPING%NONLINEAR_MAPPING)) THEN
-                                      constraint_row=CONSTRAINT_MAPPING%NONLINEAR_MAPPING%VAR_TO_CONSTRAINT_JACOBIAN_MAP% &
+                                    ELSE IF(ASSOCIATED(CONSTRAINT_NONLINEAR_MAPPING)) THEN
+                                      constraint_row=CONSTRAINT_NONLINEAR_MAPPING%VAR_TO_CONSTRAINT_JACOBIAN_MAP% &
                                        & VARIABLE_DOF_TO_ROWS_MAP(eqnLocalDof)
                                     ENDIF
                                     !Allocate the equation to solver map column items.
