@@ -170,6 +170,7 @@ endif
 ifneq ($(MP),false)
   CFLAGS += $(MP_FLGS)
   FFLAGS += $(MP_FLGS)
+  EXTERNAL_LIB_PATH += -lgomp
 endif
 
 ARFLAGS = -crsv
@@ -249,7 +250,8 @@ ifeq ($(OPERATING_SYSTEM),linux)
       endif
     endif
     # OPTF_FLGS = -O3 -Wuninitialized -funroll-all-loops
-     OPTF_FLGS = -Ofast -Wuninitialized -funroll-all-loops
+    OPTF_FLGS = -Ofast -Wuninitialized -funroll-all-loops
+    MP_FLGS = -fopenmp
     ELFLAGS += -m$(ABI)
   else
     ifeq ($(COMPILER),intel)
