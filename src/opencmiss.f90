@@ -1330,6 +1330,8 @@ MODULE OPENCMISS
   !>@{
   INTEGER(INTG), PARAMETER :: CMISS_CONSTRAINT_CONDITION_FE_INCOMPRESSIBILITY_OPERATOR = &
     & CONSTRAINT_CONDITION_FE_INCOMPRESSIBILITY_OPERATOR !<Finite elasticity incompressibility operator, i.e., lambda.(J-1). \see OPENCMISS_ConstraintConditionOperators,OPENCMISS
+  INTEGER(INTG), PARAMETER :: CMISS_CONSTRAINT_CONDITION_DUMMY = &
+    & 100 !<Dummy operator. \see OPENCMISS_ConstraintConditionOperators,OPENCMISS
   !>@}
   !> \addtogroup OPENCMISS_ConstraintConditionsLinearityTypes OPENCMISS::ConstraintConditions::LinearityTypes
   !> \brief The constraint conditions linearity types

@@ -3183,16 +3183,6 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     TYPE(CONSTRAINT_TO_SOLVER_MAPS_TYPE), POINTER :: PTR !<A pointer to the constraint to solver maps
   END TYPE CONSTRAINT_TO_SOLVER_MAPS_PTR_TYPE
 
-  TYPE CONSTRAINT_JACOBIAN_TO_SOLVER_MAPS_TYPE
-    INTEGER(INTG) :: CONSTRAINT_MATRIX_NUMBER !<The constraint Jacobian matrix number being mapped.
-    INTEGER(INTG) :: SOLVER_MATRIX_NUMBER !<The solver Jacobian matrix number being mapped.
-    TYPE(CONSTRAINT_JACOBIAN_TYPE), POINTER :: CONSTRAINT_JACOBIAN !<A pointer to the constraint Jacobian matrix being mapped.
-    TYPE(SOLVER_MATRIX_TYPE), POINTER :: SOLVER_MATRIX !<A pointer to the solver matrix being mapped.
-  END TYPE CONSTRAINT_JACOBIAN_TO_SOLVER_MAPS_TYPE
-
-  TYPE CONSTRAINT_JACOBIAN_TO_SOLVER_MAPS_PTR_TYPE
-    TYPE(CONSTRAINT_JACOBIAN_TO_SOLVER_MAPS_TYPE), POINTER :: PTR !<A pointer to the Jacobian to solver map
-  END TYPE CONSTRAINT_JACOBIAN_TO_SOLVER_MAPS_PTR_TYPE
 
   TYPE INTERFACE_TO_SOLVER_MAPS_TYPE
     INTEGER(INTG) :: INTERFACE_MATRIX_NUMBER !<The interface matrix number being mapped.
@@ -3223,6 +3213,18 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
   TYPE JACOBIAN_TO_SOLVER_MAP_PTR_TYPE
     TYPE(JACOBIAN_TO_SOLVER_MAP_TYPE), POINTER :: PTR !<A pointer to the Jacobian to solver map
   END TYPE JACOBIAN_TO_SOLVER_MAP_PTR_TYPE
+
+  TYPE CONSTRAINT_JACOBIAN_TO_SOLVER_MAPS_TYPE
+    INTEGER(INTG) :: CONSTRAINT_MATRIX_NUMBER !<The constraint Jacobian matrix number being mapped.
+    INTEGER(INTG) :: SOLVER_MATRIX_NUMBER !<The solver Jacobian matrix number being mapped.
+    TYPE(CONSTRAINT_JACOBIAN_TYPE), POINTER :: CONSTRAINT_JACOBIAN !<A pointer to the constraint Jacobian matrix being mapped.
+    TYPE(SOLVER_MATRIX_TYPE), POINTER :: SOLVER_MATRIX !<A pointer to the solver matrix being mapped.
+    TYPE(JACOBIAN_COL_TO_SOLVER_COLS_MAP_TYPE), ALLOCATABLE :: CONSTRAINT_ROW_TO_SOLVER_COLS_MAP(:) !<JACOBIAN_COL_TO_SOLVER_COL_MAP(column_idx). The mapping from the row_idx'th column of the Jacobian constraint matrix to the solver matrix columns.
+  END TYPE CONSTRAINT_JACOBIAN_TO_SOLVER_MAPS_TYPE
+
+  TYPE CONSTRAINT_JACOBIAN_TO_SOLVER_MAPS_PTR_TYPE
+    TYPE(CONSTRAINT_JACOBIAN_TO_SOLVER_MAPS_TYPE), POINTER :: PTR !<A pointer to the Jacobian to solver map
+  END TYPE CONSTRAINT_JACOBIAN_TO_SOLVER_MAPS_PTR_TYPE
 
   !>Contains information on the mappings between field variable dofs inequations and the solver matrix columns (solver dofs) \todo rename solver col to be solver dof here???
   TYPE VARIABLE_TO_SOLVER_COL_MAP_TYPE
