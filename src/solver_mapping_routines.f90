@@ -8152,6 +8152,32 @@ CONTAINS
   !
   !================================================================================================================================
   !
+ 
+  !>Initialises a constraint equations set to solver matrix map jm.
+  SUBROUTINE SOLVER_MAPPING_CONSTR_TO_SOL_MAT_MAPS_JM_INITIALISE(CONSTRAINT_TO_SOLVER_MATRIX_MAPS_JM,ERR,ERROR,*)
+
+    !Argument variables
+    TYPE(CONSTRAINT_TO_SOLVER_MATRIX_MAPS_JM_TYPE) :: CONSTRAINT_TO_SOLVER_MATRIX_MAPS_JM !<The constraint equations set to solver matrix maps jm to finalise
+    INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
+    !Local Variables
+    INTEGER(INTG) :: row_idx
+
+    CALL ENTERS("SOLVER_MAPPING_CONSTR_TO_SOL_MAT_MAPS_JM_INITIALISE",ERR,ERROR,*999)
+
+    CONSTRAINT_TO_SOLVER_MATRIX_MAPS_JM%CONSTRAINT_MATRIX_NUMBER=0
+
+    CALL EXITS("SOLVER_MAPPING_CONSTR_TO_SOL_MAT_MAPS_JM_INITIALISE")
+    RETURN
+999 CALL ERRORS("SOLVER_MAPPING_CONSTR_TO_SOL_MAT_MAPS_JM_INITIALISE",ERR,ERROR)
+    CALL EXITS("SOLVER_MAPPING_CONSTR_TO_SOL_MAT_MAPS_JM_INITIALISE")
+    RETURN 1
+
+  END SUBROUTINE SOLVER_MAPPING_CONSTR_TO_SOL_MAT_MAPS_JM_INITIALISE
+
+  !
+  !================================================================================================================================
+  !
 
   !>Finalises an constraint to solver matrix map sm and deallocates all memory.
   SUBROUTINE SOLVER_MAPPING_CONSTR_TO_SOL_MAT_MAPS_SM_FINALISE(CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM,ERR,ERROR,*)

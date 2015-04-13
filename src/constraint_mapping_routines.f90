@@ -276,7 +276,8 @@ CONTAINS
                       !Sets up the Lagrange-(Penalty) constraint matrix mapping and calculate the row mappings
                       DO matrix_idx=number_of_constraint_matrices,DYNAMIC_MAPPING%NUMBER_OF_DYNAMIC_CONSTRAINT_MATRICES
                         !Initialise and setup the constraint matrix
-                        CALL CONSTRAINT_MAPPING_MATRIX_ROW_TO_VAR_MAP_INITIALISE(CONSTRAINT_MAPPING,matrix_idx,ERR,ERROR,*999)
+                        CALL CONSTRAINT_MAPPING_CONSTR_MATRIX_TO_VAR_MAP_INIT(DYNAMIC_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP( &
+                          & matrix_idx),ERR,ERROR,*999)
                         CALL FIELD_VARIABLE_GET(LAGRANGE_FIELD,CREATE_VALUES_CACHE%LAGRANGE_VARIABLE_TYPE,LAGRANGE_VARIABLE, &
                           & ERR,ERROR,*999)
                         FIELD_VARIABLE=>LAGRANGE_VARIABLE
