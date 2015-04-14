@@ -16077,15 +16077,15 @@ CONTAINS
 
   !>Starts the creation of an constraint condition identified by a user number.
   SUBROUTINE CMISSConstraintCondition_CreateStartNumber(constraintConditionUserNumber,regionUserNumber, &
-    & geometricFieldUserNumber,err)
+    & equationsSetUserNumber,err)
 
     !Argument variables
     INTEGER(INTG), INTENT(IN) :: constraintConditionUserNumber !<The user number of the constraint condition to start the creation of.
     INTEGER(INTG), INTENT(IN) :: regionUserNumber !<The user number of the region containing the constraint to start the creation of the constraint condition for.
-    INTEGER(INTG), INTENT(IN) :: geometricFieldUserNumber !<The user number of the geometric field on the constraint for the constraint condition.
+    INTEGER(INTG), INTENT(IN) :: equationsSetUserNumber !<The user number of the equations set to impose the constraint condition on.
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
-    TYPE(FIELD_TYPE), POINTER :: GEOMETRIC_FIELD
+    TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET
     TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION
     TYPE(REGION_TYPE), POINTER :: REGION
     TYPE(VARYING_STRING) :: LOCAL_ERROR
@@ -16093,16 +16093,16 @@ CONTAINS
     CALL ENTERS("CMISSConstraintCondition_CreateStartNumber",err,error,*999)
 
     NULLIFY(REGION)
-    NULLIFY(GEOMETRIC_FIELD)
+    NULLIFY(EQUATIONS_SET)
     NULLIFY(CONSTRAINT_CONDITION)
     CALL REGION_USER_NUMBER_FIND(regionUserNumber,REGION,err,error,*999)
     IF(ASSOCIATED(REGION)) THEN
-      CALL FIELD_USER_NUMBER_FIND(geometricFieldUserNumber,REGION,GEOMETRIC_FIELD,err,error,*999)
-      IF(ASSOCIATED(GEOMETRIC_FIELD)) THEN
-        CALL CONSTRAINT_CONDITION_CREATE_START(constraintConditionUserNumber,REGION,GEOMETRIC_FIELD,CONSTRAINT_CONDITION, &
+      CALL EQUATIONS_SET_USER_NUMBER_FIND(equationsSetUserNumber,REGION,EQUATIONS_SET,err,error,*999)
+      IF(ASSOCIATED(EQUATIONS_SET)) THEN
+        CALL CONSTRAINT_CONDITION_CREATE_START(constraintConditionUserNumber,EQUATIONS_SET,CONSTRAINT_CONDITION, &
           & err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NUMBER_TO_VSTRING(geometricFieldUserNumber,"*",err,error))// &
+        LOCAL_ERROR="An equations set with a user number of "//TRIM(NUMBER_TO_VSTRING(equationsSetUserNumber,"*",err,error))// &
           & " does not exist on the region with a user number of "// &
           & TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//"."
         CALL FLAG_ERROR(LOCAL_ERROR,err,error,*999)
@@ -16127,19 +16127,18 @@ CONTAINS
   !
 
   !>Starts the creation of an constraint condition identified by an object.
-  SUBROUTINE CMISSConstraintCondition_CreateStartObj(constraintConditionUserNumber,region,geometricField,constraintCondition,err)
+  SUBROUTINE CMISSConstraintCondition_CreateStartObj(constraintConditionUserNumber,equationsSet,constraintCondition,err)
 
     !Argument variables
     INTEGER(INTG), INTENT(IN) :: constraintConditionUserNumber !<The user number of the constraint conditon to start the creation of.
-    TYPE(CMISSRegionType), INTENT(IN) :: region !<The region to create the constraint on.
-    TYPE(CMISSFieldType), INTENT(IN) :: geometricField !<The geometric field for the constraint condition.
+    TYPE(CMISSEquationsSetType), INTENT(IN) :: equationsSet !<The equations set to create the constraint on.
     TYPE(CMISSConstraintConditionType), INTENT(IN) :: constraintCondition !<On return, the created constraint condition.
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
 
     CALL ENTERS("CMISSConstraintCondition_CreateStartObj",err,error,*999)
 
-    CALL CONSTRAINT_CONDITION_CREATE_START(constraintConditionUserNumber,region%REGION,geometricField%FIELD, &
+    CALL CONSTRAINT_CONDITION_CREATE_START(constraintConditionUserNumber,equationsSet%EQUATIONS_SET, &
       & constraintCondition%CONSTRAINT_CONDITION,err,error,*999)
 
     CALL EXITS("CMISSConstraintCondition_CreateStartObj")

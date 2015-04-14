@@ -164,6 +164,7 @@ CONTAINS
                     CALL CONSTRAINT_MAPPING_VAR_TO_CONSTR_MATRICES_MAP_INIT( &
                       & DYNAMIC_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP,ERR,ERROR,*999)
                     DYNAMIC_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%VARIABLE_TYPE=CREATE_VALUES_CACHE%DYNAMIC_VARIABLE_TYPE
+                    NULLIFY(FIELD_VARIABLE)
                     CALL FIELD_VARIABLE_GET(DEPENDENT_FIELD,CREATE_VALUES_CACHE%DYNAMIC_VARIABLE_TYPE,FIELD_VARIABLE, &
                       & ERR,ERROR,*999)
                     DYNAMIC_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%VARIABLE=>FIELD_VARIABLE
@@ -278,6 +279,7 @@ CONTAINS
                         !Initialise and setup the constraint matrix
                         CALL CONSTRAINT_MAPPING_CONSTR_MATRIX_TO_VAR_MAP_INIT(DYNAMIC_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP( &
                           & matrix_idx),ERR,ERROR,*999)
+                        NULLIFY(LAGRANGE_VARIABLE)
                         CALL FIELD_VARIABLE_GET(LAGRANGE_FIELD,CREATE_VALUES_CACHE%LAGRANGE_VARIABLE_TYPE,LAGRANGE_VARIABLE, &
                           & ERR,ERROR,*999)
                         FIELD_VARIABLE=>LAGRANGE_VARIABLE
@@ -343,6 +345,7 @@ CONTAINS
                    CALL CONSTRAINT_MAPPING_VAR_TO_CONSTR_MATRICES_MAP_INIT( &
                      & LINEAR_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP,ERR,ERROR,*999)
                     LINEAR_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%VARIABLE_TYPE=CREATE_VALUES_CACHE%LINEAR_VARIABLE_TYPE
+                    NULLIFY(FIELD_VARIABLE)
                     CALL FIELD_VARIABLE_GET(DEPENDENT_FIELD,CREATE_VALUES_CACHE%LINEAR_VARIABLE_TYPE,FIELD_VARIABLE, &
                       & ERR,ERROR,*999)
                     LINEAR_MAPPING%VAR_TO_CONSTRAINT_MATRICES_MAP%VARIABLE=>FIELD_VARIABLE
@@ -392,6 +395,7 @@ CONTAINS
                       & matrix_idx),ERR,ERROR,*999)
                     EQUATIONS_SET=>CONSTRAINT_DEPENDENT%EQUATIONS_SET
                     IF(ASSOCIATED(EQUATIONS_SET)) THEN
+                      NULLIFY(FIELD_VARIABLE)
                       CALL FIELD_VARIABLE_GET(DEPENDENT_FIELD,CREATE_VALUES_CACHE%LINEAR_VARIABLE_TYPE,FIELD_VARIABLE, &
                         & ERR,ERROR,*999)
                       IF(ASSOCIATED(FIELD_VARIABLE)) THEN
@@ -433,6 +437,7 @@ CONTAINS
                       !Initialise and setup the constraint matrix
                       CALL CONSTRAINT_MAPPING_CONSTR_MATRIX_TO_VAR_MAP_INIT(LINEAR_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP( &
                         & matrix_idx),ERR,ERROR,*999)
+                      NULLIFY(LAGRANGE_VARIABLE)
                       CALL FIELD_VARIABLE_GET(LAGRANGE_FIELD,CREATE_VALUES_CACHE%LAGRANGE_VARIABLE_TYPE,LAGRANGE_VARIABLE, &
                         & ERR,ERROR,*999)
                       FIELD_VARIABLE=>LAGRANGE_VARIABLE
@@ -475,7 +480,6 @@ CONTAINS
                    CALL FLAG_ERROR("Linear mapping is not associated.",ERR,ERROR,*999)
                  ENDIF
                ENDIF
- 
                 !Calculate nonlinear mappings
                 IF(CREATE_VALUES_CACHE%NUMBER_OF_JACOBIAN_CONSTRAINT_MATRICES>0) THEN                  
                   CALL CONSTRAINT_MAPPING_NONLINEAR_MAPPING_INITIALISE(CONSTRAINT_MAPPING,ERR,ERROR,*999)
@@ -495,6 +499,7 @@ CONTAINS
                     CALL CONSTRAINT_MAPPING_VAR_TO_CONSTR_JACOBIAN_MAP_INIT( &
                       & NONLINEAR_MAPPING%VAR_TO_CONSTRAINT_JACOBIAN_MAP,ERR,ERROR,*999)
                     NONLINEAR_MAPPING%VAR_TO_CONSTRAINT_JACOBIAN_MAP%VARIABLE_TYPE=CREATE_VALUES_CACHE%JACOBIAN_VARIABLE_TYPE
+                    NULLIFY(FIELD_VARIABLE)
                     CALL FIELD_VARIABLE_GET(DEPENDENT_FIELD,CREATE_VALUES_CACHE%JACOBIAN_VARIABLE_TYPE,FIELD_VARIABLE, &
                       & ERR,ERROR,*999)
                     NONLINEAR_MAPPING%VAR_TO_CONSTRAINT_JACOBIAN_MAP%VARIABLE=>FIELD_VARIABLE
@@ -544,6 +549,7 @@ CONTAINS
                       & CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAP(matrix_idx),ERR,ERROR,*999)
                     EQUATIONS_SET=>CONSTRAINT_DEPENDENT%EQUATIONS_SET
                     IF(ASSOCIATED(EQUATIONS_SET)) THEN
+                      NULLIFY(FIELD_VARIABLE)
                       CALL FIELD_VARIABLE_GET(DEPENDENT_FIELD,CREATE_VALUES_CACHE%JACOBIAN_VARIABLE_TYPE,FIELD_VARIABLE, &
                         & ERR,ERROR,*999)
                       IF(ASSOCIATED(FIELD_VARIABLE)) THEN
@@ -990,6 +996,8 @@ CONTAINS
             CONSTRAINT_MAPPING%CREATE_VALUES_CACHE%DYNAMIC_STIFFNESS_MATRIX_NUMBER=0
             CONSTRAINT_MAPPING%CREATE_VALUES_CACHE%DYNAMIC_DAMPING_MATRIX_NUMBER=0
             CONSTRAINT_MAPPING%CREATE_VALUES_CACHE%DYNAMIC_MASS_MATRIX_NUMBER=0
+            CONSTRAINT_MAPPING%CREATE_VALUES_CACHE%NUMBER_OF_DYNAMIC_CONSTRAINT_MATRICES=0
+            CONSTRAINT_MAPPING%CREATE_VALUES_CACHE%NUMBER_OF_JACOBIAN_CONSTRAINT_MATRICES=0
             CONSTRAINT_MAPPING%CREATE_VALUES_CACHE%NUMBER_OF_LINEAR_CONSTRAINT_MATRICES=0
             CONSTRAINT_MAPPING%CREATE_VALUES_CACHE%JACOBIAN_COEFFICIENT=1.0_DP
             CONSTRAINT_MAPPING%CREATE_VALUES_CACHE%LAGRANGE_VARIABLE_TYPE=0
@@ -1026,9 +1034,6 @@ CONTAINS
                       ENDDO !variable_type_idx2
                       IF(CONSTRAINT_MAPPING%CREATE_VALUES_CACHE%RHS_LAGRANGE_VARIABLE_TYPE==0) &
                         & CALL FLAG_ERROR("Could not find a RHS Lagrange variable type in the Lagrange field.",ERR,ERROR,*999)
-                      ALLOCATE(CONSTRAINT_MAPPING%CREATE_VALUES_CACHE%LINEAR_MATRIX_COEFFICIENTS(CONSTRAINT_MAPPING% &
-                        & CREATE_VALUES_CACHE%NUMBER_OF_LINEAR_CONSTRAINT_MATRICES),STAT=ERR)
-                      IF(ERR/=0) CALL FLAG_ERROR("Could not allocate create values cache matrix coefficients.",ERR,ERROR,*999)
                       !Set the default constraint mapping in the create values cache
                       SELECT CASE(CONSTRAINT_EQUATIONS%TIME_DEPENDENCE)
                       CASE(CONSTRAINT_CONDITION_STATIC)
@@ -1103,6 +1108,14 @@ CONTAINS
                         IF(ERR/=0) CALL FLAG_ERROR("Could not allocate create values cache dynamic has transpose.",ERR,ERROR,*999)
                         !Default the dynamic constraint matrices to all have a transpose
                         CONSTRAINT_MAPPING%CREATE_VALUES_CACHE%DYNAMIC_HAS_TRANSPOSE=.TRUE.
+                        !Default the dynamic variable to the first dynamic variable
+                        CONSTRAINT_MAPPING%CREATE_VALUES_CACHE%DYNAMIC_VARIABLE_TYPE=0
+                        DO variable_type_idx=1,FIELD_NUMBER_OF_VARIABLE_TYPES
+                          IF(ASSOCIATED(CONSTRAINT_DEPENDENT_FIELD%VARIABLE_TYPE_MAP(variable_type_idx)%PTR)) THEN
+                            CONSTRAINT_MAPPING%CREATE_VALUES_CACHE%DYNAMIC_VARIABLE_TYPE=variable_type_idx
+                            EXIT
+                          ENDIF
+                        ENDDO !variable_type_idx
                         !The pointers below have been checked for association above.
                         SELECT CASE(CONSTRAINT_CONDITION%METHOD)
                         CASE(CONSTRAINT_CONDITION_PENALTY_METHOD)
@@ -1118,6 +1131,14 @@ CONTAINS
                         IF(ERR/=0) CALL FLAG_ERROR("Could not allocate create values cache Jacobian has transpose.",ERR,ERROR,*999)
                         !Default the Jacobia constraint matrices to all have a transpose
                         CONSTRAINT_MAPPING%CREATE_VALUES_CACHE%JACOBIAN_HAS_TRANSPOSE=.TRUE.
+                        !Default the Jacobian variable to the first Jacobian variable
+                        CONSTRAINT_MAPPING%CREATE_VALUES_CACHE%JACOBIAN_VARIABLE_TYPE=0
+                        DO variable_type_idx=1,FIELD_NUMBER_OF_VARIABLE_TYPES
+                          IF(ASSOCIATED(CONSTRAINT_DEPENDENT_FIELD%VARIABLE_TYPE_MAP(variable_type_idx)%PTR)) THEN
+                            CONSTRAINT_MAPPING%CREATE_VALUES_CACHE%JACOBIAN_VARIABLE_TYPE=variable_type_idx
+                            EXIT
+                          ENDIF
+                        ENDDO !variable_type_idx
                         !The pointers below have been checked for association above.
                         SELECT CASE(CONSTRAINT_CONDITION%METHOD)
                         CASE(CONSTRAINT_CONDITION_PENALTY_METHOD)
@@ -1140,6 +1161,14 @@ CONTAINS
                         IF(ERR/=0) CALL FLAG_ERROR("Could not allocate create values cache linear has transpose.",ERR,ERROR,*999)
                         !Default the linear constraint matrices to all have a transpose
                         CONSTRAINT_MAPPING%CREATE_VALUES_CACHE%LINEAR_HAS_TRANSPOSE=.TRUE.
+                        !Default the linear variable to the first linear variable
+                        CONSTRAINT_MAPPING%CREATE_VALUES_CACHE%LINEAR_VARIABLE_TYPE=0
+                        DO variable_type_idx=1,FIELD_NUMBER_OF_VARIABLE_TYPES
+                          IF(ASSOCIATED(CONSTRAINT_DEPENDENT_FIELD%VARIABLE_TYPE_MAP(variable_type_idx)%PTR)) THEN
+                            CONSTRAINT_MAPPING%CREATE_VALUES_CACHE%LINEAR_VARIABLE_TYPE=variable_type_idx
+                            EXIT
+                          ENDIF
+                        ENDDO !variable_type_idx
                         !The pointers below have been checked for association above.
                         SELECT CASE(CONSTRAINT_CONDITION%METHOD)
                         CASE(CONSTRAINT_CONDITION_PENALTY_METHOD)
