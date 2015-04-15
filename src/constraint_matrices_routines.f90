@@ -3356,7 +3356,7 @@ CONTAINS
                                       CALL LIST_NUMBER_OF_ITEMS_GET(COLUMN_INDICES_LISTS(local_row)%PTR,NUMBER_OF_COLUMNS, &
                                         & ERR,ERROR,*999)
                                       NUMBER_OF_NON_ZEROS=NUMBER_OF_NON_ZEROS+NUMBER_OF_COLUMNS
-                                      ROW_INDICES(local_column+1)=NUMBER_OF_NON_ZEROS+1
+                                      ROW_INDICES(local_row+1)=NUMBER_OF_NON_ZEROS+1
                                     ENDDO !local_row
                                     IF(CONSTRAINT_MATRIX%HAS_TRANSPOSE) THEN
                                       TRANSPOSE_NUMBER_OF_NON_ZEROS=0
@@ -3417,8 +3417,8 @@ CONTAINS
                                         & NUMBER_OF_NON_ZEROS,ERR,ERROR,*999)
                                       IF(ROW_DOFS_DOMAIN_MAPPING%TOTAL_NUMBER_OF_LOCAL* &
                                         & COLUMN_DOFS_DOMAIN_MAPPING%NUMBER_OF_GLOBAL/=0) THEN
-                                        SPARSITY=REAL(NUMBER_OF_NON_ZEROS,DP)/REAL(ROW_DOFS_DOMAIN_MAPPING% &
-                                          & TOTAL_NUMBER_OF_LOCAL*COLUMN_DOFS_DOMAIN_MAPPING%NUMBER_OF_GLOBAL,DP)*100.0_DP
+                                        SPARSITY=(1.0_DP-REAL(NUMBER_OF_NON_ZEROS,DP)/REAL(ROW_DOFS_DOMAIN_MAPPING% &
+                                          & TOTAL_NUMBER_OF_LOCAL*COLUMN_DOFS_DOMAIN_MAPPING%NUMBER_OF_GLOBAL,DP))*100.0_DP
                                         CALL WRITE_STRING_FMT_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"  Sparsity (%) = ",SPARSITY, &
                                           & "F6.2",ERR,ERROR,*999)
                                       ENDIF
@@ -3655,14 +3655,14 @@ CONTAINS
                                                 local_row=ROW_VARIABLE%COMPONENTS(row_component_idx)% &
                                                   & PARAM_TO_DOF_MAP%NODE_PARAM2DOF_MAP%NODES(row_node)% &
                                                   & DERIVATIVES(row_derivative)%VERSIONS(row_version)
-                                                global_row=COLUMN_DOFS_DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(local_row)
+                                                global_row=ROW_DOFS_DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(local_row)
                                                 !Loop over the components in the Lagrange multiplier variable
                                                 DO column_component_idx=1,COLUMN_VARIABLE%NUMBER_OF_COMPONENTS
                                                   SELECT CASE(COLUMN_VARIABLE%COMPONENTS(column_component_idx)%INTERPOLATION_TYPE)
                                                   CASE(FIELD_CONSTANT_INTERPOLATION)
                                                     local_column=COLUMN_VARIABLE%COMPONENTS(column_component_idx)% &
                                                       & PARAM_TO_DOF_MAP%CONSTANT_PARAM2DOF_MAP
-                                                    global_column=COLUMN_VARIABLE%DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(local_column)
+                                                    global_column=COLUMN_DOFS_DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(local_column)
                                                     CALL LIST_ITEM_ADD(COLUMN_INDICES_LISTS(local_row)%PTR,global_column, &
                                                       & ERR,ERROR,*999)
                                                     IF(CONSTRAINT_JACOBIAN%HAS_TRANSPOSE) THEN
@@ -3677,7 +3677,7 @@ CONTAINS
                                                         & surrounding_element_idx)
                                                       local_column=COLUMN_VARIABLE%COMPONENTS(column_component_idx)% &
                                                         & PARAM_TO_DOF_MAP%ELEMENT_PARAM2DOF_MAP%ELEMENTS(column_element_idx)
-                                                      global_column=COLUMN_VARIABLE%DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(local_column)
+                                                      global_column=COLUMN_DOFS_DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(local_column)
                                                       CALL LIST_ITEM_ADD(COLUMN_INDICES_LISTS(local_row)%PTR, &
                                                         & global_column,err,error,*999)
                                                       IF(CONSTRAINT_JACOBIAN%HAS_TRANSPOSE) THEN
@@ -3705,7 +3705,7 @@ CONTAINS
                                                           local_column=COLUMN_VARIABLE%COMPONENTS(column_component_idx)% &
                                                             & PARAM_TO_DOF_MAP%NODE_PARAM2DOF_MAP%NODES(column_node)% &
                                                             & DERIVATIVES(column_derivative)%VERSIONS(column_version)
-                                                          global_column=COLUMN_VARIABLE%DOMAIN_MAPPING% &
+                                                          global_column=COLUMN_DOFS_DOMAIN_MAPPING% &
                                                             & LOCAL_TO_GLOBAL_MAP(local_column)
                                                           CALL LIST_ITEM_ADD(COLUMN_INDICES_LISTS(local_row)%PTR,global_column, &
                                                             & ERR,ERROR,*999)
@@ -3741,7 +3741,7 @@ CONTAINS
                                         CALL LIST_NUMBER_OF_ITEMS_GET(COLUMN_INDICES_LISTS(local_row)%PTR,NUMBER_OF_COLUMNS, &
                                           & ERR,ERROR,*999)
                                         NUMBER_OF_NON_ZEROS=NUMBER_OF_NON_ZEROS+NUMBER_OF_COLUMNS
-                                        ROW_INDICES(local_column+1)=NUMBER_OF_NON_ZEROS+1
+                                        ROW_INDICES(local_row+1)=NUMBER_OF_NON_ZEROS+1
                                       ENDDO !local_row
                                       IF(CONSTRAINT_JACOBIAN%HAS_TRANSPOSE) THEN
                                         TRANSPOSE_NUMBER_OF_NON_ZEROS=0
@@ -3802,8 +3802,8 @@ CONTAINS
                                           & NUMBER_OF_NON_ZEROS,ERR,ERROR,*999)
                                         IF(ROW_DOFS_DOMAIN_MAPPING%TOTAL_NUMBER_OF_LOCAL* &
                                           & COLUMN_DOFS_DOMAIN_MAPPING%NUMBER_OF_GLOBAL/=0) THEN
-                                          SPARSITY=REAL(NUMBER_OF_NON_ZEROS,DP)/REAL(ROW_DOFS_DOMAIN_MAPPING% &
-                                            & TOTAL_NUMBER_OF_LOCAL*COLUMN_DOFS_DOMAIN_MAPPING%NUMBER_OF_GLOBAL,DP)*100.0_DP
+                                          SPARSITY=(1.0_DP-REAL(NUMBER_OF_NON_ZEROS,DP)/REAL(ROW_DOFS_DOMAIN_MAPPING% &
+                                            & TOTAL_NUMBER_OF_LOCAL*COLUMN_DOFS_DOMAIN_MAPPING%NUMBER_OF_GLOBAL,DP))*100.0_DP
                                           CALL WRITE_STRING_FMT_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"  Sparsity (%) = ",SPARSITY, &
                                             & "F6.2",ERR,ERROR,*999)
                                         ENDIF
