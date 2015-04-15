@@ -53,6 +53,7 @@ MODULE SOLVER_ROUTINES
   USE CMISS_PETSC
   USE COMP_ENVIRONMENT
   USE CONSTANTS
+  USE CONSTRAINT_CONDITIONS_CONSTANTS
   USE DISTRIBUTED_MATRIX_VECTOR
   USE EQUATIONS_SET_CONSTANTS
   USE FIELD_ROUTINES
@@ -551,6 +552,8 @@ MODULE SOLVER_ROUTINES
   PUBLIC SOLVER_EQUATIONS_CREATE_FINISH,SOLVER_EQUATIONS_CREATE_START
 
   PUBLIC SOLVER_EQUATIONS_DESTROY
+
+  PUBLIC SOLVER_EQUATIONS_CONSTRAINT_CONDITION_ADD
   
   PUBLIC SOLVER_EQUATIONS_EQUATIONS_SET_ADD
 
@@ -6502,6 +6505,139 @@ CONTAINS
 
   END SUBROUTINE SOLVER_EQUATIONS_BOUNDARY_CONDITIONS_GET
 
+  !
+  !================================================================================================================================
+  !
+
+  !>Adds constraint conditions to solver equations. \see OPENCMISS::CMISSSolverEquationsConstraintConditionAdd
+  SUBROUTINE SOLVER_EQUATIONS_CONSTRAINT_CONDITION_ADD(SOLVER_EQUATIONS,CONSTRAINT_CONDITION,CONSTRAINT_CONDITION_INDEX,ERR,ERROR,*)
+
+    !Argument variables
+    TYPE(SOLVER_EQUATIONS_TYPE), POINTER :: SOLVER_EQUATIONS !<A pointer the solver equations to add the constraint condition to.
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION !<A pointer to the constraint condition to add
+    INTEGER(INTG), INTENT(OUT) :: CONSTRAINT_CONDITION_INDEX !<On exit, the index of the constraint condition that has been added
+    INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
+    !Local Variables
+    TYPE(CONSTRAINT_EQUATIONS_TYPE), POINTER :: CONSTRAINT_EQUATIONS
+    TYPE(SOLVER_TYPE), POINTER :: SOLVER
+    TYPE(SOLVER_MAPPING_TYPE), POINTER :: SOLVER_MAPPING
+    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    LOGICAL :: TIME_COMPATIBLE,LINEARITY_COMPATIBLE
+    
+    CALL ENTERS("SOLVER_EQUATIONS_CONSTRAINT_CONDITION_ADD",ERR,ERROR,*999)
+
+    IF(ASSOCIATED(SOLVER_EQUATIONS)) THEN
+      IF(SOLVER_EQUATIONS%SOLVER_EQUATIONS_FINISHED) THEN
+        CALL FLAG_ERROR("Solver equations has already been finished.",ERR,ERROR,*999)
+      ELSE
+        SOLVER=>SOLVER_EQUATIONS%SOLVER
+        IF(ASSOCIATED(SOLVER)) THEN
+          IF(ASSOCIATED(SOLVER%LINKING_SOLVER)) THEN
+            CALL FLAG_ERROR("Can not add an constraint condition for a solver that has been linked.",ERR,ERROR,*999)
+          ELSE
+            SOLVER_MAPPING=>SOLVER_EQUATIONS%SOLVER_MAPPING
+            IF(ASSOCIATED(SOLVER_MAPPING)) THEN
+              IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
+                CONSTRAINT_EQUATIONS=>CONSTRAINT_CONDITION%CONSTRAINT_EQUATIONS
+                IF(ASSOCIATED(CONSTRAINT_EQUATIONS)) THEN
+                  TIME_COMPATIBLE=.TRUE.
+                  LINEARITY_COMPATIBLE=.TRUE.
+                  !Check solver equations and constraint condition time dependence is compatible
+                  SELECT CASE(SOLVER_EQUATIONS%TIME_DEPENDENCE)
+                  CASE(SOLVER_EQUATIONS_STATIC)
+                    SELECT CASE(CONSTRAINT_EQUATIONS%TIME_DEPENDENCE)
+                    CASE(CONSTRAINT_CONDITION_STATIC)
+                      !OK
+                    CASE DEFAULT
+                      TIME_COMPATIBLE=.FALSE.
+                    END SELECT
+                  CASE(SOLVER_EQUATIONS_FIRST_ORDER_DYNAMIC)
+                    SELECT CASE(CONSTRAINT_EQUATIONS%TIME_DEPENDENCE)
+                    CASE(EQUATIONS_FIRST_ORDER_DYNAMIC)
+                      !OK
+                    CASE DEFAULT
+                      TIME_COMPATIBLE=.FALSE.
+                    END SELECT
+                  CASE(SOLVER_EQUATIONS_SECOND_ORDER_DYNAMIC)
+                    SELECT CASE(CONSTRAINT_EQUATIONS%TIME_DEPENDENCE)
+                    CASE(EQUATIONS_SECOND_ORDER_DYNAMIC)
+                      !OK
+                    CASE DEFAULT
+                      TIME_COMPATIBLE=.FALSE.
+                    END SELECT
+                  CASE DEFAULT
+                    TIME_COMPATIBLE=.FALSE.
+                    LOCAL_ERROR="Invalid time dependence for solver equations, "// &
+                      & TRIM(NUMBER_TO_VSTRING(SOLVER_EQUATIONS%TIME_DEPENDENCE,"*",ERR,ERROR))//"."
+                    CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
+                  END SELECT
+                  IF (.NOT. TIME_COMPATIBLE) THEN
+                    LOCAL_ERROR="Invalid constraint condition setup. The time dependence of the constraint condition to add ("// &
+                      & TRIM(NUMBER_TO_VSTRING(CONSTRAINT_EQUATIONS%TIME_DEPENDENCE,"*",ERR,ERROR))// &
+                      & ") is not compatible with the solver equations time dependence ("// &
+                      & TRIM(NUMBER_TO_VSTRING(SOLVER_EQUATIONS%TIME_DEPENDENCE,"*",ERR,ERROR))//")."
+                    CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
+                  ENDIF
+                  !Check solver equations and constraint condition linearity is compatible
+                  SELECT CASE(SOLVER_EQUATIONS%LINEARITY)
+                  CASE(SOLVER_EQUATIONS_LINEAR)
+                    SELECT CASE(CONSTRAINT_EQUATIONS%LINEARITY)
+                    CASE(CONSTRAINT_CONDITION_LINEAR)
+                      !OK
+                    CASE DEFAULT
+                      LINEARITY_COMPATIBLE=.FALSE.
+                    END SELECT
+                  CASE(SOLVER_EQUATIONS_NONLINEAR)
+                    SELECT CASE(CONSTRAINT_EQUATIONS%LINEARITY)
+                    CASE(CONSTRAINT_CONDITION_LINEAR,CONSTRAINT_CONDITION_NONLINEAR)
+                      !OK
+                    CASE DEFAULT
+                      LINEARITY_COMPATIBLE=.FALSE.
+                    END SELECT
+                  CASE DEFAULT
+                    LINEARITY_COMPATIBLE=.FALSE.
+                    LOCAL_ERROR="Invalid linearity for solver equations, "// &
+                      & TRIM(NUMBER_TO_VSTRING(SOLVER_EQUATIONS%LINEARITY,"*",ERR,ERROR))//"."
+                    CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
+                  END SELECT
+                  IF (.NOT. LINEARITY_COMPATIBLE) THEN
+                    LOCAL_ERROR="Invalid constraint condition setup. The linearity of the constraint condition to add ("// &
+                      & TRIM(NUMBER_TO_VSTRING(CONSTRAINT_EQUATIONS%TIME_DEPENDENCE,"*",ERR,ERROR))// &
+                      & ") is not compatible with the solver equations linearity ("// &
+                      & TRIM(NUMBER_TO_VSTRING(SOLVER_EQUATIONS%TIME_DEPENDENCE,"*",ERR,ERROR))//")."
+                    CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
+                  ENDIF
+                  IF (TIME_COMPATIBLE .AND. LINEARITY_COMPATIBLE) THEN
+                    CALL SOLVER_MAPPING_CONSTRAINT_CONDITION_ADD(SOLVER_MAPPING,CONSTRAINT_CONDITION, &
+                      & CONSTRAINT_CONDITION_INDEX,ERR,ERROR,*999)
+                  ENDIF
+                ELSE
+                  CALL FLAG_ERROR("Constraint condition equations is not associated.",ERR,ERROR,*999)
+                ENDIF
+              ELSE
+                CALL FLAG_ERROR("Constraint condition is not associated.",ERR,ERROR,*999)
+              ENDIF
+            ELSE
+              CALL FLAG_ERROR("Solver equations solver mapping is not associated.",ERR,ERROR,*999)
+            ENDIF
+          ENDIF
+        ELSE
+          CALL FLAG_ERROR("Solver equations solver is not associated.",ERR,ERROR,*999)
+        ENDIF
+      ENDIF
+    ELSE
+      CALL FLAG_ERROR("Solver equations is not associated.",ERR,ERROR,*999)
+    ENDIF
+        
+    CALL EXITS("SOLVER_EQUATIONS_CONSTRAINT_CONDITION_ADD")
+    RETURN
+999 CALL ERRORS("SOLVER_EQUATIONS_CONSTRAINT_CONDITION_ADD",ERR,ERROR)
+    CALL EXITS("SOLVER_EQUATIONS_CONSTRAINT_CONDITION_ADD")
+    RETURN 1
+   
+  END SUBROUTINE SOLVER_EQUATIONS_CONSTRAINT_CONDITION_ADD
+        
   !
   !================================================================================================================================
   !

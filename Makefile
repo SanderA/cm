@@ -1785,7 +1785,6 @@ $(OBJECT_DIR)/solver_routines.o	:	$(SOURCE_DIR)/solver_routines.f90 \
 	$(OBJECT_DIR)/computational_environment.o \
 	$(OBJECT_DIR)/constants.o \
 	$(OBJECT_DIR)/constraint_conditions_constants.o \
-	$(OBJECT_DIR)/constraint_matrices_constants.o \
 	$(OBJECT_DIR)/distributed_matrix_vector.o \
 	$(OBJECT_DIR)/equations_set_constants.o \
 	$(OBJECT_DIR)/external_dae_solver_routines.o \

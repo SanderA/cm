@@ -6894,6 +6894,13 @@ MODULE OPENCMISS
     MODULE PROCEDURE CMISSSolver_SolverEquationsGetObj
   END INTERFACE !CMISSSolver_SolverEquationsGet
 
+  !>Adds constraint conditions to solver equations.
+  INTERFACE CMISSSolverEquations_ConstraintConditionAdd
+    MODULE PROCEDURE CMISSSolverEquations_ConstraintConditionAddNumber0
+    MODULE PROCEDURE CMISSSolverEquations_ConstraintConditionAddNumber1
+    MODULE PROCEDURE CMISSSolverEquations_ConstraintConditionAddObj
+  END INTERFACE !CMISSSolverEquations_ConstraintConditionAdd
+
   !>Adds equations sets to solver equations.
   INTERFACE CMISSSolverEquations_EquationsSetAdd
     MODULE PROCEDURE CMISSSolverEquations_EquationsSetAddNumber0
@@ -7163,6 +7170,8 @@ MODULE OPENCMISS
   PUBLIC CMISSSolver_OutputTypeSet
 
   PUBLIC CMISSSolver_SolverEquationsGet
+  
+  PUBLIC CMISSSolverEquations_ConstraintConditionAdd
 
   PUBLIC CMISSSolverEquations_EquationsSetAdd
 
@@ -58972,6 +58981,167 @@ CONTAINS
     RETURN
 
   END SUBROUTINE CMISSSolver_SolverEquationsGetObj
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Adds constraint conditions to solver equations identified by an user number.
+  SUBROUTINE CMISSSolverEquations_ConstraintConditionAddNumber0(problemUserNumber,controlLoopIdentifier,solverIndex, &
+    & regionUserNumber,constraintConditionUserNumber,constraintConditionIndex,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: problemUserNumber !<The user number of the problem with the solver to add the constraint condition for.
+    INTEGER(INTG), INTENT(IN) :: controlLoopIdentifier !<The control loop identifier with the solver to add the constraint condition for.
+    INTEGER(INTG), INTENT(IN) :: solverIndex !<The solver index to add the constraint condition for.
+    INTEGER(INTG), INTENT(IN) :: regionUserNumber !<The user number of the region with the constraint condition to add.
+    INTEGER(INTG), INTENT(IN) :: constraintConditionUserNumber !<The user number of the constraint condition to add.
+    INTEGER(INTG), INTENT(OUT) :: constraintConditionIndex !<On return, the index of the added constraint condition in the solver equations.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION
+    TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
+    TYPE(REGION_TYPE), POINTER :: REGION
+    TYPE(SOLVER_TYPE), POINTER :: SOLVER
+    TYPE(SOLVER_EQUATIONS_TYPE), POINTER :: SOLVER_EQUATIONS
+    TYPE(VARYING_STRING) :: LOCAL_ERROR
+
+    CALL ENTERS("CMISSSolverEquations_ConstraintConditionAddNumber0",err,error,*999)
+
+    NULLIFY(PROBLEM)
+    NULLIFY(SOLVER)
+    NULLIFY(SOLVER_EQUATIONS)
+    NULLIFY(REGION)
+    NULLIFY(CONSTRAINT_CONDITION)
+    CALL PROBLEM_USER_NUMBER_FIND(problemUserNumber,PROBLEM,err,error,*999)
+    IF(ASSOCIATED(PROBLEM)) THEN
+      CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
+      CALL SOLVER_SOLVER_EQUATIONS_GET(SOLVER,SOLVER_EQUATIONS,err,error,*999)
+      CALL REGION_USER_NUMBER_FIND(regionUserNumber,REGION,err,error,*999)
+      IF(ASSOCIATED(REGION)) THEN
+        CALL CONSTRAINT_CONDITION_USER_NUMBER_FIND(constraintConditionUserNumber,REGION,CONSTRAINT_CONDITION,err,error,*999)
+        IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
+          CALL SOLVER_EQUATIONS_CONSTRAINT_CONDITION_ADD(SOLVER_EQUATIONS,CONSTRAINT_CONDITION,constraintConditionIndex, &
+            & err,error,*999)
+        ELSE
+          LOCAL_ERROR="A constraint condition with an user number of "// &
+            & TRIM(NUMBER_TO_VSTRING(constraintConditionUserNumber,"*",err,error))// &
+            & " does not exist on region number "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//"."
+          CALL FLAG_ERROR(LOCAL_ERROR,err,error,*999)
+        END IF
+      ELSE
+        LOCAL_ERROR="A region with an user number of "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))// &
+          & " does not exist."
+        CALL FLAG_ERROR(LOCAL_ERROR,err,error,*999)
+      END IF
+    ELSE
+      LOCAL_ERROR="A problem with an user number of "//TRIM(NUMBER_TO_VSTRING(problemUserNumber,"*",err,error))// &
+        & " does not exist."
+      CALL FLAG_ERROR(LOCAL_ERROR,err,error,*999)
+    END IF
+
+    CALL EXITS("CMISSSolverEquations_ConstraintConditionAddNumber0")
+    RETURN
+999 CALL ERRORS("CMISSSolverEquations_ConstraintConditionAddNumber0",err,error)
+    CALL EXITS("CMISSSolverEquations_ConstraintConditionAddNumber0")
+    CALL CMISS_HANDLE_ERROR(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSSolverEquations_ConstraintConditionAddNumber0
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Adds constraint conditions to solver equations identified by an user number.
+  SUBROUTINE CMISSSolverEquations_ConstraintConditionAddNumber1(problemUserNumber,controlLoopIdentifiers,solverIndex, &
+    & regionUserNumber,constraintConditionUserNumber,constraintConditionIndex,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: problemUserNumber !<The user number of the problem number with the solver to add the constraint condition for.
+    INTEGER(INTG), INTENT(IN) :: controlLoopIdentifiers(:) !<controlLoopIdentifiers(i). The i'th control loop identifier to add the constraint condition for.
+    INTEGER(INTG), INTENT(IN) :: solverIndex !<The solver index to add the constraint condition for.
+    INTEGER(INTG), INTENT(IN) :: regionUserNumber !<The user number of the region with the constraint condition to add.
+    INTEGER(INTG), INTENT(IN) :: constraintConditionUserNumber !<The user number of the constraint condition to add.
+    INTEGER(INTG), INTENT(OUT) :: constraintConditionIndex !<On return, the index of the added constraint condition in the solver equations.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION
+    TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
+    TYPE(REGION_TYPE), POINTER :: REGION
+    TYPE(SOLVER_TYPE), POINTER :: SOLVER
+    TYPE(SOLVER_EQUATIONS_TYPE), POINTER :: SOLVER_EQUATIONS
+    TYPE(VARYING_STRING) :: LOCAL_ERROR
+
+    CALL ENTERS("CMISSSolverEquations_ConstraintConditionAddNumber1",err,error,*999)
+
+    NULLIFY(PROBLEM)
+    NULLIFY(SOLVER)
+    NULLIFY(SOLVER_EQUATIONS)
+    NULLIFY(REGION)
+    NULLIFY(CONSTRAINT_CONDITION)
+    CALL PROBLEM_USER_NUMBER_FIND(problemUserNumber,PROBLEM,err,error,*999)
+    IF(ASSOCIATED(PROBLEM)) THEN
+      CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
+      CALL SOLVER_SOLVER_EQUATIONS_GET(SOLVER,SOLVER_EQUATIONS,err,error,*999)
+      CALL REGION_USER_NUMBER_FIND(regionUserNumber,REGION,err,error,*999)
+      IF(ASSOCIATED(REGION)) THEN
+        CALL CONSTRAINT_CONDITION_USER_NUMBER_FIND(constraintConditionUserNumber,REGION,CONSTRAINT_CONDITION,err,error,*999)
+        IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
+          CALL SOLVER_EQUATIONS_CONSTRAINT_CONDITION_ADD(SOLVER_EQUATIONS,CONSTRAINT_CONDITION,constraintConditionIndex, &
+            & err,error,*999)
+        ELSE
+          LOCAL_ERROR="A constraint condition with an user number of &
+            & "//TRIM(NUMBER_TO_VSTRING(constraintConditionUserNumber,"*",err,error))// &
+            & " does not exist on region number "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//"."
+          CALL FLAG_ERROR(LOCAL_ERROR,err,error,*999)
+        END IF
+      ELSE
+        LOCAL_ERROR="A region with an user number of "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))// &
+          & " does not exist."
+        CALL FLAG_ERROR(LOCAL_ERROR,err,error,*999)
+      END IF
+    ELSE
+      LOCAL_ERROR="A problem with an user number of "//TRIM(NUMBER_TO_VSTRING(problemUserNumber,"*",err,error))// &
+        & " does not exist."
+      CALL FLAG_ERROR(LOCAL_ERROR,err,error,*999)
+    END IF
+
+    CALL EXITS("CMISSSolverEquations_ConstraintConditionAddNumber1")
+    RETURN
+999 CALL ERRORS("CMISSSolverEquations_ConstraintConditionAddNumber1",err,error)
+    CALL EXITS("CMISSSolverEquations_ConstraintConditionAddNumber1")
+    CALL CMISS_HANDLE_ERROR(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSSolverEquations_ConstraintConditionAddNumber1
+
+  !================================================================================================================================
+  !
+
+  !>Adds constraint conditions to solver equations identified by an object.
+  SUBROUTINE CMISSSolverEquations_ConstraintConditionAddObj(solverEquations,constraintCondition,constraintConditionIndex,err)
+
+    !Argument variables
+    TYPE(CMISSSolverEquationsType), INTENT(IN) :: solverEquations !<The solver equations to add the constraint condition for.
+    TYPE(CMISSConstraintConditionType), INTENT(IN) :: constraintCondition !<The constraint condition to add.
+    INTEGER(INTG), INTENT(OUT) :: constraintConditionIndex !<On return, the index of the added constraint condition in the solver equations.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    CALL ENTERS("CMISSSolverEquations_ConstraintConditionAddObj",err,error,*999)
+
+    CALL SOLVER_EQUATIONS_CONSTRAINT_CONDITION_ADD(solverEquations%SOLVER_EQUATIONS,constraintCondition%CONSTRAINT_CONDITION, &
+      & constraintConditionIndex,err,error,*999)
+
+    CALL EXITS("CMISSSolverEquations_ConstraintConditionAddObj")
+    RETURN
+999 CALL ERRORS("CMISSSolverEquations_ConstraintConditionAddObj",err,error)
+    CALL EXITS("CMISSSolverEquations_ConstraintConditionAddObj")
+    CALL CMISS_HANDLE_ERROR(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSSolverEquations_ConstraintConditionAddObj
 
   !
   !================================================================================================================================
