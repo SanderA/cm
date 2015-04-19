@@ -45,6 +45,7 @@
 MODULE SOLVER_MATRICES_ROUTINES
 
   USE BASE_ROUTINES
+  USE CONSTRAINT_CONDITIONS_CONSTANTS
   USE DISTRIBUTED_MATRIX_VECTOR
   USE INTERFACE_CONDITIONS_CONSTANTS
   USE ISO_VARYING_STRING
@@ -1502,15 +1503,27 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
     !Local Variables
-    INTEGER(INTG) :: equations_column_idx,equations_column_number,DUMMY_ERR,equations_matrix_idx,equations_row_number, &
+    INTEGER(INTG) :: constraint_condition_idx,constraint_matrix_idx,constraint_column_idx,constraint_column_number, &
+      & constraint_row_idx,constraint_row_number,CONSTRAINT_STORAGE_TYPE,equations_column_idx,equations_column_number, &
+      & DUMMY_ERR,equations_matrix_idx,equations_row_number, &
       & equations_set_idx,EQUATIONS_STORAGE_TYPE,interface_column_idx,interface_column_number,interface_condition_idx, &
       & interface_matrix_idx,interface_row_number,interface_row_idx,INTERFACE_STORAGE_TYPE,jacobian_column_idx, &
       & jacobian_column_number,jacobian_row_number,MAX_COLUMN_INDICES,MAX_COLUMNS_PER_ROW,MAX_TRANSPOSE_COLUMNS_PER_ROW, &
       & NUMBER_OF_COLUMNS,solver_column_idx,solver_column_number,solver_matrix_idx,solver_row_idx,solver_row_number
     INTEGER(INTG), ALLOCATABLE :: COLUMNS(:)
-    INTEGER(INTG), POINTER :: EQUATIONS_ROW_INDICES(:),EQUATIONS_COLUMN_INDICES(:),INTERFACE_ROW_INDICES(:), &
-      & INTERFACE_COLUMN_INDICES(:)
+    INTEGER(INTG), POINTER :: EQUATIONS_ROW_INDICES(:),EQUATIONS_COLUMN_INDICES(:), &
+      & CONSTRAINT_ROW_INDICES(:),CONSTRAINT_COLUMN_INDICES(:), &
+      & INTERFACE_ROW_INDICES(:),INTERFACE_COLUMN_INDICES(:)
     REAL(DP) :: SPARSITY
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION
+    TYPE(CONSTRAINT_JACOBIAN_TYPE), POINTER :: CONSTRAINT_JACOBIAN
+    TYPE(CONSTRAINT_MATRIX_TYPE), POINTER :: CONSTRAINT_MATRIX
+    TYPE(CONSTRAINT_MATRICES_TYPE), POINTER :: CONSTRAINT_MATRICES
+    TYPE(CONSTRAINT_MATRICES_DYNAMIC_TYPE), POINTER :: CONSTRAINT_DYNAMIC_MATRICES
+    TYPE(CONSTRAINT_MATRICES_LINEAR_TYPE), POINTER :: CONSTRAINT_LINEAR_MATRICES
+    TYPE(CONSTRAINT_MATRICES_NONLINEAR_TYPE), POINTER :: CONSTRAINT_NONLINEAR_MATRICES
+    TYPE(CONSTRAINT_JACOBIAN_TO_SOLVER_MAPS_TYPE), POINTER :: CONSTRAINT_JACOBIAN_TO_SOLVER_MAP
+    TYPE(CONSTRAINT_TO_SOLVER_MAPS_TYPE), POINTER :: CONSTRAINT_TO_SOLVER_MAP
     TYPE(DISTRIBUTED_MATRIX_TYPE), POINTER :: DISTRIBUTED_MATRIX,SOLVER_DISTRIBUTED_MATRIX
     TYPE(EQUATIONS_JACOBIAN_TYPE), POINTER :: JACOBIAN_MATRIX
     TYPE(EQUATIONS_MATRIX_TYPE), POINTER :: EQUATIONS_MATRIX
@@ -1660,13 +1673,134 @@ CONTAINS
                         ENDDO !equations_matrix_idx
                       ENDIF
                     ENDDO !equations_set_idx
+                    DO constraint_condition_idx=1,SOLVER_MAPPING%NUMBER_OF_CONSTRAINT_CONDITIONS
+                      CONSTRAINT_CONDITION=>SOLVER_MAPPING%CONSTRAINT_CONDITIONS(constraint_condition_idx)%PTR
+                      SELECT CASE(CONSTRAINT_CONDITION%METHOD)
+                      CASE(CONSTRAINT_CONDITION_LAGRANGE_MULTIPLIERS_METHOD,CONSTRAINT_CONDITION_PENALTY_METHOD)
+                        IF(SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                          & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%NUMBER_OF_DYNAMIC_CONSTRAINT_MATRICES>0) THEN
+                          DO constraint_matrix_idx=1,SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                            & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%NUMBER_OF_DYNAMIC_CONSTRAINT_MATRICES
+                            CONSTRAINT_TO_SOLVER_MAP=>SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                              & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%DYNAMIC_CONSTRAINT_TO_SOLVER_MATRIX_MAPS( &
+                              & constraint_matrix_idx)%PTR
+                            IF(ASSOCIATED(CONSTRAINT_TO_SOLVER_MAP)) THEN
+                              CONSTRAINT_MATRIX=>CONSTRAINT_TO_SOLVER_MAP%CONSTRAINT_MATRIX
+                              IF(ASSOCIATED(CONSTRAINT_MATRIX)) THEN
+                                DISTRIBUTED_MATRIX=>CONSTRAINT_MATRIX%MATRIX
+                                IF(ASSOCIATED(DISTRIBUTED_MATRIX)) THEN
+                                  CALL DISTRIBUTED_MATRIX_MAX_COLUMNS_PER_ROW_GET(DISTRIBUTED_MATRIX,MAX_COLUMNS_PER_ROW, &
+                                    & ERR,ERROR,*999)
+                                ELSE
+                                  CALL FLAG_ERROR("Constraint matrix distributed matrix is not associated.",ERR,ERROR,*999)
+                                ENDIF
+                                MAX_TRANSPOSE_COLUMNS_PER_ROW=0
+                                IF(CONSTRAINT_MATRIX%HAS_TRANSPOSE) THEN
+                                  DISTRIBUTED_MATRIX=>CONSTRAINT_MATRIX%MATRIX_TRANSPOSE
+                                  IF(ASSOCIATED(DISTRIBUTED_MATRIX)) THEN
+                                    CALL DISTRIBUTED_MATRIX_MAX_COLUMNS_PER_ROW_GET(DISTRIBUTED_MATRIX, &
+                                      & MAX_TRANSPOSE_COLUMNS_PER_ROW,ERR,ERROR,*999)
+                                  ELSE
+                                    CALL FLAG_ERROR("Constraint matrix distributed matrix transpose is not associated.", &
+                                      & ERR,ERROR,*999)
+                                  ENDIF
+                                ENDIF
+                                MAX_COLUMN_INDICES=MAX_COLUMN_INDICES+MAX(MAX_COLUMNS_PER_ROW,MAX_TRANSPOSE_COLUMNS_PER_ROW)
+                              ELSE
+                                CALL FLAG_ERROR("Constraint to solver map constraint matrix is not associated.",ERR,ERROR,*999)
+                              ENDIF
+                            ELSE
+                              CALL FLAG_ERROR("Constraint to solver matrix map is not associated.",ERR,ERROR,*999)
+                            ENDIF
+                          ENDDO !constraint_matrix_idx
+                        ELSE
+                          DO constraint_matrix_idx=1,SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                            & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%NUMBER_OF_LINEAR_CONSTRAINT_MATRICES
+                            CONSTRAINT_TO_SOLVER_MAP=>SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                              & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%LINEAR_CONSTRAINT_TO_SOLVER_MATRIX_MAPS( &
+                              & constraint_matrix_idx)%PTR
+                            IF(ASSOCIATED(CONSTRAINT_TO_SOLVER_MAP)) THEN
+                              CONSTRAINT_MATRIX=>CONSTRAINT_TO_SOLVER_MAP%CONSTRAINT_MATRIX
+                              IF(ASSOCIATED(CONSTRAINT_MATRIX)) THEN
+                                DISTRIBUTED_MATRIX=>CONSTRAINT_MATRIX%MATRIX
+                                IF(ASSOCIATED(DISTRIBUTED_MATRIX)) THEN
+                                  CALL DISTRIBUTED_MATRIX_MAX_COLUMNS_PER_ROW_GET(DISTRIBUTED_MATRIX,MAX_COLUMNS_PER_ROW, &
+                                    & ERR,ERROR,*999)
+                                ELSE
+                                  CALL FLAG_ERROR("Constraint matrix distributed matrix is not associated.",ERR,ERROR,*999)
+                                ENDIF
+                                MAX_TRANSPOSE_COLUMNS_PER_ROW=0
+                                IF(CONSTRAINT_MATRIX%HAS_TRANSPOSE) THEN
+                                  DISTRIBUTED_MATRIX=>CONSTRAINT_MATRIX%MATRIX_TRANSPOSE
+                                  IF(ASSOCIATED(DISTRIBUTED_MATRIX)) THEN
+                                    CALL DISTRIBUTED_MATRIX_MAX_COLUMNS_PER_ROW_GET(DISTRIBUTED_MATRIX, &
+                                      & MAX_TRANSPOSE_COLUMNS_PER_ROW,ERR,ERROR,*999)
+                                  ELSE
+                                    CALL FLAG_ERROR("Constraint matrix distributed matrix transpose is not associated.", &
+                                      & ERR,ERROR,*999)
+                                  ENDIF
+                                ENDIF
+                                MAX_COLUMN_INDICES=MAX_COLUMN_INDICES+MAX(MAX_COLUMNS_PER_ROW,MAX_TRANSPOSE_COLUMNS_PER_ROW)
+                              ELSE
+                                CALL FLAG_ERROR("Constraint to solver map constraint matrix is not associated.",ERR,ERROR,*999)
+                              ENDIF
+                            ELSE
+                              CALL FLAG_ERROR("Constraint to solver matrix map is not associated.",ERR,ERROR,*999)
+                            ENDIF
+                          ENDDO !constraint_matrix_idx
+                          DO constraint_matrix_idx=1,SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                            & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%NUMBER_OF_CONSTRAINT_JACOBIANS
+                            CONSTRAINT_JACOBIAN_TO_SOLVER_MAP=>SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP( &
+                              & constraint_condition_idx)%CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
+                              & JACOBIAN_TO_SOLVER_MATRIX_MAPS(constraint_matrix_idx)%PTR
+                            IF(ASSOCIATED(CONSTRAINT_JACOBIAN_TO_SOLVER_MAP)) THEN
+                              CONSTRAINT_JACOBIAN=>CONSTRAINT_JACOBIAN_TO_SOLVER_MAP%CONSTRAINT_JACOBIAN
+                              IF(ASSOCIATED(CONSTRAINT_JACOBIAN)) THEN
+                                DISTRIBUTED_MATRIX=>CONSTRAINT_JACOBIAN%JACOBIAN
+                                IF(ASSOCIATED(DISTRIBUTED_MATRIX)) THEN
+                                  CALL DISTRIBUTED_MATRIX_MAX_COLUMNS_PER_ROW_GET(DISTRIBUTED_MATRIX,MAX_COLUMNS_PER_ROW, &
+                                    & ERR,ERROR,*999)
+                                ELSE
+                                  CALL FLAG_ERROR("Constraint matrix distributed matrix is not associated.",ERR,ERROR,*999)
+                                ENDIF
+                                MAX_TRANSPOSE_COLUMNS_PER_ROW=0
+                                IF(CONSTRAINT_JACOBIAN%HAS_TRANSPOSE) THEN
+                                  DISTRIBUTED_MATRIX=>CONSTRAINT_JACOBIAN%JACOBIAN_TRANSPOSE
+                                  IF(ASSOCIATED(DISTRIBUTED_MATRIX)) THEN
+                                    CALL DISTRIBUTED_MATRIX_MAX_COLUMNS_PER_ROW_GET(DISTRIBUTED_MATRIX, &
+                                      & MAX_TRANSPOSE_COLUMNS_PER_ROW,ERR,ERROR,*999)
+                                  ELSE
+                                    CALL FLAG_ERROR("Constraint matrix distributed matrix transpose is not associated.", &
+                                      & ERR,ERROR,*999)
+                                  ENDIF
+                                ENDIF
+                                MAX_COLUMN_INDICES=MAX_COLUMN_INDICES+MAX(MAX_COLUMNS_PER_ROW,MAX_TRANSPOSE_COLUMNS_PER_ROW)
+                              ELSE
+                                CALL FLAG_ERROR("Constraint to solver map constraint matrix is not associated.",ERR,ERROR,*999)
+                              ENDIF
+                            ELSE
+                              CALL FLAG_ERROR("Constraint to solver matrix map is not associated.",ERR,ERROR,*999)
+                            ENDIF
+                          ENDDO !constraint_matrix_idx
+                        ENDIF
+                      CASE(CONSTRAINT_CONDITION_AUGMENTED_LAGRANGE_METHOD)
+                        CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+                      CASE(CONSTRAINT_CONDITION_POINT_TO_POINT_METHOD)
+                        CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+                      CASE DEFAULT
+                        LOCAL_ERROR="The constraint condition method of "// &
+                          & TRIM(NUMBER_TO_VSTRING(CONSTRAINT_CONDITION%METHOD,"*",ERR,ERROR))// &
+                          & " is invalid."
+                        CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
+                      END SELECT
+                    ENDDO !constraint_condition_idx
                     DO interface_condition_idx=1,SOLVER_MAPPING%NUMBER_OF_INTERFACE_CONDITIONS
                       INTERFACE_CONDITION=>SOLVER_MAPPING%INTERFACE_CONDITIONS(interface_condition_idx)%PTR
                       SELECT CASE(INTERFACE_CONDITION%METHOD)
                       CASE(INTERFACE_CONDITION_LAGRANGE_MULTIPLIERS_METHOD,INTERFACE_CONDITION_PENALTY_METHOD)
                         DO interface_matrix_idx=1,SOLVER_MAPPING%INTERFACE_CONDITION_TO_SOLVER_MAP(interface_condition_idx)% &
                           & INTERFACE_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%NUMBER_OF_INTERFACE_MATRICES
-                          INTERFACE_TO_SOLVER_MAP=>SOLVER_MAPPING%INTERFACE_CONDITION_TO_SOLVER_MAP(interface_conditioN_idx)% &
+                          INTERFACE_TO_SOLVER_MAP=>SOLVER_MAPPING%INTERFACE_CONDITION_TO_SOLVER_MAP(interface_condition_idx)% &
                             & INTERFACE_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%INTERFACE_EQUATIONS_TO_SOLVER_MATRIX_MAPS( &
                             & interface_matrix_idx)%PTR
                           IF(ASSOCIATED(INTERFACE_TO_SOLVER_MAP)) THEN
@@ -2021,12 +2155,617 @@ CONTAINS
                           ENDIF
                         ENDDO !equations_matrix_idx
                       ENDIF
-                      !Now add in any interface matrices columns
-                      DO interface_condition_idx=1,SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)% &
-                        & NUMBER_OF_INTERFACE_CONDITIONS
-                      ENDDO !interface_condition_idx
                     ENDDO !equations_set_idx
-                    !Loop over any equations sets
+                    !Loop over any constraint condition
+                    DO constraint_condition_idx=1,SOLVER_MAPPING%NUMBER_OF_CONSTRAINT_CONDITIONS
+                      CONSTRAINT_CONDITION=>SOLVER_MAPPING%CONSTRAINT_CONDITIONS(constraint_condition_idx)%PTR
+                      SELECT CASE(CONSTRAINT_CONDITION%METHOD)
+                      CASE(CONSTRAINT_CONDITION_LAGRANGE_MULTIPLIERS_METHOD,CONSTRAINT_CONDITION_PENALTY_METHOD)
+                        IF(SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                          & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%NUMBER_OF_DYNAMIC_CONSTRAINT_MATRICES>0) THEN
+                        !Loop over the dynamic constraint equations matrices mapped to the solver matrix and calculate the col indices by row.
+                          DO constraint_matrix_idx=1,SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                            & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%NUMBER_OF_DYNAMIC_CONSTRAINT_MATRICES
+                            CONSTRAINT_TO_SOLVER_MAP=>SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                              & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%DYNAMIC_CONSTRAINT_TO_SOLVER_MATRIX_MAPS( &
+                              & constraint_matrix_idx)%PTR
+                            CONSTRAINT_MATRIX=>CONSTRAINT_TO_SOLVER_MAP%CONSTRAINT_MATRIX
+                            CONSTRAINT_DYNAMIC_MATRICES=>CONSTRAINT_MATRIX%DYNAMIC_MATRICES
+                            CONSTRAINT_MATRICES=>CONSTRAINT_DYNAMIC_MATRICES%CONSTRAINT_MATRICES
+                            DISTRIBUTED_MATRIX=>CONSTRAINT_MATRIX%MATRIX
+                            CALL DISTRIBUTED_MATRIX_STORAGE_TYPE_GET(DISTRIBUTED_MATRIX,CONSTRAINT_STORAGE_TYPE,ERR,ERROR,*999)
+                            SELECT CASE(CONSTRAINT_STORAGE_TYPE)
+                            CASE(DISTRIBUTED_MATRIX_BLOCK_STORAGE_TYPE)
+                              !Loop over the rows of the constraint matrix
+                              DO constraint_row_number=1,CONSTRAINT_MATRIX%NUMBER_OF_ROWS
+                                !Loop over the solver rows this constraint column is mapped to
+                                DO solver_row_idx=1,SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                                  & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_CM(constraint_matrix_idx)%CONSTRAINT_ROW_TO_SOLVER_ROWS_MAP( &
+                                   constraint_row_number)%NUMBER_OF_SOLVER_ROWS
+                                  solver_row_number=SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                                    & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_CM(constraint_matrix_idx)% &
+                                    & CONSTRAINT_ROW_TO_SOLVER_ROWS_MAP(constraint_row_number)%SOLVER_ROW
+                                  !Loop over the columns of the constraint matrix
+                                  DO constraint_column_number=1,CONSTRAINT_MATRICES%TOTAL_NUMBER_OF_COLUMNS
+                                    !Loop over the solver columns this constraint column is mapped to
+                                    DO solver_column_idx=1,SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP( &
+                                      & constraint_condition_idx)%CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
+                                      & CONSTRAINT_COL_TO_SOLVER_COLS_MAP(constraint_column_number)%NUMBER_OF_SOLVER_COLS
+                                      solver_column_number=SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP( &
+                                        & constraint_condition_idx)%CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
+                                        & CONSTRAINT_COL_TO_SOLVER_COLS_MAP(constraint_column_number)%SOLVER_COLS(solver_column_idx)
+                                      CALL LIST_ITEM_ADD(COLUMN_INDICES_LISTS(solver_row_number)%PTR,solver_column_number, &
+                                        & ERR,ERROR,*999)
+                                    ENDDO !solver_column_idx
+                                  ENDDO !constraint_column_number
+                                ENDDO !solver_row_idx
+                              ENDDO !constraint_row_number
+                            CASE(DISTRIBUTED_MATRIX_DIAGONAL_STORAGE_TYPE)
+                              !Loop over the rows of the constraint matrix
+                              DO constraint_row_number=1,CONSTRAINT_MATRIX%NUMBER_OF_ROWS
+                                !Loop over the solver rows this constraint column is mapped to
+                                DO solver_row_idx=1,SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                                  & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_CM(constraint_matrix_idx)%CONSTRAINT_ROW_TO_SOLVER_ROWS_MAP( &
+                                   constraint_row_number)%NUMBER_OF_SOLVER_ROWS
+                                  solver_row_number=SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                                    & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_CM(constraint_matrix_idx)% &
+                                    & CONSTRAINT_ROW_TO_SOLVER_ROWS_MAP(constraint_row_number)%SOLVER_ROW
+                                  constraint_column_number=constraint_row_number
+                                  !Loop over the solver columns this constraint column is mapped to
+                                  DO solver_column_idx=1,SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP( &
+                                    & constraint_condition_idx)%CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
+                                    & CONSTRAINT_COL_TO_SOLVER_COLS_MAP(constraint_column_number)%NUMBER_OF_SOLVER_COLS
+                                    solver_column_number=SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP( &
+                                      & constraint_condition_idx)%CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
+                                      & CONSTRAINT_COL_TO_SOLVER_COLS_MAP(constraint_column_number)%SOLVER_COLS(solver_column_idx)
+                                    CALL LIST_ITEM_ADD(COLUMN_INDICES_LISTS(solver_row_number)%PTR,solver_column_number, &
+                                      & ERR,ERROR,*999)
+                                  ENDDO !solver_column_idx
+                                ENDDO !solver_row_idx
+                              ENDDO !constraint_row_number 
+                            CASE(DISTRIBUTED_MATRIX_COLUMN_MAJOR_STORAGE_TYPE)
+                              CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+                            CASE(DISTRIBUTED_MATRIX_ROW_MAJOR_STORAGE_TYPE)
+                              CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+                            CASE(DISTRIBUTED_MATRIX_COMPRESSED_ROW_STORAGE_TYPE)
+                              CALL DISTRIBUTED_MATRIX_STORAGE_LOCATIONS_GET(DISTRIBUTED_MATRIX,CONSTRAINT_ROW_INDICES, &
+                                & CONSTRAINT_COLUMN_INDICES,ERR,ERROR,*999)
+                              !Loop over the rows of the constraint matrix
+                              DO constraint_row_number=1,CONSTRAINT_MATRIX%NUMBER_OF_ROWS
+                                !Loop over the solver rows this constraint column is mapped to
+                                DO solver_row_idx=1,SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                                  & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_CM(constraint_matrix_idx)%CONSTRAINT_ROW_TO_SOLVER_ROWS_MAP( &
+                                   constraint_row_number)%NUMBER_OF_SOLVER_ROWS
+                                  solver_row_number=SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                                    & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_CM(constraint_matrix_idx)% &
+                                    & CONSTRAINT_ROW_TO_SOLVER_ROWS_MAP(constraint_row_number)%SOLVER_ROW
+                                  !Loop over the columns of the constraint matrix
+                                  DO constraint_column_idx=CONSTRAINT_ROW_INDICES(constraint_row_number), &
+                                    & CONSTRAINT_ROW_INDICES(constraint_row_number+1)-1
+                                    constraint_column_number=CONSTRAINT_COLUMN_INDICES(constraint_column_idx)
+                                    !Loop over the solver columns this constraint column is mapped to
+                                    DO solver_column_idx=1,SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP( &
+                                      & constraint_condition_idx)%CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
+                                      & CONSTRAINT_COL_TO_SOLVER_COLS_MAP(constraint_column_number)%NUMBER_OF_SOLVER_COLS
+                                      solver_column_number=SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP( &
+                                        & constraint_condition_idx)%CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
+                                        & CONSTRAINT_COL_TO_SOLVER_COLS_MAP(constraint_column_number)%SOLVER_COLS(solver_column_idx)
+                                      CALL LIST_ITEM_ADD(COLUMN_INDICES_LISTS(solver_row_number)%PTR,solver_column_number, &
+                                        & ERR,ERROR,*999)
+                                    ENDDO !solver_column_idx
+                                  ENDDO !constraint_column_idx
+                                ENDDO !solver_row_idx
+                              ENDDO !constraint_row_number
+                            CASE(DISTRIBUTED_MATRIX_COMPRESSED_COLUMN_STORAGE_TYPE)
+                              CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+                            CASE(DISTRIBUTED_MATRIX_ROW_COLUMN_STORAGE_TYPE)
+                              CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+                            CASE DEFAULT
+                              LOCAL_ERROR="The matrix storage type of "// &
+                                & TRIM(NUMBER_TO_VSTRING(EQUATIONS_STORAGE_TYPE,"*",ERR,ERROR))//" is invalid."
+                              CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
+                            END SELECT
+                            IF(CONSTRAINT_MATRIX%HAS_TRANSPOSE) THEN
+                              DISTRIBUTED_MATRIX=>CONSTRAINT_MATRIX%MATRIX_TRANSPOSE
+                              !Loop over the rows of the transposed constraint matrix
+                              CALL DISTRIBUTED_MATRIX_STORAGE_TYPE_GET(DISTRIBUTED_MATRIX,CONSTRAINT_STORAGE_TYPE,ERR,ERROR,*999)
+                              SELECT CASE(CONSTRAINT_STORAGE_TYPE)
+                              CASE(DISTRIBUTED_MATRIX_BLOCK_STORAGE_TYPE)
+                                !Loop over the columns of the constraint matrix
+                                DO constraint_column_number=1,CONSTRAINT_MATRICES%NUMBER_OF_COLUMNS
+                                  !Loop over the solver rows this constraint column is mapped to
+                                  DO solver_row_idx=1,SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                                    & CONSTRAINT_COLUMN_TO_SOLVER_ROWS_MAPS(constraint_column_number)%NUMBER_OF_SOLVER_ROWS
+                                    solver_row_number=SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                                      & CONSTRAINT_COLUMN_TO_SOLVER_ROWS_MAPS(constraint_column_number)%SOLVER_ROW
+                                    !Loop over the rows of the constraint matrix
+                                    DO constraint_row_number=1,CONSTRAINT_MATRIX%TOTAL_NUMBER_OF_ROWS
+                                      !Loop over the solver columns this constraint row is mapped to
+                                      DO solver_column_idx=1,CONSTRAINT_TO_SOLVER_MAP%CONSTRAINT_ROW_TO_SOLVER_COLS_MAP( &
+                                        & constraint_row_number)%NUMBER_OF_SOLVER_COLS
+                                        solver_column_number=CONSTRAINT_TO_SOLVER_MAP%CONSTRAINT_ROW_TO_SOLVER_COLS_MAP( &
+                                          & constraint_row_number)%SOLVER_COLS(solver_column_idx)
+                                        CALL LIST_ITEM_ADD(COLUMN_INDICES_LISTS(solver_row_number)%PTR,solver_column_number, &
+                                          & ERR,ERROR,*999)
+                                      ENDDO !solver_column_idx
+                                    ENDDO !constraint_row_number
+                                  ENDDO !solver_row_idx
+                                ENDDO !constraint_column_number
+                              CASE(DISTRIBUTED_MATRIX_DIAGONAL_STORAGE_TYPE)
+                                !Loop over the columns of the constraint matrix
+                                DO constraint_column_number=1,CONSTRAINT_MATRICES%NUMBER_OF_COLUMNS
+                                  !Loop over the solver rows this constraint column is mapped to
+                                  DO solver_row_idx=1,SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                                    & CONSTRAINT_COLUMN_TO_SOLVER_ROWS_MAPS(constraint_column_number)%NUMBER_OF_SOLVER_ROWS
+                                    solver_row_number=SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                                      & CONSTRAINT_COLUMN_TO_SOLVER_ROWS_MAPS(constraint_column_number)%SOLVER_ROW
+                                    constraint_row_number=constraint_column_number
+                                    !Loop over the solver columns this constraint row is mapped to
+                                    DO solver_column_idx=1,CONSTRAINT_TO_SOLVER_MAP%CONSTRAINT_ROW_TO_SOLVER_COLS_MAP( &
+                                      & constraint_row_number)%NUMBER_OF_SOLVER_COLS
+                                      solver_column_number=CONSTRAINT_TO_SOLVER_MAP%CONSTRAINT_ROW_TO_SOLVER_COLS_MAP( &
+                                        & constraint_row_number)%SOLVER_COLS(solver_column_idx)
+                                      CALL LIST_ITEM_ADD(COLUMN_INDICES_LISTS(solver_row_number)%PTR,solver_column_number, &
+                                        & ERR,ERROR,*999)
+                                    ENDDO !solver_column_idx
+                                  ENDDO !solver_row_idx
+                                ENDDO !constraint_column_number 
+                              CASE(DISTRIBUTED_MATRIX_COLUMN_MAJOR_STORAGE_TYPE)
+                                CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+                              CASE(DISTRIBUTED_MATRIX_ROW_MAJOR_STORAGE_TYPE)
+                                CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+                              CASE(DISTRIBUTED_MATRIX_COMPRESSED_ROW_STORAGE_TYPE)
+                                CALL DISTRIBUTED_MATRIX_STORAGE_LOCATIONS_GET(DISTRIBUTED_MATRIX,CONSTRAINT_ROW_INDICES, &
+                                  & CONSTRAINT_COLUMN_INDICES,ERR,ERROR,*999)
+                                !Loop over the columns of the constraint matrix
+                                DO constraint_column_number=1,CONSTRAINT_MATRICES%NUMBER_OF_COLUMNS
+                                  !Loop over the solver rows this constraint column is mapped to
+                                  DO solver_row_idx=1,SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                                    & CONSTRAINT_COLUMN_TO_SOLVER_ROWS_MAPS(constraint_column_number)%NUMBER_OF_SOLVER_ROWS
+                                    solver_row_number=SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                                      & CONSTRAINT_COLUMN_TO_SOLVER_ROWS_MAPS(constraint_column_number)%SOLVER_ROW
+                                    !Loop over the rows of the constraint matrix
+                                    DO constraint_row_idx=CONSTRAINT_ROW_INDICES(constraint_column_number), &
+                                      & CONSTRAINT_ROW_INDICES(constraint_column_number+1)-1
+                                      constraint_row_number=CONSTRAINT_COLUMN_INDICES(constraint_row_idx)
+                                      !Loop over the solver columns this constraint row is mapped to
+                                      DO solver_column_idx=1,CONSTRAINT_TO_SOLVER_MAP%CONSTRAINT_ROW_TO_SOLVER_COLS_MAP( &
+                                        & constraint_row_number)%NUMBER_OF_SOLVER_COLS
+                                        solver_column_number=CONSTRAINT_TO_SOLVER_MAP%CONSTRAINT_ROW_TO_SOLVER_COLS_MAP( &
+                                          & constraint_row_number)%SOLVER_COLS(solver_column_idx)
+                                        CALL LIST_ITEM_ADD(COLUMN_INDICES_LISTS(solver_row_number)%PTR,solver_column_number, &
+                                          & ERR,ERROR,*999)
+                                      ENDDO !solver_column_idx
+                                    ENDDO !constraint_row_idx
+                                  ENDDO !solver_row_idx
+                                ENDDO !constraint_col_number
+                              CASE(DISTRIBUTED_MATRIX_COMPRESSED_COLUMN_STORAGE_TYPE)
+                                CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+                              CASE(DISTRIBUTED_MATRIX_ROW_COLUMN_STORAGE_TYPE)
+                                CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+                              CASE DEFAULT
+                                LOCAL_ERROR="The matrix storage type of "// &
+                                  & TRIM(NUMBER_TO_VSTRING(EQUATIONS_STORAGE_TYPE,"*",ERR,ERROR))//" is invalid."
+                                CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
+                              END SELECT
+                            ENDIF
+                          ENDDO !constraint_matrix_idx
+                        ELSE
+                          IF(SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                            & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
+                            & NUMBER_OF_LINEAR_CONSTRAINT_MATRICES>0) THEN
+                          !Loop over the linear constraint equations matrices mapped to the solver matrix and calculate the col indices by row.
+                            DO constraint_matrix_idx=1,SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP( &
+                              & constraint_condition_idx)%CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
+                              & NUMBER_OF_LINEAR_CONSTRAINT_MATRICES
+                              CONSTRAINT_TO_SOLVER_MAP=>SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP( &
+                                & constraint_condition_idx)%CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
+                                & LINEAR_CONSTRAINT_TO_SOLVER_MATRIX_MAPS(constraint_matrix_idx)%PTR
+                              CONSTRAINT_MATRIX=>CONSTRAINT_TO_SOLVER_MAP%CONSTRAINT_MATRIX
+                              CONSTRAINT_LINEAR_MATRICES=>CONSTRAINT_MATRIX%LINEAR_MATRICES
+                              CONSTRAINT_MATRICES=>CONSTRAINT_LINEAR_MATRICES%CONSTRAINT_MATRICES
+                              DISTRIBUTED_MATRIX=>CONSTRAINT_MATRIX%MATRIX
+                              CALL DISTRIBUTED_MATRIX_STORAGE_TYPE_GET(DISTRIBUTED_MATRIX,CONSTRAINT_STORAGE_TYPE,ERR,ERROR,*999)
+                              SELECT CASE(CONSTRAINT_STORAGE_TYPE)
+                              CASE(DISTRIBUTED_MATRIX_BLOCK_STORAGE_TYPE)
+                                !Loop over the rows of the constraint matrix
+                                DO constraint_row_number=1,CONSTRAINT_MATRIX%NUMBER_OF_ROWS
+                                  !Loop over the solver rows this constraint column is mapped to
+                                  DO solver_row_idx=1,SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                                    & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_CM(constraint_matrix_idx)% &
+                                    & CONSTRAINT_ROW_TO_SOLVER_ROWS_MAP(constraint_row_number)%NUMBER_OF_SOLVER_ROWS
+                                    solver_row_number=SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                                      & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_CM(constraint_matrix_idx)% &
+                                      & CONSTRAINT_ROW_TO_SOLVER_ROWS_MAP(constraint_row_number)%SOLVER_ROW
+                                    !Loop over the columns of the constraint matrix
+                                    DO constraint_column_number=1,CONSTRAINT_MATRICES%TOTAL_NUMBER_OF_COLUMNS
+                                      !Loop over the solver columns this constraint column is mapped to
+                                      DO solver_column_idx=1,SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP( &
+                                        & constraint_condition_idx)%CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
+                                        & CONSTRAINT_COL_TO_SOLVER_COLS_MAP(constraint_column_number)%NUMBER_OF_SOLVER_COLS
+                                        solver_column_number=SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP( &
+                                          & constraint_condition_idx)%CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
+                                          & CONSTRAINT_COL_TO_SOLVER_COLS_MAP(constraint_column_number)% &
+                                          & SOLVER_COLS(solver_column_idx)
+                                        CALL LIST_ITEM_ADD(COLUMN_INDICES_LISTS(solver_row_number)%PTR,solver_column_number, &
+                                          & ERR,ERROR,*999)
+                                      ENDDO !solver_column_idx
+                                    ENDDO !constraint_column_number
+                                  ENDDO !solver_row_idx
+                                ENDDO !constraint_row_number
+                              CASE(DISTRIBUTED_MATRIX_DIAGONAL_STORAGE_TYPE)
+                                !Loop over the rows of the constraint matrix
+                                DO constraint_row_number=1,CONSTRAINT_MATRIX%NUMBER_OF_ROWS
+                                  !Loop over the solver rows this constraint column is mapped to
+                                  DO solver_row_idx=1,SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                                    & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_CM(constraint_matrix_idx)% &
+                                    & CONSTRAINT_ROW_TO_SOLVER_ROWS_MAP(constraint_row_number)%NUMBER_OF_SOLVER_ROWS
+                                    solver_row_number=SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                                      & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_CM(constraint_matrix_idx)% &
+                                      & CONSTRAINT_ROW_TO_SOLVER_ROWS_MAP(constraint_row_number)%SOLVER_ROW
+                                    constraint_column_number=constraint_row_number
+                                    !Loop over the solver columns this constraint column is mapped to
+                                    DO solver_column_idx=1,SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP( &
+                                      & constraint_condition_idx)%CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
+                                      & CONSTRAINT_COL_TO_SOLVER_COLS_MAP(constraint_column_number)%NUMBER_OF_SOLVER_COLS
+                                      solver_column_number=SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP( &
+                                        & constraint_condition_idx)%CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
+                                        & CONSTRAINT_COL_TO_SOLVER_COLS_MAP(constraint_column_number)%SOLVER_COLS(solver_column_idx)
+                                      CALL LIST_ITEM_ADD(COLUMN_INDICES_LISTS(solver_row_number)%PTR,solver_column_number, &
+                                        & ERR,ERROR,*999)
+                                    ENDDO !solver_column_idx
+                                  ENDDO !solver_row_idx
+                                ENDDO !constraint_row_number 
+                              CASE(DISTRIBUTED_MATRIX_COLUMN_MAJOR_STORAGE_TYPE)
+                                CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+                              CASE(DISTRIBUTED_MATRIX_ROW_MAJOR_STORAGE_TYPE)
+                                CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+                              CASE(DISTRIBUTED_MATRIX_COMPRESSED_ROW_STORAGE_TYPE)
+                                CALL DISTRIBUTED_MATRIX_STORAGE_LOCATIONS_GET(DISTRIBUTED_MATRIX,CONSTRAINT_ROW_INDICES, &
+                                  & CONSTRAINT_COLUMN_INDICES,ERR,ERROR,*999)
+                                !Loop over the rows of the constraint matrix
+                                DO constraint_row_number=1,CONSTRAINT_MATRIX%NUMBER_OF_ROWS
+                                  !Loop over the solver rows this constraint column is mapped to
+                                  DO solver_row_idx=1,SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                                    & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_CM(constraint_matrix_idx)% &
+                                    & CONSTRAINT_ROW_TO_SOLVER_ROWS_MAP(constraint_row_number)%NUMBER_OF_SOLVER_ROWS
+                                    solver_row_number=SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                                      & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_CM(constraint_matrix_idx)% &
+                                      & CONSTRAINT_ROW_TO_SOLVER_ROWS_MAP(constraint_row_number)%SOLVER_ROW
+                                    !Loop over the columns of the constraint matrix
+                                    DO constraint_column_idx=CONSTRAINT_ROW_INDICES(constraint_row_number), &
+                                      & CONSTRAINT_ROW_INDICES(constraint_row_number+1)-1
+                                      constraint_column_number=CONSTRAINT_COLUMN_INDICES(constraint_column_idx)
+                                      !Loop over the solver columns this constraint column is mapped to
+                                      DO solver_column_idx=1,SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP( &
+                                        & constraint_condition_idx)%CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
+                                        & CONSTRAINT_COL_TO_SOLVER_COLS_MAP(constraint_column_number)%NUMBER_OF_SOLVER_COLS
+                                        solver_column_number=SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP( &
+                                          & constraint_condition_idx)%CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
+                                          & CONSTRAINT_COL_TO_SOLVER_COLS_MAP(constraint_column_number)% &
+                                          & SOLVER_COLS(solver_column_idx)
+                                        CALL LIST_ITEM_ADD(COLUMN_INDICES_LISTS(solver_row_number)%PTR,solver_column_number, &
+                                          & ERR,ERROR,*999)
+                                      ENDDO !solver_column_idx
+                                    ENDDO !constraint_column_idx
+                                  ENDDO !solver_row_idx
+                                ENDDO !constraint_row_number
+                              CASE(DISTRIBUTED_MATRIX_COMPRESSED_COLUMN_STORAGE_TYPE)
+                                CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+                              CASE(DISTRIBUTED_MATRIX_ROW_COLUMN_STORAGE_TYPE)
+                                CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+                              CASE DEFAULT
+                                LOCAL_ERROR="The matrix storage type of "// &
+                                  & TRIM(NUMBER_TO_VSTRING(EQUATIONS_STORAGE_TYPE,"*",ERR,ERROR))//" is invalid."
+                                CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
+                              END SELECT
+                              IF(CONSTRAINT_MATRIX%HAS_TRANSPOSE) THEN
+                                DISTRIBUTED_MATRIX=>CONSTRAINT_MATRIX%MATRIX_TRANSPOSE
+                                !Loop over the rows of the transposed constraint matrix
+                                CALL DISTRIBUTED_MATRIX_STORAGE_TYPE_GET(DISTRIBUTED_MATRIX,CONSTRAINT_STORAGE_TYPE,ERR,ERROR,*999)
+                                SELECT CASE(CONSTRAINT_STORAGE_TYPE)
+                                CASE(DISTRIBUTED_MATRIX_BLOCK_STORAGE_TYPE)
+                                  !Loop over the columns of the constraint matrix
+                                  DO constraint_column_number=1,CONSTRAINT_MATRICES%NUMBER_OF_COLUMNS
+                                    !Loop over the solver rows this constraint column is mapped to
+                                    DO solver_row_idx=1,SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP( &
+                                      & constraint_condition_idx)% &
+                                      & CONSTRAINT_COLUMN_TO_SOLVER_ROWS_MAPS(constraint_column_number)%NUMBER_OF_SOLVER_ROWS
+                                      solver_row_number=SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP( &
+                                        & constraint_condition_idx)%CONSTRAINT_COLUMN_TO_SOLVER_ROWS_MAPS( &
+                                        & constraint_column_number)%SOLVER_ROW
+                                      !Loop over the rows of the constraint matrix
+                                      DO constraint_row_number=1,CONSTRAINT_MATRIX%TOTAL_NUMBER_OF_ROWS
+                                        !Loop over the solver columns this constraint row is mapped to
+                                        DO solver_column_idx=1,CONSTRAINT_TO_SOLVER_MAP%CONSTRAINT_ROW_TO_SOLVER_COLS_MAP( &
+                                          & constraint_row_number)%NUMBER_OF_SOLVER_COLS
+                                          solver_column_number=CONSTRAINT_TO_SOLVER_MAP%CONSTRAINT_ROW_TO_SOLVER_COLS_MAP( &
+                                            & constraint_row_number)%SOLVER_COLS(solver_column_idx)
+                                          CALL LIST_ITEM_ADD(COLUMN_INDICES_LISTS(solver_row_number)%PTR,solver_column_number, &
+                                            & ERR,ERROR,*999)
+                                        ENDDO !solver_column_idx
+                                      ENDDO !constraint_row_number
+                                    ENDDO !solver_row_idx
+                                  ENDDO !constraint_column_number
+                                CASE(DISTRIBUTED_MATRIX_DIAGONAL_STORAGE_TYPE)
+                                  !Loop over the columns of the constraint matrix
+                                  DO constraint_column_number=1,CONSTRAINT_MATRICES%NUMBER_OF_COLUMNS
+                                    !Loop over the solver rows this constraint column is mapped to
+                                    DO solver_row_idx=1,SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP( &
+                                      & constraint_condition_idx)%CONSTRAINT_COLUMN_TO_SOLVER_ROWS_MAPS( &
+                                      & constraint_column_number)%NUMBER_OF_SOLVER_ROWS
+                                      solver_row_number=SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP( &
+                                        & constraint_condition_idx)%CONSTRAINT_COLUMN_TO_SOLVER_ROWS_MAPS( &
+                                        & constraint_column_number)%SOLVER_ROW
+                                      constraint_row_number=constraint_column_number
+                                      !Loop over the solver columns this constraint row is mapped to
+                                      DO solver_column_idx=1,CONSTRAINT_TO_SOLVER_MAP%CONSTRAINT_ROW_TO_SOLVER_COLS_MAP( &
+                                        & constraint_row_number)%NUMBER_OF_SOLVER_COLS
+                                        solver_column_number=CONSTRAINT_TO_SOLVER_MAP%CONSTRAINT_ROW_TO_SOLVER_COLS_MAP( &
+                                          & constraint_row_number)%SOLVER_COLS(solver_column_idx)
+                                        CALL LIST_ITEM_ADD(COLUMN_INDICES_LISTS(solver_row_number)%PTR,solver_column_number, &
+                                          & ERR,ERROR,*999)
+                                      ENDDO !solver_column_idx
+                                    ENDDO !solver_row_idx
+                                  ENDDO !constraint_column_number 
+                                CASE(DISTRIBUTED_MATRIX_COLUMN_MAJOR_STORAGE_TYPE)
+                                  CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+                                CASE(DISTRIBUTED_MATRIX_ROW_MAJOR_STORAGE_TYPE)
+                                  CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+                                CASE(DISTRIBUTED_MATRIX_COMPRESSED_ROW_STORAGE_TYPE)
+                                  CALL DISTRIBUTED_MATRIX_STORAGE_LOCATIONS_GET(DISTRIBUTED_MATRIX,CONSTRAINT_ROW_INDICES, &
+                                    & CONSTRAINT_COLUMN_INDICES,ERR,ERROR,*999)
+                                  !Loop over the columns of the constraint matrix
+                                  DO constraint_column_number=1,CONSTRAINT_MATRICES%NUMBER_OF_COLUMNS
+                                    !Loop over the solver rows this constraint column is mapped to
+                                    DO solver_row_idx=1,SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP( &
+                                      & constraint_condition_idx)%CONSTRAINT_COLUMN_TO_SOLVER_ROWS_MAPS( &
+                                      & constraint_column_number)%NUMBER_OF_SOLVER_ROWS
+                                      solver_row_number=SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP( &
+                                        & constraint_condition_idx)%CONSTRAINT_COLUMN_TO_SOLVER_ROWS_MAPS( &
+                                        & constraint_column_number)%SOLVER_ROW
+                                      !Loop over the rows of the constraint matrix
+                                      DO constraint_row_idx=CONSTRAINT_ROW_INDICES(constraint_column_number), &
+                                        & CONSTRAINT_ROW_INDICES(constraint_column_number+1)-1
+                                        constraint_row_number=CONSTRAINT_COLUMN_INDICES(constraint_row_idx)
+                                        !Loop over the solver columns this constraint row is mapped to
+                                        DO solver_column_idx=1,CONSTRAINT_TO_SOLVER_MAP%CONSTRAINT_ROW_TO_SOLVER_COLS_MAP( &
+                                          & constraint_row_number)%NUMBER_OF_SOLVER_COLS
+                                          solver_column_number=CONSTRAINT_TO_SOLVER_MAP%CONSTRAINT_ROW_TO_SOLVER_COLS_MAP( &
+                                            & constraint_row_number)%SOLVER_COLS(solver_column_idx)
+                                          CALL LIST_ITEM_ADD(COLUMN_INDICES_LISTS(solver_row_number)%PTR,solver_column_number, &
+                                            & ERR,ERROR,*999)
+                                        ENDDO !solver_column_idx
+                                      ENDDO !constraint_row_idx
+                                    ENDDO !solver_row_idx
+                                  ENDDO !constraint_col_number
+                                CASE(DISTRIBUTED_MATRIX_COMPRESSED_COLUMN_STORAGE_TYPE)
+                                  CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+                                CASE(DISTRIBUTED_MATRIX_ROW_COLUMN_STORAGE_TYPE)
+                                  CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+                                CASE DEFAULT
+                                  LOCAL_ERROR="The matrix storage type of "// &
+                                    & TRIM(NUMBER_TO_VSTRING(EQUATIONS_STORAGE_TYPE,"*",ERR,ERROR))//" is invalid."
+                                  CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
+                                END SELECT
+                              ENDIF
+                            ENDDO !constraint_matrix_idx
+                          ENDIF
+                          IF(SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                            & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
+                            & NUMBER_OF_CONSTRAINT_JACOBIANS>0) THEN
+                          !Loop over the linear constraint equations matrices mapped to the solver matrix and calculate the col indices by row.
+                            DO constraint_matrix_idx=1,SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP( &
+                              & constraint_condition_idx)%CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
+                              & NUMBER_OF_CONSTRAINT_JACOBIANS
+                              CONSTRAINT_JACOBIAN_TO_SOLVER_MAP=>SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP( &
+                                & constraint_condition_idx)%CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
+                                & JACOBIAN_TO_SOLVER_MATRIX_MAPS(constraint_matrix_idx)%PTR
+                              CONSTRAINT_JACOBIAN=>CONSTRAINT_JACOBIAN_TO_SOLVER_MAP%CONSTRAINT_JACOBIAN
+                              CONSTRAINT_NONLINEAR_MATRICES=>CONSTRAINT_JACOBIAN%NONLINEAR_MATRICES
+                              CONSTRAINT_MATRICES=>CONSTRAINT_NONLINEAR_MATRICES%CONSTRAINT_MATRICES
+                              DISTRIBUTED_MATRIX=>CONSTRAINT_JACOBIAN%JACOBIAN
+                              CALL DISTRIBUTED_MATRIX_STORAGE_TYPE_GET(DISTRIBUTED_MATRIX,CONSTRAINT_STORAGE_TYPE,ERR,ERROR,*999)
+                              SELECT CASE(CONSTRAINT_STORAGE_TYPE)
+                              CASE(DISTRIBUTED_MATRIX_BLOCK_STORAGE_TYPE)
+                                !Loop over the rows of the constraint matrix
+                                DO constraint_row_number=1,CONSTRAINT_JACOBIAN%NUMBER_OF_ROWS
+                                  !Loop over the solver rows this constraint column is mapped to
+                                  DO solver_row_idx=1,SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                                    & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_JM(constraint_matrix_idx)% &
+                                    & CONSTRAINT_JACOBIAN_ROW_TO_SOLVER_ROWS_MAP(constraint_row_number)%NUMBER_OF_SOLVER_ROWS
+                                    solver_row_number=SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                                      & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_JM(constraint_matrix_idx)% &
+                                      & CONSTRAINT_JACOBIAN_ROW_TO_SOLVER_ROWS_MAP(constraint_row_number)%SOLVER_ROW
+                                    !Loop over the columns of the constraint matrix
+                                    DO constraint_column_number=1,CONSTRAINT_MATRICES%TOTAL_NUMBER_OF_COLUMNS
+                                      !Loop over the solver columns this constraint column is mapped to
+                                      DO solver_column_idx=1,SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP( &
+                                        & constraint_condition_idx)%CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
+                                        & CONSTRAINT_COL_TO_SOLVER_COLS_MAP(constraint_column_number)%NUMBER_OF_SOLVER_COLS
+                                        solver_column_number=SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP( &
+                                          & constraint_condition_idx)%CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
+                                          & CONSTRAINT_COL_TO_SOLVER_COLS_MAP(constraint_column_number)% &
+                                          & SOLVER_COLS(solver_column_idx)
+                                        CALL LIST_ITEM_ADD(COLUMN_INDICES_LISTS(solver_row_number)%PTR,solver_column_number, &
+                                          & ERR,ERROR,*999)
+                                      ENDDO !solver_column_idx
+                                    ENDDO !constraint_column_number
+                                  ENDDO !solver_row_idx
+                                ENDDO !constraint_row_number
+                              CASE(DISTRIBUTED_MATRIX_DIAGONAL_STORAGE_TYPE)
+                                !Loop over the rows of the constraint matrix
+                                DO constraint_row_number=1,CONSTRAINT_JACOBIAN%NUMBER_OF_ROWS
+                                  !Loop over the solver rows this constraint column is mapped to
+                                  DO solver_row_idx=1,SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                                    & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_JM(constraint_matrix_idx)% &
+                                    & CONSTRAINT_JACOBIAN_ROW_TO_SOLVER_ROWS_MAP(constraint_row_number)%NUMBER_OF_SOLVER_ROWS
+                                    solver_row_number=SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                                      & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_JM(constraint_matrix_idx)% &
+                                      & CONSTRAINT_JACOBIAN_ROW_TO_SOLVER_ROWS_MAP(constraint_row_number)%SOLVER_ROW
+                                    constraint_column_number=constraint_row_number
+                                    !Loop over the solver columns this constraint column is mapped to
+                                    DO solver_column_idx=1,SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP( &
+                                      & constraint_condition_idx)%CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
+                                      & CONSTRAINT_COL_TO_SOLVER_COLS_MAP(constraint_column_number)%NUMBER_OF_SOLVER_COLS
+                                      solver_column_number=SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP( &
+                                        & constraint_condition_idx)%CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
+                                        & CONSTRAINT_COL_TO_SOLVER_COLS_MAP(constraint_column_number)%SOLVER_COLS(solver_column_idx)
+                                      CALL LIST_ITEM_ADD(COLUMN_INDICES_LISTS(solver_row_number)%PTR,solver_column_number, &
+                                        & ERR,ERROR,*999)
+                                    ENDDO !solver_column_idx
+                                  ENDDO !solver_row_idx
+                                ENDDO !constraint_row_number 
+                              CASE(DISTRIBUTED_MATRIX_COLUMN_MAJOR_STORAGE_TYPE)
+                                CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+                              CASE(DISTRIBUTED_MATRIX_ROW_MAJOR_STORAGE_TYPE)
+                                CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+                              CASE(DISTRIBUTED_MATRIX_COMPRESSED_ROW_STORAGE_TYPE)
+                                CALL DISTRIBUTED_MATRIX_STORAGE_LOCATIONS_GET(DISTRIBUTED_MATRIX,CONSTRAINT_ROW_INDICES, &
+                                  & CONSTRAINT_COLUMN_INDICES,ERR,ERROR,*999)
+                                !Loop over the rows of the constraint matrix
+                                DO constraint_row_number=1,CONSTRAINT_JACOBIAN%NUMBER_OF_ROWS
+                                  !Loop over the solver rows this constraint column is mapped to
+                                  DO solver_row_idx=1,SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                                    & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_JM(constraint_matrix_idx)% &
+                                    & CONSTRAINT_JACOBIAN_ROW_TO_SOLVER_ROWS_MAP(constraint_row_number)%NUMBER_OF_SOLVER_ROWS
+                                    solver_row_number=SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                                      & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_JM(constraint_matrix_idx)% &
+                                      & CONSTRAINT_JACOBIAN_ROW_TO_SOLVER_ROWS_MAP(constraint_row_number)%SOLVER_ROW
+                                    !Loop over the columns of the constraint matrix
+                                    DO constraint_column_idx=CONSTRAINT_ROW_INDICES(constraint_row_number), &
+                                      & CONSTRAINT_ROW_INDICES(constraint_row_number+1)-1
+                                      constraint_column_number=CONSTRAINT_COLUMN_INDICES(constraint_column_idx)
+                                      !Loop over the solver columns this constraint column is mapped to
+                                      DO solver_column_idx=1,SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP( &
+                                        & constraint_condition_idx)%CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
+                                        & CONSTRAINT_COL_TO_SOLVER_COLS_MAP(constraint_column_number)%NUMBER_OF_SOLVER_COLS
+                                        solver_column_number=SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP( &
+                                          & constraint_condition_idx)%CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
+                                          & CONSTRAINT_COL_TO_SOLVER_COLS_MAP(constraint_column_number)% &
+                                          & SOLVER_COLS(solver_column_idx)
+                                        CALL LIST_ITEM_ADD(COLUMN_INDICES_LISTS(solver_row_number)%PTR,solver_column_number, &
+                                          & ERR,ERROR,*999)
+                                      ENDDO !solver_column_idx
+                                    ENDDO !constraint_column_idx
+                                  ENDDO !solver_row_idx
+                                ENDDO !constraint_row_number
+                              CASE(DISTRIBUTED_MATRIX_COMPRESSED_COLUMN_STORAGE_TYPE)
+                                CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+                              CASE(DISTRIBUTED_MATRIX_ROW_COLUMN_STORAGE_TYPE)
+                                CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+                              CASE DEFAULT
+                                LOCAL_ERROR="The matrix storage type of "// &
+                                  & TRIM(NUMBER_TO_VSTRING(EQUATIONS_STORAGE_TYPE,"*",ERR,ERROR))//" is invalid."
+                                CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
+                              END SELECT
+                              IF(CONSTRAINT_JACOBIAN%HAS_TRANSPOSE) THEN
+                                DISTRIBUTED_MATRIX=>CONSTRAINT_JACOBIAN%JACOBIAN_TRANSPOSE
+                                !Loop over the rows of the transposed constraint matrix
+                                CALL DISTRIBUTED_MATRIX_STORAGE_TYPE_GET(DISTRIBUTED_MATRIX,CONSTRAINT_STORAGE_TYPE,ERR,ERROR,*999)
+                                SELECT CASE(CONSTRAINT_STORAGE_TYPE)
+                                CASE(DISTRIBUTED_MATRIX_BLOCK_STORAGE_TYPE)
+                                  !Loop over the columns of the constraint matrix
+                                  DO constraint_column_number=1,CONSTRAINT_MATRICES%NUMBER_OF_COLUMNS
+                                    !Loop over the solver rows this constraint column is mapped to
+                                    DO solver_row_idx=1,SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP( &
+                                      & constraint_condition_idx)% &
+                                      & CONSTRAINT_COLUMN_TO_SOLVER_ROWS_MAPS(constraint_column_number)%NUMBER_OF_SOLVER_ROWS
+                                      solver_row_number=SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP( &
+                                        & constraint_condition_idx)%CONSTRAINT_COLUMN_TO_SOLVER_ROWS_MAPS( &
+                                        & constraint_column_number)%SOLVER_ROW
+                                      !Loop over the rows of the constraint matrix
+                                      DO constraint_row_number=1,CONSTRAINT_JACOBIAN%TOTAL_NUMBER_OF_ROWS
+                                        !Loop over the solver columns this constraint row is mapped to
+                                        DO solver_column_idx=1,CONSTRAINT_JACOBIAN_TO_SOLVER_MAP% &
+                                          & CONSTRAINT_ROW_TO_SOLVER_COLS_MAP(constraint_row_number)%NUMBER_OF_SOLVER_COLS
+                                          solver_column_number=CONSTRAINT_JACOBIAN_TO_SOLVER_MAP% &
+                                            & CONSTRAINT_ROW_TO_SOLVER_COLS_MAP(constraint_row_number)% &
+                                            & SOLVER_COLS(solver_column_idx)
+                                          CALL LIST_ITEM_ADD(COLUMN_INDICES_LISTS(solver_row_number)%PTR,solver_column_number, &
+                                            & ERR,ERROR,*999)
+                                        ENDDO !solver_column_idx
+                                      ENDDO !constraint_row_number
+                                    ENDDO !solver_row_idx
+                                  ENDDO !constraint_column_number
+                                CASE(DISTRIBUTED_MATRIX_DIAGONAL_STORAGE_TYPE)
+                                  !Loop over the columns of the constraint matrix
+                                  DO constraint_column_number=1,CONSTRAINT_MATRICES%NUMBER_OF_COLUMNS
+                                    !Loop over the solver rows this constraint column is mapped to
+                                    DO solver_row_idx=1,SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP( &
+                                      & constraint_condition_idx)%CONSTRAINT_COLUMN_TO_SOLVER_ROWS_MAPS( &
+                                      & constraint_column_number)%NUMBER_OF_SOLVER_ROWS
+                                      solver_row_number=SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP( &
+                                        & constraint_condition_idx)%CONSTRAINT_COLUMN_TO_SOLVER_ROWS_MAPS( &
+                                        & constraint_column_number)%SOLVER_ROW
+                                      constraint_row_number=constraint_column_number
+                                      !Loop over the solver columns this constraint row is mapped to
+                                      DO solver_column_idx=1,CONSTRAINT_JACOBIAN_TO_SOLVER_MAP%CONSTRAINT_ROW_TO_SOLVER_COLS_MAP( &
+                                        & constraint_row_number)%NUMBER_OF_SOLVER_COLS
+                                        solver_column_number=CONSTRAINT_JACOBIAN_TO_SOLVER_MAP%CONSTRAINT_ROW_TO_SOLVER_COLS_MAP( &
+                                          & constraint_row_number)%SOLVER_COLS(solver_column_idx)
+                                        CALL LIST_ITEM_ADD(COLUMN_INDICES_LISTS(solver_row_number)%PTR,solver_column_number, &
+                                          & ERR,ERROR,*999)
+                                      ENDDO !solver_column_idx
+                                    ENDDO !solver_row_idx
+                                  ENDDO !constraint_column_number 
+                                CASE(DISTRIBUTED_MATRIX_COLUMN_MAJOR_STORAGE_TYPE)
+                                  CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+                                CASE(DISTRIBUTED_MATRIX_ROW_MAJOR_STORAGE_TYPE)
+                                  CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+                                CASE(DISTRIBUTED_MATRIX_COMPRESSED_ROW_STORAGE_TYPE)
+                                  CALL DISTRIBUTED_MATRIX_STORAGE_LOCATIONS_GET(DISTRIBUTED_MATRIX,CONSTRAINT_ROW_INDICES, &
+                                    & CONSTRAINT_COLUMN_INDICES,ERR,ERROR,*999)
+                                  !Loop over the columns of the constraint matrix
+                                  DO constraint_column_number=1,CONSTRAINT_MATRICES%NUMBER_OF_COLUMNS
+                                    !Loop over the solver rows this constraint column is mapped to
+                                    DO solver_row_idx=1,SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP( &
+                                      & constraint_condition_idx)%CONSTRAINT_COLUMN_TO_SOLVER_ROWS_MAPS( &
+                                      & constraint_column_number)%NUMBER_OF_SOLVER_ROWS
+                                      solver_row_number=SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP( &
+                                        & constraint_condition_idx)%CONSTRAINT_COLUMN_TO_SOLVER_ROWS_MAPS( &
+                                        & constraint_column_number)%SOLVER_ROW
+                                      !Loop over the rows of the constraint matrix
+                                      DO constraint_row_idx=CONSTRAINT_ROW_INDICES(constraint_column_number), &
+                                        & CONSTRAINT_ROW_INDICES(constraint_column_number+1)-1
+                                        constraint_row_number=CONSTRAINT_COLUMN_INDICES(constraint_row_idx)
+                                        !Loop over the solver columns this constraint row is mapped to
+                                        DO solver_column_idx=1,CONSTRAINT_JACOBIAN_TO_SOLVER_MAP% &
+                                          & CONSTRAINT_ROW_TO_SOLVER_COLS_MAP(constraint_row_number)%NUMBER_OF_SOLVER_COLS
+                                          solver_column_number=CONSTRAINT_JACOBIAN_TO_SOLVER_MAP% &
+                                            & CONSTRAINT_ROW_TO_SOLVER_COLS_MAP(constraint_row_number)% &
+                                            & SOLVER_COLS(solver_column_idx)
+                                          CALL LIST_ITEM_ADD(COLUMN_INDICES_LISTS(solver_row_number)%PTR,solver_column_number, &
+                                            & ERR,ERROR,*999)
+                                        ENDDO !solver_column_idx
+                                      ENDDO !constraint_row_idx
+                                    ENDDO !solver_row_idx
+                                  ENDDO !constraint_col_number
+                                CASE(DISTRIBUTED_MATRIX_COMPRESSED_COLUMN_STORAGE_TYPE)
+                                  CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+                                CASE(DISTRIBUTED_MATRIX_ROW_COLUMN_STORAGE_TYPE)
+                                  CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+                                CASE DEFAULT
+                                  LOCAL_ERROR="The matrix storage type of "// &
+                                    & TRIM(NUMBER_TO_VSTRING(EQUATIONS_STORAGE_TYPE,"*",ERR,ERROR))//" is invalid."
+                                  CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
+                                END SELECT
+                              ENDIF
+                            ENDDO !constraint_matrix_idx
+                          ENDIF
+                        ENDIF
+                      CASE(CONSTRAINT_CONDITION_AUGMENTED_LAGRANGE_METHOD)
+                        CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+                      CASE(CONSTRAINT_CONDITION_POINT_TO_POINT_METHOD)
+                        CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+                      CASE DEFAULT
+                        LOCAL_ERROR="The constraint condition method of "// &
+                          & TRIM(NUMBER_TO_VSTRING(CONSTRAINT_CONDITION%METHOD,"*",ERR,ERROR))// &
+                          & " is invalid."
+                        CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
+                      END SELECT                        
+                    ENDDO !constraint_condition_idx
+                    !Loop over any interface condition
                     DO interface_condition_idx=1,SOLVER_MAPPING%NUMBER_OF_INTERFACE_CONDITIONS
                       INTERFACE_CONDITION=>SOLVER_MAPPING%INTERFACE_CONDITIONS(interface_condition_idx)%PTR
                       SELECT CASE(INTERFACE_CONDITION%METHOD)

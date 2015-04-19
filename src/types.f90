@@ -1975,6 +1975,7 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     INTEGER(INTG) :: STORAGE_TYPE !<The storage (sparsity) type for this matrix
     INTEGER(INTG) :: STRUCTURE_TYPE !<The structure (sparsity) type for this matrix
     INTEGER(INTG) :: NUMBER_OF_ROWS !<The number of rows in this constraint matrix
+    INTEGER(INTG) :: TOTAL_NUMBER_OF_ROWS !<The total number of rows in this constraint matrix
     INTEGER(INTG) :: CONSTRAINT_MATRIX_TIME_DEPENDENCE_TYPE !<Determines where the constraint matrix is mapped to
     INTEGER(INTG) :: CONSTRAINT_MATRIX_TRANSPOSE_TIME_DEPENDENCE_TYPE !<Determines where the transpose of the constraint matrix is mapped to
     LOGICAL :: UPDATE_MATRIX !<Is .TRUE. if this constraint matrix is to be updated
@@ -1999,6 +2000,7 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     INTEGER(INTG) :: STORAGE_TYPE !<The storage (sparsity) type for this matrix
     INTEGER(INTG) :: STRUCTURE_TYPE !<The structure (sparsity) type for this matrix
     INTEGER(INTG) :: NUMBER_OF_ROWS !<The number of rows in this global matrix
+    INTEGER(INTG) :: TOTAL_NUMBER_OF_ROWS !<The total number of rows in this global matrix
     LOGICAL :: UPDATE_JACOBIAN !<Is .TRUE. if this Jacobian matrix is to be updated
     LOGICAL :: FIRST_ASSEMBLY !<Is .TRUE. if this Jacobian matrix has not been assembled
     LOGICAL :: HAS_TRANSPOSE !<.TRUE. if the Jacobian matrix has a tranpose, .FALSE. if not.  
