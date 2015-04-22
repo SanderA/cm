@@ -13374,12 +13374,13 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
     !Local Variables
-    INTEGER(INTG) :: dependent_variable_type,interface_variable_type,equations_column_number,equations_matrix_idx, &
+    INTEGER(INTG) :: dependent_variable_type,constraint_condition_idx,constraint_matrix_idx,constraint_row_number, &
+      & constraint_column_number,interface_variable_type,equations_column_number,equations_matrix_idx, &
       & equations_matrix_number,interface_row_number,equations_row_number,equations_row_number2,equations_set_idx, & 
       & interface_column_number,interface_condition_idx,interface_matrix_idx,LINEAR_VARIABLE_TYPE,rhs_boundary_condition, &
       & rhs_global_dof,equations_matrix_idx2,rhs_variable_dof,rhs_variable_type,variable_boundary_condition,solver_matrix_idx, &
-      & solver_row_idx,solver_row_number,variable_dof,variable_global_dof,variable_idx,variable_type,&
-      & dirichlet_idx,dirichlet_row,number_of_interface_matrices
+      & solver_row_idx,solver_row_number,variable_dof,variable_global_dof,variable_idx,variable_type,lagrange_variable_type, &
+      & dirichlet_idx,dirichlet_row,number_of_constraint_matrices,number_of_interface_matrices
     REAL(SP) :: SYSTEM_ELAPSED,SYSTEM_TIME1(1),SYSTEM_TIME2(1),USER_ELAPSED,USER_TIME1(1),USER_TIME2(1)
     REAL(DP) :: DEPENDENT_VALUE,LINEAR_VALUE,LINEAR_VALUE_SUM,MATRIX_VALUE,RESIDUAL_VALUE,RHS_VALUE,row_coupling_coefficient, &
       & SOURCE_VALUE,VALUE,RHS_INTEGRATED_VALUE
@@ -13388,6 +13389,21 @@ CONTAINS
     TYPE(REAL_DP_PTR_TYPE), ALLOCATABLE :: DEPENDENT_PARAMETERS(:)
     TYPE(BOUNDARY_CONDITIONS_TYPE), POINTER :: BOUNDARY_CONDITIONS
     TYPE(BOUNDARY_CONDITIONS_VARIABLE_TYPE), POINTER :: DEPENDENT_BOUNDARY_CONDITIONS,RHS_BOUNDARY_CONDITIONS
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION
+    TYPE(CONSTRAINT_EQUATIONS_TYPE), POINTER :: CONSTRAINT_EQUATIONS
+    TYPE(CONSTRAINT_JACOBIAN_TO_SOLVER_MAPS_TYPE), POINTER :: CONSTRAINT_JACOBIAN_TO_SOLVER_MAP
+    TYPE(CONSTRAINT_JACOBIAN_TYPE), POINTER :: CONSTRAINT_JACOBIAN
+    TYPE(CONSTRAINT_LAGRANGE_TYPE), POINTER :: CONSTRAINT_LAGRANGE
+    TYPE(CONSTRAINT_MAPPING_TYPE), POINTER :: CONSTRAINT_MAPPING
+    TYPE(CONSTRAINT_MAPPING_LINEAR_TYPE), POINTER :: CONSTRAINT_LINEAR_MAPPING
+    TYPE(CONSTRAINT_MAPPING_NONLINEAR_TYPE), POINTER :: CONSTRAINT_NONLINEAR_MAPPING
+    TYPE(CONSTRAINT_MAPPING_RHS_TYPE), POINTER :: CONSTRAINT_RHS_MAPPING
+    TYPE(CONSTRAINT_MATRICES_TYPE), POINTER :: CONSTRAINT_MATRICES
+    TYPE(CONSTRAINT_MATRICES_LINEAR_TYPE), POINTER :: CONSTRAINT_LINEAR_MATRICES
+    TYPE(CONSTRAINT_MATRICES_NONLINEAR_TYPE), POINTER :: CONSTRAINT_NONLINEAR_MATRICES
+    TYPE(CONSTRAINT_MATRIX_TYPE), POINTER :: CONSTRAINT_LINEAR_MATRIX
+    TYPE(CONSTRAINT_RHS_TYPE), POINTER :: CONSTRAINT_RHS_VECTOR
+    TYPE(CONSTRAINT_TO_SOLVER_MAPS_TYPE), POINTER :: CONSTRAINT_TO_SOLVER_MAP
     TYPE(DISTRIBUTED_MATRIX_TYPE), POINTER :: PREVIOUS_SOLVER_DISTRIBUTED_MATRIX,SOLVER_DISTRIBUTED_MATRIX
     TYPE(DISTRIBUTED_VECTOR_TYPE), POINTER :: LAGRANGE_VECTOR,DEPENDENT_VECTOR,DISTRIBUTED_SOURCE_VECTOR,EQUATIONS_RHS_VECTOR, &
       & LINEAR_TEMP_VECTOR,INTERFACE_TEMP_VECTOR,RESIDUAL_VECTOR,SOLVER_RESIDUAL_VECTOR,SOLVER_RHS_VECTOR
@@ -13500,6 +13516,50 @@ CONTAINS
                           ENDDO
                         ENDIF
                       ENDDO !equations_set_idx
+                      DO constraint_condition_idx=1,SOLVER_MAPPING%NUMBER_OF_CONSTRAINT_CONDITIONS
+                        !First Loop over the linear constraint matrices
+                        DO constraint_matrix_idx=1,SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                          & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%NUMBER_OF_LINEAR_CONSTRAINT_MATRICES
+                          CONSTRAINT_TO_SOLVER_MAP=>SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                            & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%LINEAR_CONSTRAINT_TO_SOLVER_MATRIX_MAPS( &
+                            & constraint_matrix_idx)%PTR
+                          IF(ASSOCIATED(CONSTRAINT_TO_SOLVER_MAP)) THEN
+                            CONSTRAINT_LINEAR_MATRIX=>CONSTRAINT_TO_SOLVER_MAP%CONSTRAINT_MATRIX
+                            IF(ASSOCIATED(CONSTRAINT_LINEAR_MATRIX)) THEN
+                              CALL SOLVER_MATRIX_CONSTRAINT_MATRIX_ADD(SOLVER_MATRIX,constraint_condition_idx,1.0_DP, &
+                                & CONSTRAINT_LINEAR_MATRIX,ERR,ERROR,*999)
+                            ELSE
+                              CALL FLAG_ERROR("The constraint matrix is not associated.",ERR,ERROR,*999)
+                            ENDIF
+                          ELSE
+                            CALL FLAG_ERROR("The constraint matrix constraint to solver map is not associated.",ERR,ERROR,*999)
+                          ENDIF
+                        ENDDO !constraint_matrix_idx
+                        IF(SELECTION_TYPE==SOLVER_MATRICES_ALL.OR. &
+                          & SELECTION_TYPE==SOLVER_MATRICES_NONLINEAR_ONLY.OR. &
+                          & SELECTION_TYPE==SOLVER_MATRICES_JACOBIAN_ONLY) THEN
+                          !Now set the values from the constraint Jacobian
+                          DO constraint_matrix_idx=1,SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                              & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%NUMBER_OF_CONSTRAINT_JACOBIANS 
+                            CONSTRAINT_JACOBIAN_TO_SOLVER_MAP=>SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP( &
+                              & constraint_condition_idx)%CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
+                              & JACOBIAN_TO_SOLVER_MATRIX_MAPS(constraint_matrix_idx)%PTR
+                            IF(ASSOCIATED(CONSTRAINT_JACOBIAN_TO_SOLVER_MAP)) THEN
+                              CONSTRAINT_JACOBIAN=>CONSTRAINT_JACOBIAN_TO_SOLVER_MAP%CONSTRAINT_JACOBIAN
+                              IF(ASSOCIATED(CONSTRAINT_JACOBIAN)) THEN
+                                CALL SOLVER_MATRIX_CONSTRAINT_JACOBIAN_MATRIX_ADD(SOLVER_MATRIX,constraint_condition_idx,1.0_DP, &
+                                  & CONSTRAINT_JACOBIAN,ERR,ERROR,*999)
+                              ELSE
+                                CALL FLAG_ERROR("Constraint Jacobian matrix is not associated.",ERR,ERROR,*999)
+                              ENDIF
+                            ELSE
+                              LOCAL_ERROR="Constraint Jacobian to solver map is not associated for Jacobian number "// &
+                                & TRIM(NUMBER_TO_VSTRING(constraint_matrix_idx,"*",ERR,ERROR))//"."
+                              CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
+                            ENDIF
+                          ENDDO
+                        ENDIF
+                      ENDDO !constraint_condition_idx
                       !Loop over any interface conditions
                       DO interface_condition_idx=1,SOLVER_MAPPING%NUMBER_OF_INTERFACE_CONDITIONS
                         !Loop over the interface matrices
@@ -13707,6 +13767,193 @@ CONTAINS
                       CALL FLAG_ERROR("Equations set is not associated.",ERR,ERROR,*999)
                     ENDIF
                   ENDDO !equations_set_idx
+                  !Loop over the constraint conditions
+                  DO constraint_condition_idx=1,SOLVER_MAPPING%NUMBER_OF_CONSTRAINT_CONDITIONS
+                    CONSTRAINT_CONDITION=>SOLVER_MAPPING%CONSTRAINT_CONDITIONS(constraint_condition_idx)%PTR
+                    IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
+                      LAGRANGE_FIELD=>CONSTRAINT_CONDITION%LAGRANGE%LAGRANGE_FIELD
+                      IF(ASSOCIATED(LAGRANGE_FIELD)) THEN
+                        CONSTRAINT_EQUATIONS=>CONSTRAINT_CONDITION%CONSTRAINT_EQUATIONS
+                        IF(ASSOCIATED(CONSTRAINT_EQUATIONS)) THEN
+                          CONSTRAINT_MATRICES=>CONSTRAINT_EQUATIONS%CONSTRAINT_MATRICES
+                          IF(ASSOCIATED(CONSTRAINT_MATRICES)) THEN
+                            CONSTRAINT_MAPPING=>CONSTRAINT_EQUATIONS%CONSTRAINT_MAPPING
+                            IF(ASSOCIATED(CONSTRAINT_MAPPING)) THEN
+                              CONSTRAINT_LINEAR_MAPPING=>CONSTRAINT_MAPPING%LINEAR_MAPPING
+                              IF(ASSOCIATED(CONSTRAINT_LINEAR_MAPPING)) THEN
+                                CONSTRAINT_LINEAR_MATRICES=>CONSTRAINT_MATRICES%LINEAR_MATRICES
+                                IF(ASSOCIATED(CONSTRAINT_LINEAR_MATRICES)) THEN
+                                  !Calculate the contributions from any constraint matrices, including penalty matrices.
+                                  DO constraint_matrix_idx=1,CONSTRAINT_LINEAR_MAPPING%NUMBER_OF_LINEAR_CONSTRAINT_MATRICES
+                                    !Calculate the constraint matrix-Lagrange vector product residual contribution
+                                    CONSTRAINT_LINEAR_MATRIX=>CONSTRAINT_LINEAR_MATRICES%MATRICES(constraint_matrix_idx)%PTR
+                                    IF(ASSOCIATED(CONSTRAINT_LINEAR_MATRIX)) THEN
+                                      lagrange_variable_type=CONSTRAINT_MAPPING%LAGRANGE_VARIABLE_TYPE
+                                      LINEAR_TEMP_VECTOR=>CONSTRAINT_LINEAR_MATRIX%TEMP_VECTOR
+                                      !Initialise the linear temporary vector to zero
+                                      CALL DISTRIBUTED_VECTOR_ALL_VALUES_SET(LINEAR_TEMP_VECTOR,0.0_DP,ERR,ERROR,*999)
+                                      NULLIFY(LAGRANGE_VECTOR)
+                                      CALL FIELD_PARAMETER_SET_VECTOR_GET(LAGRANGE_FIELD,lagrange_variable_type, &
+                                        & FIELD_VALUES_SET_TYPE,LAGRANGE_VECTOR,ERR,ERROR,*999)
+                                      CALL DISTRIBUTED_MATRIX_BY_VECTOR_ADD(DISTRIBUTED_MATRIX_VECTOR_NO_GHOSTS_TYPE,1.0_DP, &
+                                        & CONSTRAINT_LINEAR_MATRIX%MATRIX,LAGRANGE_VECTOR,LINEAR_TEMP_VECTOR,ERR,ERROR,*999)
+                                      IF(CONSTRAINT_LINEAR_MATRIX%HAS_TRANSPOSE) THEN
+                                        dependent_variable_type=CONSTRAINT_LINEAR_MAPPING%VARIABLE_TYPE
+                                        LINEAR_TEMP_VECTOR=>CONSTRAINT_LINEAR_MATRIX%TEMP_TRANSPOSE_VECTOR
+                                        !Initialise the linear temporary vector to zero
+                                        CALL DISTRIBUTED_VECTOR_ALL_VALUES_SET(LINEAR_TEMP_VECTOR,0.0_DP,ERR,ERROR,*999)
+                                        NULLIFY(DEPENDENT_VECTOR)
+                                        CALL FIELD_PARAMETER_SET_VECTOR_GET(DEPENDENT_FIELD,dependent_variable_type, &
+                                          & FIELD_VALUES_SET_TYPE,DEPENDENT_VECTOR,ERR,ERROR,*999)
+                                        CALL DISTRIBUTED_MATRIX_BY_VECTOR_ADD(DISTRIBUTED_MATRIX_VECTOR_NO_GHOSTS_TYPE,1.0_DP, &
+                                          & CONSTRAINT_LINEAR_MATRIX%MATRIX_TRANSPOSE,DEPENDENT_VECTOR, &
+                                          & LINEAR_TEMP_VECTOR,ERR,ERROR,*999)
+                                      ENDIF
+                                    ELSE
+                                      LOCAL_ERROR="Constraint matrix is not associated for linear matrix number "// &
+                                        & TRIM(NUMBER_TO_VSTRING(constraint_matrix_idx,"*",ERR,ERROR))//"."
+                                      CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
+                                    ENDIF
+                                  ENDDO !constraint_matrix_idx
+                                ELSE
+                                  CALL FLAG_ERROR("Constraint matrices linear matrices is not associated.",ERR,ERROR,*999)
+                                ENDIF
+                                SELECT CASE(CONSTRAINT_CONDITION%METHOD)
+                                CASE(CONSTRAINT_CONDITION_LAGRANGE_MULTIPLIERS_METHOD)
+                                  number_of_constraint_matrices=CONSTRAINT_LINEAR_MAPPING%NUMBER_OF_LINEAR_CONSTRAINT_MATRICES
+                                CASE(CONSTRAINT_CONDITION_PENALTY_METHOD)
+                                  number_of_constraint_matrices=CONSTRAINT_LINEAR_MAPPING%NUMBER_OF_LINEAR_CONSTRAINT_MATRICES-1
+                                ENDSELECT
+                                DO constraint_matrix_idx=1,number_of_constraint_matrices
+                                  DO constraint_row_number=1,CONSTRAINT_LINEAR_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP( &
+                                    & constraint_matrix_idx)%NUMBER_OF_ROWS
+                                    IF(SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                                      & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_CM(constraint_matrix_idx)% &
+                                      & CONSTRAINT_ROW_TO_SOLVER_ROWS_MAP(constraint_row_number)% &
+                                      & NUMBER_OF_SOLVER_ROWS>0) THEN
+                                      CONSTRAINT_LINEAR_MATRIX=>CONSTRAINT_LINEAR_MATRICES%MATRICES(constraint_matrix_idx)%PTR
+                                      LINEAR_TEMP_VECTOR=>CONSTRAINT_LINEAR_MATRIX%TEMP_VECTOR
+                                      CALL DISTRIBUTED_VECTOR_VALUES_GET(LINEAR_TEMP_VECTOR,constraint_row_number, &
+                                        & RESIDUAL_VALUE,ERR,ERROR,*999)
+                                      !Loop over the solver rows associated with this constraint residual row
+                                      !Currently earch constraint matrix row has only one corresponding solver row number & coupling coefficient
+                                      solver_row_number=SOLVER_MAPPING% & 
+                                        & CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                                        & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_CM(constraint_matrix_idx)% &
+                                        & CONSTRAINT_ROW_TO_SOLVER_ROWS_MAP(constraint_row_number)%SOLVER_ROW
+                                      row_coupling_coefficient=SOLVER_MAPPING% &
+                                        & CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                                        & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_CM(constraint_matrix_idx)% &
+                                        & CONSTRAINT_ROW_TO_SOLVER_ROWS_MAP(constraint_row_number)%COUPLING_COEFFICIENT
+                                      VALUE=RESIDUAL_VALUE*row_coupling_coefficient
+                                      !Add in nonlinear residual values
+                                      CALL DISTRIBUTED_VECTOR_VALUES_ADD(SOLVER_RESIDUAL_VECTOR,solver_row_number,VALUE, &
+                                        & ERR,ERROR,*999)
+                                    ENDIF
+                                  ENDDO !constraint_row_number
+                                ENDDO !constraint_matrix_idx
+                              ENDIF
+                              CONSTRAINT_NONLINEAR_MAPPING=>CONSTRAINT_MAPPING%NONLINEAR_MAPPING
+                              IF(ASSOCIATED(CONSTRAINT_NONLINEAR_MAPPING)) THEN
+                                CONSTRAINT_NONLINEAR_MATRICES=>CONSTRAINT_MATRICES%NONLINEAR_MATRICES
+                                IF(ASSOCIATED(CONSTRAINT_NONLINEAR_MATRICES)) THEN
+                                  RESIDUAL_VECTOR=>CONSTRAINT_NONLINEAR_MATRICES%RESIDUAL
+                                  !Add constraint matrix residual contribution to the solver residual
+                                  DO constraint_column_number=1,CONSTRAINT_MAPPING%NUMBER_OF_COLUMNS
+                                    IF(SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                                      & CONSTRAINT_COLUMN_TO_SOLVER_ROWS_MAPS(constraint_column_number)% &
+                                      & NUMBER_OF_SOLVER_ROWS>0) THEN
+                                      !Get the constraint residual contribution
+                                      CALL DISTRIBUTED_VECTOR_VALUES_GET(RESIDUAL_VECTOR,constraint_column_number, &
+                                        & RESIDUAL_VALUE,ERR,ERROR,*999)
+                                      !Get the linear matrices contribution to the RHS values if there are any
+                                      IF(ASSOCIATED(CONSTRAINT_LINEAR_MAPPING)) THEN
+                                        LINEAR_VALUE_SUM=0.0_DP
+                                        DO constraint_matrix_idx=1,CONSTRAINT_LINEAR_MATRICES% &
+                                          & NUMBER_OF_LINEAR_MATRICES
+                                          CONSTRAINT_LINEAR_MATRIX=>CONSTRAINT_LINEAR_MATRICES% &
+                                            & MATRICES(constraint_matrix_idx)%PTR
+                                          IF(CONSTRAINT_LINEAR_MATRIX%HAS_TRANSPOSE) THEN
+                                            LINEAR_TEMP_VECTOR=>CONSTRAINT_LINEAR_MATRIX%TEMP_TRANSPOSE_VECTOR
+                                          ELSE !We have a penalty matrix
+                                            LINEAR_TEMP_VECTOR=>CONSTRAINT_LINEAR_MATRIX%TEMP_VECTOR
+                                          ENDIF
+                                            CALL DISTRIBUTED_VECTOR_VALUES_GET(LINEAR_TEMP_VECTOR, &
+                                              & constraint_column_number,LINEAR_VALUE,ERR,ERROR,*999)
+                                            LINEAR_VALUE_SUM=LINEAR_VALUE_SUM+LINEAR_VALUE
+                                        ENDDO !constraint_matrix_idx2
+                                        RESIDUAL_VALUE=RESIDUAL_VALUE+LINEAR_VALUE_SUM
+                                      ENDIF
+                                      !Loop over the solver rows associated with this constraint residual column
+                                      !Currently each constraint matrix column has only one corresponding solver row number & coupling coefficient
+                                      solver_row_number=SOLVER_MAPPING% & 
+                                        & CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                                        & CONSTRAINT_COLUMN_TO_SOLVER_ROWS_MAPS(constraint_column_number)%SOLVER_ROW
+                                      row_coupling_coefficient=SOLVER_MAPPING% &
+                                        & CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                                        & CONSTRAINT_COLUMN_TO_SOLVER_ROWS_MAPS(constraint_column_number)%COUPLING_COEFFICIENT
+                                      VALUE=RESIDUAL_VALUE*row_coupling_coefficient
+                                      !Add in nonlinear residual values
+                                      CALL DISTRIBUTED_VECTOR_VALUES_ADD(SOLVER_RESIDUAL_VECTOR,solver_row_number,VALUE, &
+                                        & ERR,ERROR,*999)
+                                    ENDIF
+                                  ENDDO !constraint_column_number
+                                ELSE
+                                  CALL FLAG_ERROR("Constraint matrices nonlinear matrices is not associated.",ERR,ERROR,*999)
+                                ENDIF
+                              ELSE IF(ASSOCIATED(CONSTRAINT_LINEAR_MAPPING)) THEN
+                                !Add constraint matrix residual contribution to the solver residual
+                                DO constraint_column_number=1,CONSTRAINT_MAPPING%NUMBER_OF_COLUMNS
+                                  IF(SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                                    & CONSTRAINT_COLUMN_TO_SOLVER_ROWS_MAPS(constraint_column_number)% &
+                                    & NUMBER_OF_SOLVER_ROWS>0) THEN
+                                    !Get the linear matrices contribution to the RHS values if there are any
+                                    LINEAR_VALUE_SUM=0.0_DP
+                                    DO constraint_matrix_idx=1,CONSTRAINT_LINEAR_MATRICES% &
+                                      & NUMBER_OF_LINEAR_MATRICES
+                                      CONSTRAINT_LINEAR_MATRIX=>CONSTRAINT_LINEAR_MATRICES% &
+                                        & MATRICES(constraint_matrix_idx)%PTR
+                                      IF(CONSTRAINT_LINEAR_MATRIX%HAS_TRANSPOSE) THEN
+                                        LINEAR_TEMP_VECTOR=>CONSTRAINT_LINEAR_MATRIX%TEMP_TRANSPOSE_VECTOR
+                                      ELSE !We have a penalty matrix
+                                        LINEAR_TEMP_VECTOR=>CONSTRAINT_LINEAR_MATRIX%TEMP_VECTOR
+                                      ENDIF
+                                        CALL DISTRIBUTED_VECTOR_VALUES_GET(LINEAR_TEMP_VECTOR, &
+                                          & constraint_column_number,LINEAR_VALUE,ERR,ERROR,*999)
+                                        LINEAR_VALUE_SUM=LINEAR_VALUE_SUM+LINEAR_VALUE
+                                    ENDDO !constraint_matrix_idx
+                                    RESIDUAL_VALUE=LINEAR_VALUE_SUM
+                                    !Loop over the solver rows associated with this constraint residual column
+                                    !Currently each constraint matrix column has only one corresponding solver row number & coupling coefficient
+                                    solver_row_number=SOLVER_MAPPING% & 
+                                      & CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                                      & CONSTRAINT_COLUMN_TO_SOLVER_ROWS_MAPS(constraint_column_number)%SOLVER_ROW
+                                    row_coupling_coefficient=SOLVER_MAPPING% &
+                                      & CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                                      & CONSTRAINT_COLUMN_TO_SOLVER_ROWS_MAPS(constraint_column_number)%COUPLING_COEFFICIENT
+                                    VALUE=RESIDUAL_VALUE*row_coupling_coefficient
+                                    !Add in nonlinear residual values
+                                    CALL DISTRIBUTED_VECTOR_VALUES_ADD(SOLVER_RESIDUAL_VECTOR,solver_row_number,VALUE, &
+                                      & ERR,ERROR,*999)
+                                  ENDIF
+                                ENDDO !constraint_column_number
+                              ENDIF
+                            ELSE
+                              CALL FLAG_ERROR("Constraint mapping is not associated.",ERR,ERROR,*999)
+                            ENDIF
+                          ELSE
+                            CALL FLAG_ERROR("Constraint matrices is not associated.",ERR,ERROR,*999)
+                          ENDIF
+                        ELSE
+                          CALL FLAG_ERROR("Constraint equations is not associated.",ERR,ERROR,*999)
+                        ENDIF
+                      ELSE
+                        CALL FLAG_ERROR("Constraint Lagrange field is not associated.",ERR,ERROR,*999)
+                      ENDIF
+                    ELSE
+                      CALL FLAG_ERROR("Constraint condition is not associated.",ERR,ERROR,*999)
+                    ENDIF
+                  ENDDO !constraint_condition_idx
                   !Loop over the interface conditions
                   DO interface_condition_idx=1,SOLVER_MAPPING%NUMBER_OF_INTERFACE_CONDITIONS
                     INTERFACE_CONDITION=>SOLVER_MAPPING%INTERFACE_CONDITIONS(interface_condition_idx)%PTR
@@ -14273,6 +14520,76 @@ CONTAINS
                       ENDIF
                     ENDIF
                   ENDDO !equations_set_idx
+                  !Add in any rows from any constraint conditions
+                  DO constraint_condition_idx=1,SOLVER_MAPPING%NUMBER_OF_CONSTRAINT_CONDITIONS
+                    CONSTRAINT_CONDITION=>SOLVER_MAPPING%CONSTRAINT_CONDITIONS(constraint_condition_idx)%PTR
+                    IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
+                      SELECT CASE(CONSTRAINT_CONDITION%METHOD)
+                      CASE(CONSTRAINT_CONDITION_LAGRANGE_MULTIPLIERS_METHOD,CONSTRAINT_CONDITION_PENALTY_METHOD)
+                        CONSTRAINT_EQUATIONS=>CONSTRAINT_CONDITION%CONSTRAINT_EQUATIONS
+                        IF(ASSOCIATED(CONSTRAINT_EQUATIONS)) THEN
+                          CONSTRAINT_MAPPING=>CONSTRAINT_EQUATIONS%CONSTRAINT_MAPPING
+                          IF(ASSOCIATED(CONSTRAINT_MAPPING)) THEN
+                            CONSTRAINT_LAGRANGE=>CONSTRAINT_CONDITION%LAGRANGE
+                            IF(ASSOCIATED(CONSTRAINT_LAGRANGE)) THEN
+                              LAGRANGE_FIELD=>CONSTRAINT_LAGRANGE%LAGRANGE_FIELD
+                              IF(ASSOCIATED(LAGRANGE_FIELD)) THEN
+                                CONSTRAINT_RHS_MAPPING=>CONSTRAINT_MAPPING%RHS_MAPPING
+                                IF(ASSOCIATED(CONSTRAINT_RHS_MAPPING)) THEN
+                                  CONSTRAINT_MATRICES=>CONSTRAINT_EQUATIONS%CONSTRAINT_MATRICES
+                                  IF(ASSOCIATED(CONSTRAINT_MATRICES)) THEN
+                                    CONSTRAINT_RHS_VECTOR=>CONSTRAINT_MATRICES%RHS_VECTOR
+                                    IF(ASSOCIATED(CONSTRAINT_RHS_VECTOR)) THEN
+                                      !Worry about BCs on the Lagrange variables later.
+                                      DO constraint_column_number=1,CONSTRAINT_MAPPING%NUMBER_OF_COLUMNS
+                                        CALL DISTRIBUTED_VECTOR_VALUES_GET(CONSTRAINT_RHS_VECTOR%RHS_VECTOR, &
+                                          & constraint_column_number,RHS_VALUE,ERR,ERROR,*999)
+                                      !Loop over the solver rows this constraint column is mapped to
+                                        solver_row_number=SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP( &
+                                          & constraint_condition_idx)%CONSTRAINT_COLUMN_TO_SOLVER_ROWS_MAPS( &
+                                          & constraint_column_number)%SOLVER_ROW
+                                        row_coupling_coefficient=SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP( &
+                                          & constraint_condition_idx)%CONSTRAINT_COLUMN_TO_SOLVER_ROWS_MAPS( &
+                                          & constraint_column_number)%COUPLING_COEFFICIENT
+                                        VALUE=RHS_VALUE*row_coupling_coefficient
+                                        CALL DISTRIBUTED_VECTOR_VALUES_ADD(SOLVER_RHS_VECTOR,solver_row_number,VALUE, &
+                                          & ERR,ERROR,*999)
+                                      ENDDO !constraint_column_idx
+                                    ELSE
+                                      CALL FLAG_ERROR("Constraint matrices RHS vector is not associated.",ERR,ERROR,*999)
+                                    ENDIF
+                                  ELSE
+                                    CALL FLAG_ERROR("Constraint equations constraint matrices is not associated.",ERR,ERROR,*999)
+                                  ENDIF
+                                ELSE
+                                  CALL FLAG_ERROR("Constraint mapping RHS mapping is not associated.",ERR,ERROR,*999)
+                                ENDIF
+                              ELSE
+                                CALL FLAG_ERROR("Constraint Lagrange field is not associated.",ERR,ERROR,*999)
+                              ENDIF
+                            ELSE
+                              CALL FLAG_ERROR("Constraint Lagrange is not associated.",ERR,ERROR,*999)
+                            ENDIF
+                          ELSE
+                            CALL FLAG_ERROR("Constraint equations constraint mapping is not associated.",ERR,ERROR,*999)
+                          ENDIF
+                        ELSE
+                          CALL FLAG_ERROR("Constraint condition equations is not associated.",ERR,ERROR,*999)
+                        ENDIF
+                      CASE(CONSTRAINT_CONDITION_AUGMENTED_LAGRANGE_METHOD)
+                        CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+                      CASE(CONSTRAINT_CONDITION_POINT_TO_POINT_METHOD)
+                        CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+                      CASE DEFAULT
+                        LOCAL_ERROR="The constraint condition method of "// &
+                          & TRIM(NUMBER_TO_VSTRING(CONSTRAINT_CONDITION%METHOD,"*",ERR,ERROR))// &
+                          & " is invalid."
+                        CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
+                      END SELECT
+                    ELSE
+                      CALL FLAG_ERROR("Constraint condition is not associated.",ERR,ERROR,*999)
+                    ENDIF
+                  ENDDO !constraint_condition_idx
                   !Add in any rows from any interface conditions
                   DO interface_condition_idx=1,SOLVER_MAPPING%NUMBER_OF_INTERFACE_CONDITIONS
                     INTERFACE_CONDITION=>SOLVER_MAPPING%INTERFACE_CONDITIONS(interface_condition_idx)%PTR
