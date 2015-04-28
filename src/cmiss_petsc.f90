@@ -472,6 +472,15 @@ MODULE CMISS_PETSC
 
   INTERFACE
 
+    SUBROUTINE ISCreateGeneral(comm,n,idx,mode,indexset,ierr)
+      MPI_Comm comm
+      PetscInt n
+      PetscInt idx(*)
+      PetscCopyMode mode
+      IS indexset
+      PetscInt ierr
+    END SUBROUTINE ISCreateGeneral
+
     SUBROUTINE ISDestroy(indexset,ierr)
       IS indexset
       PetscInt ierr
@@ -926,6 +935,13 @@ MODULE CMISS_PETSC
       PC pc
       PetscInt ierr
     END SUBROUTINE PCFactorSetUpMatSolverPackage
+
+    SUBROUTINE PCFieldSplitSetIS(pc,splitname,indexset,ierr)
+      PC pc
+      char splitname(*) 
+      IS indexset
+      PetscInt ierr
+    END SUBROUTINE PCFieldSplitSetIs
 
     SUBROUTINE PCFactorGetMatrix(pc,A,ierr)
       PC pc
@@ -1613,6 +1629,8 @@ MODULE CMISS_PETSC
   END INTERFACE !PETSC_SNESSETJACOBIAN
 
   PUBLIC PETSC_TRUE,PETSC_FALSE
+
+  PUBLIC PETSC_COPY_VALUES,PETSC_USE_POINTER
   
   PUBLIC PETSC_NULL_CHARACTER,PETSC_NULL_INTEGER,PETSC_NULL_DOUBLE,PETSC_NULL_OBJECT, &
     & PETSC_NULL_FUNCTION,PETSC_NULL_SCALAR,PETSC_NULL_REAL
@@ -1660,7 +1678,7 @@ MODULE CMISS_PETSC
 #endif
   PUBLIC PETSC_SAME_NONZERO_PATTERN,PETSC_DIFFERENT_NONZERO_PATTERN,PETSC_SUBSET_NONZERO_PATTERN
 
-  PUBLIC PETSC_ISINITIALISE,PETSC_ISFINALISE,PETSC_ISDESTROY
+  PUBLIC PETSC_ISINITIALISE,PETSC_ISFINALISE,PETSC_ISCREATEGENERAL,PETSC_ISDESTROY
 
   PUBLIC PETSC_ISCOLORINGINITIALISE,PETSC_ISCOLORINGFINALISE,PETSC_ISCOLORINGDESTROY
   
@@ -1773,6 +1791,9 @@ MODULE CMISS_PETSC
 #if ( PETSC_VERSION_MINOR >= 5 )
   PUBLIC PETSC_PCSETREUSEPRECONDITIONER
 #endif
+#endif
+#if ( PETSC_VERSION_MAJOR >= 3 )
+  PUBLIC PETSC_PCFIELDSPLITSETIS
 #endif
   
   PUBLIC PETSC_TS_EULER,PETSC_TS_BEULER,PETSC_TS_PSEUDO,PETSC_TS_SUNDIALS,PETSC_TS_CRANK_NICHOLSON,PETSC_TS_RUNGE_KUTTA
@@ -2016,6 +2037,40 @@ CONTAINS
   !================================================================================================================================
   !
 
+  !Create the PETSc IS structure
+  SUBROUTINE PETSC_ISCREATEGENERAL(COMMUNICATOR,N,INDICES,IS_,MODE,ERR,ERROR,*)
+
+    !Argument Variables
+    MPI_Comm, INTENT(IN) :: COMMUNICATOR !<The MPI communicator
+    INTEGER(INTG), INTENT(IN) :: N !<The size of the index set
+    INTEGER(INTG), INTENT(IN) :: INDICES(*) !<The list of integers
+    TYPE(PETSC_IS_TYPE), INTENT(INOUT) :: IS_ !<The IS type to create
+    PetscCopyMode, INTENT(IN) :: MODE !<The copy mode
+    INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
+    !Local Variables
+
+    CALL ENTERS("PETSC_ISCREATEGENERAL",ERR,ERROR,*999)
+   
+    CALL ISCreateGeneral(COMMUNICATOR,N,INDICES,MODE,IS_%IS_,ERR)
+    IF(ERR/=0) THEN
+      IF(PETSC_HANDLE_ERROR) THEN
+        CHKERRQ(ERR)
+      ENDIF
+      CALL FLAG_ERROR("PETSc error in ISCreateGeneral",ERR,ERROR,*999)
+    ENDIF
+
+    CALL EXITS("PETSC_ISCREATEGENERAL")
+    RETURN
+999 CALL ERRORS("PETSC_ISCREATEGENERAL",ERR,ERROR)
+    CALL EXITS("PETSC_ISCREATEGENERAL")
+    RETURN 1
+  END SUBROUTINE PETSC_ISCREATEGENERAL
+    
+  !
+  !================================================================================================================================
+  !
+  
   !Finalise the PETSc IS structure and destroy the IS
   SUBROUTINE PETSC_ISFINALISE(IS_,ERR,ERROR,*)
 
@@ -5018,6 +5073,40 @@ CONTAINS
     CALL EXITS("Petsc_MatMumpsSetCntl")
     RETURN 1
   END SUBROUTINE Petsc_MatMumpsSetCntl
+#endif
+
+  !
+  !================================================================================================================================
+  !
+
+#if ( PETSC_VERSION_MAJOR >= 3 )
+  !>Buffer routine to the PETSc PCFieldSplitIs
+  SUBROUTINE PETSC_PCFIELDSPLITSETIS(PC_,SPLITNAME,IS_,ERR,ERROR,*)
+
+    !Argument Variables
+    TYPE(PETSC_PC_TYPE), INTENT(INOUT) :: PC_ !<The preconditioner to set the solver package for
+    CHARACTER(LEN=*), INTENT(IN) :: SPLITNAME !<The name of this split, if NULL the number of the split is used 
+    TYPE(PETSC_IS_TYPE), INTENT(INOUT) :: IS_ !<The index set that defines the vector elements in this field 
+    INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
+    !Local Variables
+
+    CALL ENTERS("PETSC_PCFIELDSPLITSETIS",ERR,ERROR,*999)
+
+    CALL PCFieldSplitSetIS(PC_%PC_,SPLITNAME,IS_%IS_,ERR)
+    IF(ERR/=0) THEN
+      IF(PETSC_HANDLE_ERROR) THEN
+        CHKERRQ(ERR)
+      ENDIF
+      CALL FLAG_ERROR("PETSc error in PCFieldSplitSetIs",ERR,ERROR,*999)
+    ENDIF
+    
+    CALL EXITS("PETSC_PCFIELDSPLITSETIS")
+    RETURN
+999 CALL ERRORS("PETSC_PCFIELDSPLITSETIS",ERR,ERROR)
+    CALL EXITS("PETSC_PCFIELDSPLITSETIS")
+    RETURN 1
+  END SUBROUTINE PETSC_PCFIELDSPLITSETIS
 #endif
 
   !

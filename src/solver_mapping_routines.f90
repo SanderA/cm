@@ -1708,6 +1708,10 @@ CONTAINS
                       & VARIABLE
                     SOLVER_MAPPING%VARIABLES_LIST(solver_matrix_idx)%VARIABLES(solver_variable_idx)%VARIABLE_TYPE= &
                       & VARIABLE_TYPE
+                    SOLVER_MAPPING%VARIABLES_LIST(solver_matrix_idx)%VARIABLES(solver_variable_idx)%EQUATIONS_TYPE= &
+                      & SOLVER_MAPPING_EQUATIONS_EQUATIONS_SET 
+                    SOLVER_MAPPING%VARIABLES_LIST(solver_matrix_idx)%VARIABLES(solver_variable_idx)%EQUATIONS_INDEX= &
+                      & equations_set_idx 
                     NULLIFY(VARIABLES_LIST(solver_variable_idx)%PTR)
                     CALL LIST_CREATE_START(VARIABLES_LIST(solver_variable_idx)%PTR,ERR,ERROR,*999)
                     CALL LIST_DATA_TYPE_SET(VARIABLES_LIST(solver_variable_idx)%PTR,LIST_INTG_TYPE,ERR,ERROR,*999)
@@ -1742,6 +1746,10 @@ CONTAINS
                         & VARIABLE
                       SOLVER_MAPPING%VARIABLES_LIST(solver_matrix_idx)%VARIABLES(solver_variable_idx)%VARIABLE_TYPE= &
                         & VARIABLE_TYPE
+                      SOLVER_MAPPING%VARIABLES_LIST(solver_matrix_idx)%VARIABLES(solver_variable_idx)%EQUATIONS_TYPE= &
+                        & SOLVER_MAPPING_EQUATIONS_CONSTRAINT_CONDITION 
+                      SOLVER_MAPPING%VARIABLES_LIST(solver_matrix_idx)%VARIABLES(solver_variable_idx)%EQUATIONS_INDEX= &
+                        & constraint_condition_idx 
                       NULLIFY(VARIABLES_LIST(solver_variable_idx)%PTR)
                       CALL LIST_CREATE_START(VARIABLES_LIST(solver_variable_idx)%PTR,ERR,ERROR,*999)
                       CALL LIST_DATA_TYPE_SET(VARIABLES_LIST(solver_variable_idx)%PTR,LIST_INTG_TYPE,ERR,ERROR,*999)
@@ -1779,6 +1787,10 @@ CONTAINS
                         & VARIABLE
                       SOLVER_MAPPING%VARIABLES_LIST(solver_matrix_idx)%VARIABLES(solver_variable_idx)%VARIABLE_TYPE= &
                         & VARIABLE_TYPE
+                      SOLVER_MAPPING%VARIABLES_LIST(solver_matrix_idx)%VARIABLES(solver_variable_idx)%EQUATIONS_TYPE= &
+                        & SOLVER_MAPPING_EQUATIONS_INTERFACE_CONDITION
+                      SOLVER_MAPPING%VARIABLES_LIST(solver_matrix_idx)%VARIABLES(solver_variable_idx)%EQUATIONS_INDEX= &
+                        & interface_condition_idx 
                       NULLIFY(VARIABLES_LIST(solver_variable_idx)%PTR)
                       CALL LIST_CREATE_START(VARIABLES_LIST(solver_variable_idx)%PTR,ERR,ERROR,*999)
                       CALL LIST_DATA_TYPE_SET(VARIABLES_LIST(solver_variable_idx)%PTR,LIST_INTG_TYPE,ERR,ERROR,*999)
@@ -2124,7 +2136,6 @@ CONTAINS
               IF(ALLOCATED(EQUATIONS_SET_VARIABLES)) DEALLOCATE(EQUATIONS_SET_VARIABLES)
             ENDDO !equations_set_idx
             !Calculate the number of columns for the constraint conditions
-            ! SANDER: check for linear, dynamic and nonlinear mappings.
             DO constraint_condition_idx=1,SOLVER_MAPPING%NUMBER_OF_CONSTRAINT_CONDITIONS
               equations_idx=equations_idx+1
               !The pointers below have been checked for association above.
@@ -4877,14 +4888,10 @@ CONTAINS
           CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"      Variable : ",variable_idx,ERR,ERROR,*999)
           CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"        Variable type = ",SOLVER_MAPPING%VARIABLES_LIST( &
             & solver_matrix_idx)%VARIABLES(variable_idx)%VARIABLE_TYPE,ERR,ERROR,*999)        
-          CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"        Number of equations = ",SOLVER_MAPPING%VARIABLES_LIST( &
-            & solver_matrix_idx)%VARIABLES(variable_idx)%NUMBER_OF_EQUATIONS,ERR,ERROR,*999)        
-          CALL WRITE_STRING_VECTOR(DIAGNOSTIC_OUTPUT_TYPE,1,1,SOLVER_MAPPING%VARIABLES_LIST(solver_matrix_idx)%VARIABLES( &
-            & variable_idx)%NUMBER_OF_EQUATIONS,5,5,SOLVER_MAPPING%VARIABLES_LIST(solver_matrix_idx)%VARIABLES( &
-            & variable_idx)%EQUATION_TYPES,'("        Equation types   :",5(X,I13))','(26X,5(X,I13))',ERR,ERROR,*999)
-          CALL WRITE_STRING_VECTOR(DIAGNOSTIC_OUTPUT_TYPE,1,1,SOLVER_MAPPING%VARIABLES_LIST(solver_matrix_idx)%VARIABLES( &
-            & variable_idx)%NUMBER_OF_EQUATIONS,5,5,SOLVER_MAPPING%VARIABLES_LIST(solver_matrix_idx)%VARIABLES( &
-            & variable_idx)%EQUATION_TYPES,'("        Equation indices :",5(X,I13))','(26X,5(X,I13))',ERR,ERROR,*999)
+          CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"        Equations type = ",SOLVER_MAPPING%VARIABLES_LIST( &
+            & solver_matrix_idx)%VARIABLES(variable_idx)%EQUATIONS_TYPE,ERR,ERROR,*999)        
+          CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"        Equations index = ",SOLVER_MAPPING%VARIABLES_LIST( &
+            & solver_matrix_idx)%VARIABLES(variable_idx)%EQUATIONS_INDEX,ERR,ERROR,*999)        
         ENDDO !variable_idx
       ENDDO !solver_matrix_idx
       CALL WRITE_STRING(DIAGNOSTIC_OUTPUT_TYPE,"  Solver row to equations rows mappings:",ERR,ERROR,*999)      
@@ -5033,7 +5040,7 @@ CONTAINS
             & NUMBER_OF_EQUATION_DOFS>0) THEN
             CALL WRITE_STRING_VECTOR(DIAGNOSTIC_OUTPUT_TYPE,1,1,SOLVER_MAPPING%SOLVER_COL_TO_EQUATIONS_COLS_MAP( &
               & solver_matrix_idx)%SOLVER_DOF_TO_VARIABLE_MAPS(dof_idx)%NUMBER_OF_EQUATION_DOFS,5,5,SOLVER_MAPPING% &
-              & SOLVER_COL_TO_EQUATIONS_COLS_MAP(solver_matrix_idx)%SOLVER_DOF_TO_VARIABLE_MAPS(dof_idx)%EQUATIONS_INDICES, &
+              & SOLVER_COL_TO_EQUATIONS_COLS_MAP(solver_matrix_idx)%SOLVER_DOF_TO_VARIABLE_MAPS(dof_idx)%EQUATIONS_TYPES, &
               & '("        Equations types       :",5(X,I13))','(31X,5(X,I13))',ERR,ERROR,*999)
             CALL WRITE_STRING_VECTOR(DIAGNOSTIC_OUTPUT_TYPE,1,1,SOLVER_MAPPING%SOLVER_COL_TO_EQUATIONS_COLS_MAP( &
               & solver_matrix_idx)%SOLVER_DOF_TO_VARIABLE_MAPS(dof_idx)%NUMBER_OF_EQUATION_DOFS,5,5,SOLVER_MAPPING% &
@@ -10243,9 +10250,8 @@ CONTAINS
 
     NULLIFY(SOLVER_MAPPING_VARIABLE%VARIABLE)
     SOLVER_MAPPING_VARIABLE%VARIABLE_TYPE=0
-    SOLVER_MAPPING_VARIABLE%NUMBER_OF_EQUATIONS=0
-    IF(ALLOCATED(SOLVER_MAPPING_VARIABLE%EQUATION_TYPES)) DEALLOCATE(SOLVER_MAPPING_VARIABLE%EQUATION_TYPES)
-    IF(ALLOCATED(SOLVER_MAPPING_VARIABLE%EQUATION_INDICES)) DEALLOCATE(SOLVER_MAPPING_VARIABLE%EQUATION_INDICES)
+    SOLVER_MAPPING_VARIABLE%EQUATIONS_TYPE=0
+    SOLVER_MAPPING_VARIABLE%EQUATIONS_INDEX=0
        
     CALL EXITS("SOLVER_MAPPING_VARIABLE_FINALISE")
     RETURN
@@ -10271,7 +10277,8 @@ CONTAINS
 
     NULLIFY(SOLVER_MAPPING_VARIABLE%VARIABLE)
     SOLVER_MAPPING_VARIABLE%VARIABLE_TYPE=0
-    SOLVER_MAPPING_VARIABLE%NUMBER_OF_EQUATIONS=0
+    SOLVER_MAPPING_VARIABLE%EQUATIONS_TYPE=0
+    SOLVER_MAPPING_VARIABLE%EQUATIONS_INDEX=0
     
     CALL EXITS("SOLVER_MAPPING_VARIABLE_INITIALISE")
     RETURN

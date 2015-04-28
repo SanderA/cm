@@ -69,8 +69,8 @@
 !> This module contains all type definitions in order to avoid cyclic module references.
 MODULE TYPES
 
-  USE CMISS_PETSC_TYPES, ONLY : PETSC_ISCOLORING_TYPE,PETSC_KSP_TYPE,PETSC_MAT_TYPE,PETSC_MATCOLORING_TYPE, &
-    & PETSC_MATFDCOLORING_TYPE,PETSC_PC_TYPE,PETSC_SNES_TYPE,PetscSnesLineSearchType,PETSC_VEC_TYPE
+  USE CMISS_PETSC_TYPES, ONLY : PETSC_IS_TYPE,PETSC_IS_PTR_TYPE,PETSC_ISCOLORING_TYPE,PETSC_KSP_TYPE,PETSC_MAT_TYPE, &
+    & PETSC_MATCOLORING_TYPE,PETSC_MATFDCOLORING_TYPE,PETSC_PC_TYPE,PETSC_SNES_TYPE,PetscSnesLineSearchType,PETSC_VEC_TYPE
   USE CONSTANTS
   USE KINDS
   USE ISO_C_BINDING
@@ -2945,6 +2945,8 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     REAL(DP) :: ABSOLUTE_TOLERANCE !<The absolute tolerance of the residual norm
     REAL(DP) :: DIVERGENCE_TOLERANCE !<The absolute tolerance of the residual norm
     INTEGER(INTG) :: GMRES_RESTART !<The GMRES restart iterations size
+    INTEGER(INTG) :: NUMBER_OF_IS
+    TYPE(PETSC_IS_PTR_TYPE), ALLOCATABLE :: IS(:) !<The PETSc IS type used for defining blocks for a block preconditioner.
     TYPE(PETSC_PC_TYPE) :: PC !<The PETSc preconditioner object
     TYPE(PETSC_KSP_TYPE) :: KSP !<The PETSc solver object
   END TYPE LINEAR_ITERATIVE_SOLVER_TYPE
@@ -3525,9 +3527,8 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
   TYPE SOLVER_MAPPING_VARIABLE_TYPE
     TYPE(FIELD_VARIABLE_TYPE), POINTER :: VARIABLE
     INTEGER(INTG) :: VARIABLE_TYPE
-    INTEGER(INTG) :: NUMBER_OF_EQUATIONS
-    INTEGER(INTG), ALLOCATABLE :: EQUATION_TYPES(:)
-    INTEGER(INTG), ALLOCATABLE :: EQUATION_INDICES(:)
+    INTEGER(INTG) :: EQUATIONS_TYPE
+    INTEGER(INTG) :: EQUATIONS_INDEX
   END TYPE SOLVER_MAPPING_VARIABLE_TYPE
 
   !>Contains information on the variables involved in a solver matrix
@@ -3554,7 +3555,7 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     TYPE(EQUATIONS_SET_PTR_TYPE), ALLOCATABLE :: EQUATIONS_SETS(:) !<The list of equations sets that are in this solution mapping
     TYPE(EQUATIONS_SET_TO_SOLVER_MAP_TYPE), ALLOCATABLE :: EQUATIONS_SET_TO_SOLVER_MAP(:) !<EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx). The mapping from the equations_set_idx'th equations set to the solver matrices.
     INTEGER(INTG) :: NUMBER_OF_CONSTRAINT_CONDITIONS !<The number of constraint conditions in the solution mapping.
-    TYPE(CONSTRAINT_CONDITION_PTR_TYPE), ALLOCATABLE :: CONSTRAINT_CONDITIONS(:) !<The list of constraint conditions that are in this
+    TYPE(CONSTRAINT_CONDITION_PTR_TYPE), ALLOCATABLE :: CONSTRAINT_CONDITIONS(:) !<The list of constraint conditions that are in this solution mapping
     TYPE(CONSTRAINT_CONDITION_TO_SOLVER_MAP_TYPE), ALLOCATABLE :: CONSTRAINT_CONDITION_TO_SOLVER_MAP(:) !<CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx). The mapping from the constraint_condition_idx'th constraint condition to the solver matrices.
     INTEGER(INTG) :: NUMBER_OF_INTERFACE_CONDITIONS !<The number of interface conditions in the solution mapping.
     TYPE(INTERFACE_CONDITION_PTR_TYPE), ALLOCATABLE :: INTERFACE_CONDITIONS(:) !<The list of interface conditions that are in this
@@ -3564,7 +3565,7 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     TYPE(SOLVER_ROW_TO_EQUATIONS_MAPS_TYPE), ALLOCATABLE :: SOLVER_ROW_TO_EQUATIONS_ROWS_MAP(:) !<SOLVER_ROW_TO_EQUATIONS_SET_MAPS(local_row_idx). The mappings from the local_row_idx'th solver row to the equations set rows.
     !LOGICAL :: HAVE_JACOBIAN !<Is .TRUE. if the Jacobian exists for nonlinear problems.
     TYPE(DOMAIN_MAPPING_TYPE), POINTER :: ROW_DOFS_MAPPING !<The domain mapping for the solver rows.
-    TYPE(SOlVER_MAPPING_CREATE_VALUES_CACHE_TYPE), POINTER :: CREATE_VALUES_CACHE !<The create values cache for the solver mapping
+    TYPE(SOLVER_MAPPING_CREATE_VALUES_CACHE_TYPE), POINTER :: CREATE_VALUES_CACHE !<The create values cache for the solver mapping
   END TYPE SOLVER_MAPPING_TYPE
 
   !
