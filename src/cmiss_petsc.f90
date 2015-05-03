@@ -1678,7 +1678,7 @@ MODULE CMISS_PETSC
 #endif
   PUBLIC PETSC_SAME_NONZERO_PATTERN,PETSC_DIFFERENT_NONZERO_PATTERN,PETSC_SUBSET_NONZERO_PATTERN
 
-  PUBLIC PETSC_ISINITIALISE,PETSC_ISFINALISE,PETSC_ISCREATEGENERAL,PETSC_ISDESTROY
+  PUBLIC PETSC_ISINITIALISE,PETSC_ISFINALISE,PETSC_ISCREATEGENERAL,PETSC_ISVIEW,PETSC_ISDESTROY
 
   PUBLIC PETSC_ISCOLORINGINITIALISE,PETSC_ISCOLORINGFINALISE,PETSC_ISCOLORINGDESTROY
   
@@ -1793,7 +1793,7 @@ MODULE CMISS_PETSC
 #endif
 #endif
 #if ( PETSC_VERSION_MAJOR >= 3 )
-  PUBLIC PETSC_PCFIELDSPLITSETIS
+  PUBLIC PETSC_PCFIELDSPLITSETIS,PETSC_PCFIELDSPLITGETIS
 #endif
   
   PUBLIC PETSC_TS_EULER,PETSC_TS_BEULER,PETSC_TS_PSEUDO,PETSC_TS_SUNDIALS,PETSC_TS_CRANK_NICHOLSON,PETSC_TS_RUNGE_KUTTA
@@ -2066,6 +2066,39 @@ CONTAINS
     CALL EXITS("PETSC_ISCREATEGENERAL")
     RETURN 1
   END SUBROUTINE PETSC_ISCREATEGENERAL
+    
+  !
+  !================================================================================================================================
+  !
+  !
+  !================================================================================================================================
+  !
+
+  !Create the PETSc IS structure
+  SUBROUTINE PETSC_ISVIEW(IS_,ERR,ERROR,*)
+
+    !Argument Variables
+    TYPE(PETSC_IS_TYPE), INTENT(INOUT) :: IS_ !<The IS type to create
+    INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
+    !Local Variables
+
+    CALL ENTERS("PETSC_ISVIEW",ERR,ERROR,*999)
+   
+    call ISView(IS_%IS_,PETSC_VIEWER_STDOUT_SELF,err)
+    IF(ERR/=0) THEN
+      IF(PETSC_HANDLE_ERROR) THEN
+        CHKERRQ(ERR)
+      ENDIF
+      CALL FLAG_ERROR("PETSc error in ISCreateGeneral",ERR,ERROR,*999)
+    ENDIF
+
+    CALL EXITS("PETSC_ISVIEW")
+    RETURN
+999 CALL ERRORS("PETSC_ISVIEW",ERR,ERROR)
+    CALL EXITS("PETSC_ISVIEW")
+    RETURN 1
+  END SUBROUTINE PETSC_ISVIEW
     
   !
   !================================================================================================================================
@@ -5080,12 +5113,44 @@ CONTAINS
   !
 
 #if ( PETSC_VERSION_MAJOR >= 3 )
-  !>Buffer routine to the PETSc PCFieldSplitIs
+  !>Buffer routine to the PETSc PCFieldSplitGetIs
+  SUBROUTINE PETSC_PCFIELDSPLITGETIS(PC_,SPLITNAME,IS_,ERR,ERROR,*)
+
+    !Argument Variables
+    TYPE(PETSC_PC_TYPE), INTENT(INOUT) :: PC_ !<The preconditioner to set the solver package for
+    TYPE(VARYING_STRING), INTENT(IN) :: SPLITNAME !<The name of this split, if NULL the number of the split is used 
+    TYPE(PETSC_IS_TYPE), INTENT(INOUT) :: IS_ !<The index set that defines the vector elements in this field 
+    INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
+    !Local Variables
+
+    CALL ENTERS("PETSC_PCFIELDSPLITGETIS",ERR,ERROR,*999)
+
+    CALL PCFieldSplitGetIS(PC_%PC_,CCHAR(SPLITNAME),IS_%IS_,ERR)
+    IF(ERR/=0) THEN
+      IF(PETSC_HANDLE_ERROR) THEN
+        CHKERRQ(ERR)
+      ENDIF
+      CALL FLAG_ERROR("PETSc error in PCFieldSplitGetIs",ERR,ERROR,*999)
+    ENDIF
+    
+    CALL EXITS("PETSC_PCFIELDSPLITGETIS")
+    RETURN
+999 CALL ERRORS("PETSC_PCFIELDSPLITGETIS",ERR,ERROR)
+    CALL EXITS("PETSC_PCFIELDSPLITGETIS")
+    RETURN 1
+  END SUBROUTINE PETSC_PCFIELDSPLITGETIS
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Buffer routine to the PETSc PCFieldSplitSetIs
   SUBROUTINE PETSC_PCFIELDSPLITSETIS(PC_,SPLITNAME,IS_,ERR,ERROR,*)
 
     !Argument Variables
     TYPE(PETSC_PC_TYPE), INTENT(INOUT) :: PC_ !<The preconditioner to set the solver package for
-    CHARACTER(LEN=*), INTENT(IN) :: SPLITNAME !<The name of this split, if NULL the number of the split is used 
+    TYPE(VARYING_STRING), INTENT(IN) :: SPLITNAME !<The name of this split, if NULL the number of the split is used 
     TYPE(PETSC_IS_TYPE), INTENT(INOUT) :: IS_ !<The index set that defines the vector elements in this field 
     INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
@@ -5093,7 +5158,8 @@ CONTAINS
 
     CALL ENTERS("PETSC_PCFIELDSPLITSETIS",ERR,ERROR,*999)
 
-    CALL PCFieldSplitSetIS(PC_%PC_,SPLITNAME,IS_%IS_,ERR)
+    !Don't forget to convert the string to a c character array.
+    CALL PCFieldSplitSetIS(PC_%PC_,CCHAR(SPLITNAME),IS_%IS_,ERR)
     IF(ERR/=0) THEN
       IF(PETSC_HANDLE_ERROR) THEN
         CHKERRQ(ERR)

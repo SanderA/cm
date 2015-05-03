@@ -69,7 +69,7 @@
 !> This module contains all type definitions in order to avoid cyclic module references.
 MODULE TYPES
 
-  USE CMISS_PETSC_TYPES, ONLY : PETSC_IS_TYPE,PETSC_IS_PTR_TYPE,PETSC_ISCOLORING_TYPE,PETSC_KSP_TYPE,PETSC_MAT_TYPE, &
+  USE CMISS_PETSC_TYPES, ONLY : PETSC_IS_TYPE,PETSC_ISCOLORING_TYPE,PETSC_KSP_TYPE,PETSC_MAT_TYPE, &
     & PETSC_MATCOLORING_TYPE,PETSC_MATFDCOLORING_TYPE,PETSC_PC_TYPE,PETSC_SNES_TYPE,PetscSnesLineSearchType,PETSC_VEC_TYPE
   USE CONSTANTS
   USE KINDS
@@ -2946,7 +2946,7 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     REAL(DP) :: DIVERGENCE_TOLERANCE !<The absolute tolerance of the residual norm
     INTEGER(INTG) :: GMRES_RESTART !<The GMRES restart iterations size
     INTEGER(INTG) :: NUMBER_OF_IS
-    TYPE(PETSC_IS_PTR_TYPE), ALLOCATABLE :: IS(:) !<The PETSc IS type used for defining blocks for a block preconditioner.
+    TYPE(PETSC_IS_TYPE), ALLOCATABLE :: IS(:) !<The PETSc IS type used for defining blocks for a block preconditioner.
     TYPE(PETSC_PC_TYPE) :: PC !<The PETSc preconditioner object
     TYPE(PETSC_KSP_TYPE) :: KSP !<The PETSc solver object
   END TYPE LINEAR_ITERATIVE_SOLVER_TYPE

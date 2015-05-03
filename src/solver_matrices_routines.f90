@@ -1008,6 +1008,21 @@ CONTAINS
                                   ENDIF
                                 ENDIF
                               ENDIF !Constraint Jacobian matrix transpose
+                              !HACK to see if it works
+                              DO constraint_column_number=1,CONSTRAINT_MATRICES%NUMBER_OF_COLUMNS
+                                !Loop over the solver rows this constraint column is mapped to
+                                DO solver_row_idx=1,SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP( &
+                                  & constraint_condition_idx)%CONSTRAINT_COLUMN_TO_SOLVER_ROWS_MAPS( &
+                                  & constraint_column_number)%NUMBER_OF_SOLVER_ROWS
+                                  solver_row_number=SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP( &
+                                    & constraint_condition_idx)%CONSTRAINT_COLUMN_TO_SOLVER_ROWS_MAPS( &
+                                    & constraint_column_number)%SOLVER_ROW
+                                  solver_column_number=solver_row_number
+                                  VALUE=0.0_DP
+                                  CALL DISTRIBUTED_MATRIX_VALUES_ADD(SOLVER_DISTRIBUTED_MATRIX, &
+                                    & solver_row_number,solver_column_number,VALUE,ERR,ERROR,*999)
+                                ENDDO !solver_row_idx
+                              ENDDO !constraint_column_number 
                             ELSE
                               CALL FLAG_ERROR("The constraint Jacobian matrix distributed matrix is not associated",ERR,ERROR,*999)
                             ENDIF
@@ -3309,7 +3324,7 @@ CONTAINS
                           IF(SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
                             & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
                             & NUMBER_OF_CONSTRAINT_JACOBIANS>0) THEN
-                          !Loop over the linear constraint equations matrices mapped to the solver matrix and calculate the col indices by row.
+                          !Loop over the nonlinear constraint equations matrices mapped to the solver matrix and calculate the col indices by row.
                             DO constraint_matrix_idx=1,SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP( &
                               & constraint_condition_idx)%CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
                               & NUMBER_OF_CONSTRAINT_JACOBIANS
@@ -3430,7 +3445,7 @@ CONTAINS
                                         & constraint_condition_idx)%CONSTRAINT_COLUMN_TO_SOLVER_ROWS_MAPS( &
                                         & constraint_column_number)%SOLVER_ROW
                                       !Loop over the rows of the constraint matrix
-                                      DO constraint_row_number=1,CONSTRAINT_JACOBIAN%TOTAL_NUMBER_OF_ROWS
+                                      DO constraint_row_number=1,CONSTRAINT_JACOBIAN%NUMBER_OF_ROWS
                                         !Loop over the solver columns this constraint row is mapped to
                                         DO solver_column_idx=1,CONSTRAINT_JACOBIAN_TO_SOLVER_MAP% &
                                           & CONSTRAINT_ROW_TO_SOLVER_COLS_MAP(constraint_row_number)%NUMBER_OF_SOLVER_COLS
@@ -3508,6 +3523,24 @@ CONTAINS
                               ENDIF
                             ENDDO !constraint_matrix_idx
                           ENDIF
+                        ENDIF
+                        !The diagonal of the solver submatrix belonging to the lagrange variable needs to be set explicitly to zero,
+                        !otherwise iterative linear solvers won't work because the ILU PC requires entries on the diagonal.
+                        IF(CONSTRAINT_CONDITION%METHOD==CONSTRAINT_CONDITION_LAGRANGE_MULTIPLIERS_METHOD) THEN
+                          !Loop over the columns of the constraint matrix
+                          DO constraint_column_number=1,CONSTRAINT_MATRICES%NUMBER_OF_COLUMNS
+                            !Loop over the solver rows this constraint column is mapped to
+                            DO solver_row_idx=1,SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP( &
+                              & constraint_condition_idx)%CONSTRAINT_COLUMN_TO_SOLVER_ROWS_MAPS( &
+                              & constraint_column_number)%NUMBER_OF_SOLVER_ROWS
+                              solver_row_number=SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP( &
+                                & constraint_condition_idx)%CONSTRAINT_COLUMN_TO_SOLVER_ROWS_MAPS( &
+                                & constraint_column_number)%SOLVER_ROW
+                              solver_column_number=solver_row_number
+                              CALL LIST_ITEM_ADD(COLUMN_INDICES_LISTS(solver_row_number)%PTR,solver_column_number, &
+                                & ERR,ERROR,*999)
+                            ENDDO !solver_row_idx
+                          ENDDO !constraint_column_number 
                         ENDIF
                       CASE(CONSTRAINT_CONDITION_AUGMENTED_LAGRANGE_METHOD)
                         CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)

@@ -10443,7 +10443,8 @@ CONTAINS
                     DO domain_idx=1,NUMBER_OF_DOMAINS
                       domain_no=DOFS_MAPPING%GLOBAL_TO_LOCAL_MAP(ny)%DOMAIN_NUMBER(domain_idx)
                       FIELD_VARIABLE_DOFS_MAPPING%GLOBAL_TO_LOCAL_MAP(variable_global_ny)%LOCAL_NUMBER(domain_idx)= &
-                        & DOFS_MAPPING%GLOBAL_TO_LOCAL_MAP(ny)%LOCAL_NUMBER(domain_idx)+VARIABLE_LOCAL_DOFS_OFFSETS(domain_no)
+                        & (DOFS_MAPPING%GLOBAL_TO_LOCAL_MAP(ny)%LOCAL_NUMBER(domain_idx)-1)* &
+                        & FIELD%VARIABLES(variable_idx)%NUMBER_OF_COMPONENTS+component_idx
                       FIELD_VARIABLE_DOFS_MAPPING%GLOBAL_TO_LOCAL_MAP(variable_global_ny)%DOMAIN_NUMBER(domain_idx)= &
                         & DOFS_MAPPING%GLOBAL_TO_LOCAL_MAP(ny)%DOMAIN_NUMBER(domain_idx)
                       FIELD_VARIABLE_DOFS_MAPPING%GLOBAL_TO_LOCAL_MAP(variable_global_ny)%LOCAL_TYPE(domain_idx)= &
