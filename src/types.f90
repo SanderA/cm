@@ -130,7 +130,26 @@ MODULE TYPES
     INTEGER(C_INT), ALLOCATABLE :: LIST_C_INT(:) !<The integer data (dimension = 1) for integer lists. 
     INTEGER(C_INT), ALLOCATABLE :: LIST_C_INT2(:,:) !<The integer data (dimension > 1) for integer lists. 
   END TYPE LIST_TYPE
+  !
+  !================================================================================================================================
+  !
+  ! Basis grid points type
+  !
+   
+  !>Contains information for basis grid points. \see OPENCMISS::CMISSBasisGridPointsType 
+  TYPE BasisGridPointsType
+    TYPE(BASIS_TYPE), POINTER :: basis !<The pointer back to the basis
+    INTEGER(INTG) :: numberOfGridPoints !< The number of local grid points in the basis.
+    INTEGER(INTG), ALLOCATABLE :: gridPointsPositionIndex(:,:) !<gridPointsPositionIndex(localGridPointIdx,nic). The index of the grid point position for the localGridPointIdx'th local grid point in the nic'th coordinate. For Lagrange-Hermite tensor product basis functions: The number of coordinates equals the number of xi directions. Thus if gridPointsPositionIndex(localGridPointIdx,:)=1,2,2 then local grid point localGridPointIdx is the first grid point in the ni(c)=1 direction, the second grid point in the ni(c)=2 direction and the second grid point in the ni(c)=3 direction
+    INTEGER(INTG), ALLOCATABLE :: gridPointsPositionIndexInv(:,:,:) !<gridPointsPositionIndexInv(nnc1,nnc2,nnc3). The inverse of the grid point position index for the basis. The gridPointsPositionIndexInv gives the local grid point number for the grid point that has grid point position indices of nnc1 in the 1st ni(c) direction, nnc2 in the 2nd ni(c) direction, nnc3 in the 3rd ni(c) direction.
+!    REAL(DP), ALLOCATABLE :: gridPointsPositions(:,:) !<gridPointsPositions(nic,gridPointIdx). The positions in the nic'th xi coordinate of local grid point gridPointIdx.
+    REAL(DP), ALLOCATABLE :: gridPointsBasisFunctions(:,:,:) !<GridPointsBasisFunctions(elementParameterIdx,derivativeIdx,gridPointIdx). The value of the basis functions evaluated at local grid point GridPointIdx for the parameterIdx'th derivative of the basis function associated with the elementParameterIdx'th element parameter.
+    !INTEGER(INTG) :: numberOfSurroundingGridPoints
+    !REAL(DP), ALLOCATABLE :: surroundingGridPointsWeights(surroundingGridPointIdx,gaussPointIdx) ! The weights for linearly interpolating from the surrounding grid points to the Gauss point
+    !REAL(DP), ALLOCATABLE :: surroundingGridPoints(surroundingGridPointIdx,gaussPointIdx) ! The local grid points that surround the Gauss point
+  END TYPE BasisGridPointsType
     
+
   !
   !================================================================================================================================
   !
@@ -215,6 +234,10 @@ MODULE TYPES
     INTEGER(INTG), ALLOCATABLE :: PARTIAL_DERIVATIVE_INDEX(:,:) !<PARTIAL_DERIVATIVE_INDEX(nk,nn). Gives the partial derivative number (nu) of the nk'th derivative of the nn'th local node for the basis. Old CMISS name IDO(nk,nn,0,nbf).
     INTEGER(INTG), ALLOCATABLE :: ELEMENT_PARAMETER_INDEX(:,:) !<ELEMENT_PARAMETER_INDEX(nk,nn). Gives the element parameter number (ns) of the nk'th derivative of the nn'th local node for the basis. Old CMISS name NSB(nk,nn,nbf).
     INTEGER(INTG), ALLOCATABLE :: ELEMENT_PARAMETER_INDEX_INV(:,:) !<ELEMENT_PARAMETER_INDEX_INV(1..2,ns). Gives the inverse fo the element parameter index. ELEMENT_PARAMETER_INDEX_INV(1,ns) gives the local node number corresponding to the ns'th element parameter. ELEMENT_PARAMETER_INDEX_INV(2,ns) gives the local derivative number corresponding to the ns'th element parameter.
+    !Grid points information
+    LOGICAL :: hasGridPoints !<True if the basis has grid points, false if not.
+    INTEGER(INTG), ALLOCATABLE :: numberOfGridPointsXi(:) !<numberOfGridPoints(nic). The number of local grid points in the nic'th coordinate in the basis.
+    TYPE(BasisGridPointsType) :: gridPoints !< Contains information on the grid points of the basis.
     !Line information
     INTEGER(INTG) :: NUMBER_OF_LOCAL_LINES !<The number of local lines in the basis.
     INTEGER(INTG), ALLOCATABLE :: LOCAL_LINE_XI_DIRECTION(:) !<LOCAL_LINE_XI_DIRECTION(nae). The Xi direction of the nae'th local line for the basis.
@@ -377,6 +400,44 @@ MODULE TYPES
     INTEGER(INTG) :: numberOfDofs !<The number of dofs in the mesh.
   END TYPE MeshDofsType
 
+  !>Contains the information for a line in a mesh.
+  TYPE MeshLineType
+    INTEGER(INTG) :: globalNumber !<The global line number in the mesh.
+    TYPE(BASIS_TYPE), POINTER :: basis !<A pointer to the basis function for the line.
+    INTEGER(INTG) :: xiDirection !<The Xi direction of the line.
+    INTEGER(INTG) :: numberOfSurroundingElements !<The number of elements that surround (use) this line.
+    INTEGER(INTG), ALLOCATABLE :: surroundingElements(:) !<SurroundingElements(surroundingElementIdx). The global mesh element number of the surroundingElementIdx'th element that surrounds (uses) this line. 
+    INTEGER(INTG), ALLOCATABLE :: elementLines(:) !<elementLines(surroundingElementIdx). The local arc number of the surroundingElementIdx'th element that surrounds (uses) this line.
+    INTEGER(INTG), ALLOCATABLE :: nodesInLine(:) !<nodesInLine(localLineNodeIdx). The mesh node number of the localLineNodeIdx'th local line node number.
+    LOGICAL :: boundaryLine !<Is .TRUE. if the line is on the boundary of the mesh for the domain, .FALSE. if not.
+  END TYPE MeshLineType
+
+  !>Contains the topology information for the lines of a mesh.
+  TYPE MeshLinesType
+    TYPE(MeshComponentTopologyType), POINTER :: meshComponentTopology !<The pointer to the mesh component topology for the lines information.
+    INTEGER(INTG) :: numberOfLines !<The number of lines in this mesh topology.
+    TYPE(MeshLineType), ALLOCATABLE :: lines(:) !<lines(lineIdx). The pointer to the array of topology information for the lines of this mesh. lines(lineIdx) contains the topological information for the lineIdx'th local line of the mesh.
+  END TYPE MeshLinesType
+
+  !>Contains the information for a face in a mesh.
+  TYPE MeshFaceType
+    INTEGER(INTG) :: globalNumber !<The global face number in the mesh.
+    TYPE(BASIS_TYPE), POINTER :: basis !<A pointer to the basis function for the face.
+    INTEGER(INTG) :: xiDirection !<The Xi direction of the face, the direction of the normal to the face
+    INTEGER(INTG) :: numberOfSurroundingElements !<The number of elements that surround (use) this face.
+    INTEGER(INTG), ALLOCATABLE :: surroundingElements(:) !<surroundingElements(surroundingElementIdx). The global mesh element number of the surroundingElementIdx'th element that surrounds (uses) this face. 
+    INTEGER(INTG), ALLOCATABLE :: elementFaces(:) !<elementFaces(surroundingElementIdx). The local arc number of the surroundingElementIdx'th element that surrounds (uses) this face.
+    INTEGER(INTG), ALLOCATABLE :: nodesInFace(:) !<nodesInFace(localFaceNodeIdx). The mesh node number of the localFaceNodeIdx'th local face node number.
+    LOGICAL :: boundaryFace !<Is .TRUE. if the face is on the boundary of the mesh, .FALSE. if not.
+  END TYPE MeshFaceType
+
+  !>Contains the topology information for the faces of a mesh.
+  TYPE MeshFacesType
+    TYPE(MeshComponentTopologyType), POINTER :: meshComponentTopology !<The pointer to the mesh component topology for the faces information.
+    INTEGER(INTG) :: numberOfFaces !<The number of faces in this mesh topology.
+    TYPE(MeshFaceType), ALLOCATABLE :: faces(:) !<faces(faceIdx). The pointer to the array of topology information for the faces of this mesh. faces(faceIdx) contains the topological information for the faceIdx'th global face of the mesh.
+  END TYPE MeshFacesType
+
   !>Contains information on the mesh adjacent elements for a xi coordinate
   TYPE MESH_ADJACENT_ELEMENT_TYPE
     INTEGER(INTG) :: NUMBER_OF_ADJACENT_ELEMENTS !<The number of adjacent elements for the xi coordinate
@@ -388,10 +449,14 @@ MODULE TYPES
     INTEGER(INTG) :: GLOBAL_NUMBER !<The global element number in the mesh.
     INTEGER(INTG) :: USER_NUMBER !<The corresponding user number for the element.
     TYPE(BASIS_TYPE), POINTER :: BASIS !<A pointer to the basis function for the element.
+    INTEGER(INTG), ALLOCATABLE :: globalElementGridPoints(:) !<globalElementGridPoints(gridPointIdx). The global grid point number in the mesh of the gridPointIdx'th local grid point in the element.
+    INTEGER(INTG), ALLOCATABLE :: userElementGridPoints(:) !<userElementGridPoints(gridPointIdx). The user grid point number in the mesh of the gridPointIdx'th local grid point in the element.
     INTEGER(INTG), ALLOCATABLE :: MESH_ELEMENT_NODES(:) !<MESH_ELEMENT_NODES(nn). The mesh node number in the mesh of the nn'th local node in the element. Old CMISS name NPNE(nn,nbf,ne).
     INTEGER(INTG), ALLOCATABLE :: GLOBAL_ELEMENT_NODES(:) !<GLOBAL_ELEMENT_NODES(nn). The global node number in the mesh of the nn'th local node in the element. Old CMISS name NPNE(nn,nbf,ne).
     INTEGER(INTG), ALLOCATABLE :: USER_ELEMENT_NODE_VERSIONS(:,:) !< USER_ELEMENT_NODE_VERSIONS(derivative_idx,element_node_idx).  The version number for the nn'th user node's nk'th derivative. Size of array dependent on the maximum number of derivatives for the basis of the specified element.
     INTEGER(INTG), ALLOCATABLE :: USER_ELEMENT_NODES(:) !<USER_ELEMENT_NODES(nn). The user node number in the mesh of the nn'th local node in the element. Old CMISS name NPNE(nn,nbf,ne).
+    INTEGER(INTG), ALLOCATABLE :: elementFaces(:) !<elementFaces(localFaceIdx). The global mesh face number of the locaFaceIdx'th local element face.
+    INTEGER(INTG), ALLOCATABLE :: elementLines(:) !<elementLines(localLineIdx). The global mesh line number of the locaLineIdx'th local element line.
     TYPE(MESH_ADJACENT_ELEMENT_TYPE), ALLOCATABLE :: ADJACENT_ELEMENTS(:) !<ADJACENT_ELEMENTS(-nic:nic). The adjacent elements information in the nic'th xi coordinate direction. Note that -nic gives the adjacent element before the element in the nic'th direction and +nic gives the adjacent element after the element in the nic'th direction. The ni=0 index will give the information on the current element. Old CMISS name NXI(-ni:ni,0:nei,ne).
     !INTEGER(INTG), ALLOCATABLE :: NUMBER_OF_ADJACENT_ELEMENTS(:) !<NUMBER_OF_ADJACENT_ELEMENTS(-ni:ni). The number of elements adjacent to this element in the ni'th xi direction. Note that -ni gives the adjacent element before the element in the ni'th direction and +ni gives the adjacent element after the element in the ni'th direction. The ni=0 index should be 1 for the current element. Old CMISS name NXI(-ni:ni,0:nei,ne).
     !INTEGER(INTG), ALLOCATABLE :: ADJACENT_ELEMENTS(:,:) !<ADJACENT_ELEMENTS(nei,-ni:ni). The local element numbers of the elements adjacent to this element in the ni'th xi direction. Note that -ni gives the adjacent elements before the element in the ni'th direction and +ni gives the adjacent elements after the element in the ni'th direction. The ni=0 index should give the current element number. Old CMISS name NXI(-ni:ni,0:nei,ne)
@@ -425,6 +490,11 @@ MODULE TYPES
     TYPE(MeshNodeDerivativeType), ALLOCATABLE :: derivatives(:) !<derivatives(derivativeIdx). Contains information on the derivativeIdx'th derivative of the node.
     INTEGER(INTG) :: numberOfSurroundingElements !<The number of elements surrounding the node in the mesh. Old CMISS name NENP(np,0,0:nr).
     INTEGER(INTG), POINTER :: surroundingElements(:) !<surroudingElements(localElementIdx). The global element number of the localElementIdx'th element that is surrounding the node. Old CMISS name NENP(np,nep,0:nr). \todo Change this to allocatable.
+    INTEGER(INTG), ALLOCATABLE :: elementNodes(:) !<elementNodes(surroundingElementIdx). The local node number of the surroundingElementIdx'th element that surrounds (uses) this node.
+    INTEGER(INTG) :: numberOfSurroundingFaces !<The number of faces surrounding the node in the mesh.
+    INTEGER(INTG), ALLOCATABLE :: surroundingFaces(:) !<surroudingFaces(localFacesIdx). The global face number of the localFacesIdx'th face that is surrounding the node.
+    INTEGER(INTG) :: numberOfSurroundingLines !<The number of lines surrounding the node in the mesh.
+    INTEGER(INTG), ALLOCATABLE :: surroundingLines(:) !<surroudingLines(localLinesIdx). The global line number of the localLinesIdx'th line that is surrounding the node.
     LOGICAL :: boundaryNode !<Is .TRUE. if the mesh node is on the boundary of the mesh, .FALSE. if not.
   END TYPE MeshNodeType
 
@@ -435,6 +505,29 @@ MODULE TYPES
     TYPE(MeshNodeType), ALLOCATABLE :: nodes(:) !<nodes(nodeIdx). The pointer to the array of topology information for the nodes of the mesh. node(nodeIdx) contains the topological information for the nodeIdx'th global node of the mesh. \todo Should this be allocatable???
     TYPE(TREE_TYPE), POINTER :: nodesTree !<A tree mapping the mesh global number to the region nodes global number.
   END TYPE MeshNodesType
+
+  !>Contains information on the mesh adjacent grid points for a xi coordinate
+  TYPE MeshAdjacentGridPointType 
+    INTEGER(INTG) :: numberOfAdjacentGridPoints !<The number of adjacent grid points for the xi coordinate
+    INTEGER(INTG), ALLOCATABLE :: adjacentGridPoints(:) !<The global grid point numbers of the grid points adjacent to this grid point for the xi coordinate
+  END TYPE MeshAdjacentGridPointType
+
+  !>Contains the topology information for a global grid point of a mesh.
+  TYPE MeshGridPointType
+    INTEGER(INTG) :: globalNumber !<The global grid point number in the mesh.
+    INTEGER(INTG) :: userNumber !<The corresponding user number for the grid point.
+    TYPE(MeshAdjacentGridPointType), ALLOCATABLE :: adjacentGridPoints(:) !<adjacentGridPoints(-nic:nic). The adjacent grid points information in the nic'th xi coordinate direction. Note that -nic gives the adjacent grid point before the grid point in the nic'th direction and +nic gives the adjacent grid point after the grid point in the nic'th direction. The ni=0 index will give the information on the current grid point. 
+    LOGICAL :: boundaryGridPoint !<Is .TRUE. if the grid point is on the boundary of the mesh, .FALSE. if not.
+  END TYPE MeshGridPointType
+
+  !>Contains the information for the grid points of a mesh.
+  TYPE MeshGridPointsType
+    TYPE(MeshComponentTopologyType), POINTER :: meshComponentTopology !<The pointer to the mesh component topology for the grid points information.
+    LOGICAL :: gridPointsFinished !< True if mesh grid points are finished.
+    INTEGER(INTG) :: numberOfgridPoints !<The number of grid points in the mesh.
+    TYPE(MeshGridPointType), ALLOCATABLE :: gridPoints(:) !<gridpoints(gridPointIdx). The pointer to the array of topology information for the grid points of the mesh. gridPoints(gridPointIdx) contains the topological information for the gridPointIdx'th global grid point of the mesh.
+    TYPE(TREE_TYPE), POINTER :: gridPointsTree !<A tree mapping the mesh global number to the mesh user number.
+  END TYPE MeshGridPointsType
   
   TYPE MeshElementDataPointType
     INTEGER(INTG) :: userNumber !<User number of the projected data point
@@ -469,6 +562,9 @@ MODULE TYPES
     INTEGER(INTG) :: meshComponentNumber !<The mesh component number for this mesh topology.
     TYPE(MeshNodesType), POINTER :: nodes !<Pointer to the nodes within the mesh topology.
     TYPE(MeshElementsType), POINTER :: elements !<Pointer to the elements within the mesh topology.
+    TYPE(MeshFacesType), POINTER :: faces !<Pointer to the faces within the mesh topology.
+    TYPE(MeshLinesType), POINTER :: lines !<Pointer to the lines within the mesh topology.
+    TYPE(MeshGridPointsType), POINTER :: gridPoints !<Pointer to the grid points within the mesh topology.
     TYPE(MeshDofsType), POINTER :: dofs !<Pointer to the dofs within the mesh topology.
     TYPE(MeshDataPointsType), POINTER :: dataPoints !<Pointer to the data points within the mesh topology
   END TYPE MeshComponentTopologyType
@@ -517,6 +613,8 @@ MODULE TYPES
     TYPE(MeshComponentTopologyPtrType), POINTER :: TOPOLOGY(:) !<TOPOLOGY(mesh_component_idx). A pointer to the topology mesh_component_idx'th mesh component. \todo Change to allocatable?
     TYPE(DECOMPOSITIONS_TYPE), POINTER :: DECOMPOSITIONS !<A pointer to the decompositions for this mesh.
     LOGICAL :: SURROUNDING_ELEMENTS_CALCULATE !<Boolean flag to determine whether surrounding elements should be calculated.
+    LOGICAL :: calculateFaces !<Boolean flag to determine whether faces should be calculated
+    LOGICAL :: calculateLines !<Boolean flag to determine whether lines should be calculated
   END TYPE MESH_TYPE
 
   !>A buffer type to allow for an array of pointers to a MESH_TYPE.

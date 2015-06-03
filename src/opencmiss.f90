@@ -259,6 +259,12 @@ MODULE OPENCMISS
     TYPE(MESH_EMBEDDING_TYPE), POINTER :: MESH_EMBEDDING
   END TYPE CMISSMeshEmbeddingType
 
+  !>Contains information on a mesh elements defined in a mesh
+  TYPE CMISSMeshGridPointsType
+    PRIVATE
+    TYPE(MeshGridPointsType), POINTER :: meshGridPoints
+  END TYPE CMISSMeshGridPointsType
+
   !>Contains information on a mesh nodes defined in a mesh
   TYPE CMISSMeshNodesType
     PRIVATE
@@ -381,6 +387,8 @@ MODULE OPENCMISS
   PUBLIC CMISSMeshType,CMISSMesh_Finalise,CMISSMesh_Initialise
 
   PUBLIC CMISSMeshElementsType,CMISSMeshElements_Finalise,CMISSMeshElements_Initialise
+
+  PUBLIC CMISSMeshGridPointsType,CMISSMeshGridPoints_Finalise,CMISSMeshGridPoints_Initialise
 
   PUBLIC CMISSMeshNodesType,CMISSMeshNodes_Finalise,CMISSMeshNodes_Initialise
 
@@ -690,6 +698,12 @@ MODULE OPENCMISS
     MODULE PROCEDURE CMISSBasis_DestroyObj
   END INTERFACE !CMISSBasis_Destroy
 
+  !>Sets/changes the number of grid points in each Xi direction for the basis.
+  INTERFACE CMISSBasis_NumberOfGridPointsXiSet
+    MODULE PROCEDURE CMISSBasis_NumberOfGridPointsXiSetNumber
+    MODULE PROCEDURE CMISSBasis_NumberOfGridPointsXiSetObj
+  END INTERFACE !CMISSBasis_NumberOfGridPointsXiSet
+
   !>Get the interpolation type in each Xi directions for a basis.
   INTERFACE CMISSBasis_InterpolationXiGet
     MODULE PROCEDURE CMISSBasis_InterpolationXiGetNumber
@@ -802,6 +816,8 @@ MODULE OPENCMISS
   PUBLIC CMISSBasis_CollapsedXiGet,CMISSBasis_CollapsedXiSet
 
   PUBLIC CMISSBasis_CreateFinish,CMISSBasis_CreateStart,CMISSBasis_Destroy
+
+  PUBLIC CMISSBasis_NumberOfGridPointsXiSet
 
   PUBLIC CMISSBasis_InterpolationXiGet,CMISSBasis_InterpolationXiSet
 
@@ -4975,6 +4991,18 @@ MODULE OPENCMISS
     MODULE PROCEDURE CMISSMesh_ElementExistsObj
   END INTERFACE !CMISSMesh_ElementExists
 
+  !>Finishes the creation of a mesh grid points for a mesh component. \see OPENCMISS::CMISSMeshGridPoints_CreateStart
+  INTERFACE CMISSMeshGridPoints_CreateFinish
+    MODULE PROCEDURE CMISSMeshGridPoints_CreateFinishNumber
+    MODULE PROCEDURE CMISSMeshGridPoints_CreateFinishObj
+  END INTERFACE !CMISSMeshGridPoints_CreateFinish
+
+  !>Starts the creation of a mesh grid points for a mesh component. \see OPENCMISS::CMISSMeshGridPoints_CreateFinish
+  INTERFACE CMISSMeshGridPoints_CreateStart
+    MODULE PROCEDURE CMISSMeshGridPoints_CreateStartNumber
+    MODULE PROCEDURE CMISSMeshGridPoints_CreateStartObj
+  END INTERFACE !CMISSMeshGridPoints_CreateStart
+
   !>Get the mesh nodes belonging to a mesh component.
   INTERFACE CMISSMesh_NodesGet
     MODULE PROCEDURE CMISSMesh_NodesGetNumber
@@ -5078,6 +5106,8 @@ MODULE OPENCMISS
   PUBLIC CMISSMeshElements_UserNumberGet,CMISSMeshElements_UserNumberSet
   
   PUBLIC CMISSMeshElements_UserNumbersAllSet
+
+  PUBLIC CMISSMeshGridPoints_CreateFinish,CMISSMeshGridPoints_CreateStart
 
   PUBLIC CMISSMeshNodes_NumberOfDerivativesGet,CMISSMeshNodes_DerivativesGet
 
@@ -11084,6 +11114,67 @@ CONTAINS
     RETURN
 
   END SUBROUTINE CMISSBasis_InterpolationXiSetObj
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Sets/changes the number of grid points in each xi direction for a basis identified by a user number.
+  SUBROUTINE CMISSBasis_NumberOfGridPointsXiSetNumber(userNumber,numberOfGridPointsXi,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: userNumber !<The user number of the basis to set the number xi for.
+    INTEGER(INTG), INTENT(IN) :: numberOfGridPointsXi(:) !<The number of grid points in each xi directions in the specified basis to set.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(BASIS_TYPE), POINTER :: BASIS
+    TYPE(VARYING_STRING) :: LOCAL_ERROR
+
+    CALL ENTERS("CMISSBasis_NumberOfXiSetNumber",err,error,*999)
+
+    NULLIFY(BASIS)
+    CALL BASIS_USER_NUMBER_FIND(userNumber,BASIS,ERR,error,*999)
+    IF(ASSOCIATED(BASIS)) THEN
+      CALL BasisNumberOfGridPointsXiSet(BASIS,numberOfGridPointsXi,err,error,*999)
+    ELSE
+      LOCAL_ERROR="A basis with an user number of "//TRIM(NUMBER_TO_VSTRING(userNumber,"*",err,error))//" does not exist."
+      CALL FLAG_ERROR(LOCAL_ERROR,err,error,*999)
+    END IF
+
+    CALL EXITS("CMISSBasis_NumberOfGridPointsXiSetNumber")
+    RETURN
+999 CALL ERRORS("CMISSBasis_NumberOfGridPointsXiSetNumber",err,error)
+    CALL EXITS("CMISSBasis_NumberOfGridPointsXiSetNumber")
+    CALL CMISS_HANDLE_ERROR(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSBasis_NumberOfGridPointsXiSetNumber
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Sets/changes the number of grid points in each Xi direction for a basis identified by an object.
+  SUBROUTINE CMISSBasis_NumberOfGridPointsXiSetObj(basis,numberOfGridPointsXi,err)
+
+    !Argument variables
+    TYPE(CMISSBasisType), INTENT(INOUT) :: basis !<The basis to set the number of xi directions for.
+    INTEGER(INTG), INTENT(IN) :: numberOfGridPointsXi(:) !<The number of grid points in each xi directions for the specified basis to set.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    CALL ENTERS("CMISSBasis_NumberOfGridPointsXiSetObj",err,error,*999)
+
+    CALL BasisNumberOfGridPointsXiSet(basis%BASIS,numberOfGridPointsXi,err,error,*999)
+
+    CALL EXITS("CMISSBasis_NumberOfGridPointsXiSetObj")
+    RETURN
+999 CALL ERRORS("CMISSBasis_NumberOfGridPointsXiSetObj",err,error)
+    CALL EXITS("CMISSBasis_NumberOfGridPointsXiSetObj")
+    CALL CMISS_HANDLE_ERROR(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSBasis_NumberOfGridPointsXiSetObj
 
   !
   !================================================================================================================================
@@ -44974,6 +45065,205 @@ CONTAINS
   !================================================================================================================================
   !
 
+  !>Finalises a CMISSMeshGridPointsType object.
+  SUBROUTINE CMISSMeshGridPoints_Finalise(CMISSMeshGridPoints,err)
+
+    !Argument variables
+    TYPE(CMISSMeshGridPointsType), INTENT(OUT) :: CMISSMeshGridPoints !<The CMISSMeshGridPointsType object to finalise.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    CALL ENTERS("CMISSMeshGridPoints_Finalise",err,error,*999)
+
+    IF(ASSOCIATED(CMISSMeshGridPoints%meshGridPoints))  &
+      & CALL MeshTopologyGridPointsDestroy(CMISSMeshGridPoints%meshGridPoints,err,error,*999)
+
+    CALL EXITS("CMISSMeshGridPoints_Finalise")
+    RETURN
+999 CALL ERRORS("CMISSMeshGridPoints_Finalise",err,error)
+    CALL EXITS("CMISSMeshGridPoints_Finalise")
+    CALL CMISS_HANDLE_ERROR(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSMeshGridPoints_Finalise
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Initialises a CMISSMeshGridPointsType object.
+  SUBROUTINE CMISSMeshGridPoints_Initialise(CMISSMeshGridPoints,err)
+
+    !Argument variables
+    TYPE(CMISSMeshGridPointsType), INTENT(OUT) :: CMISSMeshGridPoints !<The CMISSMeshGridPointsType object to initialise.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    CALL ENTERS("CMISSMeshGridPoints_Initialise",err,error,*999)
+
+    NULLIFY(CMISSMeshGridPoints%meshGridPoints)
+
+    CALL EXITS("CMISSMeshGridPoints_Initialise")
+    RETURN
+999 CALL ERRORS("CMISSMeshGridPoints_Initialise",err,error)
+    CALL EXITS("CMISSMeshGridPoints_Initialise")
+    CALL CMISS_HANDLE_ERROR(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSMeshGridPoints_Initialise
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Finishes creating grid points for a mesh component of a mesh identified by a user number.
+  SUBROUTINE CMISSMeshGridPoints_CreateFinishNumber(regionUserNumber,meshUserNumber,meshComponentNumber,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: regionUserNumber !<The user number of the region containing the mesh to finish creating the grid points for.
+    INTEGER(INTG), INTENT(IN) :: meshUserNumber !<The user number of the mesh to finish creating the grid points for.
+    INTEGER(INTG), INTENT(IN) :: meshComponentNumber !<The mesh component number of the mesh to finish creating the grid points for.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(MESH_TYPE), POINTER :: MESH
+    TYPE(MeshGridPointsType), POINTER :: meshGridPoints
+    TYPE(REGION_TYPE), POINTER :: REGION
+    TYPE(VARYING_STRING) :: LOCAL_ERROR
+
+    CALL ENTERS("CMISSMeshGridPoints_CreateFinishNumber",err,error,*999)
+
+    NULLIFY(REGION)
+    NULLIFY(MESH)
+    NULLIFY(meshGridPoints)
+    CALL REGION_USER_NUMBER_FIND(regionUserNumber,REGION,err,error,*999)
+    IF(ASSOCIATED(REGION)) THEN
+      CALL MESH_USER_NUMBER_FIND(meshUserNumber,REGION,MESH,err,error,*999)
+      IF(ASSOCIATED(MESH)) THEN
+        CALL MeshTopologyGridPointsGet(MESH,meshComponentNumber,meshGridPoints,err,error,*999)
+        CALL MeshTopologyGridPointsCreateFinish(meshGridPoints,err,error,*999)
+      ELSE
+        LOCAL_ERROR="A mesh with an user number of "//TRIM(NUMBER_TO_VSTRING(meshUserNumber,"*",err,error))// &
+          & " does not exist on the region with an user number of "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//"."
+        CALL FLAG_ERROR(LOCAL_ERROR,err,error,*999)
+      END IF
+    ELSE
+      LOCAL_ERROR="A region with an user number of "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))// &
+        & " does not exist."
+      CALL FLAG_ERROR(LOCAL_ERROR,err,error,*999)
+    END IF
+
+    CALL EXITS("CMISSMeshGridPoints_CreateFinishNumber")
+    RETURN
+999 CALL ERRORS("CMISSMeshGridPoints_CreateFinishNumber",err,error)
+    CALL EXITS("CMISSMeshGridPoints_CreateFinishNumber")
+    CALL CMISS_HANDLE_ERROR(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSMeshGridPoints_CreateFinishNumber
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Finishes creating grid points for a mesh component of a mesh identified by an object.
+  SUBROUTINE CMISSMeshGridPoints_CreateFinishObj(meshGridPoints,err)
+
+    !Argument variables
+    TYPE(CMISSMeshGridPointsType), INTENT(IN) :: meshGridPoints !<The mesh grid points to finish creating.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    CALL ENTERS("CMISSMeshGridPoints_CreateFinishObj",err,error,*999)
+
+    CALL MeshTopologyGridPointsCreateFinish(meshGridPoints%meshGridPoints,err,error,*999)
+
+    CALL EXITS("CMISSMeshGridPoints_CreateFinishObj")
+    RETURN
+999 CALL ERRORS("CMISSMeshGridPoints_CreateFinishObj",err,error)
+    CALL EXITS("CMISSMeshGridPoints_CreateFinishObj")
+    CALL CMISS_HANDLE_ERROR(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSMeshGridPoints_CreateFinishObj
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Starts creating grid points for a mesh component of a mesh identified by a user number.
+  SUBROUTINE CMISSMeshGridPoints_CreateStartNumber(regionUserNumber,meshUserNumber,meshComponentNumber,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: regionUserNumber !<The user number of the region containing the mesh to start creating the grid points for.
+    INTEGER(INTG), INTENT(IN) :: meshUserNumber !<The user number of the mesh to start creating the grid points for.
+    INTEGER(INTG), INTENT(IN) :: meshComponentNumber !<The mesh component number of the mesh to start creating the grid points for.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(MESH_TYPE), POINTER :: MESH
+    TYPE(MeshGridPointsType), POINTER :: meshGridPoints
+    TYPE(REGION_TYPE), POINTER :: REGION
+    TYPE(VARYING_STRING) :: LOCAL_ERROR
+
+    CALL ENTERS("CMISSMeshGridPoints_CreateStartNumber",err,error,*999)
+
+    NULLIFY(REGION)
+    NULLIFY(MESH)
+    NULLIFY(meshGridPoints)
+    CALL REGION_USER_NUMBER_FIND(regionUserNumber,REGION,err,error,*999)
+    IF(ASSOCIATED(REGION)) THEN
+      CALL MESH_USER_NUMBER_FIND(meshUserNumber,REGION,MESH,err,error,*999)
+      IF(ASSOCIATED(MESH)) THEN
+        CALL MeshTopologyGridPointsCreateStart(MESH,meshComponentNumber,meshGridPoints,err,error,*999)
+      ELSE
+        LOCAL_ERROR="A mesh with an user number of "//TRIM(NUMBER_TO_VSTRING(meshUserNumber,"*",err,error))// &
+          & " does not exist on the region with an user number of "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//"."
+        CALL FLAG_ERROR(LOCAL_ERROR,err,error,*999)
+      END IF
+    ELSE
+      LOCAL_ERROR="A region with an user number of "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))// &
+        & " does not exist."
+      CALL FLAG_ERROR(LOCAL_ERROR,err,error,*999)
+    END IF
+
+    CALL EXITS("CMISSMeshGridPoints_CreateStartNumber")
+    RETURN
+999 CALL ERRORS("CMISSMeshGridPoints_CreateStartNumber",err,error)
+    CALL EXITS("CMISSMeshGridPoints_CreateStartNumber")
+    CALL CMISS_HANDLE_ERROR(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSMeshGridPoints_CreateStartNumber
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Starts creating grid points for a mesh component of a mesh identified by an object.
+  SUBROUTINE CMISSMeshGridPoints_CreateStartObj(mesh,meshComponentNumber,meshGridPoints,err)
+
+    !Argument variables
+    TYPE(CMISSMeshType), INTENT(INOUT) :: mesh !<The mesh to start the creation of grid points for.
+    INTEGER(INTG), INTENT(IN) :: meshComponentNumber !<The mesh component number of the mesh to start creating the grid points for.
+    TYPE(CMISSMeshGridPointsType), INTENT(INOUT) :: meshGridPoints !<On return, the created mesh grid points.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    CALL ENTERS("CMISSMeshGridPoints_CreateStartObj",err,error,*999)
+
+    CALL MeshTopologyGridPointsCreateStart(mesh%MESH,meshComponentNumber,meshGridPoints%meshGridPoints,err,error,*999)
+
+    CALL EXITS("CMISSMeshGridPoints_CreateStartObj")
+    RETURN
+999 CALL ERRORS("CMISSMeshGridPoints_CreateStartObj",err,error)
+    CALL EXITS("CMISSMeshGridPoints_CreateStartObj")
+    CALL CMISS_HANDLE_ERROR(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSMeshGridPoints_CreateStartObj
+
+  !
+  !================================================================================================================================
+  !
 
   !>Checks if the given node exists on the given mesh component.
   SUBROUTINE CMISSMesh_NodeExistsNumber( regionUserNumber, meshUserNumber, meshComponentNumber, nodeUserNumber, nodeExists, err )

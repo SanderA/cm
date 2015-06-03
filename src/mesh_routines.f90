@@ -157,6 +157,8 @@ MODULE MESH_ROUTINES
 
   PUBLIC MESH_NUMBER_OF_ELEMENTS_GET,MESH_NUMBER_OF_ELEMENTS_SET
 
+  PUBLIC MeshCalculateFacesSet,MeshCalculateLinesSet
+
   PUBLIC MESH_TOPOLOGY_ELEMENTS_CREATE_START,MESH_TOPOLOGY_ELEMENTS_CREATE_FINISH
 
   PUBLIC MESH_TOPOLOGY_ELEMENTS_DESTROY
@@ -176,6 +178,12 @@ MODULE MESH_ROUTINES
   PUBLIC MeshTopologyElementsUserNumbersAllSet
 
   PUBLIC MeshTopologyDataPointsCalculateProjection
+
+  PUBLIC MeshTopologyGridPointsCreateStart,MeshTopologyGridPointsCreateFinish 
+
+  PUBLIC MeshTopologyGridPointsDestroy
+
+  PUBLIC MeshTopologyGridPointsGet
 
   PUBLIC MeshTopologyNodeDerivativesGet
 
@@ -5163,7 +5171,7 @@ CONTAINS
           & ERR,ERROR,*999)
         CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"      Number of derivatives = ", &
           & DOMAIN_NODES%NODES(node_idx)%NUMBER_OF_DERIVATIVES,ERR,ERROR,*999)
-        DO derivative_idx=1,DOMAIN_NODES%NODES(local_node)%NUMBER_OF_DERIVATIVES
+        DO derivative_idx=1,DOMAIN_NODES%NODES(node_idx)%NUMBER_OF_DERIVATIVES
           CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"      Node local derivative number = ",derivative_idx,ERR,ERROR,*999)
           CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"        Global derivative index = ", &
             & DOMAIN_NODES%NODES(node_idx)%DERIVATIVES(derivative_idx)%GLOBAL_DERIVATIVE_INDEX,ERR,ERROR,*999)
@@ -6131,6 +6139,74 @@ CONTAINS
   !================================================================================================================================
   !
 
+  !>Changes/sets if the mesh faces are calculated. \see OPENCMISS::CMISSMeshCalculateFacesSet
+  SUBROUTINE MeshCalculateFacesSet(mesh,calculateFaces,err,error,*)
+
+    !Argument variables
+    TYPE(MESH_TYPE), POINTER :: mesh !<A pointer to the mesh to set the number of elements for
+    LOGICAL, INTENT(IN) :: calculateFaces !<True if faces are to be calculated, false if not.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+
+    CALL ENTERS("MeshCalculateFacesSet",err,error,*999)
+
+    IF(ASSOCIATED(mesh)) THEN
+      IF(mesh%MESH_FINISHED) THEN
+        CALL FLAG_ERROR("Mesh has been finished.",err,error,*999)
+      ELSE
+        mesh%calculateFaces=calculateFaces
+      ENDIF
+    ELSE
+      CALL FLAG_ERROR("Mesh is not associated.",err,error,*999)
+    ENDIF
+    
+    CALL EXITS("MeshCalculateFacesSet")
+    RETURN
+999 CALL ERRORS("MeshCalculateFacesSet",err,error)    
+    CALL EXITS("MeshCalculateFacesSet")
+    RETURN 1
+   
+  END SUBROUTINE MeshCalculateFacesSet
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Changes/sets if the mesh lines are calculated. \see OPENCMISS::CMISSMeshCalculateLinesSet
+  SUBROUTINE MeshCalculateLinesSet(mesh,calculateLines,err,error,*)
+
+    !Argument variables
+    TYPE(MESH_TYPE), POINTER :: mesh !<A pointer to the mesh to set the number of elements for
+    LOGICAL, INTENT(IN) :: calculateLines !<True if lines are to be calculated, false if not.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+
+    CALL ENTERS("MeshCalculateLinesSet",err,error,*999)
+
+    IF(ASSOCIATED(mesh)) THEN
+      IF(mesh%MESH_FINISHED) THEN
+        CALL FLAG_ERROR("Mesh has been finished.",err,error,*999)
+      ELSE
+        mesh%calculateLines=calculateLines
+      ENDIF
+    ELSE
+      CALL FLAG_ERROR("Mesh is not associated.",err,error,*999)
+    ENDIF
+    
+    CALL EXITS("MeshCalculateLinesSet")
+    RETURN
+999 CALL ERRORS("MeshCalculateLinesSet",err,error)    
+    CALL EXITS("MeshCalculateLinesSet")
+    RETURN 1
+   
+  END SUBROUTINE MeshCalculateLinesSet
+
+  !
+  !================================================================================================================================
+  !
+
   !>Finishes the process of creating a mesh. \see OPENCMISS::CMISSMeshCreateFinish
   SUBROUTINE MESH_CREATE_FINISH(MESH,ERR,ERROR,*)
 
@@ -6228,6 +6304,8 @@ CONTAINS
         NEW_MESH%NUMBER_OF_DIMENSIONS=NUMBER_OF_DIMENSIONS
         NEW_MESH%NUMBER_OF_COMPONENTS=1
         NEW_MESH%SURROUNDING_ELEMENTS_CALCULATE=.true. !default true
+        NEW_MESH%calculateFaces=.true.
+        NEW_MESH%calculateLines=.true.
         !Initialise mesh topology and decompositions
         CALL MeshTopologyInitialise(NEW_MESH,ERR,ERROR,*999)
         CALL DECOMPOSITIONS_INITIALISE(NEW_MESH,ERR,ERROR,*999)
@@ -6767,11 +6845,13 @@ CONTAINS
                 NEW_TOPOLOGY(component_idx)%PTR%meshComponentNumber=component_idx
                 NULLIFY(NEW_TOPOLOGY(component_idx)%PTR%elements)
                 NULLIFY(NEW_TOPOLOGY(component_idx)%PTR%nodes)
+                NULLIFY(NEW_TOPOLOGY(component_idx)%PTR%gridPoints)
                 NULLIFY(NEW_TOPOLOGY(component_idx)%PTR%dofs)
                 NULLIFY(NEW_TOPOLOGY(component_idx)%PTR%dataPoints)
                 !Initialise the topology components
                 CALL MESH_TOPOLOGY_ELEMENTS_INITIALISE(NEW_TOPOLOGY(component_idx)%PTR,ERR,ERROR,*999)
                 CALL MeshTopologyNodesInitialise(NEW_TOPOLOGY(component_idx)%PTR,ERR,ERROR,*999)
+                CALL MeshTopologyGridPointsInitialise(NEW_TOPOLOGY(component_idx)%PTR,ERR,ERROR,*999)
                 CALL MeshTopologyDofsInitialise(NEW_TOPOLOGY(component_idx)%PTR,ERR,ERROR,*999)
                 CALL MESH_TOPOLOGY_DATA_POINTS_INITIALISE(NEW_TOPOLOGY(component_idx)%PTR,ERR,ERROR,*999)
               ENDDO !component_idx
@@ -6994,24 +7074,37 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
     !Local Variables
+    TYPE(MESH_TYPE), POINTER :: mesh
 
     CALL Enters("MeshTopologyCalculate",err,error,*999)
+    !Sander: do stuff for grid points
 
     IF(ASSOCIATED(topology)) THEN
-      !Calculate the nodes used in the mesh
-      CALL MeshTopologyNodesCalculate(topology,err,error,*999)
-      !Calculate the elements surrounding the nodes in a mesh
-      CALL MeshTopologySurroundingElementsCalculate(topology,err,error,*999)
-      !Calculate the number of derivatives at each node in a mesh
-      CALL MeshTopologyNodesDerivativesCalculate(topology,err,error,*999)
-      !Calculate the number of versions for each derivative at each node in a mesh
-      CALL MeshTopologyNodesVersionCalculate(topology,err,error,*999)
-      !Calculate the elements surrounding the elements in the mesh
-      CALL MESH_TOPOLOGY_ELEMENTS_ADJACENT_ELEMENTS_CALCULATE(topology,err,error,*999)
-      !Calculate the boundary nodes and elements in the mesh
-      CALL MeshTopologyBoundaryCalculate(topology,err,error,*999)
-      !Calculate the elements surrounding the elements in the mesh
+      mesh=>topology%mesh
+      IF(ASSOCIATED(mesh)) THEN
+        !Calculate the nodes used in the mesh
+        CALL MeshTopologyNodesCalculate(topology,err,error,*999)
+        !Calculate the elements surrounding the nodes (and grid points) in a mesh
+        CALL MeshTopologySurroundingElementsCalculate(topology,err,error,*999)
+        !Calculate the number of derivatives at each node in a mesh
+        IF(mesh%calculateFaces) CALL MeshTopologyFacesCalculate(topology,err,error,*999)
+        IF(mesh%calculateLines) CALL MeshTopologyLinesCalculate(topology,err,error,*999)
+        CALL MeshTopologyNodesDerivativesCalculate(topology,err,error,*999)
+        !Calculate the number of versions for each derivative at each node in a mesh
+        CALL MeshTopologyNodesVersionCalculate(topology,err,error,*999)
+        !Calculate the elements surrounding the elements in the mesh
+        CALL MESH_TOPOLOGY_ELEMENTS_ADJACENT_ELEMENTS_CALCULATE(topology,err,error,*999)
+        !Calculate the grid points used in the mesh
+        CALL MeshTopologyGridPointsCalculate(topology,err,error,*999)
+        !Calculate the grid points surrounding the grid points in a mesh
+!        CALL MeshTopologyAdjacentGridPointsCalculate(topology,err,error,*999)
+        !Calculate the boundary nodes and elements (and grid points) in the mesh
+        CALL MeshTopologyBoundaryCalculate(topology,err,error,*999)
+        !Calculate the degrees of freedom in the mesh
       CALL MeshTopologyDofsCalculate(topology,err,error,*999)
+      ELSE
+        CALL FLAG_ERROR("Topology mesh is not associated",err,error,*999)
+      ENDIF
     ELSE
       CALL FLAG_ERROR("Topology is not associated",err,error,*999)
     ENDIF
@@ -7368,7 +7461,7 @@ CONTAINS
                   MESH%TOPOLOGY(MESH_COMPONENT_NUMBER)%PTR%meshComponentNumber=MESH_COMPONENT_NUMBER
                   ALLOCATE(ELEMENTS%ELEMENTS(MESH%NUMBER_OF_ELEMENTS),STAT=ERR)
                   IF(ERR/=0) CALL FLAG_ERROR("Could not allocate individual elements",ERR,ERROR,*999)
-                  ELEMENTS%NUMBER_OF_ELEMENTS=MESH%NUMBER_OF_ELEMENTS !Psuedo inheritance of the number of elements
+                  ELEMENTS%NUMBER_OF_ELEMENTS=MESH%NUMBER_OF_ELEMENTS !Pseudo inheritance of the number of elements
                   CALL TREE_CREATE_START(ELEMENTS%ELEMENTS_TREE,ERR,ERROR,*999)
                   CALL TREE_INSERT_TYPE_SET(ELEMENTS%ELEMENTS_TREE,TREE_NO_DUPLICATES_ALLOWED,ERR,ERROR,*999)
                   CALL TREE_CREATE_FINISH(ELEMENTS%ELEMENTS_TREE,ERR,ERROR,*999)
@@ -7390,6 +7483,14 @@ CONTAINS
                       & BASIS%NUMBER_OF_NODES),STAT=ERR)
                     IF(ERR/=0) CALL FLAG_ERROR("Could not allocate global element nodes versions",ERR,ERROR,*999)
                     ELEMENTS%ELEMENTS(ne)%USER_ELEMENT_NODE_VERSIONS = 1
+                    IF(BASIS%hasGridPoints) THEN
+                      ALLOCATE(ELEMENTS%ELEMENTS(ne)%userElementGridPoints(BASIS%gridPoints%numberOfGridPoints),STAT=ERR)
+                      IF(ERR/=0) CALL FLAG_ERROR("Could not allocate user element grid points",ERR,ERROR,*999)
+                      ALLOCATE(ELEMENTS%ELEMENTS(ne)%globalElementGridPoints(BASIS%gridPoints%numberOfGridPoints),STAT=ERR)
+                      IF(ERR/=0) CALL FLAG_ERROR("Could not allocate global element grid points",ERR,ERROR,*999)
+                      ELEMENTS%ELEMENTS(ne)%userElementGridPoints=1
+                      ELEMENTS%ELEMENTS(ne)%globalElementGridPoints=1
+                    ENDIF
                   ENDDO !ne
                 ELSE
                   CALL FLAG_ERROR("Basis is not associated",ERR,ERROR,*999)
@@ -7470,6 +7571,10 @@ CONTAINS
     IF(ALLOCATED(ELEMENT%USER_ELEMENT_NODES)) DEALLOCATE(ELEMENT%USER_ELEMENT_NODES)
     IF(ALLOCATED(ELEMENT%GLOBAL_ELEMENT_NODES)) DEALLOCATE(ELEMENT%GLOBAL_ELEMENT_NODES)
     IF(ALLOCATED(ELEMENT%MESH_ELEMENT_NODES)) DEALLOCATE(ELEMENT%MESH_ELEMENT_NODES)
+    IF(ALLOCATED(ELEMENT%userElementGridPoints)) DEALLOCATE(ELEMENT%userElementGridPoints)
+    IF(ALLOCATED(ELEMENT%globalElementGridPoints)) DEALLOCATE(ELEMENT%globalElementGridPoints)
+    IF(ALLOCATED(ELEMENT%elementFaces)) DEALLOCATE(ELEMENT%elementFaces)
+    IF(ALLOCATED(ELEMENT%elementLines)) DEALLOCATE(ELEMENT%elementLines)
     IF(ALLOCATED(ELEMENT%ADJACENT_ELEMENTS)) THEN
       DO nic=LBOUND(ELEMENT%ADJACENT_ELEMENTS,1),UBOUND(ELEMENT%ADJACENT_ELEMENTS,1)
         CALL MESH_ADJACENT_ELEMENT_FINALISE(ELEMENT%ADJACENT_ELEMENTS(nic),ERR,ERROR,*999)
@@ -7630,6 +7735,7 @@ CONTAINS
 
     CALL ENTERS("MESH_TOPOLOGY_ELEMENTS_ELEMENT_BASIS_SET",ERR,ERROR,*999)
 
+    !Sander: do grid points stuff here and check that number of grid points is compatible with adjacent elements
     IF(ASSOCIATED(ELEMENTS)) THEN
       IF(ELEMENTS%ELEMENTS_FINISHED) THEN
         CALL FLAG_ERROR("Elements have been finished",ERR,ERROR,*999)
@@ -8133,7 +8239,7 @@ CONTAINS
                     NODE_POSITION_INDEX(ni)=NUMBER_OF_NODES_XIC(ni)
                   ENDIF
                   !If the face is collapsed then don't look in this xi direction. The exception is if the opposite face is also
-                  !collpased. This may indicate that we have a funny element in non-rc coordinates that goes around the central
+                  !collapsed. This may indicate that we have a funny element in non-rc coordinates that goes around the central
                   !axis back to itself
                   IF(FACE_COLLAPSED(xi_direction).AND..NOT.FACE_COLLAPSED(-xi_direction)) THEN
                     !Do nothing - the match lists are already empty
@@ -8773,14 +8879,20 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
     !Local Variables
+    TYPE(MESH_TYPE), POINTER :: mesh
 
     CALL ENTERS("MeshTopologyComponentFinalise",err,error,*999)
 
     IF(ASSOCIATED(meshComponent)) THEN
-      CALL MeshTopologyNodesFinalise(meshComponent%nodes,err,error,*999)
-      CALL MESH_TOPOLOGY_ELEMENTS_FINALISE(meshComponent%elements,err,error,*999)
-      CALL MeshTopologyDofsFinalise(meshComponent%dofs,err,error,*999)
-      DEALLOCATE(meshComponent)
+      mesh=>meshComponent%mesh
+      IF(ASSOCIATED(mesh)) THEN
+        CALL MeshTopologyNodesFinalise(meshComponent%nodes,err,error,*999)
+        IF(mesh%calculateFaces) CALL MeshTopologyFacesFinalise(meshComponent%faces,err,error,*999)
+        IF(mesh%calculateLines) CALL MeshTopologyLinesFinalise(meshComponent%lines,err,error,*999)
+        CALL MESH_TOPOLOGY_ELEMENTS_FINALISE(meshComponent%elements,err,error,*999)
+        CALL MeshTopologyDofsFinalise(meshComponent%dofs,err,error,*999)
+        DEALLOCATE(meshComponent)
+      ENDIF
     ENDIF
  
     CALL EXITS("MeshTopologyComponentFinalise")
@@ -8819,12 +8931,22 @@ CONTAINS
           IF(err/=0) CALL FlagError("Mesh topology component could not be allocated.",err,error,*999)
           mesh%topology(componentIdx)%ptr%mesh=>mesh
           NULLIFY(mesh%topology(componentIdx)%ptr%elements)
+          NULLIFY(mesh%topology(componentIdx)%ptr%faces)
+          NULLIFY(mesh%topology(componentIdx)%ptr%lines)
           NULLIFY(mesh%topology(componentIdx)%ptr%nodes)
+          NULLIFY(mesh%topology(componentIdx)%ptr%gridPoints)
           NULLIFY(mesh%topology(componentIdx)%ptr%dofs)
           NULLIFY(mesh%topology(componentIdx)%ptr%dataPoints)
           !Initialise the topology components
           CALL MESH_TOPOLOGY_ELEMENTS_INITIALISE(mesh%topology(componentIdx)%ptr,err,error,*999)
+          IF(mesh%calculateFaces) THEN
+            CALL MeshTopologyFacesInitialise(mesh%topology(componentIdx)%ptr,err,error,*999)
+          ENDIF
+          IF(mesh%calculateLines) THEN
+            CALL MeshTopologyLinesInitialise(mesh%topology(componentIdx)%ptr,err,error,*999)
+          ENDIF
           CALL MeshTopologyNodesInitialise(mesh%topology(componentIdx)%ptr,err,error,*999)
+          CALL MeshTopologyGridPointsInitialise(mesh%topology(componentIdx)%ptr,err,error,*999)
           CALL MeshTopologyDofsInitialise(mesh%topology(componentIdx)%ptr,err,error,*999)
           CALL MESH_TOPOLOGY_DATA_POINTS_INITIALISE(mesh%topology(componentIdx)%ptr,err,error,*999)
         ENDDO !componentIdx
@@ -9076,6 +9198,9 @@ CONTAINS
       DEALLOCATE(node%derivatives)
     ENDIF
     IF(ASSOCIATED(node%surroundingElements)) DEALLOCATE(node%surroundingElements)
+    IF(ALLOCATED(node%elementNodes)) DEALLOCATE(node%elementNodes)
+    IF(ALLOCATED(node%surroundingFaces)) DEALLOCATE(node%surroundingFaces)
+    IF(ALLOCATED(node%surroundingLines)) DEALLOCATE(node%surroundingLines)
   
     CALL Exits("MeshTopologyNodeFinalise")
     RETURN
@@ -9103,6 +9228,8 @@ CONTAINS
     node%userNumber=0
     node%globalNumber=0
     node%numberOfSurroundingElements=0
+    node%numberOfSurroundingFaces=0
+    node%numberOfSurroundingLines=0
     NULLIFY(node%surroundingElements)
     node%numberOfDerivatives=0
     node%boundaryNode=.FALSE.
@@ -9689,10 +9816,6 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
     !Local Variables
-    INTEGER(INTG) :: meshComponentNumber,meshNumber
-    TYPE(MESH_TYPE), POINTER :: mesh
-    TYPE(MeshComponentTopologyType), POINTER :: meshComponentTopology
-    TYPE(VARYING_STRING) :: localError
 
     CALL Enters("MeshTopologyNodesNumberOfNodesGet",err,error,*999)
 
@@ -9840,6 +9963,7 @@ CONTAINS
     !Local Variables
     INTEGER(INTG) :: element,elementIdx,insertPosition,localNodeIdx,node,surroundingElementNumber
     INTEGER(INTG), POINTER :: newSurroundingElements(:)
+    INTEGER(INTG), ALLOCATABLE :: newElementNodes(:)
     LOGICAL :: foundElement
     TYPE(BASIS_TYPE), POINTER :: basis
     TYPE(MeshElementsType), POINTER :: elements
@@ -9887,6 +10011,17 @@ CONTAINS
                   ENDIF
                   nodes%nodes(node)%surroundingElements=>newSurroundingElements
                   nodes%nodes(node)%numberOfSurroundingElements=nodes%nodes(node)%numberOfSurroundingElements+1
+                  ALLOCATE(newElementNodes(nodes%nodes(node)%numberOfSurroundingElements+1),STAT=err)
+                  IF(err/=0) CALL FlagError("Could not allocate new element nodes.",err,error,*999)
+                  IF(ALLOCATED(nodes%nodes(node)%elementNodes)) THEN
+                    newElementNodes(1:insertPosition-1)=nodes%nodes(node)%elementNodes(1:insertPosition-1)
+                    newElementNodes(insertPosition)=localNodeIdx
+                    newElementNodes(insertPosition+1:nodes%nodes(node)%numberOfSurroundingElements+1)= &
+                      & nodes%nodes(node)%elementNodes(insertPosition:nodes%nodes(node)%numberOfSurroundingElements)
+                  ELSE
+                    newElementNodes(1)=localNodeIdx
+                  ENDIF
+                  CALL MOVE_ALLOC(newElementNodes,nodes%nodes(node)%elementNodes)
                 ENDIF
               ENDDO !localNodeIdx
             ENDDO !elementIdx
@@ -9912,7 +10047,1387 @@ CONTAINS
   END SUBROUTINE MeshTopologySurroundingElementsCalculate
   
   !
-  !===============================================================================================================================
+  !================================================================================================================================
+  !
+ 
+  !>Finalises a face in the given mesh topology and deallocates all memory.
+  SUBROUTINE MeshTopologyFaceFinalise(face,ERR,ERROR,*)
+
+    !Argument variables
+    TYPE(MeshFaceType) :: face !<The mesh face to initialise.
+    INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
+    !Local Variables
+
+    CALL ENTERS("MeshTopologyFaceFinalise",ERR,ERROR,*999)
+
+    face%globalNumber=0
+    face%xiDirection=0
+    face%numberOfSurroundingElements=0
+    face%boundaryFace=.FALSE.
+    NULLIFY(face%basis)
+    IF(ALLOCATED(face%surroundingElements)) DEALLOCATE(face%surroundingElements)
+    IF(ALLOCATED(face%elementFaces)) DEALLOCATE(face%elementFaces)
+ 
+    CALL EXITS("MeshTopologyFaceFinalise")
+    RETURN
+999 CALL ERRORS("MeshTopologyFaceFinalise",ERR,ERROR)
+    CALL EXITS("MeshTopologyFaceFinalise")
+    RETURN 1   
+  END SUBROUTINE MeshTopologyFaceFinalise
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Initialises the face data structure for a mesh topology face.
+  SUBROUTINE MeshTopologyFaceInitialise(face,ERR,ERROR,*)
+
+    !Argument variables
+    TYPE(MeshFaceType) :: face !<The mesh face to initialise.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+
+    CALL ENTERS("MeshTopologyFaceInitialise",err,error,*999)
+
+    face%globalNumber=0
+    face%xiDirection=0
+    face%numberOfSurroundingElements=0
+    face%boundaryFace=.FALSE.
+    NULLIFY(face%basis)
+    
+    CALL EXITS("MeshTopologyFaceInitialise")
+    RETURN
+999 CALL ERRORS("MeshTopologyFaceInitialise",err,error)
+    CALL EXITS("MeshTopologyFaceInitialise")
+    RETURN 1
+  END SUBROUTINE MeshTopologyFaceInitialise
+  
+  !
+  !================================================================================================================================
+  !
+
+  !>Calculates the faces in the given mesh topology.
+  SUBROUTINE MeshTopologyFacesCalculate(topology,err,error,*)
+
+    !Argument variables
+    TYPE(MeshComponentTopologyType), POINTER :: topology !<A pointer to the mesh topology to initialise the faces for
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+    INTEGER(INTG) :: surroundingElementIdx,surroundingElementNumber,localFaceIdx,surroundingElementLocalFaceIdx, &
+      & localFaceNodeIdx,faceIdx,nodeIdx,elementIdx,nodesInFace(16),numberOfFaces,maxNumberOfFaces, &
+      & newMaxNumberOfFaces,faceNumber
+    INTEGER(INTG), ALLOCATABLE :: nodesNumberOfFaces(:),tempFaces(:,:),newTempFaces(:,:),facesNumberOfTimesVisited(:)
+    LOGICAL :: found
+    TYPE(BASIS_TYPE), POINTER :: basis,surroundingElementBasis
+    TYPE(MeshElementsType), POINTER :: elements
+    TYPE(MESH_ELEMENT_TYPE), POINTER :: element
+    TYPE(MeshFacesType), POINTER :: faces
+    TYPE(MeshFaceType), POINTER :: face
+    TYPE(MeshNodesType), POINTER :: nodes
+    TYPE(MESH_TYPE), POINTER :: mesh
+
+    CALL ENTERS("MeshTopologyFacesCalculate",err,error,*999)
+
+    IF(ASSOCIATED(topology)) THEN
+      faces=>topology%faces
+      IF(ASSOCIATED(faces)) THEN
+        elements=>topology%elements
+        IF(ASSOCIATED(elements)) THEN
+          nodes=>topology%nodes
+          IF(ASSOCIATED(nodes)) THEN
+            mesh=>topology%mesh
+            IF(ASSOCIATED(mesh)) THEN
+              !Estimate the number of faces
+              SELECT CASE(mesh%NUMBER_OF_DIMENSIONS)
+              CASE(1)
+                ! Faces not calculated in 1D 
+              CASE(2)
+                ! Faces not calculated in 2D
+              CASE(3)
+                !This should give the maximum and will over estimate the number of faces for a "cube mesh" by approx 33%
+                maxNumberOfFaces= &
+                  & NINT(((REAL(elements%NUMBER_OF_ELEMENTS,DP)*5.0_DP)+1.0_DP)*(4.0_DP/3.0_DP),INTG)
+                ALLOCATE(tempFaces(16,maxNumberOfFaces),STAT=err)
+                IF(err/=0) CALL FLAG_ERROR("Could not allocate temporary faces array",err,error,*999)
+                ALLOCATE(nodesNumberOfFaces(nodes%numberOfNodes),STAT=err)
+                IF(err/=0) CALL FLAG_ERROR("Could not allocate nodes number of faces array",err,error,*999)
+                nodesNumberOfFaces=0
+                numberOfFaces=0
+                tempFaces=0
+                !Loop over the elements in the topology and fill temp_faces with node numbers for each element
+                DO elementIdx=1,elements%NUMBER_OF_ELEMENTS
+                  element=>elements%elements(elementIdx)
+                  basis=>element%basis
+                  ALLOCATE(element%elementFaces(basis%NUMBER_OF_LOCAL_FACES),STAT=err)
+                  IF(err/=0) CALL FLAG_ERROR("Could not allocate element faces of element",err,error,*999)
+                  !Loop over the local faces of the element
+                  DO localFaceIdx=1,basis%NUMBER_OF_LOCAL_FACES
+                    !Calculate the topology node numbers that make up the face
+                    nodesInFace=0
+                    !Check whether face has already been read out
+                    DO localFaceNodeIdx=1,basis%NUMBER_OF_NODES_IN_LOCAL_FACE(localFaceIdx)
+                      !Read out node numbers of local face from ELEMENT_NODES
+                      nodesInFace(localFaceNodeIdx)=element%MESH_ELEMENT_NODES( &
+                        & basis%NODE_NUMBERS_IN_LOCAL_FACE(localFaceNodeIdx,localFaceIdx))
+                    ENDDO !localFaceNodeIdx
+                    !Try and find a previously created face that matches in the adjacent elements
+                    found=.FALSE.
+                    nodeIdx=nodesInFace(1)
+                    surroundingElementsLoop: DO surroundingElementIdx=1,nodes%nodes(nodeIdx)%numberOfSurroundingElements
+                      surroundingElementNumber=nodes%nodes(nodeIdx)%surroundingElements(surroundingElementIdx)
+                      IF(surroundingElementNumber/=elementIdx) THEN
+                        IF(ALLOCATED(elements%ELEMENTS(surroundingElementNumber)%elementFaces)) THEN
+                          surroundingElementBasis=>elements%ELEMENTS(surroundingElementNumber)%BASIS
+                          DO surroundingElementLocalFaceIdx=1,surroundingElementBasis%NUMBER_OF_LOCAL_faces
+                            faceIdx=elements%ELEMENTS(surroundingElementNumber)%elementFaces( &
+                              & surroundingElementLocalFaceIdx)
+                            IF(ALL(nodesInFace(1:basis%NUMBER_OF_NODES_IN_LOCAL_FACE(localFaceIdx))== &
+                              & tempFaces(1:basis%NUMBER_OF_NODES_IN_LOCAL_FACE(localFaceIdx),faceIdx))) THEN
+                              found=.TRUE.
+                              EXIT surroundingElementsLoop
+                            ENDIF
+                          ENDDO !surroundingElementLocalFaceIdx
+                        ENDIF
+                      ENDIF
+                    ENDDO surroundingElementsLoop
+                    IF(found) THEN
+                      !Face has already been created
+                      element%elementFaces(localFaceIdx)=faceIdx
+                    ELSE
+                      !Face has not been created
+                      IF(numberOfFaces==maxNumberOfFaces) THEN
+                        !We are at maximum. Reallocate the faces array to be 20% bigger and try again.
+                        newMaxNumberOfFaces=NINT(1.20_DP*REAL(maxNumberOfFaces,DP),INTG)
+                        !\todo: Change 16 to a variable and above for nodesInFace
+                        ALLOCATE(newTempFaces(16,newMaxNumberOfFaces),STAT=err)
+                        IF(err/=0) CALL FLAG_ERROR("Could not allocate new number of faces",err,error,*999)
+                        newTempFaces(:,1:numberOfFaces)=tempFaces(:,1:numberOfFaces)
+                        newTempFaces(:,numberOfFaces+1:newMaxNumberOfFaces)=0
+                        CALL MOVE_ALLOC(newTempFaces,tempFaces)
+                        maxNumberOfFaces=newMaxNumberOfFaces
+                      ENDIF
+                      numberOfFaces=numberOfFaces+1
+                      tempFaces(:,numberOfFaces)=nodesInFace(:)
+                      element%elementFaces(localFaceIdx)=numberOfFaces
+                      DO localFaceNodeIdx=1,basis%NUMBER_OF_NODES_IN_LOCAL_FACE(localFaceIdx)
+                        nodesNumberOfFaces(nodesInFace(localFaceNodeIdx))= &
+                        nodesNumberOfFaces(nodesInFace(localFaceNodeIdx))+1
+                      ENDDO !localFaceNodeIdx
+                    ENDIF
+                  ENDDO !localFaceIdx
+                 ! write(*,*) "element",elementIdx,"elementfaces",element%elementFaces
+                ENDDO !elementIdx
+
+                !Allocate the face arrays and set them from the faces and nodeFaces arrays
+                DO nodeIdx=1,nodes%numberOfNodes
+                  ALLOCATE(nodes%nodes(nodeIdx)%surroundingFaces(nodesNumberOfFaces(nodeIdx)),STAT=err)
+                  IF(err/=0) CALL FLAG_ERROR("Could not allocate node faces array",err,error,*999)
+                  nodes%nodes(nodeIdx)%surroundingFaces=0
+                ENDDO !nodeIdx
+                DEALLOCATE(nodesNumberOfFaces)
+                ALLOCATE(faces%faces(numberOfFaces),STAT=err)
+                IF(err/=0) CALL FLAG_ERROR("Could not allocate mesh topology faces",err,error,*999)
+                faces%numberOfFaces=numberOfFaces
+                DO faceIdx=1,faces%numberOfFaces
+                  CALL MeshTopologyFaceInitialise(faces%faces(faceIdx),err,error,*999)
+                  DO localFaceNodeIdx=1,SIZE(tempFaces,1)
+                    IF(tempFaces(localFaceNodeIdx,faceIdx)/=0) THEN
+                      nodeIdx=tempFaces(localFaceNodeIdx,faceIdx)
+                      nodes%nodes(nodeIdx)%numberOfSurroundingFaces=nodes%nodes(nodeIdx)%numberOfSurroundingFaces+1
+                      nodes%nodes(nodeIdx)%surroundingFaces(nodes%nodes(nodeIdx)%numberOfSurroundingFaces)=faceIdx
+                    ENDIF
+                  ENDDO !localFaceNodeIdx  
+                ENDDO !faceIdx
+
+                !Set mesh faces
+                DO elementIdx=1,elements%NUMBER_OF_ELEMENTS
+                  element=>elements%ELEMENTS(elementIdx)
+                  basis=>element%BASIS
+                  !Loop over local faces of element
+                  DO localFaceIdx=1,basis%NUMBER_OF_LOCAL_FACES
+                    faceNumber=element%elementFaces(localFaceIdx)
+                    face=>faces%faces(faceNumber)
+                    face%numberOfSurroundingElements=face%numberOfSurroundingElements+1
+                    IF(.NOT.ASSOCIATED(face%basis)) THEN
+                      face%globalNumber=faceNumber
+                      face%xiDirection=ABS(basis%LOCAL_FACE_XI_DIRECTION(localFaceIdx))
+                      face%basis=>basis%FACE_BASES(face%xiDirection)%PTR
+                      ALLOCATE(face%NodesInFace(basis%NUMBER_OF_NODES_IN_LOCAL_FACE(localFaceIdx)), &
+                        & STAT=err)
+                      IF(err/=0) CALL FLAG_ERROR("Could not allocate face nodes in face",err,error,*999)
+                      !Set nodes in face based upon face number
+                      face%nodesInFace(1:basis%NUMBER_OF_NODES_IN_LOCAL_FACE(localFaceIdx))= &
+                        & tempFaces(1:basis%NUMBER_OF_NODES_IN_LOCAL_FACE(localFaceIdx),faceNumber)
+                    ENDIF
+                  ENDDO !localFaceIdx
+                ENDDO !elementIdx
+
+                DEALLOCATE(tempFaces)
+                !Calculate surrounding elements for each face
+                DO faceIdx=1,faces%numberOfFaces
+                  face=>faces%faces(faceIdx)
+                  basis=>face%basis
+                  IF(face%numberOfSurroundingElements==1) THEN
+                    face%boundaryFace=.TRUE.
+                  ENDIF
+                  !Allocate the elements surrounding the face
+                  ALLOCATE(face%surroundingElements(face%numberOfSurroundingElements), &
+                    & STAT=err)
+                  IF(err/=0) CALL FLAG_ERROR("Could not allocate face surrounding elements",err,error,*999)
+                  ALLOCATE(face%elementFaces(face%numberOfSurroundingElements),STAT=err)
+                  IF(err/=0) CALL FLAG_ERROR("Could not allocate face element faces",err,error,*999)
+                ENDDO !faceIdx
+
+                ALLOCATE(facesNumberOfTimesVisited(faces%numberOfFaces),STAT=err)
+                IF(err/=0) CALL FLAG_ERROR("Could not allocate faces number of times visited",err,error,*999)
+                facesNumberOfTimesVisited=0
+                !Set the surrounding elements
+                DO elementIdx=1,elements%NUMBER_OF_ELEMENTS
+                  element=>elements%ELEMENTS(elementIdx)
+                  basis=>element%BASIS
+                  DO localFaceIdx=1,basis%NUMBER_OF_LOCAL_FACES
+                    faceNumber=element%elementFaces(localFaceIdx)
+                    face=>faces%faces(faceNumber)
+                    facesNumberOfTimesVisited(faceNumber)=facesNumberOfTimesVisited(faceNumber)+1
+                    face%surroundingElements(facesNumberOfTimesVisited(faceNumber))=elementIdx
+                    face%elementFaces(facesNumberOfTimesVisited(faceNumber))=localFaceIdx
+                  ENDDO !localFaceIdx
+                ENDDO !elementIdx
+                DEALLOCATE(facesNumberOfTimesVisited)
+              CASE DEFAULT
+                CALL FLAG_ERROR("Invalid number of dimensions for a mesh topology.",err,error,*999)
+              END SELECT
+            ELSE
+              CALL FLAG_ERROR("Mesh component topology mesh is not associated",err,error,*999)
+            ENDIF
+          ELSE
+            CALL FLAG_ERROR("Mesh component topology nodes is not associated",err,error,*999)
+          ENDIF
+        ELSE
+          CALL FLAG_ERROR("Mesh component topology elements is not associated",err,error,*999)
+        ENDIF
+      ELSE
+        CALL FLAG_ERROR("Mesh component topology faces is not associated",err,error,*999)
+      ENDIF
+    ELSE
+      CALL FLAG_ERROR("Mesh component topology is not associated",err,error,*999)
+    ENDIF
+    
+    IF(DIAGNOSTICS1) THEN
+      CALL WRITE_STRING(DIAGNOSTIC_OUTPUT_TYPE,"Mesh component topology faces:",err,error,*999)
+      CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"  Mesh components = ",topology%meshComponentNumber,err,error,*999)
+      CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"  Number of faces = ",faces%numberOfFaces,err,error,*999)
+      DO faceIdx=1,faces%numberOfFaces
+        face=>faces%faces(faceIdx)
+        CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"    Global face number = ",face%globalNumber,err,error,*999)
+        CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"      Xi direction (Normal to Face) = &
+                                                                         &",face%xiDirection,err,error,*999)
+        CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"      Number of surrounding elements = ", &
+          & face%numberOfSurroundingElements,err,error,*999)
+        CALL WRITE_STRING_VECTOR(DIAGNOSTIC_OUTPUT_TYPE,1,1,face%numberOfSurroundingElements,4,4, &
+          & face%surroundingElements,'("      Surrounding elements :",4(X,I8))','(28X,4(X,I8))',err,error,*999)
+        CALL WRITE_STRING_VECTOR(DIAGNOSTIC_OUTPUT_TYPE,1,1,face%numberOfSurroundingElements,4,4, &
+          & face%elementFaces,'("      Element faces        :",4(X,I8))','(28X,4(X,I8))',err,error,*999)
+        CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"      Boundary face = ",face%boundaryFace,err,error,*999)
+        CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"        Basis user number = ",face%basis%USER_NUMBER, &
+          & err,error,*999)
+        CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"        Basis family number = ",face%basis%FAMILY_NUMBER, &
+          & err,error,*999)
+        CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"        Basis interpolation type = ",face%basis% &
+          & INTERPOLATION_TYPE(1),err,error,*999)
+        CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"        Basis interpolation order = ",face%basis% &
+          & INTERPOLATION_ORDER(1),err,error,*999)
+        CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"        Number of nodes in faces = ",face%basis%NUMBER_OF_NODES, &
+          & err,error,*999)
+        CALL WRITE_STRING_VECTOR(DIAGNOSTIC_OUTPUT_TYPE,1,1,face%basis%NUMBER_OF_NODES,4,4,face%nodesInFace, &
+          & '("        Nodes in face        :",4(X,I8))','(30X,4(X,I8))',err,error,*999)
+      ENDDO !faceIdx
+    ENDIF
+
+    CALL EXITS("MeshTopologyFacesCalculate")
+    RETURN
+999 IF(ALLOCATED(tempFaces)) DEALLOCATE(tempFaces)
+    IF(ALLOCATED(newTempFaces)) DEALLOCATE(newTempFaces)
+    IF(ALLOCATED(nodesNumberOfFaces)) DEALLOCATE(nodesNumberOfFaces)
+    CALL ERRORS("MeshTopologyFacesCalculate",err,error)
+    CALL EXITS("MeshTopologyFacesCalculate")
+    RETURN 1   
+  END SUBROUTINE MeshTopologyFacesCalculate
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Finalises the given mesh faces topology.
+  SUBROUTINE MeshTopologyFacesFinalise(faces,err,error,*)
+
+    !Argument variables
+    TYPE(MeshFacesType), POINTER :: faces !<A pointer to the mesh faces topology to finalise
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+    INTEGER(INTG) :: faceIdx
+    
+    CALL ENTERS("MeshTopologyFacesFinalise",err,error,*999)
+
+    IF(ASSOCIATED(faces)) THEN
+      DO faceIdx=1,faces%numberOfFaces
+        CALL MeshTopologyFaceFinalise(faces%faces(faceIdx),err,error,*999)
+      ENDDO !faceIdx
+      IF(ALLOCATED(faces%faces)) DEALLOCATE(faces%faces)
+      DEALLOCATE(faces)
+    ELSE
+      CALL FLAG_error("Mesh faces topology is not associated",err,error,*999)
+    ENDIF
+ 
+    CALL EXITS("MeshTopologyFacesFinalise")
+    RETURN
+999 CALL ERRORS("MeshTopologyFacesFinalise",err,error)
+    CALL EXITS("MeshTopologyFacesFinalise")
+    RETURN 1   
+  END SUBROUTINE MeshTopologyFacesFinalise
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Initialises the face data structures for a mesh topology.
+  SUBROUTINE MeshTopologyFacesInitialise(topology,err,error,*)
+
+    !Argument variables
+    TYPE(MeshComponentTopologyType), POINTER :: topology !<A pointer to the mesh topology to initialise the nodes for
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+
+    CALL ENTERS("MeshTopologyFacesInitialise",err,error,*999)
+
+    IF(ASSOCIATED(topology)) THEN
+      IF(ASSOCIATED(topology%faces)) THEN
+        CALL FlagError("Mesh already has topology faces associated.",err,error,*999)
+      ELSE
+        ALLOCATE(topology%faces,STAT=err)
+        IF(err/=0) CALL FlagError("Could not allocate topology faces.",err,error,*999)
+        topology%faces%numberOfFaces=0
+        topology%faces%meshComponentTopology=>topology
+      ENDIF
+    ELSE
+      CALL FlagError("Topology is not associated.",err,error,*999)
+    ENDIF
+
+    CALL EXITS("MeshTopologyFacesInitialise")
+    RETURN
+999 CALL ERRORS("MeshTopologyFacesInitialise",err,error)
+    CALL EXITS("MeshTopologyFacesInitialise")
+    RETURN 1
+  END SUBROUTINE MeshTopologyFacesInitialise
+
+  !
+  !================================================================================================================================
+  !
+ 
+  !>Finalises a line in the given mesh topology and deallocates all memory.
+  SUBROUTINE MeshTopologyLineFinalise(line,ERR,ERROR,*)
+
+    !Argument variables
+    TYPE(MeshLineType) :: line !<The mesh line to initialise.
+    INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
+    !Local Variables
+
+    CALL ENTERS("MeshTopologyLineFinalise",ERR,ERROR,*999)
+
+    line%globalNumber=0
+    line%xiDirection=0
+    line%numberOfSurroundingElements=0
+    line%boundaryLine=.FALSE.
+    NULLIFY(line%basis)
+    IF(ALLOCATED(line%surroundingElements)) DEALLOCATE(line%surroundingElements)
+    IF(ALLOCATED(line%elementLines)) DEALLOCATE(line%elementLines)
+ 
+    CALL EXITS("MeshTopologyLineFinalise")
+    RETURN
+999 CALL ERRORS("MeshTopologyLineFinalise",ERR,ERROR)
+    CALL EXITS("MeshTopologyLineFinalise")
+    RETURN 1   
+  END SUBROUTINE MeshTopologyLineFinalise
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Initialises the line data structure for a mesh topology line.
+  SUBROUTINE MeshTopologyLineInitialise(line,ERR,ERROR,*)
+
+    !Argument variables
+    TYPE(MeshLineType) :: line !<The mesh line to initialise.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+
+    CALL ENTERS("MeshTopologyLineInitialise",err,error,*999)
+
+    line%globalNumber=0
+    line%xiDirection=0
+    line%numberOfSurroundingElements=0
+    line%boundaryLine=.FALSE.
+    NULLIFY(line%basis)
+    
+    CALL EXITS("MeshTopologyLineInitialise")
+    RETURN
+999 CALL ERRORS("MeshTopologyLineInitialise",err,error)
+    CALL EXITS("MeshTopologyLineInitialise")
+    RETURN 1
+  END SUBROUTINE MeshTopologyLineInitialise
+  
+  !
+  !================================================================================================================================
+  !
+
+  !>Calculates the lines in the given mesh topology.
+  SUBROUTINE MeshTopologyLinesCalculate(topology,err,error,*)
+
+    !Argument variables
+    TYPE(MeshComponentTopologyType), POINTER :: topology !<A pointer to the mesh topology to initialise the lines for
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+    INTEGER(INTG) :: surroundingElementIdx,surroundingElementNumber,localLineIdx,surroundingElementLocalLineIdx, &
+      & localLineNodeIdx,lineIdx,nodeIdx,elementIdx,nodesInLine(4),numberOfLines,maxNumberOfLines, &
+      & newMaxNumberOfLines,lineNumber
+    INTEGER(INTG), ALLOCATABLE :: nodesNumberOfLines(:),tempLines(:,:),newTempLines(:,:),linesNumberOfTimesVisited(:)
+    REAL(DP) :: approxDim
+    LOGICAL :: found
+    TYPE(BASIS_TYPE), POINTER :: basis,surroundingElementBasis
+    TYPE(MeshElementsType), POINTER :: elements
+    TYPE(MESH_ELEMENT_TYPE), POINTER :: element
+    TYPE(MeshLinesType), POINTER :: lines
+    TYPE(MeshLineType), POINTER :: line
+    TYPE(MeshNodesType), POINTER :: nodes
+    TYPE(MESH_TYPE), POINTER :: mesh
+
+    CALL ENTERS("MeshTopologyLinesCalculate",err,error,*999)
+
+    IF(ASSOCIATED(topology)) THEN
+      lines=>topology%lines
+      IF(ASSOCIATED(lines)) THEN
+        elements=>topology%elements
+        IF(ASSOCIATED(elements)) THEN
+          nodes=>topology%nodes
+          IF(ASSOCIATED(nodes)) THEN
+            mesh=>topology%mesh
+            IF(ASSOCIATED(mesh)) THEN
+              !Estimate the number of lines
+              SELECT CASE(mesh%NUMBER_OF_DIMENSIONS)
+              CASE(1)
+                maxNumberOfLines=elements%NUMBER_OF_ELEMENTS 
+              CASE(2)
+                approxDim=SQRT(REAL(elements%NUMBER_OF_ELEMENTS,DP))
+                !This should give the maximum and will over estimate the number of lines for a "square mesh" by approx 33%
+                maxNumberOfLines=NINT(3.0_DP*approxDim*(approxDim+1),INTG)
+              CASE(3)
+                approxDim=SQRT(REAL(elements%NUMBER_OF_ELEMENTS,DP))
+                !This should give the maximum and will over estimate the number of lines for a "square mesh" by approx 73%
+                maxNumberOfLines=NINT(11.0_DP*approxDim*approxDim*(approxDim+1),INTG)
+              CASE DEFAULT
+                CALL FLAG_ERROR("Invalid number of dimensions for a topology domain.",ERR,ERROR,*999)
+              END SELECT
+              ALLOCATE(tempLines(4,maxNumberOfLines),STAT=err)
+              IF(err/=0) CALL FLAG_ERROR("Could not allocate temporary lines array",err,error,*999)
+              ALLOCATE(nodesNumberOfLines(nodes%numberOfNodes),STAT=err)
+              IF(err/=0) CALL FLAG_ERROR("Could not allocate nodes number of lines array",err,error,*999)
+              nodesNumberOfLines=0
+              numberOfLines=0
+              tempLines=0
+              !Loop over the elements in the topology and fill temp_lines with node numbers for each element
+              DO elementIdx=1,elements%NUMBER_OF_ELEMENTS
+                element=>elements%elements(elementIdx)
+                basis=>element%basis
+                ALLOCATE(element%elementLines(basis%NUMBER_OF_LOCAL_LINES),STAT=err)
+                IF(err/=0) CALL FLAG_ERROR("Could not allocate element lines of element",err,error,*999)
+                !Loop over the local lines of the element
+                DO localLineIdx=1,basis%NUMBER_OF_LOCAL_LINES
+                  !Calculate the topology node numbers that make up the line
+                  nodesInLine=0
+                  !Check whether line has already been read out
+                  DO localLineNodeIdx=1,basis%NUMBER_OF_NODES_IN_LOCAL_LINE(localLineIdx)
+                    !Read out node numbers of local line from ELEMENT_NODES
+                    nodesInLine(localLineNodeIdx)=element%MESH_ELEMENT_NODES( &
+                      & basis%NODE_NUMBERS_IN_LOCAL_LINE(localLineNodeIdx,localLineIdx))
+                  ENDDO !localLineNodeIdx
+                  !Try and find a previously created line that matches in the adjacent elements
+                  found=.FALSE.
+                  nodeIdx=nodesInLine(1)
+                  surroundingElementsLoop: DO surroundingElementIdx=1,nodes%nodes(nodeIdx)%numberOfSurroundingElements
+                    surroundingElementNumber=nodes%nodes(nodeIdx)%surroundingElements(surroundingElementIdx)
+                    IF(surroundingElementNumber/=elementIdx) THEN
+                      IF(ALLOCATED(elements%ELEMENTS(surroundingElementNumber)%elementLines)) THEN
+                        surroundingElementBasis=>elements%ELEMENTS(surroundingElementNumber)%BASIS
+                        DO surroundingElementLocalLineIdx=1,surroundingElementBasis%NUMBER_OF_LOCAL_lines
+                          lineIdx=elements%ELEMENTS(surroundingElementNumber)%elementLines( &
+                            & surroundingElementLocalLineIdx)
+                          IF(ALL(nodesInLine(1:basis%NUMBER_OF_NODES_IN_LOCAL_LINE(localLineIdx))== &
+                            & tempLines(1:basis%NUMBER_OF_NODES_IN_LOCAL_LINE(localLineIdx),lineIdx))) THEN
+                            found=.TRUE.
+                            EXIT surroundingElementsLoop
+                          ENDIF
+                        ENDDO !surroundingElementLocalLineIdx
+                      ENDIF
+                    ENDIF
+                  ENDDO surroundingElementsLoop
+                  IF(found) THEN
+                    !Line has already been created
+                    element%elementLines(localLineIdx)=lineIdx
+                  ELSE
+                    !Line has not been created
+                    IF(numberOfLines==maxNumberOfLines) THEN
+                      !We are at maximum. Reallocate the lines array to be 20% bigger and try again.
+                      newMaxNumberOfLines=NINT(1.20_DP*REAL(maxNumberOfLines,DP),INTG)
+                      ALLOCATE(newTempLines(4,newMaxNumberOfLines),STAT=err)
+                      IF(err/=0) CALL FLAG_ERROR("Could not allocate new number of lines",err,error,*999)
+                      newTempLines(:,1:numberOfLines)=tempLines(:,1:numberOfLines)
+                      newTempLines(:,numberOfLines+1:newMaxNumberOfLines)=0
+                      CALL MOVE_ALLOC(newTempLines,tempLines)
+                      maxNumberOfLines=newMaxNumberOfLines
+                    ENDIF
+                    numberOfLines=numberOfLines+1
+                    tempLines(:,numberOfLines)=nodesInLine(:)
+                    element%elementLines(localLineIdx)=numberOfLines
+                    DO localLineNodeIdx=1,basis%NUMBER_OF_NODES_IN_LOCAL_LINE(localLineIdx)
+                      nodesNumberOfLines(nodesInLine(localLineNodeIdx))= &
+                      nodesNumberOfLines(nodesInLine(localLineNodeIdx))+1
+                    ENDDO !localLineNodeIdx
+                  ENDIF
+                ENDDO !localLineIdx
+              ENDDO !elementIdx
+
+              !Allocate the line arrays and set them from the lines and surroundingLines arrays
+              DO nodeIdx=1,nodes%numberOfNodes
+                ALLOCATE(nodes%nodes(nodeIdx)%surroundingLines(nodesNumberOfLines(nodeIdx)),STAT=err)
+                IF(err/=0) CALL FLAG_ERROR("Could not allocate node lines array",err,error,*999)
+                nodes%nodes(nodeIdx)%surroundingLines=0
+              ENDDO !nodeIdx
+              DEALLOCATE(nodesNumberOfLines)
+              ALLOCATE(lines%lines(numberOfLines),STAT=err)
+              IF(err/=0) CALL FLAG_ERROR("Could not allocate mesh topology lines",err,error,*999)
+              lines%numberOfLines=numberOfLines
+              DO lineIdx=1,lines%numberOfLines
+                CALL MeshTopologyLineInitialise(lines%lines(lineIdx),err,error,*999)
+                DO localLineNodeIdx=1,SIZE(tempLines,1)
+                  IF(tempLines(localLineNodeIdx,lineIdx)/=0) THEN
+                    nodeIdx=tempLines(localLineNodeIdx,lineIdx)
+                    nodes%nodes(nodeIdx)%numberOfSurroundingLines=nodes%nodes(nodeIdx)%numberOfSurroundingLines+1
+                    nodes%nodes(nodeIdx)%surroundingLines(nodes%nodes(nodeIdx)%numberOfSurroundingLines)=lineIdx
+                  ENDIF
+                ENDDO !localLineNodeIdx  
+              ENDDO !lineIdx
+
+              !Set mesh lines
+              DO elementIdx=1,elements%NUMBER_OF_ELEMENTS
+                element=>elements%ELEMENTS(elementIdx)
+                basis=>element%BASIS
+                !Loop over local lines of element
+                DO localLineIdx=1,basis%NUMBER_OF_LOCAL_LINES
+                  lineNumber=element%elementLines(localLineIdx)
+                  line=>lines%lines(lineNumber)
+                  line%numberOfSurroundingElements=line%numberOfSurroundingElements+1
+                  IF(.NOT.ASSOCIATED(line%basis)) THEN
+                    line%globalNumber=lineNumber
+                    line%xiDirection=ABS(basis%LOCAL_LINE_XI_DIRECTION(localLineIdx))
+                    line%basis=>basis%LINE_BASES(line%xiDirection)%PTR
+                    ALLOCATE(line%nodesInLine(basis%NUMBER_OF_NODES_IN_LOCAL_LINE(localLineIdx)), &
+                      & STAT=err)
+                    IF(err/=0) CALL FLAG_ERROR("Could not allocate line nodes in line",err,error,*999)
+                    !Set nodes in line based upon line number
+                    line%nodesInLine(1:basis%NUMBER_OF_NODES_IN_LOCAL_LINE(localLineIdx))= &
+                      & tempLines(1:basis%NUMBER_OF_NODES_IN_LOCAL_LINE(localLineIdx),lineNumber)
+                  ENDIF
+                ENDDO !localLineIdx
+              ENDDO !elementIdx
+
+              DEALLOCATE(tempLines)
+              !Calculate surrounding elements for each line
+              DO lineIdx=1,lines%numberOfLines
+                line=>lines%lines(lineIdx)
+                basis=>line%basis
+                IF(line%numberOfSurroundingElements==1) THEN
+                  line%boundaryLine=.TRUE.
+                ENDIF
+                !Allocate the elements surrounding the line
+                ALLOCATE(line%surroundingElements(line%numberOfSurroundingElements), &
+                  & STAT=err)
+                IF(err/=0) CALL FLAG_ERROR("Could not allocate line surrounding elements",err,error,*999)
+                ALLOCATE(line%elementLines(line%numberOfSurroundingElements),STAT=err)
+                IF(err/=0) CALL FLAG_ERROR("Could not allocate line element lines",err,error,*999)
+              ENDDO !lineIdx
+
+              ALLOCATE(linesNumberOfTimesVisited(lines%numberOfLines),STAT=err)
+              IF(err/=0) CALL FLAG_ERROR("Could not allocate lines number of times visited",err,error,*999)
+              linesNumberOfTimesVisited=0
+              !Set the surrounding elements
+              DO elementIdx=1,elements%NUMBER_OF_ELEMENTS
+                element=>elements%ELEMENTS(elementIdx)
+                basis=>element%BASIS
+                DO localLineIdx=1,basis%NUMBER_OF_LOCAL_LINES
+                  lineNumber=element%elementLines(localLineIdx)
+                  line=>lines%lines(lineNumber)
+                  linesNumberOfTimesVisited(lineNumber)=linesNumberOfTimesVisited(lineNumber)+1
+                  line%surroundingElements(linesNumberOfTimesVisited(lineNumber))=elementIdx
+                  line%elementLines(linesNumberOfTimesVisited(lineNumber))=localLineIdx
+                ENDDO !localLineIdx
+              ENDDO !elementIdx
+              DEALLOCATE(linesNumberOfTimesVisited)
+            ELSE
+              CALL FLAG_ERROR("Mesh component topology mesh is not associated",err,error,*999)
+            ENDIF
+          ELSE
+            CALL FLAG_ERROR("Mesh component topology nodes is not associated",err,error,*999)
+          ENDIF
+        ELSE
+          CALL FLAG_ERROR("Mesh component topology elements is not associated",err,error,*999)
+        ENDIF
+      ELSE
+        CALL FLAG_ERROR("Mesh component topology lines is not associated",err,error,*999)
+      ENDIF
+    ELSE
+      CALL FLAG_ERROR("Mesh component topology is not associated",err,error,*999)
+    ENDIF
+    
+    IF(DIAGNOSTICS1) THEN
+      CALL WRITE_STRING(DIAGNOSTIC_OUTPUT_TYPE,"Mesh component topology lines:",err,error,*999)
+      CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"  Mesh components = ",topology%meshComponentNumber,err,error,*999)
+      CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"  Number of lines = ",lines%numberOfLines,err,error,*999)
+      DO lineIdx=1,lines%numberOfLines
+        line=>lines%lines(lineIdx)
+        CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"    Global line number = ",line%globalNumber,err,error,*999)
+        CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"      Xi direction (Normal to Line) = &
+                                                                         &",line%xiDirection,err,error,*999)
+        CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"      Number of surrounding elements = ", &
+          & line%numberOfSurroundingElements,err,error,*999)
+        CALL WRITE_STRING_VECTOR(DIAGNOSTIC_OUTPUT_TYPE,1,1,line%numberOfSurroundingElements,4,4, &
+          & line%surroundingElements,'("      Surrounding elements :",4(X,I8))','(28X,4(X,I8))',err,error,*999)
+        CALL WRITE_STRING_VECTOR(DIAGNOSTIC_OUTPUT_TYPE,1,1,line%numberOfSurroundingElements,4,4, &
+          & line%elementLines,'("      Element lines        :",4(X,I8))','(28X,4(X,I8))',err,error,*999)
+        CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"      Boundary line = ",line%boundaryLine,err,error,*999)
+        CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"        Basis user number = ",line%basis%USER_NUMBER, &
+          & err,error,*999)
+        CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"        Basis family number = ",line%basis%FAMILY_NUMBER, &
+          & err,error,*999)
+        CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"        Basis interpolation type = ",line%basis% &
+          & INTERPOLATION_TYPE(1),err,error,*999)
+        CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"        Basis interpolation order = ",line%basis% &
+          & INTERPOLATION_ORDER(1),err,error,*999)
+        CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"        Number of nodes in lines = ",line%basis%NUMBER_OF_NODES, &
+          & err,error,*999)
+        CALL WRITE_STRING_VECTOR(DIAGNOSTIC_OUTPUT_TYPE,1,1,line%basis%NUMBER_OF_NODES,4,4,line%nodesInLine, &
+          & '("        Nodes in line        :",4(X,I8))','(30X,4(X,I8))',err,error,*999)
+      ENDDO !lineIdx
+    ENDIF
+
+    CALL EXITS("MeshTopologyLinesCalculate")
+    RETURN
+999 IF(ALLOCATED(tempLines)) DEALLOCATE(tempLines)
+    IF(ALLOCATED(newTempLines)) DEALLOCATE(newTempLines)
+    IF(ALLOCATED(nodesNumberOfLines)) DEALLOCATE(nodesNumberOfLines)
+    CALL ERRORS("MeshTopologyLinesCalculate",err,error)
+    CALL EXITS("MeshTopologyLinesCalculate")
+    RETURN 1   
+  END SUBROUTINE MeshTopologyLinesCalculate
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Finalises the given mesh lines.
+  SUBROUTINE MeshTopologyLinesFinalise(lines,err,error,*)
+
+    !Argument variables
+    TYPE(MeshLinesType), POINTER :: lines !<A pointer to the mesh lines topology to finalise
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+    INTEGER(INTG) :: lineIdx
+    
+    CALL ENTERS("MeshTopologyLinesFinalise",err,error,*999)
+
+    IF(ASSOCIATED(lines)) THEN
+      DO lineIdx=1,lines%numberOfLines
+        CALL MeshTopologyLineFinalise(lines%lines(lineIdx),err,error,*999)
+      ENDDO !lineIdx
+      IF(ALLOCATED(lines%lines)) DEALLOCATE(lines%lines)
+      DEALLOCATE(lines)
+    ELSE
+      CALL FLAG_error("Mesh lines topology is not associated",err,error,*999)
+    ENDIF
+ 
+    CALL EXITS("MeshTopologyLinesFinalise")
+    RETURN
+999 CALL ERRORS("MeshTopologyLinesFinalise",err,error)
+    CALL EXITS("MeshTopologyLinesFinalise")
+    RETURN 1   
+  END SUBROUTINE MeshTopologyLinesFinalise
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Initialises the line data structures for a mesh topology.
+  SUBROUTINE MeshTopologyLinesInitialise(topology,err,error,*)
+
+    !Argument variables
+    TYPE(MeshComponentTopologyType), POINTER :: topology !<A pointer to the mesh topology to initialise the nodes for
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+
+    CALL ENTERS("MeshTopologyLinesInitialise",err,error,*999)
+
+    IF(ASSOCIATED(topology)) THEN
+      IF(ASSOCIATED(topology%lines)) THEN
+        CALL FlagError("Mesh already has topology lines associated.",err,error,*999)
+      ELSE
+        ALLOCATE(topology%lines,STAT=err)
+        IF(err/=0) CALL FlagError("Could not allocate topology lines.",err,error,*999)
+        topology%lines%numberOfLines=0
+        topology%lines%meshComponentTopology=>topology
+      ENDIF
+    ELSE
+      CALL FlagError("Topology is not associated.",err,error,*999)
+    ENDIF
+
+    CALL EXITS("MeshTopologyLinesInitialise")
+    RETURN
+999 CALL ERRORS("MeshTopologyLinesInitialise",err,error)
+    CALL EXITS("MeshTopologyLinesInitialise")
+    RETURN 1
+  END SUBROUTINE MeshTopologyLinesInitialise
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Finishes the process of creating grid points for a specified mesh component in a mesh topology. \see OPENCMISS::CMISSMeshGridPointsCreateFinish
+  SUBROUTINE MeshTopologyGridPointsCreateFinish(MeshGridPoints,err,error,*)
+
+    !Argument variables
+    TYPE(MeshGridPointsType), POINTER :: meshGridPoints !<A pointer to the mesh grid points to finish creating
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+    INTEGER(INTG) :: meshGridPointIdx
+
+    CALL ENTERS("MeshTopologyGridPointsCreateFinish",ERR,ERROR,*999)
+
+    IF(ASSOCIATED(meshGridPoints)) THEN
+      IF(meshGridPoints%gridPointsFinished) THEN
+        CALL FLAG_ERROR("Mesh grid points have already been finished.",ERR,ERROR,*999)
+      ELSE        
+        meshGridPoints%gridPointsFinished=.TRUE.
+      ENDIF
+    ELSE
+      CALL FLAG_ERROR("Mesh grid points is not associated.",ERR,ERROR,*999)
+    ENDIF
+    
+    IF(DIAGNOSTICS1) THEN
+      CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"Number of global mesh grid points = ", &
+        & meshGridPoints%numberOfGridPoints,err,error,*999)
+      DO meshGridPointIdx=1,meshGridPoints%numberOfGridPoints
+        CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"  meshGridPointIdx = ",meshGridPointIdx,err,error,*999)
+        CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"    Global number        = ", &
+          & meshGridPoints%gridPoints(meshGridPointIdx)%globalNumber,err,error,*999)
+        CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"    User number          = ", &
+          & meshGridPoints%gridPoints(meshGridPointIdx)%globalNumber,err,error,*999)
+      ENDDO !ne
+    ENDIF
+    
+    CALL EXITS("MeshTopologyGridPointsCreateFinish")
+    RETURN
+999 CALL ERRORS("MeshTopologyGridPointsCreateFinish",ERR,ERROR)
+    CALL EXITS("MeshTopologyGridPointsCreateFinish")
+    RETURN 1
+   
+  END SUBROUTINE MeshTopologyGridPointsCreateFinish
+    
+  !
+  !================================================================================================================================
+  !
+
+  !>Starts the process of creating grid points in the mesh component identified by MESH and component_idx. MeshGridPoints is the returned pointer to the MeshGridPoints data structure. \see OPENCMISS::CMISSMeshGridPointsCreateStart
+  SUBROUTINE MeshTopologyGridPointsCreateStart(mesh,meshComponentNumber,meshGridPoints,err,error,*)
+
+    !Argument variables
+    TYPE(MESH_TYPE), POINTER :: mesh !<A pointer to the mesh to start creating the grid points on
+    INTEGER(INTG), INTENT(IN) :: meshComponentNumber !<The mesh component number
+    TYPE(MeshGridPointsType), POINTER :: meshGridPoints !<On return, a pointer to the created mesh grid points
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+    INTEGER(INTG) :: dummyErr,insertStatus,elementIdx,globalGridPoint,localGridPointIdx,meshGridPointIdx,numberOfGridPoints
+    INTEGER(INTG), POINTER :: globalGridPointNumbers(:)
+    TYPE(BASIS_TYPE), POINTER :: basis
+    TYPE(MeshElementsType), POINTER :: elements
+    TYPE(MeshGridPointsType), POINTER :: gridPoints 
+    TYPE(VARYING_STRING) :: dummyError,localError
+ 
+    CALL ENTERS("MeshTopologyGridPointsCreateStart",err,error,*999)
+    
+    NULLIFY(globalGridPointNumbers)
+
+    IF(ASSOCIATED(mesh)) THEN     
+      IF(meshComponentNumber>0.AND.meshComponentNumber<=mesh%NUMBER_OF_COMPONENTS) THEN
+        IF(ASSOCIATED(gridPoints)) THEN
+          CALL FLAG_ERROR("Mesh grid points is already associated.",err,error,*999)
+        ELSE
+          IF(ASSOCIATED(mesh%TOPOLOGY(meshComponentNumber)%PTR)) THEN
+            IF(ASSOCIATED(mesh%TOPOLOGY(meshComponentNumber)%PTR%gridPoints)) THEN
+              gridPoints=>mesh%TOPOLOGY(meshComponentNumber)%PTR%gridPoints
+              IF(ALLOCATED(gridPoints%gridPoints)) THEN
+                CALL FLAG_ERROR("Mesh topology already has elements associated",err,error,*998)
+              ELSE
+                elements=>mesh%TOPOLOGY(meshComponentNumber)%PTR%elements
+                IF(ASSOCIATED(elements)) THEN
+                  IF(elements%ELEMENTS_FINISHED) THEN
+                    CALL TREE_CREATE_START(meshGridPoints%gridPointsTree,err,error,*999)
+                    CALL TREE_INSERT_TYPE_SET(meshGridPoints%gridPointsTree,TREE_NO_DUPLICATES_ALLOWED,err,error,*999)
+                    CALL TREE_CREATE_FINISH(meshGridPoints%gridPointsTree,err,error,*999)
+                    globalGridPoint=0
+                    DO elementIdx=1,elements%NUMBER_OF_ELEMENTS
+                      basis=>elements%elements(elementIdx)%basis
+                      IF(basis%hasGridPoints) THEN
+                        DO localGridPointIdx=1,basis%gridPoints%numberOfGridPoints
+                          globalGridPoint=globalGridPoint+1
+                          CALL TREE_ITEM_INSERT(meshGridPoints%gridPointsTree,globalGridPoint,globalGridPoint,insertStatus, &
+                            & err,error,*999)
+                        ENDDO
+                      ENDIF 
+                    ENDDO
+                    CALL TREE_DETACH(meshGridPoints%gridPointsTree,numberOfGridPoints,globalGridPointNumbers,err,error,*999)
+                    !Set up the mesh grid points.
+                    meshGridPoints%numberOfGridPoints=numberOfGridPoints
+                    ALLOCATE(meshGridPoints%gridPoints(numberOfGridPoints),STAT=err)
+                    IF(err/=0) CALL FlagError("Could not allocate mesh topology grid points grid points.",err,error,*999)
+                    DO meshGridPointIdx=1,numberOfGridPoints
+                      CALL MeshTopologygridPointInitialise(meshGridPoints%gridPoints(meshGridPointIdx),err,error,*999)
+                      meshGridPoints%gridPoints(meshGridPointIdx)%globalNumber=globalGridPointNumbers(meshGridPointIdx)
+                      meshGridPoints%gridPoints(meshGridPointIdx)%userNumber=globalGridPointNumbers(meshGridPointIdx)
+                    ENDDO !grid pointIdx
+                    IF(ASSOCIATED(globalGridPointNumbers)) DEALLOCATE(globalGridPointNumbers)
+                    meshGridPoints%gridPointsFinished=.TRUE.
+                  ELSE
+                    CALL FLAG_ERROR("Mesh elements is not finished",err,error,*999)
+                  ENDIF
+                ELSE
+                  CALL FLAG_ERROR("Mesh elements is not associated",err,error,*999)
+                ENDIF
+              ENDIF
+            ELSE
+              CALL FLAG_ERROR("Mesh topology elements is not associated",err,error,*998)
+            ENDIF
+          ELSE
+            CALL FLAG_ERROR("Mesh topology is not associated",err,error,*998)
+          ENDIF
+        ENDIF
+      ELSE
+        localError="The specified mesh component number of "//TRIM(NUMBER_TO_VSTRING(meshComponentNumber,"*",err,error))// &
+          & " is invalid. The component number must be between 1 and "// &
+          & TRIM(NUMBER_TO_VSTRING(mesh%NUMBER_OF_COMPONENTS,"*",err,error))
+        CALL FLAG_ERROR(localError,err,error,*998)
+      ENDIF
+    ELSE
+      CALL FLAG_ERROR("Mesh is not associated",err,error,*998)
+    ENDIF
+
+    CALL EXITS("MeshTopologyGridPointsCreateStart")
+    RETURN
+999 CALL MeshTopologyGridPointsFinalise(gridPoints,dummyErr,dummyError,*998)
+998 NULLIFY(gridPoints)
+    CALL ERRORS("MeshTopologyGridPointsCreateStart",err,error)
+    CALL EXITS("MeshTopologyGridPointsCreateStart")
+    RETURN 1
+   
+  END SUBROUTINE MeshTopologyGridPointsCreateStart
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Finalises the given mesh adjacent grid points. 
+  SUBROUTINE MeshAdjacentGridPointFinalise(adjacentGridPoint,err,error,*)
+
+    !Argument variables
+    TYPE(MeshAdjacentGridPointType) :: adjacentGridPoint !<The adjacent grid point to finalise
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+
+    CALL Enters("MeshAdjacentGridPointFinalise",err,error,*999)
+
+    adjacentGridPoint%numberOfAdjacentGridPoints=0
+    IF(ALLOCATED(adjacentGridPoint%adjacentGridPoints)) DEALLOCATE(adjacentGridPoint%adjacentGridPoints)
+
+    CALL Exits("MeshAdjacentGridPointFinalise")
+    RETURN
+999 CALL Errors("MeshAdjacentGridPointFinalise",err,error)
+    CALL Exits("MeshAdjacentGridPointFinalise")
+    RETURN 1
+    
+  END SUBROUTINE MeshAdjacentGridPointFinalise
+
+  !
+  !================================================================================================================================
+  !
+  !>Calculates the grid points used the mesh identified by a given mesh topology.
+  SUBROUTINE MeshTopologyGridPointsCalculate(topology,err,error,*)
+
+    !Argument variables
+    TYPE(MeshComponentTopologyType), POINTER :: topology !<A pointer to the mesh topology
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+    INTEGER(INTG) :: elementIdx,surroundingElementIdx,faceIdx,lineIdx,nodeIdx,localgridPointIdx,localGridPointIdx1, &
+      & meshGridPointIdx,localFaceIdx,localLineIdx,localLineNodeIdx,localFaceNodeIdx,localNodeIdx,maxNumberOfGridPoints, &
+      & numberOfGridPoints,tempNumberOfGridPoints,xiDirection,xiIdx,faceXi(2),normalXi(2),position(4)
+    TYPE(BASIS_TYPE), POINTER :: basis
+    TYPE(MESH_TYPE), POINTER :: mesh
+    TYPE(MeshElementsType), POINTER :: elements
+    TYPE(MeshFacesType), POINTER :: faces
+    TYPE(MeshLinesType), POINTER :: lines
+    TYPE(MeshNodesType), POINTER :: nodes
+    TYPE(MeshGridPointsType), POINTER :: meshGridPoints
+    TYPE(VARYING_STRING) :: localError
+
+    CALL ENTERS("MeshTopologyGridPointsCalculate",err,error,*999)
+
+    IF(ASSOCIATED(topology)) THEN
+      elements=>topology%elements
+      IF(ASSOCIATED(elements)) THEN
+        meshGridPoints=>topology%gridPoints
+        IF(ASSOCIATED(meshGridPoints)) THEN
+          mesh=>topology%mesh
+          IF(ASSOCIATED(mesh)) THEN
+            IF(ALLOCATED(meshGridPoints%gridPoints)) THEN
+              localError="Mesh number "//TRIM(NumberToVString(mesh%USER_NUMBER,"*",err,error))// &
+                & " already has allocated mesh topology grid points."
+              CALL FlagError(localError,err,error,*999)
+            ELSE
+              position=1 
+              numberOfGridPoints=0
+              !1) Process all internal element grid points
+              DO elementIdx=1,elements%NUMBER_OF_ELEMENTS
+                basis=>elements%elements(elementIdx)%BASIS
+                position(1:basis%NUMBER_OF_XI)=2
+                maxNumberOfGridPoints=PRODUCT(basis%numberOfGridPointsXi(1:basis%NUMBER_OF_XI)-2)
+                DO localGridPointIdx1=1,maxNumberOfGridPoints
+                  numberOfGridPoints=numberOfGridPoints+1
+                  localGridpointIdx=basis%gridPoints%gridPointsPositionIndexInv(position(1),position(2),position(3))
+                  elements%elements(elementIdx)%globalElementGridPoints(localGridPointIdx)=numberOfGridPoints
+                  position(1)=position(1)+1
+                  DO xiIdx=1,basis%NUMBER_OF_XI
+                    IF(position(xiIdx)>basis%numberOfGridPointsXi(xiIdx)-1) THEN
+                      position(xiIdx)=2
+                      position(xiIdx+1)=position(xiIdx+1)+1
+                    ENDIF
+                  ENDDO !xiIdx
+                ENDDO !localGridPointIdx1
+              ENDDO !elementIdx
+              
+              !2) Process all internal face element grid points
+              SELECT CASE(basis%NUMBER_OF_XI)
+              CASE(3) 
+                faces=>topology%faces
+                IF(ASSOCIATED(faces)) THEN
+                  DO faceIdx=1,faces%numberOfFaces
+                    xiDirection=faces%faces(faceIdx)%xiDirection
+                    faceXi(1)=OTHER_XI_DIRECTIONS3(xiDirection,2,1)
+                    faceXi(2)=OTHER_XI_DIRECTIONS3(xiDirection,3,1)
+                    position(1:basis%NUMBER_OF_XI)=2
+                    DO surroundingElementIdx=1,faces%faces(faceIdx)%numberOfSurroundingElements
+                      tempNumberOfGridPoints=numberOfGridPoints
+                      elementIdx=faces%faces(faceIdx)%surroundingElements(surroundingElementIdx)
+                      basis=>elements%elements(elementIdx)%BASIS
+                      localFaceIdx=faces%faces(faceIdx)%elementFaces(surroundingElementIdx)
+                      DO localFaceNodeIdx=1,basis%NUMBER_OF_NODES_IN_LOCAL_FACE(localFaceIdx)
+                        localNodeIdx=basis%NODE_NUMBERS_IN_LOCAL_FACE(localFaceNodeIdx,localFaceIdx)
+                        IF(.NOT.basis%NODE_AT_COLLAPSE(localNodeIdx)) EXIT
+                      ENDDO
+                      position(xiDirection)=INT(basis%NODE_POSITION_INDEX(localNodeIdx,xiDirection)/ &
+                        & basis%NUMBER_OF_NODES_XIC(xiDirection),INTG)*(basis%numberOfGridPointsXi(xiDirection)-1)+1
+                      maxNumberOfGridPoints=PRODUCT(basis%numberOfGridPointsXi(faceXi)-2)
+                      DO localGridPointIdx1=1,maxNumberOfGridPoints
+                        tempNumberOfGridPoints=tempNumberOfGridPoints+1
+                        localGridpointIdx=basis%gridPoints%gridPointsPositionIndexInv(position(1),position(2),position(3))
+                        elements%elements(elementIdx)%globalElementGridPoints(localGridPointIdx)=tempNumberOfGridPoints
+                        position(faceXi(1))=position(faceXi(1))+1
+                        IF(position(faceXi(1))>basis%numberOfGridPointsXi(faceXi(1))-1) THEN
+                            position(faceXi(1))=2
+                            position(faceXi(2))=position(faceXi(2))+1
+                        ENDIF
+                      ENDDO !localGridPointIdx1
+                    ENDDO !surroundingElementIdx
+                    numberOfGridPoints=tempNumberOfGridPoints
+                  ENDDO !faceIdx
+                ELSE
+                  CALL FlagError("Mesh topology faces is not associated.",err,error,*999)
+                ENDIF
+
+                !3) Process all internal line element grid points
+                lines=>topology%lines
+                IF(ASSOCIATED(lines)) THEN
+                  DO lineIdx=1,lines%numberOfLines
+                    xiDirection=lines%lines(lineIdx)%xiDirection
+                    normalXi(1)=OTHER_XI_DIRECTIONS3(xiDirection,2,1)
+                    normalXi(2)=OTHER_XI_DIRECTIONS3(xiDirection,3,1)
+                    position(1:basis%NUMBER_OF_XI)=2
+                    DO surroundingElementIdx=1,lines%lines(lineIdx)%numberOfSurroundingElements
+                      tempNumberOfGridPoints=numberOfGridPoints
+                      elementIdx=lines%lines(lineIdx)%surroundingElements(surroundingElementIdx)
+                      basis=>elements%elements(elementIdx)%BASIS
+                      localLineIdx=lines%lines(lineIdx)%elementLines(surroundingElementIdx)
+                      DO localLineNodeIdx=1,basis%NUMBER_OF_NODES_IN_LOCAL_LINE(localLineIdx)
+                        localNodeIdx=basis%NODE_NUMBERS_IN_LOCAL_LINE(localLineNodeIdx,localLineIdx)
+                        IF(.NOT.basis%NODE_AT_COLLAPSE(localNodeIdx)) EXIT
+                      ENDDO
+                      position(normalXi)=INT(basis%NODE_POSITION_INDEX(localNodeIdx,normalXi)/ &
+                        & basis%NUMBER_OF_NODES_XIC(normalXi),INTG)*(basis%numberOfGridPointsXi(normalXi)-1)+1
+                      maxNumberOfGridPoints=basis%numberOfGridPointsXi(xiDirection)-2
+                      DO localGridPointIdx1=1,maxNumberOfGridPoints
+                        tempNumberOfGridPoints=tempNumberOfGridPoints+1
+                        localGridpointIdx=basis%gridPoints%gridPointsPositionIndexInv(position(1),position(2),position(3))
+                        elements%elements(elementIdx)%globalElementGridPoints(localGridPointIdx)=tempNumberOfGridPoints
+                        position(xiDirection)=position(xiDirection)+1
+                      ENDDO !localGridPointIdx1
+                    ENDDO !surroundingElementIdx
+                    numberOfGridPoints=tempNumberOfGridPoints
+                  ENDDO !lineIdx
+                ELSE
+                  CALL FlagError("Mesh topology lines is not associated.",err,error,*999)
+                ENDIF
+              CASE(2)
+                !3) Process all internal line element grid points
+                lines=>topology%lines
+                IF(ASSOCIATED(lines)) THEN
+                  DO lineIdx=1,lines%numberOfLines
+                    xiDirection=lines%lines(lineIdx)%xiDirection
+                    normalXi(1)=OTHER_XI_DIRECTIONS2(xiDirection)
+                    position(1:basis%NUMBER_OF_XI)=2
+                    DO surroundingElementIdx=1,lines%lines(lineIdx)%numberOfSurroundingElements
+                      tempNumberOfGridPoints=numberOfGridPoints
+                      elementIdx=lines%lines(lineIdx)%surroundingElements(surroundingElementIdx)
+                      basis=>elements%elements(elementIdx)%BASIS
+                      localLineIdx=lines%lines(lineIdx)%elementLines(surroundingElementIdx)
+                      DO localLineNodeIdx=1,basis%NUMBER_OF_NODES_IN_LOCAL_LINE(localLineIdx)
+                        localNodeIdx=basis%NODE_NUMBERS_IN_LOCAL_LINE(localLineNodeIdx,localLineIdx)
+                        IF(.NOT.basis%NODE_AT_COLLAPSE(localNodeIdx)) EXIT
+                      ENDDO
+                      position(normalXi(1))=INT(basis%NODE_POSITION_INDEX(localNodeIdx,normalXi(1))/ &
+                        & basis%NUMBER_OF_NODES_XIC(normalXi(1)),INTG)*(basis%numberOfGridPointsXi(normalXi(1))-1)+1
+                      maxNumberOfGridPoints=basis%numberOfGridPointsXi(xiDirection)-2
+                      DO localGridPointIdx1=1,maxNumberOfGridPoints
+                        tempNumberOfGridPoints=tempNumberOfGridPoints+1
+                        localGridpointIdx=basis%gridPoints%gridPointsPositionIndexInv(position(1),position(2),position(3))
+                        elements%elements(elementIdx)%globalElementGridPoints(localGridPointIdx)=tempNumberOfGridPoints
+                        position(xiDirection)=position(xiDirection)+1
+                      ENDDO !localGridPointIdx1
+                    ENDDO !surroundingElementIdx
+                    numberOfGridPoints=tempNumberOfGridPoints
+                  ENDDO !lineIdx
+                ELSE
+                  CALL FlagError("Mesh topology lines is not associated.",err,error,*999)
+                ENDIF
+              CASE(1)
+                !Line is already processed as element.
+              CASE DEFAULT
+                CALL FlagError("Invalid number of xi directions.",err,error,*999)
+              END SELECT
+
+              !4) Process all grid points coinciding with nodes
+              nodes=>topology%nodes
+              IF(ASSOCIATED(nodes)) THEN
+                DO nodeIdx=1,nodes%numberOfNodes
+                  numberOfGridPoints=numberOfGridPoints+1
+                  DO surroundingElementIdx=1,nodes%nodes(nodeIdx)%numberOfSurroundingElements
+                    elementIdx=nodes%nodes(nodeIdx)%surroundingElements(surroundingElementIdx)
+                    localNodeIdx=nodes%nodes(nodeIdx)%elementNodes(surroundingElementIdx)
+                    basis=>elements%elements(elementIdx)%basis
+                    position(1:basis%NUMBER_OF_XI)=INT(basis%NODE_POSITION_INDEX(localNodeIdx,1:basis%NUMBER_OF_XI)/ &
+                      & basis%NUMBER_OF_NODES_XIC(1:basis%NUMBER_OF_XI),INTG)* &
+                      & (basis%numberOfGridPointsXi(1:basis%NUMBER_OF_XI)-1)+1
+                    localGridpointIdx=basis%gridPoints%gridPointsPositionIndexInv(position(1),position(2),position(3))
+                    elements%elements(elementIdx)%globalElementGridPoints(localGridPointIdx)=numberOfGridPoints
+                  ENDDO !surroundingElementIdx
+                ENDDO
+              ELSE
+                CALL FlagError("Mesh topology nodes is not associated.",err,error,*999)
+              ENDIF
+              
+              !Set up the mesh grid points.
+              meshGridPoints%numberOfGridPoints=numberOfGridPoints
+              ALLOCATE(meshGridPoints%gridPoints(numberOfGridPoints),STAT=err)
+              IF(err/=0) CALL FlagError("Could not allocate mesh topology grid points grid points.",err,error,*999)
+              DO meshGridPointIdx=1,numberOfGridPoints
+                CALL MeshTopologygridPointInitialise(meshGridPoints%gridPoints(meshGridPointIdx),err,error,*999)
+                meshGridPoints%gridPoints(meshGridPointIdx)%globalNumber=meshGridPointIdx
+              ENDDO !meshGridPointIdx
+            ENDIF
+          ELSE
+            CALL FlagError("Mesh topology mesh is not associated.",err,error,*999)
+          ENDIF
+        ELSE
+          CALL FlagError("Mesh topology grid points is not associated.",err,error,*999)
+        ENDIF
+      ELSE
+        CALL FlagError("Mesh topology elements is not associated.",err,error,*999)
+      ENDIF
+    ELSE
+      CALL FlagError("Mesh topology is not associated.",err,error,*999)
+    ENDIF
+    
+    IF(DIAGNOSTICS1) THEN
+      CALL WriteStringValue(DIAGNOSTIC_OUTPUT_TYPE,"Number of mesh grid points = ",meshGridPoints%numberOfGridPoints,err,error,*999)
+      DO meshGridPointIdx=1,meshGridPoints%numberOfGridPoints
+        CALL WriteStringValue(DIAGNOSTIC_OUTPUT_TYPE,"  Mesh grid point index = ",meshGridPointIdx,err,error,*999)
+        CALL WriteStringValue(DIAGNOSTIC_OUTPUT_TYPE,"    Global grid point number = ", &
+          & meshGridPoints%gridPoints(meshGridPointIdx)%globalNumber,err,error,*999)        
+      ENDDO !meshGridPointIdx
+      CALL WriteStringValue(DIAGNOSTIC_OUTPUT_TYPE,"Number of elements = ",elements%NUMBER_OF_ELEMENTS,err,error,*999)
+      DO elementIdx=1,elements%NUMBER_OF_ELEMENTS
+        IF(ALLOCATED(elements%elements(elementIdx)%globalElementGridPoints)) THEN
+          CALL WriteStringValue(DIAGNOSTIC_OUTPUT_TYPE,"Number of element grid points = ", &
+            & elements%elements(elementIdx)%BASIS%gridPoints%numberOfGridPoints,err,error,*999)
+          DO localGridPointIdx=1,elements%elements(elementIdx)%BASIS%gridPoints%numberOfGridPoints
+            CALL WriteStringValue(DIAGNOSTIC_OUTPUT_TYPE,"  Local grid point index = ",localGridPointIdx,err,error,*999)
+            CALL WriteStringValue(DIAGNOSTIC_OUTPUT_TYPE,"    Global grid point number = ", &
+              & elements%elements(elementIdx)%globalElementGridPoints(localGridPointIdx),err,error,*999)
+          ENDDO   
+        ELSE
+          CALL FLAG_ERROR("Global element grid points are not associated.",ERR,ERROR,*999)
+        ENDIF
+      ENDDO
+    ENDIF
+    
+    CALL Exits("MeshTopologyGridPointsCalculate")
+    RETURN
+999 CALL Errors("MeshTopologyGridPointsCalculate",err,error)
+    CALL Exits("MeshTopologyGridPointsCalculate")
+    RETURN 1
+   
+  END SUBROUTINE MeshTopologyGridPointsCalculate
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Finalises the given mesh topology grid point. 
+  SUBROUTINE MeshTopologyGridPointFinalise(gridPoint,err,error,*)
+
+    !Argument variables
+    TYPE(MeshGridPointType) :: gridPoint !<The mesh grid point to finalise
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+    INTEGER(INTG) :: nic
+
+    CALL Enters("MeshTopologyGridPointFinalise",err,error,*999)
+
+    IF(ALLOCATED(gridPoint%adjacentGridPoints)) THEN
+      DO nic=LBOUND(gridPoint%adjacentGridPoints,1),UBOUND(gridPoint%adjacentGridPoints,1)
+        CALL MeshAdjacentGridPointFinalise(gridPoint%adjacentGridPoints(nic),ERR,ERROR,*999)
+      ENDDO !nic
+      DEALLOCATE(gridPoint%adjacentGridPoints)
+    ENDIF
+
+    CALL Exits("MeshTopologyGridPointFinalise")
+    RETURN
+999 CALL Errors("MeshTopologyGridPointFinalise",err,error)
+    CALL Exits("MeshTopologyGridPointFinalise")
+    RETURN 1
+    
+  END SUBROUTINE MeshTopologyGridPointFinalise
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Initialises the given mesh topology grid point.
+  SUBROUTINE MeshTopologyGridPointInitialise(gridPoint,err,error,*)
+
+    !Argument variables
+    TYPE(MeshGridPointType) :: gridPoint !<The mesh grid point to initialise
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+
+    CALL Enters("MeshTopologyGridPointInitialise",err,error,*999)
+
+    gridPoint%userNumber=0
+    gridPoint%globalNumber=0
+    !gridPoint%numberOfSurroundingElements=0
+    gridPoint%boundaryGridPoint=.FALSE.
+    
+    CALL EXITS("MeshTopologyGridPointInitialise")
+    RETURN
+999 CALL ERRORS("MeshTopologyGridPointInitialise",err,error)
+    CALL EXITS("MeshTopologyGridPointInitialise")
+    RETURN 1
+  END SUBROUTINE MeshTopologyGridPointInitialise
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Finalises the grid points data structures for a mesh topology and deallocates any memory.
+  SUBROUTINE MeshTopologyGridPointsFinalise(gridPoints,err,error,*)
+
+    !Argument variables
+    TYPE(MeshGridPointsType), POINTER :: gridPoints !<A pointer to the mesh topology grid points to finalise the gridPoints for
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+    INTEGER(INTG) :: gridPointIdx
+
+    CALL Enters("MeshTopologyGridPointsFinalise",err,error,*999)
+
+    IF(ASSOCIATED(gridPoints)) THEN
+      IF(ALLOCATED(gridPoints%gridPoints)) THEN
+        DO gridPointIdx=1,SIZE(gridPoints%gridPoints,1)
+          CALL MeshTopologyGridPointFinalise(gridPoints%gridPoints(gridPointIdx),err,error,*999)
+        ENDDO !gridPointsIdx
+        DEALLOCATE(gridPoints%gridPoints)
+      ENDIF
+      IF(ASSOCIATED(gridPoints%gridPointsTree)) CALL TREE_DESTROY(gridPoints%gridPointsTree,err,error,*999)
+      DEALLOCATE(gridPoints)
+    ENDIF
+ 
+    CALL Exits("MeshTopologyGridPointsFinalise")
+    RETURN
+999 CALL Errors("MeshTopologyGridPointsFinalise",err,error)
+    CALL Exits("MeshTopologyGridPointsFinalise")
+    RETURN 1
+    
+  END SUBROUTINE MeshTopologyGridPointsFinalise
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Destroys the grid points in a mesh topology.
+  SUBROUTINE MeshTopologyGridPointsDestroy(gridPoints,err,error,*)
+
+    !Argument variables
+    TYPE(MeshGridPointsType), POINTER :: gridPoints !<A pointer to the mesh grid points to destroy 
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+
+    CALL Enters("MeshTopologyGridPointsDestroy",err,error,*999)
+
+    IF(ASSOCIATED(gridPoints)) THEN
+      CALL MeshTopologyGridPointsFinalise(gridPoints,err,error,*999)
+    ELSE
+      CALL FlagError("Mesh topology grid points is not associated",err,error,*999)
+    ENDIF
+
+    CALL Exits("MeshTopologyGridPointsDestroy")
+    RETURN
+999 CALL Errors("MeshTopologyGridPointsDestroy",err,error)
+    CALL Exits("MeshTopologyGridPointsDestroy")
+    RETURN 1
+    
+  END SUBROUTINE MeshTopologyGridPointsDestroy
+  
+  !
+  !================================================================================================================================
+  !
+
+  !>Returns a pointer to the mesh grid points for a given mesh component.
+  SUBROUTINE MeshTopologyGridPointsGet(mesh,meshComponentNumber,gridPoints,err,error,*)
+
+    !Argument variables
+    TYPE(MESH_TYPE), POINTER :: mesh !<A pointer to the mesh to get the gridPoints for
+    INTEGER(INTG), INTENT(IN) :: meshComponentNumber !<The mesh component number to get the gridPoints for
+    TYPE(MeshGridPointsType), POINTER :: gridPoints !<On return, a pointer to the mesh gridPoints. Must not be associated on entry.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+    TYPE(VARYING_STRING) :: localError
+ 
+    CALL Enters("MeshTopologyGridPointsGet",err,error,*998)
+    
+    IF(ASSOCIATED(mesh)) THEN
+      IF(meshComponentNumber>0.AND.meshComponentNumber<=mesh%NUMBER_OF_COMPONENTS) THEN
+        IF(ASSOCIATED(gridPoints)) THEN
+          CALL FlagError("Grid points is already associated.",err,error,*998)
+        ELSE
+          IF(ASSOCIATED(mesh%topology(meshComponentNumber)%ptr)) THEN
+            IF(ASSOCIATED(mesh%topology(meshComponentNumber)%ptr%gridPoints)) THEN
+              gridPoints=>mesh%topology(meshComponentNumber)%ptr%gridPoints
+            ELSE
+              CALL FlagError("Mesh topology grid points is not associated.",err,error,*999)
+            ENDIF
+          ELSE
+            CALL FlagError("Mesh topology is not associated.",err,error,*999)
+          ENDIF
+        ENDIF
+      ELSE
+        localError="The specified mesh component number of "//TRIM(NumberToVString(meshComponentNumber,"*",err,error))// &
+          & " is invalid. The component number must be between 1 and "// &
+          & TRIM(NumberToVString(mesh%NUMBER_OF_COMPONENTS,"*",err,error))//"."
+        CALL FlagError(localError,err,error,*999)
+      ENDIF
+    ELSE
+      CALL FlagError("Mesh is not associated",err,error,*998)
+    ENDIF
+
+    CALL Exits("MeshTopologyGridPointsGet")
+    RETURN
+999 NULLIFY(gridPoints)
+998 CALL Errors("MeshTopologyGridPointsGet",err,error)
+    CALL Exits("MeshTopologyGridPointsGet")
+    RETURN 1
+    
+  END SUBROUTINE MeshTopologyGridPointsGet
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Initialises the grid points in a given mesh topology. \todo finalise on errors
+  SUBROUTINE MeshTopologyGridPointsInitialise(topology,err,error,*)
+
+    !Argument variables
+    TYPE(MeshComponentTopologyType), POINTER :: topology !<A pointer to the mesh topology to initialise the grid points for
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+
+    CALL ENTERS("MeshTopologyGridPointsInitialise",err,error,*999)
+
+    IF(ASSOCIATED(topology)) THEN
+      IF(ASSOCIATED(topology%gridPoints)) THEN
+        CALL FlagError("Mesh already has topology grid points associated.",err,error,*999)
+      ELSE
+        ALLOCATE(topology%gridPoints,STAT=err)
+        IF(err/=0) CALL FlagError("Could not allocate topology grid points.",err,error,*999)
+        topology%gridPoints%numberOfGridPoints=0
+        topology%gridPoints%meshComponentTopology=>topology
+        NULLIFY(topology%gridPoints%gridPointsTree)
+      ENDIF
+    ELSE
+      CALL FlagError("Topology is not associated.",err,error,*999)
+    ENDIF
+    
+    CALL EXITS("MeshTopologyGridPointsInitialise")
+    RETURN
+999 CALL ERRORS("MeshTopologyGridPointsInitialise",err,error)
+    CALL EXITS("MeshTopologyGridPointsInitialise")
+    RETURN 1
+  END SUBROUTINE MeshTopologyGridPointsInitialise
+
+  !
+  !================================================================================================================================
   !
 
   !>Finalises the nodes data structures for a mesh topology and deallocates any memory.
