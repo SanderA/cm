@@ -4125,7 +4125,7 @@ CONTAINS
     if(associated(basis)) then
       if(allocated(basis%gridPoints%gridPointsPositionIndex)) deallocate(basis%gridPoints%gridPointsPositionIndex)
       if(allocated(basis%gridPoints%gridPointsPositionIndexInv)) deallocate(basis%gridPoints%gridPointsPositionIndexInv)
-      if(allocated(basis%gridPoints%gridPointsPositions)) deallocate(basis%gridPoints%gridPointsPositions)
+!      if(allocated(basis%gridPoints%gridPointsPositions)) deallocate(basis%gridPoints%gridPointsPositions)
       if(allocated(basis%gridPoints%gridPointsBasisFunctions)) deallocate(basis%gridPoints%gridPointsBasisFunctions)
       nullify(basis%gridPoints%BASIS)
     else

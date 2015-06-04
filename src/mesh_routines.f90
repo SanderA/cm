@@ -179,7 +179,7 @@ MODULE MESH_ROUTINES
 
   PUBLIC MeshTopologyDataPointsCalculateProjection
 
-  PUBLIC MeshTopologyGridPointsCreateStart,MeshTopologyGridPointsCreateFinish 
+!  PUBLIC MeshTopologyGridPointsCreateStart,MeshTopologyGridPointsCreateFinish 
 
   PUBLIC MeshTopologyGridPointsDestroy
 
@@ -3890,6 +3890,8 @@ CONTAINS
           DO component_idx=1,DECOMPOSITION%MESH%NUMBER_OF_COMPONENTS
             IF(ALLOCATED(DECOMPOSITION%DOMAIN(component_idx)%PTR%NODE_DOMAIN))  &
               & DEALLOCATE(DECOMPOSITION%DOMAIN(component_idx)%PTR%NODE_DOMAIN)
+            IF(ALLOCATED(DECOMPOSITION%DOMAIN(component_idx)%PTR%gridPointDomain))  &
+              & DEALLOCATE(DECOMPOSITION%DOMAIN(component_idx)%PTR%gridPointDomain)
             CALL DOMAIN_MAPPINGS_FINALISE(DECOMPOSITION%DOMAIN(component_idx)%PTR,ERR,ERROR,*999)        
             CALL DOMAIN_TOPOLOGY_FINALISE(DECOMPOSITION%DOMAIN(component_idx)%PTR,ERR,ERROR,*999)
             DEALLOCATE(DECOMPOSITION%DOMAIN(component_idx)%PTR)
@@ -4272,6 +4274,7 @@ CONTAINS
       CALL DOMAIN_MAPPINGS_ELEMENTS_FINALISE(DOMAIN%MAPPINGS,ERR,ERROR,*999)
       CALL DOMAIN_MAPPINGS_NODES_FINALISE(DOMAIN%MAPPINGS,ERR,ERROR,*999)
       CALL DOMAIN_MAPPINGS_DOFS_FINALISE(DOMAIN%MAPPINGS,ERR,ERROR,*999)
+      CALL DomainMappingsGridPointsFinalise(DOMAIN%MAPPINGS%gridPoints,ERR,ERROR,*999)
       DEALLOCATE(DOMAIN%MAPPINGS)
     ELSE
       CALL FLAG_ERROR("Domain is not associated.",ERR,ERROR,*999)
@@ -4377,12 +4380,15 @@ CONTAINS
         NULLIFY(DOMAIN%MAPPINGS%ELEMENTS)
         NULLIFY(DOMAIN%MAPPINGS%NODES)
         NULLIFY(DOMAIN%MAPPINGS%DOFS)
+        NULLIFY(DOMAIN%MAPPINGS%gridPoints)
         !Calculate the node and element mappings
         CALL DOMAIN_MAPPINGS_ELEMENTS_INITIALISE(DOMAIN%MAPPINGS,ERR,ERROR,*999)
         CALL DOMAIN_MAPPINGS_NODES_INITIALISE(DOMAIN%MAPPINGS,ERR,ERROR,*999)
         CALL DOMAIN_MAPPINGS_DOFS_INITIALISE(DOMAIN%MAPPINGS,ERR,ERROR,*999)
+        CALL DomainMappingsGridPointsInitialise(DOMAIN%MAPPINGS,ERR,ERROR,*999)
         CALL DOMAIN_MAPPINGS_ELEMENTS_CALCULATE(DOMAIN,ERR,ERROR,*999)
         CALL DOMAIN_MAPPINGS_NODES_DOFS_CALCULATE(DOMAIN,ERR,ERROR,*999)
+        CALL DomainMappingsGridPointsCalculate(DOMAIN,ERR,ERROR,*999)
       ENDIF
     ELSE
       CALL FLAG_ERROR("Domain is not associated.",ERR,ERROR,*999)
@@ -4954,6 +4960,410 @@ CONTAINS
   !================================================================================================================================
   !
 
+  !>Calculates the local/global grid point mappings for a domain decomposition.
+  SUBROUTINE DomainMappingsGridPointsCalculate(domain,ERR,ERROR,*)
+
+    !Argument variables
+    TYPE(DOMAIN_TYPE), POINTER :: domain !<A pointer to the domain to calculate grid points for.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+    INTEGER(INTG) :: dummyErr,surroundingElementIdx,domainNumber,ghostGridPointIdx,elementIdx,gridPointIdx, &
+      & numberOfGridPointsPerDomain,domainIdx,domainIdx2,numberOfDomains, &
+      & maxNumberOfDomains,numberOfGhostGridPoints,myComputationalNodeNumber,numberOfComputationalNodes,componentIdx
+    INTEGER(INTG), ALLOCATABLE :: numberOfLocalGridPoints(:),gridPointCount(:),numberOfInternalGridPoints(:), &
+      & numberOfBoundaryGridPoints(:)
+    INTEGER(INTG), ALLOCATABLE :: domains(:),allDomains(:),ghostGridPoints(:)
+    LOGICAL :: boundaryDomain
+    TYPE(LIST_TYPE), POINTER :: adjacentDomainsList,allAdjacentDomainsList
+    TYPE(LIST_PTR_TYPE), ALLOCATABLE :: ghostGridPointsList(:)
+    TYPE(MESH_TYPE), POINTER :: MESH
+    TYPE(MeshComponentTopologyType), POINTER :: meshTopology
+    TYPE(DECOMPOSITION_TYPE), POINTER :: DECOMPOSITION
+    TYPE(DOMAIN_MAPPING_TYPE), POINTER :: elementsMapping
+    TYPE(DOMAIN_MAPPING_TYPE), POINTER :: gridPointsMapping
+    TYPE(VARYING_STRING) :: dummyError,localError
+
+    CALL ENTERS("DomainMappingsGridPointsCalculate",err,error,*999)
+
+    IF(ASSOCIATED(domain)) THEN
+      IF(ASSOCIATED(domain%MAPPINGS)) THEN
+        gridPointsMapping=>domain%MAPPINGS%gridPoints
+        IF(ASSOCIATED(gridPointsMapping)) THEN
+          elementsMapping=>domain%MAPPINGS%ELEMENTS
+          IF(ASSOCIATED(elementsMapping)) THEN
+            decomposition=>domain%DECOMPOSITION
+            IF(ASSOCIATED(decomposition)) THEN
+              mesh=>domain%MESH
+              IF(ASSOCIATED(mesh)) THEN
+                componentIdx=domain%MESH_COMPONENT_NUMBER
+                meshTopology=>mesh%TOPOLOGY(componentIdx)%PTR
+                
+                numberOfComputationalNodes=COMPUTATIONAL_NODES_NUMBER_GET(err,error)
+                IF(err/=0) GOTO 999
+                myComputationalNodeNumber=COMPUTATIONAL_NODE_NUMBER_GET(err,error)
+                IF(err/=0) GOTO 999
+                
+                !Calculate the local and global numbers and set up the mappings
+                ALLOCATE(gridPointsMapping%GLOBAL_TO_LOCAL_MAP(meshTopology%gridPoints%numberOfGridPoints),STAT=err)
+                IF(err/=0) CALL FLAG_ERROR("Could not allocate grid points mapping global to local map.",err,error,*999)
+                gridPointsMapping%NUMBER_OF_GLOBAL=meshTopology%gridPoints%numberOfGridPoints
+                ALLOCATE(numberOfLocalGridPoints(0:decomposition%NUMBER_OF_DOMAINS-1),STAT=err)
+                IF(err/=0) CALL FLAG_ERROR("Could not allocate number of local grid points.",err,error,*999)
+                numberOfLocalGridPoints=0
+                ALLOCATE(ghostGridPointsList(0:decomposition%NUMBER_OF_DOMAINS-1),STAT=err)
+                IF(err/=0) CALL FLAG_ERROR("Could not allocate ghost grid points list.",err,error,*999)
+                DO domainIdx=0,decomposition%NUMBER_OF_DOMAINS-1
+                  NULLIFY(ghostGridPointsList(domainIdx)%PTR)
+                  CALL LIST_CREATE_START(ghostGridPointsList(domainIdx)%PTR,err,error,*999)
+                  CALL LIST_DATA_TYPE_SET(ghostGridPointsList(domainIdx)%PTR,LIST_INTG_TYPE,err,error,*999)
+                  CALL LIST_INITIAL_SIZE_SET(ghostGridPointsList(domainIdx)%PTR,INT(meshTopology%gridPoints%numberOfGridPoints/2), &
+                    & err,error,*999)
+                  CALL LIST_CREATE_FINISH(ghostGridPointsList(domainIdx)%PTR,err,error,*999)
+                ENDDO !domainIdx
+                ALLOCATE(numberOfInternalGridPoints(0:decomposition%NUMBER_OF_DOMAINS-1),STAT=err)
+                IF(err/=0) CALL FLAG_ERROR("Could not allocate number of internal grid points.",err,error,*999)
+                numberOfInternalGridPoints=0
+                ALLOCATE(numberOfBoundaryGridPoints(0:decomposition%NUMBER_OF_DOMAINS-1),STAT=err)
+                IF(err/=0) CALL FLAG_ERROR("Could not allocate number of boundary grid points.",err,error,*999)
+                numberOfBoundaryGridPoints=0
+
+                !For the first pass just determine the internal and boundary grid points
+                DO gridPointIdx=1,meshTopology%gridPoints%numberOfGridPoints
+                  NULLIFY(adjacentDomainsList)
+                  CALL LIST_CREATE_START(adjacentDomainsList,err,error,*999)
+                  CALL LIST_DATA_TYPE_SET(adjacentDomainsList,LIST_INTG_TYPE,err,error,*999)
+                  CALL LIST_INITIAL_SIZE_SET(adjacentDomainsList,decomposition%NUMBER_OF_DOMAINS,err,error,*999)
+                  CALL LIST_CREATE_FINISH(adjacentDomainsList,err,error,*999)
+                  NULLIFY(allAdjacentDomainsList)
+                  CALL LIST_CREATE_START(allAdjacentDomainsList,err,error,*999)
+                  CALL LIST_DATA_TYPE_SET(allAdjacentDomainsList,LIST_INTG_TYPE,err,error,*999)
+                  CALL LIST_INITIAL_SIZE_SET(allAdjacentDomainsList,decomposition%NUMBER_OF_DOMAINS,err,error,*999)
+                  CALL LIST_CREATE_FINISH(allAdjacentDomainsList,err,error,*999)
+                  DO surroundingElementIdx=1,meshTopology%gridPoints%gridPoints(gridPointIdx)%numberOfSurroundingElements
+                    elementIdx=meshTopology%gridPoints%gridPoints(gridPointIdx)%surroundingElements(surroundingElementIdx)
+                    domainNumber=decomposition%ELEMENT_DOMAIN(elementIdx)
+                    CALL LIST_ITEM_ADD(adjacentDomainsList,domainNumber,err,error,*999)
+                    DO domainIdx=1,elementsMapping%GLOBAL_TO_LOCAL_MAP(elementIdx)%NUMBER_OF_DOMAINS
+                      CALL LIST_ITEM_ADD(allAdjacentDomainsList,elementsMapping%GLOBAL_TO_LOCAL_MAP(elementIdx)% &
+                        & DOMAIN_NUMBER(domainIdx),err,error,*999)
+                    ENDDO !domainIdx
+                  ENDDO !surroundingElementIdx
+                  CALL LIST_REMOVE_DUPLICATES(adjacentDomainsList,err,error,*999)
+                  CALL LIST_DETACH_AND_DESTROY(adjacentDomainsList,numberOfDomains,domains,err,error,*999)
+                  CALL LIST_REMOVE_DUPLICATES(allAdjacentDomainsList,err,error,*999)
+                  CALL LIST_DETACH_AND_DESTROY(allAdjacentDomainsList,maxNumberOfDomains,allDomains,err,error,*999)
+                  IF(numberOfDomains/=maxNumberOfDomains) THEN !Ghost node
+                    DO domainIdx=1,maxNumberOfDomains
+                      domainNumber=allDomains(domainIdx)
+                      boundaryDomain=.FALSE.
+                      DO domainIdx2=1,numberOfDomains
+                        IF(domainNumber==domains(domainIdx2)) THEN
+                          boundaryDomain=.TRUE.
+                          EXIT
+                        ENDIF
+                      ENDDO !domainIdx2
+                      IF(.NOT.boundaryDomain) CALL LIST_ITEM_ADD(ghostGridPointsList(domainNumber)%PTR,gridPointIdx, &
+                        & err,error,*999)
+                    ENDDO !domainIdx
+                  ENDIF
+                  ALLOCATE(gridPointsMapping%GLOBAL_TO_LOCAL_MAP(gridPointIdx)%LOCAL_NUMBER(maxNumberOfDomains),STAT=err)
+                  IF(err/=0) CALL FLAG_ERROR("Could not allocate grid point global to local map local number.",err,error,*999)
+                  ALLOCATE(gridPointsMapping%GLOBAL_TO_LOCAL_MAP(gridPointIdx)%DOMAIN_NUMBER(maxNumberOfDomains),STAT=err)
+                  IF(err/=0) CALL FLAG_ERROR("Could not allocate grid point global to local map domain number.",err,error,*999)
+                  ALLOCATE(gridPointsMapping%GLOBAL_TO_LOCAL_MAP(gridPointIdx)%LOCAL_TYPE(maxNumberOfDomains),STAT=err)
+                  IF(err/=0) CALL FLAG_ERROR("Could not allocate grid point global to local map local type.",err,error,*999)
+                  IF(numberOfDomains==1) THEN
+                    !Grid point is an internal grid point
+                    domainNumber=domains(1)
+                    numberOfInternalGridPoints(domainNumber)=numberOfInternalGridPoints(domainNumber)+1
+                    gridPointsMapping%GLOBAL_TO_LOCAL_MAP(gridPointIdx)%NUMBER_OF_DOMAINS=1
+                    gridPointsMapping%GLOBAL_TO_LOCAL_MAP(gridPointIdx)%LOCAL_NUMBER(1)=-1
+                    gridPointsMapping%GLOBAL_TO_LOCAL_MAP(gridPointIdx)%DOMAIN_NUMBER(1)=domains(1) 
+                    gridPointsMapping%GLOBAL_TO_LOCAL_MAP(gridPointIdx)%LOCAL_TYPE(1)=DOMAIN_LOCAL_INTERNAL
+                  ELSE
+                    !Grid point is on the boundary of computational domains
+                    gridPointsMapping%GLOBAL_TO_LOCAL_MAP(gridPointIdx)%NUMBER_OF_DOMAINS=numberOfDomains
+                    DO domainIdx=1,numberOfDomains
+                      domainNumber=domains(domainIdx)
+                      gridPointsMapping%GLOBAL_TO_LOCAL_MAP(gridPointIdx)%LOCAL_NUMBER(domainIdx)=-1
+                      gridPointsMapping%GLOBAL_TO_LOCAL_MAP(gridPointIdx)%DOMAIN_NUMBER(domainIdx)=domainNumber
+                      gridPointsMapping%GLOBAL_TO_LOCAL_MAP(gridPointIdx)%LOCAL_TYPE(domainIdx)=DOMAIN_LOCAL_BOUNDARY
+                    ENDDO !domainIdx
+                  ENDIF
+                  DEALLOCATE(domains) 
+                  DEALLOCATE(allDomains)
+                ENDDO !gridPointIdx
+
+                !For the second pass assign boundary grid points to one domain on the boundary and set local grid point numbers.
+                numberOfGridPointsPerDomain=FLOOR(REAL(meshTopology%gridPoints%numberOfGridPoints,DP)/ &
+                  & REAL(decomposition%NUMBER_OF_DOMAINS,DP))
+                ALLOCATE(domain%gridPointDomain(meshTopology%gridPoints%numberOfGridPoints),STAT=err)
+                IF(err/=0) CALL FLAG_ERROR("Could not allocate grid point domain",err,error,*999)
+                domain%gridPointDomain=-1
+                DO gridPointIdx=1,meshTopology%gridPoints%numberOfGridPoints
+                  IF(gridPointsMapping%GLOBAL_TO_LOCAL_MAP(gridPointIdx)%NUMBER_OF_DOMAINS==1) THEN !Internal node
+                    domainNumber=gridPointsMapping%GLOBAL_TO_LOCAL_MAP(gridPointIdx)%DOMAIN_NUMBER(1)
+                    domain%gridPointDomain(gridPointIdx)=domainNumber
+                    numberOfLocalGridPoints(domainNumber)=numberOfLocalGridPoints(domainNumber)+1
+                    gridPointsMapping%GLOBAL_TO_LOCAL_MAP(gridPointIdx)%LOCAL_NUMBER(1)=numberOfLocalGridPoints(domainNumber)
+                  ELSE !Boundary node
+                    numberOfDomains=gridPointsMapping%GLOBAL_TO_LOCAL_MAP(gridPointIdx)%NUMBER_OF_DOMAINS
+                    DO domainIdx=1,numberOfDomains
+                      domainNumber=gridPointsMapping%GLOBAL_TO_LOCAL_MAP(gridPointIdx)%DOMAIN_NUMBER(domainIdx)
+                      IF(domain%gridPointDomain(gridPointIdx)<0) THEN
+                        IF((numberOfInternalGridPoints(domainNumber)+numberOfBoundaryGridPoints(domainNumber)< &
+                          & numberOfGridPointsPerDomain).OR. &
+                          & (domainIdx==gridPointsMapping%GLOBAL_TO_LOCAL_MAP(gridPointIdx)%NUMBER_OF_DOMAINS)) THEN
+                          !Allocate the node to this domain
+                          domain%gridPointDomain(gridPointIdx)=domainNumber
+                          numberOfBoundaryGridPoints(domainNumber)=numberOfBoundaryGridPoints(domainNumber)+1
+                          numberOfLocalGridPoints(domainNumber)=numberOfLocalGridPoints(domainNumber)+1
+                          !Reset the boundary information to be in the first domain index. The remaining domain indices will
+                          !be overwritten when the ghost grid points are calculated below. 
+                          gridPointsMapping%GLOBAL_TO_LOCAL_MAP(gridPointIdx)%NUMBER_OF_DOMAINS=1
+                          gridPointsMapping%GLOBAL_TO_LOCAL_MAP(gridPointIdx)%LOCAL_NUMBER(1)= &
+                            & numberOfLocalGridPoints(domainNumber)
+                          gridPointsMapping%GLOBAL_TO_LOCAL_MAP(gridPointIdx)%DOMAIN_NUMBER(1)=domainNumber
+                          gridPointsMapping%GLOBAL_TO_LOCAL_MAP(gridPointIdx)%LOCAL_TYPE(1)=DOMAIN_LOCAL_BOUNDARY
+                        ELSE
+                          !The node has already been assigned to a domain so it must be a ghost node in this domain
+                          CALL LIST_ITEM_ADD(ghostGridPointsList(domainNumber)%PTR,gridPointIdx,err,error,*999)
+                        ENDIF
+                      ELSE
+                        !The node as already been assigned to a domain so it must be a ghost node in this domain
+                        CALL LIST_ITEM_ADD(ghostGridPointsList(domainNumber)%PTR,gridPointIdx,err,error,*999)
+                      ENDIF
+                    ENDDO !domainIdx
+                  ENDIF
+                ENDDO !gridPointIdx
+                DEALLOCATE(numberOfInternalGridPoints)
+                
+                !Calculate ghost node and dof mappings
+                DO domainIdx=0,decomposition%NUMBER_OF_DOMAINS-1
+                  CALL LIST_REMOVE_DUPLICATES(ghostGridPointsList(domainIdx)%PTR,err,error,*999)
+                  CALL LIST_DETACH_AND_DESTROY(ghostGridPointsList(domainIdx)%PTR,numberOfGhostGridPoints, &
+                    & ghostGridPoints,err,error,*999)
+                  DO ghostGridPointIdx=1,numberOfGhostGridPoints
+                    gridPointIdx=ghostGridPoints(ghostGridPointIdx)
+                    numberOfLocalGridPoints(domainIdx)=numberOfLocalGridPoints(domainIdx)+1
+                    gridPointsMapping%GLOBAL_TO_LOCAL_MAP(gridPointIdx)%NUMBER_OF_DOMAINS= &
+                      & gridPointsMapping%GLOBAL_TO_LOCAL_MAP(gridPointIdx)%NUMBER_OF_DOMAINS+1
+                    gridPointsMapping%GLOBAL_TO_LOCAL_MAP(gridPointIdx)%LOCAL_NUMBER( &
+                      & gridPointsMapping%GLOBAL_TO_LOCAL_MAP(gridPointIdx)%NUMBER_OF_DOMAINS)= &
+                      & numberOfLocalGridPoints(domainIdx)
+                    gridPointsMapping%GLOBAL_TO_LOCAL_MAP(gridPointIdx)%DOMAIN_NUMBER( &
+                      & gridPointsMapping%GLOBAL_TO_LOCAL_MAP(gridPointIdx)%NUMBER_OF_DOMAINS)=domainIdx
+                    gridPointsMapping%GLOBAL_TO_LOCAL_MAP(gridPointIdx)%LOCAL_TYPE( &
+                      & gridPointsMapping%GLOBAL_TO_LOCAL_MAP(gridPointIdx)%NUMBER_OF_DOMAINS)= &
+                      & DOMAIN_LOCAL_GHOST
+                  ENDDO !ghostGridPointIdx
+                  DEALLOCATE(ghostGridPoints)
+                ENDDO !domainIdx
+                
+                !Check decomposition and check that each domain has a grid point in it.
+                ALLOCATE(gridPointCount(0:decomposition%NUMBER_OF_DOMAINS-1),STAT=err)
+                IF(err/=0) CALL FLAG_ERROR("Could not allocate grid point count.",err,error,*999)
+                gridPointCount=0
+                DO gridPointIdx=1,meshTopology%gridPoints%numberOfGridPoints
+                  domainNumber=domain%gridPointDomain(gridPointIdx)
+                  IF(domainNumber>=0.AND.domainNumber<decomposition%NUMBER_OF_DOMAINS) THEN
+                    gridPointCount(domainNumber)=gridPointCount(domainNumber)+1
+                  ELSE
+                    localError="The domain number of "// &
+                      & TRIM(NUMBER_TO_VSTRING(domainNumber,"*",err,error))// &
+                      & " for global grid point number "//TRIM(NUMBER_TO_VSTRING(gridPointIdx,"*",err,error))// &
+                      & " is invalid. The domain number must be between 0 and "// &
+                      & TRIM(NUMBER_TO_VSTRING(decomposition%NUMBER_OF_DOMAINS-1,"*",err,error))//"."
+                    CALL FLAG_ERROR(localError,err,error,*999)
+                  ENDIF
+                ENDDO !gridPointIdx
+                DO domainNumber=0,decomposition%NUMBER_OF_DOMAINS-1
+                  IF(gridPointCount(domainNumber)==0) THEN
+                    localError="Invalid decomposition. There are no grid points in domain number "// &
+                      & TRIM(NUMBER_TO_VSTRING(domainNumber,"*",err,error))//"."
+                    CALL FLAG_ERROR(localError,err,error,*999)
+                  ENDIF
+                ENDDO !domainNumber
+                DEALLOCATE(gridPointCount)
+        
+                DEALLOCATE(ghostGridPointsList)
+                DEALLOCATE(numberOfLocalGridPoints)
+                
+                !Calculate grid points local to global maps from global to local map
+                CALL DOMAIN_MAPPINGS_LOCAL_FROM_GLOBAL_CALCULATE(gridPointsMapping,err,error,*999)
+              ELSE
+                CALL FLAG_ERROR("Domain mesh is not associated.",err,error,*999)
+              ENDIF
+            ELSE
+              CALL FLAG_ERROR("Domain decomposition is not associated.",err,error,*999)
+            ENDIF
+          ELSE
+            CALL FLAG_ERROR("Domain mappings elements is not associated.",err,error,*999)
+          ENDIF
+        ELSE
+          CALL FLAG_ERROR("Domain mappings grid points is not associated.",err,error,*999)
+        ENDIF
+      ELSE
+        CALL FLAG_ERROR("Domain mappings is not associated.",err,error,*999)
+      ENDIF
+    ELSE
+      CALL FLAG_ERROR("Domain is not associated.",err,error,*998)
+    ENDIF
+    
+    IF(DIAGNOSTICS1) THEN
+      CALL WRITE_STRING(DIAGNOSTIC_OUTPUT_TYPE,"Grid points decomposition :",err,error,*999)
+      DO gridPointIdx=1,meshTopology%gridPoints%numberOfGridPoints
+        CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"  Grid point = ",gridPointIdx,err,error,*999)
+        CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"    Domain = ",domain%gridPointDomain(gridPointIdx),err,error,*999)
+      ENDDO !gridPointIdx
+      CALL WRITE_STRING(DIAGNOSTIC_OUTPUT_TYPE,"Grid point mappings :",err,error,*999)
+      CALL WRITE_STRING(DIAGNOSTIC_OUTPUT_TYPE,"  Global to local map :",err,error,*999)
+      DO gridPointIdx=1,meshTopology%gridPoints%numberOfGridPoints
+        CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"    Global grid point = ",gridPointIdx,err,error,*999)
+        CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"      Number of domains  = ", &
+          & gridPointsMapping%GLOBAL_TO_LOCAL_MAP(gridPointIdx)%NUMBER_OF_DOMAINS,err,error,*999)
+        CALL WRITE_STRING_VECTOR(DIAGNOSTIC_OUTPUT_TYPE,1,1,gridPointsMapping%GLOBAL_TO_LOCAL_MAP(gridPointIdx)% &
+          & NUMBER_OF_DOMAINS,8,8,gridPointsMapping%GLOBAL_TO_LOCAL_MAP(gridPointIdx)%LOCAL_NUMBER, &
+          & '("      Local number :",8(X,I7))','(20X,8(X,I7))',err,error,*999)      
+        CALL WRITE_STRING_VECTOR(DIAGNOSTIC_OUTPUT_TYPE,1,1,gridPointsMapping%GLOBAL_TO_LOCAL_MAP(gridPointIdx)% &
+            & NUMBER_OF_DOMAINS,8,8,gridPointsMapping%GLOBAL_TO_LOCAL_MAP(gridPointIdx)%DOMAIN_NUMBER, &
+            & '("      Domain number:",8(X,I7))','(20X,8(X,I7))',err,error,*999)      
+        CALL WRITE_STRING_VECTOR(DIAGNOSTIC_OUTPUT_TYPE,1,1,gridPointsMapping%GLOBAL_TO_LOCAL_MAP(gridPointIdx)% &
+          & NUMBER_OF_DOMAINS,8,8,gridPointsMapping%GLOBAL_TO_LOCAL_MAP(gridPointIdx)%LOCAL_TYPE, &
+          & '("      Local type   :",8(X,I7))','(20X,8(X,I7))',err,error,*999)      
+      ENDDO !gridPointIdx     
+      CALL WRITE_STRING(DIAGNOSTIC_OUTPUT_TYPE,"  Local to global map :",err,error,*999)
+      DO gridPointIdx=1,gridPointsMapping%TOTAL_NUMBER_OF_LOCAL
+        CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"    Local grid point = ",gridPointIdx,err,error,*999)
+        CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"      Global grid point = ", &
+          & gridPointsMapping%LOCAL_TO_GLOBAL_MAP(gridPointIdx),err,error,*999)
+      ENDDO !gridPointIdx
+      IF(DIAGNOSTICS2) THEN
+        CALL WRITE_STRING(DIAGNOSTIC_OUTPUT_TYPE,"  Internal grid points :",err,error,*999)
+        CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"    Number of internal grid points = ", &
+          & gridPointsMapping%NUMBER_OF_INTERNAL,err,error,*999)
+        CALL WRITE_STRING_VECTOR(DIAGNOSTIC_OUTPUT_TYPE,1,1,gridPointsMapping%NUMBER_OF_INTERNAL,8,8, &
+          & gridPointsMapping%DOMAIN_LIST(gridPointsMapping%INTERNAL_START:gridPointsMapping%INTERNAL_FINISH), &
+          & '("    Internal grid points:",8(X,I7))','(19X,8(X,I7))',err,error,*999)
+        CALL WRITE_STRING(DIAGNOSTIC_OUTPUT_TYPE,"  Boundary grid points :",err,error,*999)
+        CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"    Number of boundary grid points = ", &
+          & gridPointsMapping%NUMBER_OF_BOUNDARY,err,error,*999)
+        CALL WRITE_STRING_VECTOR(DIAGNOSTIC_OUTPUT_TYPE,1,1,gridPointsMapping%NUMBER_OF_BOUNDARY,8,8, &
+          & gridPointsMapping%DOMAIN_LIST(gridPointsMapping%BOUNDARY_START:gridPointsMapping%BOUNDARY_FINISH), &
+          & '("    Boundary grid points:",8(X,I7))','(19X,8(X,I7))',err,error,*999)
+        CALL WRITE_STRING(DIAGNOSTIC_OUTPUT_TYPE,"  Ghost grid points :",err,error,*999)
+        CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"    Number of ghost grid points = ", &
+          & gridPointsMapping%NUMBER_OF_GHOST,err,error,*999)
+        CALL WRITE_STRING_VECTOR(DIAGNOSTIC_OUTPUT_TYPE,1,1,gridPointsMapping%NUMBER_OF_GHOST,8,8, &
+          & gridPointsMapping%DOMAIN_LIST(gridPointsMapping%GHOST_START:gridPointsMapping%GHOST_FINISH), &
+          & '("    Ghost grid points   :",8(X,I7))','(19X,8(X,I7))',err,error,*999)
+      ENDIF
+      CALL WRITE_STRING(DIAGNOSTIC_OUTPUT_TYPE,"  Adjacent domains :",err,error,*999)
+      CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"    Number of adjacent domains = ", &
+        & gridPointsMapping%NUMBER_OF_ADJACENT_DOMAINS,err,error,*999)
+      CALL WRITE_STRING_VECTOR(DIAGNOSTIC_OUTPUT_TYPE,1,1,gridPointsMapping%NUMBER_OF_DOMAINS+1,8,8, &
+        & gridPointsMapping%ADJACENT_DOMAINS_PTR,'("    Adjacent domains ptr  :",8(X,I7))','(27X,8(X,I7))',err,error,*999)
+      CALL WRITE_STRING_VECTOR(DIAGNOSTIC_OUTPUT_TYPE,1,1,gridPointsMapping%ADJACENT_DOMAINS_PTR( &
+        & gridPointsMapping%NUMBER_OF_DOMAINS)-1,8,8,gridPointsMapping%ADJACENT_DOMAINS_LIST, &
+        '("    Adjacent domains list :",8(X,I7))','(27X,8(X,I7))',err,error,*999)
+      DO domainIdx=1,gridPointsMapping%NUMBER_OF_ADJACENT_DOMAINS
+        CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"    Adjacent domain idx : ",domainIdx,err,error,*999)
+        CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"      Domain number = ", &
+          & gridPointsMapping%ADJACENT_DOMAINS(domainIdx)%DOMAIN_NUMBER,err,error,*999)
+        CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"      Number of send ghosts    = ", &
+          & gridPointsMapping%ADJACENT_DOMAINS(domainIdx)%NUMBER_OF_SEND_GHOSTS,err,error,*999)
+        CALL WRITE_STRING_VECTOR(DIAGNOSTIC_OUTPUT_TYPE,1,1,gridPointsMapping%ADJACENT_DOMAINS(domainIdx)% &
+          & NUMBER_OF_SEND_GHOSTS,6,6,gridPointsMapping%ADJACENT_DOMAINS(domainIdx)%LOCAL_GHOST_SEND_INDICES, &
+          & '("      Local send ghost indicies       :",6(X,I7))','(39X,6(X,I7))',err,error,*999)      
+        CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"      Number of recieve ghosts = ", &
+          & gridPointsMapping%ADJACENT_DOMAINS(domainIdx)%NUMBER_OF_RECEIVE_GHOSTS,err,error,*999)
+        CALL WRITE_STRING_VECTOR(DIAGNOSTIC_OUTPUT_TYPE,1,1,gridPointsMapping%ADJACENT_DOMAINS(domainIdx)% &
+          & NUMBER_OF_RECEIVE_GHOSTS,6,6,gridPointsMapping%ADJACENT_DOMAINS(domainIdx)%LOCAL_GHOST_RECEIVE_INDICES, &
+          & '("      Local receive ghost indicies    :",6(X,I7))','(39X,6(X,I7))',err,error,*999)              
+      ENDDO !domainIdx
+    ENDIF
+    
+    CALL EXITS("DomainMappingsGridPointsCalculate")
+    RETURN
+999 IF(ALLOCATED(domains)) DEALLOCATE(domains)
+    IF(ALLOCATED(allDomains)) DEALLOCATE(allDomains)
+    IF(ALLOCATED(ghostGridPoints)) DEALLOCATE(ghostGridPoints)
+    IF(ALLOCATED(numberOfInternalGridPoints)) DEALLOCATE(numberOfInternalGridPoints)
+    IF(ALLOCATED(numberOfBoundaryGridPoints)) DEALLOCATE(numberOfBoundaryGridPoints)
+    IF(ASSOCIATED(gridPointsMapping)) CALL DomainMappingsGridPointsFinalise(gridPointsMapping,dummyErr,dummyError,*998)
+998 CALL ERRORS("DomainMappingsGridPointsCalculate",err,error)
+    CALL EXITS("DomainMappingsGridPointsCalculate")
+    RETURN 1
+  END SUBROUTINE DomainMappingsGridPointsCalculate
+  
+  !
+  !================================================================================================================================
+  !
+
+  !>Finalises the node mapping in the given domain mappings. 
+  SUBROUTINE DomainMappingsGridPointsFinalise(gridPointsMapping,err,error,*)
+
+    !Argument variables
+    TYPE(DOMAIN_MAPPING_TYPE), POINTER :: gridPointsMapping !<A pointer to the grid points domain mapping to finalise
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+    
+    CALL ENTERS("DomainMappingsGridPointsFinalise",err,error,*999)
+
+    IF(ASSOCIATED(gridPointsMapping)) THEN
+      CALL DOMAIN_MAPPINGS_MAPPING_FINALISE(gridPointsMapping,err,error,*999)
+    ENDIF
+ 
+    CALL EXITS("DomainMappingsGridPointsFinalise")
+    RETURN
+999 CALL ERRORS("DomainMappingsGridPointsFinalise",err,error)
+    CALL EXITS("DomainMappingsGridPointsFinalise")
+    RETURN 1
+   
+  END SUBROUTINE DomainMappingsGridPointsFinalise
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Initialises the grid points mapping in the given domain mapping. \todo finalise on error
+  SUBROUTINE DomainMappingsGridPointsInitialise(domainMappings,err,error,*)
+
+    !Argument variables
+    TYPE(DOMAIN_MAPPINGS_TYPE), POINTER :: domainMappings !<A pointer to the domain mappings to initialise the grid points for
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code 
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+    
+    CALL ENTERS("DomainMappingsGridPointsInitialise",err,error,*999)
+
+    IF(ASSOCIATED(domainMappings)) THEN
+      IF(ASSOCIATED(domainMappings%gridPoints)) THEN
+        CALL FLAG_ERROR("Domain grid points mappings are already associated.",err,error,*999)
+      ELSE
+        ALLOCATE(domainMappings%gridPoints,STAT=err)
+        IF(err/=0) CALL FLAG_ERROR("Could not allocate domain mappings grid points.",err,error,*999)
+        CALL DOMAIN_MAPPINGS_MAPPING_INITIALISE(domainMappings%gridPoints, &
+          & domainMappings%DOMAIN%DECOMPOSITION%NUMBER_OF_DOMAINS,err,error,*999)
+      ENDIF
+    ELSE
+      CALL FLAG_ERROR("Domain mapping is not associated.",err,error,*999)
+    ENDIF
+ 
+    CALL EXITS("DomainMappingsGridPointsInitialise")
+    RETURN
+999 CALL ERRORS("DomainMappingsGridPointsInitialise",err,error)
+    CALL EXITS("DomainMappingsGridPointsInitialise")
+    RETURN 1
+   
+  END SUBROUTINE DomainMappingsGridPointsInitialise
+
+  !
+  !================================================================================================================================
+  !
+
   !>Calculates the domain topology.
   SUBROUTINE DOMAIN_TOPOLOGY_CALCULATE(TOPOLOGY,ERR,ERROR,*)
 
@@ -4987,6 +5397,7 @@ CONTAINS
       ENDDO !np
       !Calculate the elements surrounding the nodes in the domain topology
       CALL DOMAIN_TOPOLOGY_NODES_SURROUNDING_ELEMENTS_CALCULATE(TOPOLOGY,ERR,ERROR,*999)
+      CALL DomainTopologyGridPointsSurroundingElementsCalculate(TOPOLOGY,ERR,ERROR,*999)
     ELSE
       CALL FLAG_ERROR("Topology is not associated.",ERR,ERROR,*999)
     ENDIF
@@ -5011,7 +5422,7 @@ CONTAINS
     TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
     !Local Variables
     INTEGER(INTG) :: local_element,global_element,local_node,global_node,version_idx,derivative_idx,node_idx,dof_idx, &
-      & component_idx
+      & component_idx,globalGridPointIdx,localGridPointIdx,localElementGridPointIdx
     INTEGER(INTG) :: ne,nn,nkk,INSERT_STATUS
     LOGICAL :: FOUND
     TYPE(BASIS_TYPE), POINTER :: BASIS
@@ -5021,6 +5432,8 @@ CONTAINS
     TYPE(DOMAIN_NODES_TYPE), POINTER :: DOMAIN_NODES
     TYPE(MeshNodesType), POINTER :: MESH_NODES
     TYPE(DOMAIN_DOFS_TYPE), POINTER :: DOMAIN_DOFS
+    TYPE(MeshGridPointsType), POINTER :: meshGridPoints
+    TYPE(DomainGridPointsType), POINTER :: domainGridPoints
 
     CALL ENTERS("DOMAIN_TOPOLOGY_INITIALISE_FROM_MESH",ERR,ERROR,*999)
     
@@ -5036,6 +5449,8 @@ CONTAINS
               MESH_NODES=>MESH%TOPOLOGY(component_idx)%PTR%NODES
               DOMAIN_NODES=>DOMAIN%TOPOLOGY%NODES
               DOMAIN_DOFS=>DOMAIN%TOPOLOGY%DOFS
+              meshGridPoints=>MESH%TOPOLOGY(component_idx)%PTR%gridPoints
+              domainGridPoints=>DOMAIN%TOPOLOGY%gridPoints
               ALLOCATE(DOMAIN_ELEMENTS%ELEMENTS(DOMAIN%MAPPINGS%ELEMENTS%TOTAL_NUMBER_OF_LOCAL),STAT=ERR)
               IF(ERR/=0) CALL FLAG_ERROR("Could not allocate domain elements elements.",ERR,ERROR,*999)
               DOMAIN_ELEMENTS%NUMBER_OF_ELEMENTS=DOMAIN%MAPPINGS%ELEMENTS%NUMBER_OF_LOCAL
@@ -5051,6 +5466,11 @@ CONTAINS
               DOMAIN_DOFS%NUMBER_OF_DOFS=DOMAIN%MAPPINGS%DOFS%NUMBER_OF_LOCAL
               DOMAIN_DOFS%TOTAL_NUMBER_OF_DOFS=DOMAIN%MAPPINGS%DOFS%TOTAL_NUMBER_OF_LOCAL
               DOMAIN_DOFS%NUMBER_OF_GLOBAL_DOFS=DOMAIN%MAPPINGS%DOFS%NUMBER_OF_GLOBAL
+              ALLOCATE(domainGridPoints%gridPoints(DOMAIN%MAPPINGS%gridPoints%TOTAL_NUMBER_OF_LOCAL),STAT=ERR)
+              IF(ERR/=0) CALL FLAG_ERROR("Could not allocate domain grid points grid points.",ERR,ERROR,*999)
+              domainGridPoints%numberOfGridPoints=DOMAIN%MAPPINGS%gridPoints%NUMBER_OF_LOCAL
+              domainGridPoints%totalNumberOfGridPoints=DOMAIN%MAPPINGS%gridPoints%TOTAL_NUMBER_OF_LOCAL
+              domainGridPoints%numberOfGlobalGridPoints=DOMAIN%MAPPINGS%gridPoints%NUMBER_OF_GLOBAL
               !Loop over the domain nodes and calculate the parameters from the mesh nodes
               CALL TREE_CREATE_START(DOMAIN_NODES%NODES_TREE,ERR,ERROR,*999)
               CALL TREE_INSERT_TYPE_SET(DOMAIN_NODES%NODES_TREE,TREE_NO_DUPLICATES_ALLOWED,ERR,ERROR,*999)
@@ -5138,7 +5558,25 @@ CONTAINS
                     ENDIF
                   ENDDO !derivative_idx
                 ENDDO !nn
+                ALLOCATE(DOMAIN_ELEMENTS%ELEMENTS(local_element)%elementGridPoints(BASIS%gridPoints%numberOfGridPoints),STAT=ERR)
+                IF(ERR/=0) CALL FLAG_ERROR("Could not allocate domain elements element grid points.",ERR,ERROR,*999)
+                DO localElementGridPointIdx=1,basis%gridPoints%numberOfGridPoints
+                  globalGridPointIdx=MESH_ELEMENTS%ELEMENTS(global_element)%globalElementGridPoints(localElementGridPointIdx)
+                  localGridPointIdx=DOMAIN%MAPPINGS%gridPoints%GLOBAL_TO_LOCAL_MAP(globalGridPointIdx)%LOCAL_NUMBER(1)
+                  DOMAIN_ELEMENTS%ELEMENTS(local_element)%elementGridPoints(localElementGridPointIdx)=localGridPointIdx
+                ENDDO !localElementGridPointIdx
               ENDDO !local_element                       
+              !Loop over the domain nodes and calculate the parameters from the mesh nodes
+              DO localGridPointIdx=1,domainGridPoints%totalNumberOfGridPoints
+                CALL DomainTopologyGridPointInitialise(domainGridPoints%gridPoints(localGridPointIdx),ERR,ERROR,*999)
+                globalGridPointIdx=DOMAIN%MAPPINGS%gridPoints%LOCAL_TO_GLOBAL_MAP(localGridPointIdx)
+                domainGridPoints%gridPoints(localGridPointIdx)%localNumber=localGridPointIdx
+                domainGridPoints%gridPoints(localGridPointIdx)%globalNumber=meshGridPoints%gridPoints(globalGridPointIdx)% &
+                  & globalNumber
+                domainGridPoints%gridPoints(localGridPointIdx)%numberOfSurroundingElements=0
+                domainGridPoints%gridPoints(localGridPointIdx)%boundaryGridPoint=meshGridPoints%gridPoints(globalGridPointIdx)% &
+                  & boundaryGridPoint
+              ENDDO !localGridPointIdx
             ELSE
               CALL FLAG_ERROR("Mesh topology is not associated",ERR,ERROR,*999)
             ENDIF
@@ -5213,7 +5651,22 @@ CONTAINS
             & DOMAIN_ELEMENTS%ELEMENTS(ne)%elementVersions(:,nn), &
             & '("        Element versions    :",8(X,I2))','(29X,8(X,I2))',ERR,ERROR,*999)
         ENDDO !nn
+        CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"    Number of local grid points = ", &
+          & DOMAIN_ELEMENTS%ELEMENTS(ne)%BASIS%gridPoints%numberOfGridPoints,ERR,ERROR,*999)
+        CALL WRITE_STRING_VECTOR(DIAGNOSTIC_OUTPUT_TYPE,1,1,DOMAIN_ELEMENTS%ELEMENTS(ne)%BASIS%gridPoints%numberOfGridPoints, &
+          & 8,8,DOMAIN_ELEMENTS%ELEMENTS(ne)%elementGridPoints, &
+          & '("    Element grid points(localElementGridPointIdx) :",8(X,I9))','(23X,8(X,I9))',ERR,ERROR,*999)
       ENDDO !ne
+      CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"  Total number of domain grid points = ", &
+        & domainGridPoints%totalNumberOfGridPoints,ERR,ERROR,*999)
+      DO globalGridPointIdx=1,domainGridPoints%totalNumberOfGridPoints
+        CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"    Grid point number = ",domainGridPoints%gridPoints(globalGridPointIdx)% &
+          & localNumber,ERR,ERROR,*999)
+        CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"      Grid point global number = ", &
+          & domainGridPoints%gridPoints(globalGridPointIdx)%globalNumber,ERR,ERROR,*999)
+        CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"      Boundary grid point = ", &
+          & domainGridPoints%gridPoints(globalGridPointIdx)%boundaryGridPoint,ERR,ERROR,*999)
+     ENDDO !globalGridPointIdx
     ENDIF
     
     CALL EXITS("DOMAIN_TOPOLOGY_INITIALISE_FROM_MESH")
@@ -5442,6 +5895,7 @@ CONTAINS
       CALL DOMAIN_TOPOLOGY_ELEMENTS_FINALISE(DOMAIN%TOPOLOGY,ERR,ERROR,*999)
       CALL DOMAIN_TOPOLOGY_LINES_FINALISE(DOMAIN%TOPOLOGY,ERR,ERROR,*999)
       CALL DOMAIN_TOPOLOGY_FACES_FINALISE(DOMAIN%TOPOLOGY,ERR,ERROR,*999)
+      CALL DomainTopologyGridPointsFinalise(DOMAIN%TOPOLOGY%gridPoints,ERR,ERROR,*999)
       DEALLOCATE(DOMAIN%TOPOLOGY)
     ELSE
       CALL FLAG_ERROR("Domain is not associated",ERR,ERROR,*999)
@@ -5483,12 +5937,14 @@ CONTAINS
         NULLIFY(DOMAIN%TOPOLOGY%DOFS)
         NULLIFY(DOMAIN%TOPOLOGY%LINES)
         NULLIFY(DOMAIN%TOPOLOGY%FACES)
+        NULLIFY(DOMAIN%TOPOLOGY%gridPoints)
         !Initialise the topology components
         CALL DOMAIN_TOPOLOGY_ELEMENTS_INITIALISE(DOMAIN%TOPOLOGY,ERR,ERROR,*999)
         CALL DOMAIN_TOPOLOGY_NODES_INITIALISE(DOMAIN%TOPOLOGY,ERR,ERROR,*999)
         CALL DOMAIN_TOPOLOGY_DOFS_INITIALISE(DOMAIN%TOPOLOGY,ERR,ERROR,*999)
         CALL DOMAIN_TOPOLOGY_LINES_INITIALISE(DOMAIN%TOPOLOGY,ERR,ERROR,*999)
         CALL DOMAIN_TOPOLOGY_FACES_INITIALISE(DOMAIN%TOPOLOGY,ERR,ERROR,*999)
+        CALL DomainTopologyGridPointsInitialise(DOMAIN%TOPOLOGY,ERR,ERROR,*999)
         !Initialise the domain topology from the domain mappings and the mesh it came from
         CALL DOMAIN_TOPOLOGY_INITIALISE_FROM_MESH(DOMAIN,ERR,ERROR,*999)
         !Calculate the topological information.
@@ -6084,6 +6540,219 @@ CONTAINS
     CALL EXITS("DOMAIN_TOPOLOGY_NODES_SURROUNDING_ELEMENTS_CALCULATE")
     RETURN 1   
   END SUBROUTINE DOMAIN_TOPOLOGY_NODES_SURROUNDING_ELEMENTS_CALCULATE
+  
+  !
+  !================================================================================================================================
+  !
+
+  !>Finalises the given domain topology grid point and deallocates all memory.
+  SUBROUTINE DomainTopologyGridPointFinalise(gridPoint,err,error,*)
+
+    !Argument variables
+    TYPE(DomainGridPointType) :: gridPoint !<The domain grid point to finalise
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+
+    CALL ENTERS("DomainTopologyGridPointFinalise",err,error,*999)
+
+    IF(ALLOCATED(gridPoint%surroundingElements)) DEALLOCATE(gridPoint%surroundingElements)
+ 
+    CALL EXITS("DomainTopologyGridPointFinalise")
+    RETURN
+999 CALL ERRORS("DomainTopologyGridPointFinalise",err,error)
+    CALL EXITS("DomainTopologyGridPointFinalise")
+    RETURN 1
+   
+  END SUBROUTINE DomainTopologyGridPointFinalise
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Initialises the given domain topology grid point.
+  SUBROUTINE DomainTopologyGridPointInitialise(gridPoint,err,error,*)
+
+    !Argument variables
+    TYPE(DomainGridPointType) :: gridPoint !<The domain grid point to initialise
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+
+    CALL ENTERS("DomainTopologyGridPointInitialise",err,error,*999)
+
+    gridPoint%localNumber=0
+    gridPoint%globalNumber=0
+    gridPoint%numberOfSurroundingElements=0
+    gridPoint%boundaryGridPoint=.FALSE.
+    
+    CALL EXITS("DomainTopologyGridPointInitialise")
+    RETURN
+999 CALL ERRORS("DomainTopologyGridPointInitialise",err,error)
+    CALL EXITS("DomainTopologyGridPointInitialise")
+    RETURN 1
+   
+  END SUBROUTINE DomainTopologyGridPointInitialise
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Finalises the nodees in the given domain topology. 
+  SUBROUTINE DomainTopologyGridPointsFinalise(gridPoints,err,error,*)
+
+    !Argument variables
+    TYPE(DomainGridPointsType), POINTER :: gridPoints !<A pointer to the domain topology grid points to finalise
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+    INTEGER(INTG) :: gridPointIdx
+
+    CALL ENTERS("DomainTopologyGridPointsFinalise",err,error,*999)
+
+    IF(ASSOCIATED(gridPoints)) THEN
+      DO gridPointIdx=1,gridPoints%totalNumberOfGridPoints
+        CALL DomainTopologyGridPointFinalise(gridPoints%gridPoints(gridPointIdx),err,error,*999)
+      ENDDO !gridPointIdx
+      IF(ALLOCATED(gridPoints%gridPoints)) DEALLOCATE(gridPoints%gridPoints)
+      DEALLOCATE(gridPoints)
+    ELSE
+      CALL FLAG_ERROR("Domain topology grid points is not associated",err,error,*999)
+    ENDIF
+ 
+    CALL EXITS("DomainTopologyGridPointsFinalise")
+    RETURN
+999 CALL ERRORS("DomainTopologyGridPointsFinalise",err,error)
+    CALL EXITS("DomainTopologyGridPointsFinalise")
+    RETURN 1
+   
+  END SUBROUTINE DomainTopologyGridPointsFinalise
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Initialises the grid points data structures for a domain topology. \todo finalise on error
+  SUBROUTINE DomainTopologyGridPointsInitialise(topology,err,error,*)
+
+    !Argument variables
+    TYPE(DOMAIN_TOPOLOGY_TYPE), POINTER :: topology !<A pointer to the domain topology to initialise the grid points for
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+
+    CALL ENTERS("DomainTopologyGridPointsInitialise",err,error,*999)
+
+    IF(ASSOCIATED(topology)) THEN
+      IF(ASSOCIATED(topology%gridPoints)) THEN
+        CALL FLAG_ERROR("Decomposition already has topology grid points associated",err,error,*999)
+      ELSE
+        ALLOCATE(topology%gridPoints,STAT=err)
+        IF(err/=0) CALL FLAG_ERROR("Could not allocate topology grid points",err,error,*999)
+        topology%gridPoints%numberOfGridPoints=0
+        topology%gridPoints%totalNumberOfGridPoints=0
+        topology%gridPoints%numberOfGlobalGridPoints=0
+        topology%gridPoints%domain=>topology%DOMAIN
+      ENDIF
+    ELSE
+      CALL FLAG_ERROR("Topology is not associated",err,error,*999)
+    ENDIF
+    
+    CALL EXITS("DomainTopologyGridPointsInitialise")
+    RETURN
+999 CALL ERRORS("DomainTopologyGridPointsInitialise",err,error)
+    CALL EXITS("DomainTopologyGridPointsInitialise")
+    RETURN 1
+  END SUBROUTINE DomainTopologyGridPointsInitialise
+  
+  !
+  !================================================================================================================================
+  !
+
+  !>Calculates the element numbers surrounding a grid point for a domain.
+  SUBROUTINE DomainTopologyGridPointsSurroundingElementsCalculate(topology,err,error,*)
+
+    !Argument variables
+    TYPE(DOMAIN_TOPOLOGY_TYPE), POINTER :: topology !<A pointer to the domain topology to calculate the elements surrounding the grid points for
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+    INTEGER(INTG) :: surroundingElementIdx,insertPosition,elementIdx,gridPointIdx,localGridPointIdx,elementNumber
+    INTEGER(INTG), ALLOCATABLE :: newSurroundingElements(:)
+    LOGICAL :: foundElement
+    TYPE(BASIS_TYPE), POINTER :: basis
+    TYPE(DomainGridPointsType), POINTER :: gridPoints
+
+    CALL ENTERS("DomainTopologyGridPointsSurroundingElementsCalculate",err,error,*999)
+    
+    IF(ASSOCIATED(topology)) THEN
+      IF(ASSOCIATED(topology%ELEMENTS)) THEN
+        gridPoints=>topology%gridPoints
+        IF(ASSOCIATED(gridPoints)) THEN
+          IF(ALLOCATED(gridPoints%gridPoints)) THEN
+            DO gridPointIdx=1,gridPoints%totalNumberOfGridPoints
+              gridPoints%gridPoints(gridPointIdx)%numberOfSurroundingElements=0
+              IF(ALLOCATED(gridPoints%gridPoints(gridPointIdx)%surroundingElements)) &
+                & DEALLOCATE(gridPoints%gridPoints(gridPointIdx)%surroundingElements)
+            ENDDO !gridPointIdx
+            DO elementIdx=1,topology%ELEMENTS%TOTAL_NUMBER_OF_ELEMENTS
+              basis=>topology%ELEMENTS%ELEMENTS(elementIdx)%BASIS
+              DO localGridPointIdx=1,basis%gridPoints%numberOfGridPoints
+                gridPointIdx=topology%ELEMENTS%ELEMENTS(elementIdx)%elementGridPoints(localGridPointIdx)
+                foundElement=.FALSE.
+                surroundingElementIdx=1
+                insertPosition=1
+                DO WHILE(surroundingElementIdx<=gridPoints%gridPoints(gridPointIdx)%numberOfSurroundingElements &
+                  & .AND..NOT.foundElement)
+                  elementNumber=gridPoints%gridPoints(gridPointIdx)%surroundingElements(surroundingElementIdx)
+                  IF(elementNumber==elementIdx) THEN
+                    foundElement=.TRUE.
+                  ENDIF
+                  surroundingElementIdx=surroundingElementIdx+1
+                  IF(elementIdx>=elementNumber) THEN
+                    insertPosition=surroundingElementIdx
+                  ENDIF
+                ENDDO
+                IF(.NOT.foundElement) THEN
+                  !Insert element into surrounding elements
+                  ALLOCATE(newSurroundingElements(gridPoints%gridPoints(gridPointIdx)%numberOfSurroundingElements+1),STAT=err)
+                  IF(err/=0) CALL FLAG_ERROR("Could not allocate new surrounding elements",err,error,*999)
+                  IF(ALLOCATED(gridPoints%gridPoints(gridPointIdx)%surroundingElements)) THEN
+                    newSurroundingElements(1:insertPosition-1)=gridPoints%gridPoints(gridPointIdx)% &
+                      & surroundingElements(1:insertPosition-1)
+                    newSurroundingElements(insertPosition)=elementIdx
+                    newSurroundingElements(insertPosition+1:gridPoints%gridPoints(gridPointIdx)%numberOfSurroundingElements+1)= &
+                      & gridPoints%gridPoints(gridPointIdx)%surroundingElements(insertPosition:gridPoints% &
+                      & gridPoints(gridPointIdx)%numberOfSurroundingElements)
+                  ELSE
+                    newSurroundingElements(1)=elementIdx
+                  ENDIF
+                  CALL MOVE_ALLOC(newSurroundingElements,gridPoints%gridPoints(gridPointIdx)%surroundingElements)
+                  gridPoints%gridPoints(gridPointIdx)%numberOfSurroundingElements= &
+                    & gridPoints%gridPoints(gridPointIdx)%numberOfSurroundingElements+1
+                ENDIF
+              ENDDO !localGridPointIdx
+            ENDDO !elementIdx
+          ELSE
+            CALL FLAG_ERROR("Domain topology grid points grid points are not associated",err,error,*999)
+          ENDIF
+        ELSE
+          CALL FLAG_ERROR("Domain topology grid points are not associated",err,error,*999)
+        ENDIF
+      ELSE
+        CALL FLAG_ERROR("Domain topology elements is not associated",err,error,*999)
+      ENDIF
+    ELSE
+      CALL FLAG_ERROR("Domain topology is not associated",err,error,*999)
+    ENDIF
+
+    CALL EXITS("DomainTopologyGridPointsSurroundingElementsCalculate")
+    RETURN
+999 IF(ALLOCATED(newSurroundingElements)) DEALLOCATE(newSurroundingElements)
+    CALL ERRORS("DomainTopologyGridPointsSurroundingElementsCalculate",err,error)
+    CALL EXITS("DomainTopologyGridPointsSurroundingElementsCalculate")
+    RETURN 1   
+  END SUBROUTINE DomainTopologyGridPointsSurroundingElementsCalculate
   
   !
   !================================================================================================================================
@@ -7084,8 +7753,8 @@ CONTAINS
       IF(ASSOCIATED(mesh)) THEN
         !Calculate the nodes used in the mesh
         CALL MeshTopologyNodesCalculate(topology,err,error,*999)
-        !Calculate the elements surrounding the nodes (and grid points) in a mesh
-        CALL MeshTopologySurroundingElementsCalculate(topology,err,error,*999)
+        !Calculate the elements surrounding the nodes in a mesh
+        CALL MeshTopologyNodesSurroundingElementsCalculate(topology,err,error,*999)
         !Calculate the number of derivatives at each node in a mesh
         IF(mesh%calculateFaces) CALL MeshTopologyFacesCalculate(topology,err,error,*999)
         IF(mesh%calculateLines) CALL MeshTopologyLinesCalculate(topology,err,error,*999)
@@ -7096,12 +7765,14 @@ CONTAINS
         CALL MESH_TOPOLOGY_ELEMENTS_ADJACENT_ELEMENTS_CALCULATE(topology,err,error,*999)
         !Calculate the grid points used in the mesh
         CALL MeshTopologyGridPointsCalculate(topology,err,error,*999)
+        !Calculate the elements surrounding the grid points in a mesh
+        CALL MeshTopologyGridPointsSurroundingElementsCalculate(topology,err,error,*999)
         !Calculate the grid points surrounding the grid points in a mesh
 !        CALL MeshTopologyAdjacentGridPointsCalculate(topology,err,error,*999)
         !Calculate the boundary nodes and elements (and grid points) in the mesh
         CALL MeshTopologyBoundaryCalculate(topology,err,error,*999)
         !Calculate the degrees of freedom in the mesh
-      CALL MeshTopologyDofsCalculate(topology,err,error,*999)
+        CALL MeshTopologyDofsCalculate(topology,err,error,*999)
       ELSE
         CALL FLAG_ERROR("Topology mesh is not associated",err,error,*999)
       ENDIF
@@ -7129,19 +7800,20 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
     !Local Variables
-    INTEGER(INTG) :: elementIdx,localNodeIdx,matchIndex,nodeIdx,xiCoordIdx,xiDirection
+    INTEGER(INTG) :: elementIdx,localNodeIdx,matchIndex,localGridPointIdx,gridPointIdx,nodeIdx,xiCoordIdx,xiDirection
     TYPE(BASIS_TYPE), POINTER :: basis
     TYPE(MeshElementsType), POINTER :: elements
     TYPE(MeshNodesType), POINTER :: nodes
+    TYPE(MeshGridPointsType), POINTER :: gridPoints
     TYPE(VARYING_STRING) :: localError
     
     CALL Enters("MeshTopologyBoundaryCalculate",err,error,*999)
 
     IF(ASSOCIATED(topology)) THEN
-      nodes=>topology%nodes
-      IF(ASSOCIATED(nodes)) THEN
-        elements=>topology%elements
-        IF(ASSOCIATED(elements)) THEN
+      elements=>topology%elements
+      IF(ASSOCIATED(elements)) THEN
+        nodes=>topology%nodes
+        IF(ASSOCIATED(nodes)) THEN
           DO elementIdx=1,elements%NUMBER_OF_ELEMENTS
             basis=>elements%elements(elementIdx)%basis
             SELECT CASE(basis%type)
@@ -7158,7 +7830,7 @@ CONTAINS
                       matchIndex=BASIS%NUMBER_OF_NODES_XIC(xiCoordIdx)
                     ENDIF                    
                     DO localNodeIdx=1,BASIS%NUMBER_OF_NODES
-                      IF(basis%NODE_POSITION_INDEX(localNodeIdx,XIDIRECTION)==matchIndex) THEN
+                      IF(basis%NODE_POSITION_INDEX(localNodeIdx,xiDirection)==matchIndex) THEN
                         nodeIdx=elements%elements(elementIdx)%MESH_ELEMENT_NODES(localNodeIdx)
                         nodes%nodes(nodeIdx)%boundaryNode=.TRUE.
                       ENDIF
@@ -7196,10 +7868,55 @@ CONTAINS
             END SELECT
           ENDDO !elementIdx
         ELSE
-          CALL FlagError("Topology elements is not associated.",err,error,*999)
+          CALL FlagError("Topology nodes is not associated.",err,error,*999)
+        ENDIF
+        gridPoints=>topology%gridPoints
+        IF(ASSOCIATED(gridPoints)) THEN
+          DO elementIdx=1,elements%NUMBER_OF_ELEMENTS
+            basis=>elements%elements(elementIdx)%basis
+            SELECT CASE(basis%type)
+            CASE(BASIS_LAGRANGE_HERMITE_TP_TYPE)
+              DO xiCoordIdx=-basis%NUMBER_OF_XI_COORDINATES,basis%NUMBER_OF_XI_COORDINATES
+                IF(xiCoordIdx/=0) THEN
+                  IF(elements%elements(elementIdx)%BOUNDARY_ELEMENT) THEN
+                    IF(xiCoordIdx<0) THEN
+                      xiDirection=-xiCoordIdx
+                      matchIndex=1
+                    ELSE
+                      xiDirection=xiCoordIdx
+                      matchIndex=basis%numberOfGridPointsXi(xiCoordIdx)
+                    ENDIF                    
+                    DO localGridPointIdx=1,basis%gridPoints%numberOfGridPoints
+                      IF(basis%gridPoints%gridPointsPositionIndex(localGridPointIdx,xiDirection)==matchIndex) THEN
+                        gridPointIdx=elements%elements(elementIdx)%globalElementGridPoints(localGridPointIdx)
+                        gridPoints%gridPoints(gridPointIdx)%boundaryGridPoint=.TRUE.
+                      ENDIF
+                    ENDDO !localGridPointIdx
+                  ENDIF
+                ENDIF
+              ENDDO !xiCoordIdx            
+            CASE(BASIS_SIMPLEX_TYPE)
+              CALL FlagError("Not implemented.",err,error,*999)
+            CASE(BASIS_SERENDIPITY_TYPE)
+              CALL FlagError("Not implemented.",err,error,*999)
+            CASE(BASIS_AUXILLIARY_TYPE)
+              CALL FlagError("Not implemented.",err,error,*999)
+            CASE(BASIS_B_SPLINE_TP_TYPE)
+              CALL FlagError("Not implemented.",err,error,*999)
+            CASE(BASIS_FOURIER_LAGRANGE_HERMITE_TP_TYPE)
+              CALL FlagError("Not implemented.",err,error,*999)
+            CASE(BASIS_EXTENDED_LAGRANGE_TP_TYPE)
+              CALL FlagError("Not implemented.",err,error,*999)
+            CASE DEFAULT
+              localError="The basis type of "//TRIM(NumberToVString(basis%TYPE,"*",err,error))//" is invalid."
+              CALL FlagError(localError,err,error,*999)
+            END SELECT
+          ENDDO !elementIdx
+        ELSE
+          CALL FlagError("Topology grid points is not associated.",err,error,*999)
         ENDIF
       ELSE
-        CALL FlagError("Topology nodes is not associated.",err,error,*999)
+        CALL FlagError("Topology elements is not associated.",err,error,*999)
       ENDIF
     ELSE
       CALL FlagError("Topology is not associated.",err,error,*999)
@@ -7218,6 +7935,13 @@ CONTAINS
       DO nodeIdx=1,nodes%numberOfNodes
         CALL WriteStringValue(DIAGNOSTIC_OUTPUT_TYPE,"Node : ",nodeIdx,err,error,*999)
         CALL WriteStringValue(DIAGNOSTIC_OUTPUT_TYPE,"  Boundary node = ",nodes%nodes(nodeIdx)%boundaryNode,err,error,*999)        
+      ENDDO !elementIdx            
+      CALL WriteString(DIAGNOSTIC_OUTPUT_TYPE,"Boundary grid points:",err,error,*999)
+      CALL WriteStringValue(DIAGNOSTIC_OUTPUT_TYPE,"Number of grid points = ",gridPoints%numberOfGridPoints,err,error,*999)
+      DO gridPointIdx=1,gridPoints%numberOfGridPoints
+        CALL WriteStringValue(DIAGNOSTIC_OUTPUT_TYPE,"Grid point : ",gridPointIdx,err,error,*999)
+        CALL WriteStringValue(DIAGNOSTIC_OUTPUT_TYPE,"  Boundary grid point = ", &
+          & gridPoints%gridPoints(gridPointIdx)%boundaryGridPoint,err,error,*999)        
       ENDDO !elementIdx            
     ENDIF
  
@@ -7484,11 +8208,8 @@ CONTAINS
                     IF(ERR/=0) CALL FLAG_ERROR("Could not allocate global element nodes versions",ERR,ERROR,*999)
                     ELEMENTS%ELEMENTS(ne)%USER_ELEMENT_NODE_VERSIONS = 1
                     IF(BASIS%hasGridPoints) THEN
-                      ALLOCATE(ELEMENTS%ELEMENTS(ne)%userElementGridPoints(BASIS%gridPoints%numberOfGridPoints),STAT=ERR)
-                      IF(ERR/=0) CALL FLAG_ERROR("Could not allocate user element grid points",ERR,ERROR,*999)
                       ALLOCATE(ELEMENTS%ELEMENTS(ne)%globalElementGridPoints(BASIS%gridPoints%numberOfGridPoints),STAT=ERR)
                       IF(ERR/=0) CALL FLAG_ERROR("Could not allocate global element grid points",ERR,ERROR,*999)
-                      ELEMENTS%ELEMENTS(ne)%userElementGridPoints=1
                       ELEMENTS%ELEMENTS(ne)%globalElementGridPoints=1
                     ENDIF
                   ENDDO !ne
@@ -7571,7 +8292,6 @@ CONTAINS
     IF(ALLOCATED(ELEMENT%USER_ELEMENT_NODES)) DEALLOCATE(ELEMENT%USER_ELEMENT_NODES)
     IF(ALLOCATED(ELEMENT%GLOBAL_ELEMENT_NODES)) DEALLOCATE(ELEMENT%GLOBAL_ELEMENT_NODES)
     IF(ALLOCATED(ELEMENT%MESH_ELEMENT_NODES)) DEALLOCATE(ELEMENT%MESH_ELEMENT_NODES)
-    IF(ALLOCATED(ELEMENT%userElementGridPoints)) DEALLOCATE(ELEMENT%userElementGridPoints)
     IF(ALLOCATED(ELEMENT%globalElementGridPoints)) DEALLOCATE(ELEMENT%globalElementGridPoints)
     IF(ALLOCATED(ELEMENT%elementFaces)) DEALLOCATE(ELEMENT%elementFaces)
     IF(ALLOCATED(ELEMENT%elementLines)) DEALLOCATE(ELEMENT%elementLines)
@@ -9197,7 +9917,7 @@ CONTAINS
       ENDDO !derivativeIdx
       DEALLOCATE(node%derivatives)
     ENDIF
-    IF(ASSOCIATED(node%surroundingElements)) DEALLOCATE(node%surroundingElements)
+    IF(ALLOCATED(node%surroundingElements)) DEALLOCATE(node%surroundingElements)
     IF(ALLOCATED(node%elementNodes)) DEALLOCATE(node%elementNodes)
     IF(ALLOCATED(node%surroundingFaces)) DEALLOCATE(node%surroundingFaces)
     IF(ALLOCATED(node%surroundingLines)) DEALLOCATE(node%surroundingLines)
@@ -9230,7 +9950,6 @@ CONTAINS
     node%numberOfSurroundingElements=0
     node%numberOfSurroundingFaces=0
     node%numberOfSurroundingLines=0
-    NULLIFY(node%surroundingElements)
     node%numberOfDerivatives=0
     node%boundaryNode=.FALSE.
     
@@ -9954,7 +10673,7 @@ CONTAINS
   !
 
   !>Calculates the element numbers surrounding a node for a mesh.
-  SUBROUTINE MeshTopologySurroundingElementsCalculate(topology,err,error,*)
+  SUBROUTINE MeshTopologyNodesSurroundingElementsCalculate(topology,err,error,*)
 
     !Argument variables
     TYPE(MeshComponentTopologyType), POINTER :: topology !<A pointer to the mesh topology to calculate the elements surrounding each node for
@@ -9962,16 +10681,13 @@ CONTAINS
     TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
     !Local Variables
     INTEGER(INTG) :: element,elementIdx,insertPosition,localNodeIdx,node,surroundingElementNumber
-    INTEGER(INTG), POINTER :: newSurroundingElements(:)
-    INTEGER(INTG), ALLOCATABLE :: newElementNodes(:)
+    INTEGER(INTG), ALLOCATABLE :: newSurroundingElements(:),newElementNodes(:)
     LOGICAL :: foundElement
     TYPE(BASIS_TYPE), POINTER :: basis
     TYPE(MeshElementsType), POINTER :: elements
     TYPE(MeshNodesType), POINTER :: nodes
 
-    NULLIFY(newSurroundingElements)
-
-    CALL ENTERS("MeshTopologySurroundingElementsCalculate",err,error,*999)
+    CALL ENTERS("MeshTopologyNodesSurroundingElementsCalculate",err,error,*999)
     
     IF(ASSOCIATED(topology)) THEN
       elements=>topology%elements      
@@ -10000,16 +10716,15 @@ CONTAINS
                   !Insert element into surrounding elements
                   ALLOCATE(newSurroundingElements(nodes%nodes(node)%numberOfSurroundingElements+1),STAT=err)
                   IF(err/=0) CALL FlagError("Could not allocate new surrounding elements.",err,error,*999)
-                  IF(ASSOCIATED(nodes%nodes(node)%surroundingElements)) THEN
+                  IF(ALLOCATED(nodes%nodes(node)%surroundingElements)) THEN
                     newSurroundingElements(1:insertPosition-1)=nodes%nodes(node)%surroundingElements(1:insertPosition-1)
                     newSurroundingElements(insertPosition)=elementIdx
                     newSurroundingElements(insertPosition+1:nodes%nodes(node)%numberOfSurroundingElements+1)= &
                       & nodes%nodes(node)%surroundingElements(insertPosition:nodes%nodes(node)%numberOfSurroundingElements)
-                    DEALLOCATE(nodes%nodes(node)%surroundingElements)
                   ELSE
                     newSurroundingElements(1)=elementIdx
                   ENDIF
-                  nodes%nodes(node)%surroundingElements=>newSurroundingElements
+                  CALL MOVE_ALLOC(newSurroundingElements,nodes%nodes(node)%surroundingElements)
                   nodes%nodes(node)%numberOfSurroundingElements=nodes%nodes(node)%numberOfSurroundingElements+1
                   ALLOCATE(newElementNodes(nodes%nodes(node)%numberOfSurroundingElements+1),STAT=err)
                   IF(err/=0) CALL FlagError("Could not allocate new element nodes.",err,error,*999)
@@ -10038,13 +10753,13 @@ CONTAINS
       CALL FlagError("Mesh topology not associated.",err,error,*999)
     ENDIF
 
-    CALL EXITS("MeshTopologySurroundingElementsCalculate")
+    CALL EXITS("MeshTopologyNodesSurroundingElementsCalculate")
     RETURN
-999 IF(ASSOCIATED(newSurroundingElements)) DEALLOCATE(newSurroundingElements)
-    CALL ERRORS("MeshTopologySurroundingElementsCalculate",err,error)
-    CALL EXITS("MeshTopologySurroundingElementsCalculate")
+999 IF(ALLOCATED(newSurroundingElements)) DEALLOCATE(newSurroundingElements)
+    CALL ERRORS("MeshTopologyNodesSurroundingElementsCalculate",err,error)
+    CALL EXITS("MeshTopologyNodesSurroundingElementsCalculate")
     RETURN 1   
-  END SUBROUTINE MeshTopologySurroundingElementsCalculate
+  END SUBROUTINE MeshTopologyNodesSurroundingElementsCalculate
   
   !
   !================================================================================================================================
@@ -10805,150 +11520,150 @@ CONTAINS
     RETURN 1
   END SUBROUTINE MeshTopologyLinesInitialise
 
-  !
-  !================================================================================================================================
-  !
-
-  !>Finishes the process of creating grid points for a specified mesh component in a mesh topology. \see OPENCMISS::CMISSMeshGridPointsCreateFinish
-  SUBROUTINE MeshTopologyGridPointsCreateFinish(MeshGridPoints,err,error,*)
-
-    !Argument variables
-    TYPE(MeshGridPointsType), POINTER :: meshGridPoints !<A pointer to the mesh grid points to finish creating
-    INTEGER(INTG), INTENT(OUT) :: err !<The error code
-    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
-    !Local Variables
-    INTEGER(INTG) :: meshGridPointIdx
-
-    CALL ENTERS("MeshTopologyGridPointsCreateFinish",ERR,ERROR,*999)
-
-    IF(ASSOCIATED(meshGridPoints)) THEN
-      IF(meshGridPoints%gridPointsFinished) THEN
-        CALL FLAG_ERROR("Mesh grid points have already been finished.",ERR,ERROR,*999)
-      ELSE        
-        meshGridPoints%gridPointsFinished=.TRUE.
-      ENDIF
-    ELSE
-      CALL FLAG_ERROR("Mesh grid points is not associated.",ERR,ERROR,*999)
-    ENDIF
-    
-    IF(DIAGNOSTICS1) THEN
-      CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"Number of global mesh grid points = ", &
-        & meshGridPoints%numberOfGridPoints,err,error,*999)
-      DO meshGridPointIdx=1,meshGridPoints%numberOfGridPoints
-        CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"  meshGridPointIdx = ",meshGridPointIdx,err,error,*999)
-        CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"    Global number        = ", &
-          & meshGridPoints%gridPoints(meshGridPointIdx)%globalNumber,err,error,*999)
-        CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"    User number          = ", &
-          & meshGridPoints%gridPoints(meshGridPointIdx)%globalNumber,err,error,*999)
-      ENDDO !ne
-    ENDIF
-    
-    CALL EXITS("MeshTopologyGridPointsCreateFinish")
-    RETURN
-999 CALL ERRORS("MeshTopologyGridPointsCreateFinish",ERR,ERROR)
-    CALL EXITS("MeshTopologyGridPointsCreateFinish")
-    RETURN 1
-   
-  END SUBROUTINE MeshTopologyGridPointsCreateFinish
-    
-  !
-  !================================================================================================================================
-  !
-
-  !>Starts the process of creating grid points in the mesh component identified by MESH and component_idx. MeshGridPoints is the returned pointer to the MeshGridPoints data structure. \see OPENCMISS::CMISSMeshGridPointsCreateStart
-  SUBROUTINE MeshTopologyGridPointsCreateStart(mesh,meshComponentNumber,meshGridPoints,err,error,*)
-
-    !Argument variables
-    TYPE(MESH_TYPE), POINTER :: mesh !<A pointer to the mesh to start creating the grid points on
-    INTEGER(INTG), INTENT(IN) :: meshComponentNumber !<The mesh component number
-    TYPE(MeshGridPointsType), POINTER :: meshGridPoints !<On return, a pointer to the created mesh grid points
-    INTEGER(INTG), INTENT(OUT) :: err !<The error code
-    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
-    !Local Variables
-    INTEGER(INTG) :: dummyErr,insertStatus,elementIdx,globalGridPoint,localGridPointIdx,meshGridPointIdx,numberOfGridPoints
-    INTEGER(INTG), POINTER :: globalGridPointNumbers(:)
-    TYPE(BASIS_TYPE), POINTER :: basis
-    TYPE(MeshElementsType), POINTER :: elements
-    TYPE(MeshGridPointsType), POINTER :: gridPoints 
-    TYPE(VARYING_STRING) :: dummyError,localError
- 
-    CALL ENTERS("MeshTopologyGridPointsCreateStart",err,error,*999)
-    
-    NULLIFY(globalGridPointNumbers)
-
-    IF(ASSOCIATED(mesh)) THEN     
-      IF(meshComponentNumber>0.AND.meshComponentNumber<=mesh%NUMBER_OF_COMPONENTS) THEN
-        IF(ASSOCIATED(gridPoints)) THEN
-          CALL FLAG_ERROR("Mesh grid points is already associated.",err,error,*999)
-        ELSE
-          IF(ASSOCIATED(mesh%TOPOLOGY(meshComponentNumber)%PTR)) THEN
-            IF(ASSOCIATED(mesh%TOPOLOGY(meshComponentNumber)%PTR%gridPoints)) THEN
-              gridPoints=>mesh%TOPOLOGY(meshComponentNumber)%PTR%gridPoints
-              IF(ALLOCATED(gridPoints%gridPoints)) THEN
-                CALL FLAG_ERROR("Mesh topology already has elements associated",err,error,*998)
-              ELSE
-                elements=>mesh%TOPOLOGY(meshComponentNumber)%PTR%elements
-                IF(ASSOCIATED(elements)) THEN
-                  IF(elements%ELEMENTS_FINISHED) THEN
-                    CALL TREE_CREATE_START(meshGridPoints%gridPointsTree,err,error,*999)
-                    CALL TREE_INSERT_TYPE_SET(meshGridPoints%gridPointsTree,TREE_NO_DUPLICATES_ALLOWED,err,error,*999)
-                    CALL TREE_CREATE_FINISH(meshGridPoints%gridPointsTree,err,error,*999)
-                    globalGridPoint=0
-                    DO elementIdx=1,elements%NUMBER_OF_ELEMENTS
-                      basis=>elements%elements(elementIdx)%basis
-                      IF(basis%hasGridPoints) THEN
-                        DO localGridPointIdx=1,basis%gridPoints%numberOfGridPoints
-                          globalGridPoint=globalGridPoint+1
-                          CALL TREE_ITEM_INSERT(meshGridPoints%gridPointsTree,globalGridPoint,globalGridPoint,insertStatus, &
-                            & err,error,*999)
-                        ENDDO
-                      ENDIF 
-                    ENDDO
-                    CALL TREE_DETACH(meshGridPoints%gridPointsTree,numberOfGridPoints,globalGridPointNumbers,err,error,*999)
-                    !Set up the mesh grid points.
-                    meshGridPoints%numberOfGridPoints=numberOfGridPoints
-                    ALLOCATE(meshGridPoints%gridPoints(numberOfGridPoints),STAT=err)
-                    IF(err/=0) CALL FlagError("Could not allocate mesh topology grid points grid points.",err,error,*999)
-                    DO meshGridPointIdx=1,numberOfGridPoints
-                      CALL MeshTopologygridPointInitialise(meshGridPoints%gridPoints(meshGridPointIdx),err,error,*999)
-                      meshGridPoints%gridPoints(meshGridPointIdx)%globalNumber=globalGridPointNumbers(meshGridPointIdx)
-                      meshGridPoints%gridPoints(meshGridPointIdx)%userNumber=globalGridPointNumbers(meshGridPointIdx)
-                    ENDDO !grid pointIdx
-                    IF(ASSOCIATED(globalGridPointNumbers)) DEALLOCATE(globalGridPointNumbers)
-                    meshGridPoints%gridPointsFinished=.TRUE.
-                  ELSE
-                    CALL FLAG_ERROR("Mesh elements is not finished",err,error,*999)
-                  ENDIF
-                ELSE
-                  CALL FLAG_ERROR("Mesh elements is not associated",err,error,*999)
-                ENDIF
-              ENDIF
-            ELSE
-              CALL FLAG_ERROR("Mesh topology elements is not associated",err,error,*998)
-            ENDIF
-          ELSE
-            CALL FLAG_ERROR("Mesh topology is not associated",err,error,*998)
-          ENDIF
-        ENDIF
-      ELSE
-        localError="The specified mesh component number of "//TRIM(NUMBER_TO_VSTRING(meshComponentNumber,"*",err,error))// &
-          & " is invalid. The component number must be between 1 and "// &
-          & TRIM(NUMBER_TO_VSTRING(mesh%NUMBER_OF_COMPONENTS,"*",err,error))
-        CALL FLAG_ERROR(localError,err,error,*998)
-      ENDIF
-    ELSE
-      CALL FLAG_ERROR("Mesh is not associated",err,error,*998)
-    ENDIF
-
-    CALL EXITS("MeshTopologyGridPointsCreateStart")
-    RETURN
-999 CALL MeshTopologyGridPointsFinalise(gridPoints,dummyErr,dummyError,*998)
-998 NULLIFY(gridPoints)
-    CALL ERRORS("MeshTopologyGridPointsCreateStart",err,error)
-    CALL EXITS("MeshTopologyGridPointsCreateStart")
-    RETURN 1
-   
-  END SUBROUTINE MeshTopologyGridPointsCreateStart
+! !
+! !================================================================================================================================
+! !
+!
+! !>Finishes the process of creating grid points for a specified mesh component in a mesh topology. \see OPENCMISS::CMISSMeshGridPointsCreateFinish
+! SUBROUTINE MeshTopologyGridPointsCreateFinish(MeshGridPoints,err,error,*)
+!
+!   !Argument variables
+!   TYPE(MeshGridPointsType), POINTER :: meshGridPoints !<A pointer to the mesh grid points to finish creating
+!   INTEGER(INTG), INTENT(OUT) :: err !<The error code
+!   TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+!   !Local Variables
+!   INTEGER(INTG) :: meshGridPointIdx
+!
+!   CALL ENTERS("MeshTopologyGridPointsCreateFinish",ERR,ERROR,*999)
+!
+!   IF(ASSOCIATED(meshGridPoints)) THEN
+!     IF(meshGridPoints%gridPointsFinished) THEN
+!       CALL FLAG_ERROR("Mesh grid points have already been finished.",ERR,ERROR,*999)
+!     ELSE        
+!       meshGridPoints%gridPointsFinished=.TRUE.
+!     ENDIF
+!   ELSE
+!     CALL FLAG_ERROR("Mesh grid points is not associated.",ERR,ERROR,*999)
+!   ENDIF
+!   
+!   IF(DIAGNOSTICS1) THEN
+!     CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"Number of global mesh grid points = ", &
+!       & meshGridPoints%numberOfGridPoints,err,error,*999)
+!     DO meshGridPointIdx=1,meshGridPoints%numberOfGridPoints
+!       CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"  meshGridPointIdx = ",meshGridPointIdx,err,error,*999)
+!       CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"    Global number        = ", &
+!         & meshGridPoints%gridPoints(meshGridPointIdx)%globalNumber,err,error,*999)
+!       CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"    User number          = ", &
+!         & meshGridPoints%gridPoints(meshGridPointIdx)%globalNumber,err,error,*999)
+!     ENDDO !ne
+!   ENDIF
+!   
+!   CALL EXITS("MeshTopologyGridPointsCreateFinish")
+!   RETURN
+!99 CALL ERRORS("MeshTopologyGridPointsCreateFinish",ERR,ERROR)
+!   CALL EXITS("MeshTopologyGridPointsCreateFinish")
+!   RETURN 1
+!  
+! END SUBROUTINE MeshTopologyGridPointsCreateFinish
+!   
+! !
+! !================================================================================================================================
+! !
+!
+! !>Starts the process of creating grid points in the mesh component identified by MESH and component_idx. MeshGridPoints is the returned pointer to the MeshGridPoints data structure. \see OPENCMISS::CMISSMeshGridPointsCreateStart
+! SUBROUTINE MeshTopologyGridPointsCreateStart(mesh,meshComponentNumber,meshGridPoints,err,error,*)
+!
+!   !Argument variables
+!   TYPE(MESH_TYPE), POINTER :: mesh !<A pointer to the mesh to start creating the grid points on
+!   INTEGER(INTG), INTENT(IN) :: meshComponentNumber !<The mesh component number
+!   TYPE(MeshGridPointsType), POINTER :: meshGridPoints !<On return, a pointer to the created mesh grid points
+!   INTEGER(INTG), INTENT(OUT) :: err !<The error code
+!   TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+!   !Local Variables
+!   INTEGER(INTG) :: dummyErr,insertStatus,elementIdx,globalGridPoint,localGridPointIdx,meshGridPointIdx,numberOfGridPoints
+!   INTEGER(INTG), POINTER :: globalGridPointNumbers(:)
+!   TYPE(BASIS_TYPE), POINTER :: basis
+!   TYPE(MeshElementsType), POINTER :: elements
+!   TYPE(MeshGridPointsType), POINTER :: gridPoints 
+!   TYPE(VARYING_STRING) :: dummyError,localError
+!
+!   CALL ENTERS("MeshTopologyGridPointsCreateStart",err,error,*999)
+!   
+!   NULLIFY(globalGridPointNumbers)
+!
+!   IF(ASSOCIATED(mesh)) THEN     
+!     IF(meshComponentNumber>0.AND.meshComponentNumber<=mesh%NUMBER_OF_COMPONENTS) THEN
+!       IF(ASSOCIATED(gridPoints)) THEN
+!         CALL FLAG_ERROR("Mesh grid points is already associated.",err,error,*999)
+!       ELSE
+!         IF(ASSOCIATED(mesh%TOPOLOGY(meshComponentNumber)%PTR)) THEN
+!           IF(ASSOCIATED(mesh%TOPOLOGY(meshComponentNumber)%PTR%gridPoints)) THEN
+!             gridPoints=>mesh%TOPOLOGY(meshComponentNumber)%PTR%gridPoints
+!             IF(ALLOCATED(gridPoints%gridPoints)) THEN
+!               CALL FLAG_ERROR("Mesh topology already has elements associated",err,error,*998)
+!             ELSE
+!               elements=>mesh%TOPOLOGY(meshComponentNumber)%PTR%elements
+!               IF(ASSOCIATED(elements)) THEN
+!                 IF(elements%ELEMENTS_FINISHED) THEN
+!                   CALL TREE_CREATE_START(meshGridPoints%gridPointsTree,err,error,*999)
+!                   CALL TREE_INSERT_TYPE_SET(meshGridPoints%gridPointsTree,TREE_NO_DUPLICATES_ALLOWED,err,error,*999)
+!                   CALL TREE_CREATE_FINISH(meshGridPoints%gridPointsTree,err,error,*999)
+!                   globalGridPoint=0
+!                   DO elementIdx=1,elements%NUMBER_OF_ELEMENTS
+!                     basis=>elements%elements(elementIdx)%basis
+!                     IF(basis%hasGridPoints) THEN
+!                       DO localGridPointIdx=1,basis%gridPoints%numberOfGridPoints
+!                         globalGridPoint=globalGridPoint+1
+!                         CALL TREE_ITEM_INSERT(meshGridPoints%gridPointsTree,globalGridPoint,globalGridPoint,insertStatus, &
+!                           & err,error,*999)
+!                       ENDDO
+!                     ENDIF 
+!                   ENDDO
+!                   CALL TREE_DETACH(meshGridPoints%gridPointsTree,numberOfGridPoints,globalGridPointNumbers,err,error,*999)
+!                   !Set up the mesh grid points.
+!                   meshGridPoints%numberOfGridPoints=numberOfGridPoints
+!                   ALLOCATE(meshGridPoints%gridPoints(numberOfGridPoints),STAT=err)
+!                   IF(err/=0) CALL FlagError("Could not allocate mesh topology grid points grid points.",err,error,*999)
+!                   DO meshGridPointIdx=1,numberOfGridPoints
+!                     CALL MeshTopologygridPointInitialise(meshGridPoints%gridPoints(meshGridPointIdx),err,error,*999)
+!                     meshGridPoints%gridPoints(meshGridPointIdx)%globalNumber=globalGridPointNumbers(meshGridPointIdx)
+!                     meshGridPoints%gridPoints(meshGridPointIdx)%userNumber=globalGridPointNumbers(meshGridPointIdx)
+!                   ENDDO !grid pointIdx
+!                   IF(ASSOCIATED(globalGridPointNumbers)) DEALLOCATE(globalGridPointNumbers)
+!                   meshGridPoints%gridPointsFinished=.TRUE.
+!                 ELSE
+!                   CALL FLAG_ERROR("Mesh elements is not finished",err,error,*999)
+!                 ENDIF
+!               ELSE
+!                 CALL FLAG_ERROR("Mesh elements is not associated",err,error,*999)
+!               ENDIF
+!             ENDIF
+!           ELSE
+!             CALL FLAG_ERROR("Mesh topology elements is not associated",err,error,*998)
+!           ENDIF
+!         ELSE
+!           CALL FLAG_ERROR("Mesh topology is not associated",err,error,*998)
+!         ENDIF
+!       ENDIF
+!     ELSE
+!       localError="The specified mesh component number of "//TRIM(NUMBER_TO_VSTRING(meshComponentNumber,"*",err,error))// &
+!         & " is invalid. The component number must be between 1 and "// &
+!         & TRIM(NUMBER_TO_VSTRING(mesh%NUMBER_OF_COMPONENTS,"*",err,error))
+!       CALL FLAG_ERROR(localError,err,error,*998)
+!     ENDIF
+!   ELSE
+!     CALL FLAG_ERROR("Mesh is not associated",err,error,*998)
+!   ENDIF
+!
+!   CALL EXITS("MeshTopologyGridPointsCreateStart")
+!   RETURN
+!99 CALL MeshTopologyGridPointsFinalise(gridPoints,dummyErr,dummyError,*998)
+!98 NULLIFY(gridPoints)
+!   CALL ERRORS("MeshTopologyGridPointsCreateStart",err,error)
+!   CALL EXITS("MeshTopologyGridPointsCreateStart")
+!   RETURN 1
+!  
+! END SUBROUTINE MeshTopologyGridPointsCreateStart
 
   !
   !================================================================================================================================
@@ -11043,7 +11758,6 @@ CONTAINS
                     xiDirection=faces%faces(faceIdx)%xiDirection
                     faceXi(1)=OTHER_XI_DIRECTIONS3(xiDirection,2,1)
                     faceXi(2)=OTHER_XI_DIRECTIONS3(xiDirection,3,1)
-                    position(1:basis%NUMBER_OF_XI)=2
                     DO surroundingElementIdx=1,faces%faces(faceIdx)%numberOfSurroundingElements
                       tempNumberOfGridPoints=numberOfGridPoints
                       elementIdx=faces%faces(faceIdx)%surroundingElements(surroundingElementIdx)
@@ -11053,6 +11767,7 @@ CONTAINS
                         localNodeIdx=basis%NODE_NUMBERS_IN_LOCAL_FACE(localFaceNodeIdx,localFaceIdx)
                         IF(.NOT.basis%NODE_AT_COLLAPSE(localNodeIdx)) EXIT
                       ENDDO
+                      position(faceXi)=2
                       position(xiDirection)=INT(basis%NODE_POSITION_INDEX(localNodeIdx,xiDirection)/ &
                         & basis%NUMBER_OF_NODES_XIC(xiDirection),INTG)*(basis%numberOfGridPointsXi(xiDirection)-1)+1
                       maxNumberOfGridPoints=PRODUCT(basis%numberOfGridPointsXi(faceXi)-2)
@@ -11080,7 +11795,6 @@ CONTAINS
                     xiDirection=lines%lines(lineIdx)%xiDirection
                     normalXi(1)=OTHER_XI_DIRECTIONS3(xiDirection,2,1)
                     normalXi(2)=OTHER_XI_DIRECTIONS3(xiDirection,3,1)
-                    position(1:basis%NUMBER_OF_XI)=2
                     DO surroundingElementIdx=1,lines%lines(lineIdx)%numberOfSurroundingElements
                       tempNumberOfGridPoints=numberOfGridPoints
                       elementIdx=lines%lines(lineIdx)%surroundingElements(surroundingElementIdx)
@@ -11090,6 +11804,7 @@ CONTAINS
                         localNodeIdx=basis%NODE_NUMBERS_IN_LOCAL_LINE(localLineNodeIdx,localLineIdx)
                         IF(.NOT.basis%NODE_AT_COLLAPSE(localNodeIdx)) EXIT
                       ENDDO
+                      position(xiDirection)=2
                       position(normalXi)=INT(basis%NODE_POSITION_INDEX(localNodeIdx,normalXi)/ &
                         & basis%NUMBER_OF_NODES_XIC(normalXi),INTG)*(basis%numberOfGridPointsXi(normalXi)-1)+1
                       maxNumberOfGridPoints=basis%numberOfGridPointsXi(xiDirection)-2
@@ -11112,7 +11827,6 @@ CONTAINS
                   DO lineIdx=1,lines%numberOfLines
                     xiDirection=lines%lines(lineIdx)%xiDirection
                     normalXi(1)=OTHER_XI_DIRECTIONS2(xiDirection)
-                    position(1:basis%NUMBER_OF_XI)=2
                     DO surroundingElementIdx=1,lines%lines(lineIdx)%numberOfSurroundingElements
                       tempNumberOfGridPoints=numberOfGridPoints
                       elementIdx=lines%lines(lineIdx)%surroundingElements(surroundingElementIdx)
@@ -11122,6 +11836,7 @@ CONTAINS
                         localNodeIdx=basis%NODE_NUMBERS_IN_LOCAL_LINE(localLineNodeIdx,localLineIdx)
                         IF(.NOT.basis%NODE_AT_COLLAPSE(localNodeIdx)) EXIT
                       ENDDO
+                      position(xiDirection)=2
                       position(normalXi(1))=INT(basis%NODE_POSITION_INDEX(localNodeIdx,normalXi(1))/ &
                         & basis%NUMBER_OF_NODES_XIC(normalXi(1)),INTG)*(basis%numberOfGridPointsXi(normalXi(1))-1)+1
                       maxNumberOfGridPoints=basis%numberOfGridPointsXi(xiDirection)-2
@@ -11220,6 +11935,91 @@ CONTAINS
   !================================================================================================================================
   !
 
+  !>Calculates the element numbers surrounding a node for a mesh.
+  SUBROUTINE MeshTopologyGridPointsSurroundingElementsCalculate(topology,err,error,*)
+
+    !Argument variables
+    TYPE(MeshComponentTopologyType), POINTER :: topology !<A pointer to the mesh topology to calculate the elements surrounding each node for
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+    INTEGER(INTG) :: element,elementIdx,insertPosition,surroundingElementNumber,localGridPointIdx,gridPointIdx
+    INTEGER(INTG), ALLOCATABLE :: newSurroundingElements(:)
+    LOGICAL :: foundElement
+    TYPE(BASIS_TYPE), POINTER :: basis
+    TYPE(MeshElementsType), POINTER :: elements
+    TYPE(MeshGridPointsType), POINTER :: gridPoints
+
+    CALL ENTERS("MeshTopologyGridPointsSurroundingElementsCalculate",err,error,*999)
+    
+    IF(ASSOCIATED(topology)) THEN
+      elements=>topology%elements      
+      IF(ASSOCIATED(elements)) THEN
+        gridPoints=>topology%gridPoints       
+        IF(ASSOCIATED(gridPoints)) THEN
+          IF(ALLOCATED(gridPoints%gridPoints)) THEN
+            DO elementIdx=1,elements%NUMBER_OF_ELEMENTS
+              basis=>elements%elements(elementIdx)%basis
+              DO localGridPointIdx=1,basis%gridPoints%numberOfGridPoints
+                gridPointIdx=elements%elements(elementIdx)%globalElementGridPoints(localGridPointIdx)
+                foundElement=.FALSE.
+                element=1
+                insertPosition=1
+                DO WHILE(element<=gridPoints%gridPoints(gridPointIdx)%numberOfSurroundingElements.AND..NOT.foundElement)
+                  surroundingElementNumber=gridPoints%gridPoints(gridPointIdx)%surroundingElements(element)
+                  IF(surroundingElementNumber==elementIdx) THEN
+                    foundElement=.TRUE.
+                  ENDIF
+                  element=element+1
+                  IF(elementIdx>=surroundingElementNumber) THEN
+                    insertPosition=element
+                  ENDIF
+                ENDDO
+                IF(.NOT.foundElement) THEN
+                  !Insert element into surrounding elements
+                  ALLOCATE(newSurroundingElements(gridPoints%gridPoints(gridPointIdx)%numberOfSurroundingElements+1),STAT=err)
+                  IF(err/=0) CALL FlagError("Could not allocate new surrounding elements.",err,error,*999)
+                  IF(ALLOCATED(gridPoints%gridPoints(gridPointIdx)%surroundingElements)) THEN
+                    newSurroundingElements(1:insertPosition-1)= &
+                      & gridPoints%gridPoints(gridPointIdx)%surroundingElements(1:insertPosition-1)
+                    newSurroundingElements(insertPosition)=elementIdx
+                    newSurroundingElements(insertPosition+1:gridPoints%gridPoints(gridPointIdx)% &
+                      & numberOfSurroundingElements+1)=gridPoints%gridPoints(gridPointIdx)% &
+                      & surroundingElements(insertPosition:gridPoints%gridPoints(gridPointIdx)%numberOfSurroundingElements)
+                  ELSE
+                    newSurroundingElements(1)=elementIdx
+                  ENDIF
+                  CALL MOVE_ALLOC(newSurroundingElements,gridPoints%gridPoints(gridPointIdx)%surroundingElements)
+                  gridPoints%gridPoints(gridPointIdx)%numberOfSurroundingElements= &
+                    & gridPoints%gridPoints(gridPointIdx)%numberOfSurroundingElements+1
+                ENDIF
+              ENDDO !localGridPointIdx
+            ENDDO !elementIdx
+          ELSE
+            CALL FlagError("Mesh topology grid points grid points have not been allocated.",err,error,*999)
+          ENDIF
+        ELSE
+          CALL FlagError("Mesh topology grid points are not associated.",err,error,*999)
+        ENDIF
+      ELSE
+        CALL FlagError("Mesh topology elements is not associated.",err,error,*999)
+      ENDIF
+    ELSE
+      CALL FlagError("Mesh topology not associated.",err,error,*999)
+    ENDIF
+
+    CALL EXITS("MeshTopologyGridPointsSurroundingElementsCalculate")
+    RETURN
+999 IF(ALLOCATED(newSurroundingElements)) DEALLOCATE(newSurroundingElements)
+    CALL ERRORS("MeshTopologyGridPointsSurroundingElementsCalculate",err,error)
+    CALL EXITS("MeshTopologyGridPointsSurroundingElementsCalculate")
+    RETURN 1   
+  END SUBROUTINE MeshTopologyGridPointsSurroundingElementsCalculate
+  
+  !
+  !================================================================================================================================
+  !
+
   !>Finalises the given mesh topology grid point. 
   SUBROUTINE MeshTopologyGridPointFinalise(gridPoint,err,error,*)
 
@@ -11238,6 +12038,8 @@ CONTAINS
       ENDDO !nic
       DEALLOCATE(gridPoint%adjacentGridPoints)
     ENDIF
+    IF(ALLOCATED(gridPoint%surroundingElements)) DEALLOCATE(gridPoint%surroundingElements)
+    gridPoint%numberOfSurroundingElements=0
 
     CALL Exits("MeshTopologyGridPointFinalise")
     RETURN
@@ -11262,9 +12064,9 @@ CONTAINS
 
     CALL Enters("MeshTopologyGridPointInitialise",err,error,*999)
 
-    gridPoint%userNumber=0
+!    gridPoint%userNumber=0
     gridPoint%globalNumber=0
-    !gridPoint%numberOfSurroundingElements=0
+    gridPoint%numberOfSurroundingElements=0
     gridPoint%boundaryGridPoint=.FALSE.
     
     CALL EXITS("MeshTopologyGridPointInitialise")
@@ -11297,7 +12099,7 @@ CONTAINS
         ENDDO !gridPointsIdx
         DEALLOCATE(gridPoints%gridPoints)
       ENDIF
-      IF(ASSOCIATED(gridPoints%gridPointsTree)) CALL TREE_DESTROY(gridPoints%gridPointsTree,err,error,*999)
+!      IF(ASSOCIATED(gridPoints%gridPointsTree)) CALL TREE_DESTROY(gridPoints%gridPointsTree,err,error,*999)
       DEALLOCATE(gridPoints)
     ENDIF
  
@@ -11413,7 +12215,7 @@ CONTAINS
         IF(err/=0) CALL FlagError("Could not allocate topology grid points.",err,error,*999)
         topology%gridPoints%numberOfGridPoints=0
         topology%gridPoints%meshComponentTopology=>topology
-        NULLIFY(topology%gridPoints%gridPointsTree)
+!        NULLIFY(topology%gridPoints%gridPointsTree)
       ENDIF
     ELSE
       CALL FlagError("Topology is not associated.",err,error,*999)

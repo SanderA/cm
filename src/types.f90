@@ -450,7 +450,7 @@ MODULE TYPES
     INTEGER(INTG) :: USER_NUMBER !<The corresponding user number for the element.
     TYPE(BASIS_TYPE), POINTER :: BASIS !<A pointer to the basis function for the element.
     INTEGER(INTG), ALLOCATABLE :: globalElementGridPoints(:) !<globalElementGridPoints(gridPointIdx). The global grid point number in the mesh of the gridPointIdx'th local grid point in the element.
-    INTEGER(INTG), ALLOCATABLE :: userElementGridPoints(:) !<userElementGridPoints(gridPointIdx). The user grid point number in the mesh of the gridPointIdx'th local grid point in the element.
+!    INTEGER(INTG), ALLOCATABLE :: userElementGridPoints(:) !<userElementGridPoints(gridPointIdx). The user grid point number in the mesh of the gridPointIdx'th local grid point in the element.
     INTEGER(INTG), ALLOCATABLE :: MESH_ELEMENT_NODES(:) !<MESH_ELEMENT_NODES(nn). The mesh node number in the mesh of the nn'th local node in the element. Old CMISS name NPNE(nn,nbf,ne).
     INTEGER(INTG), ALLOCATABLE :: GLOBAL_ELEMENT_NODES(:) !<GLOBAL_ELEMENT_NODES(nn). The global node number in the mesh of the nn'th local node in the element. Old CMISS name NPNE(nn,nbf,ne).
     INTEGER(INTG), ALLOCATABLE :: USER_ELEMENT_NODE_VERSIONS(:,:) !< USER_ELEMENT_NODE_VERSIONS(derivative_idx,element_node_idx).  The version number for the nn'th user node's nk'th derivative. Size of array dependent on the maximum number of derivatives for the basis of the specified element.
@@ -489,7 +489,7 @@ MODULE TYPES
     INTEGER(INTG) :: numberOfDerivatives !<The number of global derivatives at the node for the mesh. Old CMISS name NKT(nj,np).
     TYPE(MeshNodeDerivativeType), ALLOCATABLE :: derivatives(:) !<derivatives(derivativeIdx). Contains information on the derivativeIdx'th derivative of the node.
     INTEGER(INTG) :: numberOfSurroundingElements !<The number of elements surrounding the node in the mesh. Old CMISS name NENP(np,0,0:nr).
-    INTEGER(INTG), POINTER :: surroundingElements(:) !<surroudingElements(localElementIdx). The global element number of the localElementIdx'th element that is surrounding the node. Old CMISS name NENP(np,nep,0:nr). \todo Change this to allocatable.
+    INTEGER(INTG), ALLOCATABLE :: surroundingElements(:) !<surroudingElements(localElementIdx). The global element number of the localElementIdx'th element that is surrounding the node. Old CMISS name NENP(np,nep,0:nr).
     INTEGER(INTG), ALLOCATABLE :: elementNodes(:) !<elementNodes(surroundingElementIdx). The local node number of the surroundingElementIdx'th element that surrounds (uses) this node.
     INTEGER(INTG) :: numberOfSurroundingFaces !<The number of faces surrounding the node in the mesh.
     INTEGER(INTG), ALLOCATABLE :: surroundingFaces(:) !<surroudingFaces(localFacesIdx). The global face number of the localFacesIdx'th face that is surrounding the node.
@@ -515,7 +515,9 @@ MODULE TYPES
   !>Contains the topology information for a global grid point of a mesh.
   TYPE MeshGridPointType
     INTEGER(INTG) :: globalNumber !<The global grid point number in the mesh.
-    INTEGER(INTG) :: userNumber !<The corresponding user number for the grid point.
+!    INTEGER(INTG) :: userNumber !<The corresponding user number for the grid point.
+    INTEGER(INTG) :: numberOfSurroundingElements !<The number of elements surrounding the grid point in the mesh. Old CMISS name NENP(np,0,0:nr).
+    INTEGER(INTG), ALLOCATABLE :: surroundingElements(:) !<surroudingElements(surroundingElementIdx). The global element number of the surroundingElementIdx'th element that is surrounding the grid point.
     TYPE(MeshAdjacentGridPointType), ALLOCATABLE :: adjacentGridPoints(:) !<adjacentGridPoints(-nic:nic). The adjacent grid points information in the nic'th xi coordinate direction. Note that -nic gives the adjacent grid point before the grid point in the nic'th direction and +nic gives the adjacent grid point after the grid point in the nic'th direction. The ni=0 index will give the information on the current grid point. 
     LOGICAL :: boundaryGridPoint !<Is .TRUE. if the grid point is on the boundary of the mesh, .FALSE. if not.
   END TYPE MeshGridPointType
@@ -526,7 +528,7 @@ MODULE TYPES
     LOGICAL :: gridPointsFinished !< True if mesh grid points are finished.
     INTEGER(INTG) :: numberOfgridPoints !<The number of grid points in the mesh.
     TYPE(MeshGridPointType), ALLOCATABLE :: gridPoints(:) !<gridpoints(gridPointIdx). The pointer to the array of topology information for the grid points of the mesh. gridPoints(gridPointIdx) contains the topological information for the gridPointIdx'th global grid point of the mesh.
-    TYPE(TREE_TYPE), POINTER :: gridPointsTree !<A tree mapping the mesh global number to the mesh user number.
+!    TYPE(TREE_TYPE), POINTER :: gridPointsTree !<A tree mapping the mesh global number to the mesh user number.
   END TYPE MeshGridPointsType
   
   TYPE MeshElementDataPointType
@@ -705,6 +707,32 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
   !
   ! Domain types
   !
+
+  !>Contains information on the domain adjacent grid points for a xi coordinate
+  TYPE DomainAdjacentGridPointType 
+    INTEGER(INTG) :: numberOfAdjacentGridPoints !<The number of adjacent grid points for the xi coordinate
+    INTEGER(INTG), ALLOCATABLE :: adjacentGridPoints(:) !<The global grid point numbers of the grid points adjacent to this grid point for the xi coordinate
+  END TYPE DomainAdjacentGridPointType
+
+  !>Contains the topology information for a global grid point of a domain.
+  TYPE DomainGridPointType
+    INTEGER(INTG) :: localNumber !<The local grid point number in the domain.
+    INTEGER(INTG) :: globalNumber !<The global grid point number in the domain.
+!    INTEGER(INTG) :: userNumber !<The corresponding user number for the grid point.
+    INTEGER(INTG) :: numberOfSurroundingElements !<The number of elements surrounding the grid point in the domain.
+    INTEGER(INTG), ALLOCATABLE :: surroundingElements(:) !<surroudingElements(surroundingElementIdx). The global element number of the surroundingElementIdx'th element that is surrounding the grid point.
+!    TYPE(DomainAdjacentGridPointType), ALLOCATABLE :: adjacentGridPoints(:) !<adjacentGridPoints(-nic:nic). The adjacent grid points information in the nic'th xi coordinate direction. Note that -nic gives the adjacent grid point before the grid point in the nic'th direction and +nic gives the adjacent grid point after the grid point in the nic'th direction. The ni=0 index will give the information on the current grid point. 
+    LOGICAL :: boundaryGridPoint !<Is .TRUE. if the grid point is on the boundary of the domain, .FALSE. if not.
+  END TYPE DomainGridPointType
+
+  !>Contains the information for the grid points of a domain.
+  TYPE DomainGridPointsType
+    TYPE(DOMAIN_TYPE), POINTER :: domain !<The pointer to the domain.
+    INTEGER(INTG) :: numberOfgridPoints !<The number of grid points in the domain.
+    INTEGER(INTG) :: totalNumberOfgridPoints !<The number of grid points (including ghosts) in the domain.
+    INTEGER(INTG) :: numberOfGlobalGridPoints !<The number of global grid points in the domain.
+    TYPE(DomainGridPointType), ALLOCATABLE :: gridPoints(:) !<gridpoints(gridPointIdx). The pointer to the array of topology information for the grid points of the domain. gridPoints(gridPointIdx) contains the topological information for the gridPointIdx'th local grid point of the domain.
+  END TYPE DomainGridPointsType
   
   !>Contains information on the degrees-of-freedom (dofs) for a domain.
   TYPE DOMAIN_DOFS_TYPE
@@ -768,6 +796,7 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     INTEGER(INTG), ALLOCATABLE :: ELEMENT_NODES(:) !<ELEMENT_NODES(element_node_idx). The local node number in the domain of the nn'th local node in the element. Old CMISS name NPNE(nn,nbf,ne).
     INTEGER(INTG), ALLOCATABLE :: ELEMENT_DERIVATIVES(:,:) !<ELEMENT_DERIVATIVES(local_derivative_idx,local_element_node_idx).  Will give the global derivative number of the local_derivative_idx'th local derivative for the local_element_node_idx'th local node in the element. Old CMISS name NKJE(nk,nn,nj,ne).
     INTEGER(INTG), ALLOCATABLE :: elementVersions(:,:) !<elementVersions(localDerivativeIdx,localElementNodeIdx). will give the version number of the localDerivativeIdx'th local derivative for the localElementNodeIdx'th local node in the element. Old CMISS name NVJE(nn,nbf,nj,ne).
+    INTEGER(INTG), ALLOCATABLE :: elementGridPoints(:) !<elementGridPoints(localGridPointIdx). The local grid point number in the domain of the localGridPointIdx'th local grid point in the element.
   END TYPE DOMAIN_ELEMENT_TYPE
   
   !>Contains the topology information for the elements of a domain.
@@ -825,6 +854,7 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     TYPE(DOMAIN_ELEMENTS_TYPE), POINTER :: ELEMENTS !<The pointer to the topology information for the elements of this domain.
     TYPE(DOMAIN_FACES_TYPE), POINTER :: FACES !<The pointer to the topology information for the faces of this domain.
     TYPE(DOMAIN_LINES_TYPE), POINTER :: LINES !<The pointer to the topology information for the lines of this domain.
+    TYPE(DomainGridPointsType), POINTER :: gridPoints !<The pointer to the topology information for the grid points of this domain.
   END TYPE DOMAIN_TOPOLOGY_TYPE
 
   !
@@ -1029,6 +1059,7 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     TYPE(DOMAIN_MAPPING_TYPE), POINTER :: ELEMENTS !<Pointer to the element mappings for the domain decomposition.
     TYPE(DOMAIN_MAPPING_TYPE), POINTER :: NODES !<Pointer to the node mappings for the domain decomposition.
     TYPE(DOMAIN_MAPPING_TYPE), POINTER :: DOFS !<Pointer to the dof mappings for the domain decomposition.
+    TYPE(DOMAIN_MAPPING_TYPE), POINTER :: gridPoints !<Pointer to the grid point mappings for the domain decomposition.
   END TYPE DOMAIN_MAPPINGS_TYPE
   
   !>A pointer to the domain decomposition for this domain.
@@ -1039,6 +1070,7 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     TYPE(REGION_TYPE), POINTER :: REGION !<A pointer to the region that this domain is in. This is "inherited" from the mesh region. 
     INTEGER(INTG) :: NUMBER_OF_DIMENSIONS !<The number of dimensions for this domain. This is "inherited" from the mesh.
     INTEGER(INTG), ALLOCATABLE :: NODE_DOMAIN(:) !<NODE_DOMAIN(np). The domain number that the np'th global node is in for the domain decomposition. Note: the domain numbers start at 0 and go up to the NUMBER_OF_DOMAINS-1.
+    INTEGER(INTG), ALLOCATABLE :: gridPointDomain(:) !<gridPointDomain(gridPointIdx). The domain number that the gridPointIdx'th global grid point is in for the domain decomposition. Note: the domain numbers start at 0 and go up to the NUMBER_OF_DOMAINS-1.
     TYPE(DOMAIN_MAPPINGS_TYPE), POINTER :: MAPPINGS !<Pointer to the mappings for the domain  e.g., global to local and local to global maps
     TYPE(DOMAIN_TOPOLOGY_TYPE), POINTER :: TOPOLOGY !<Pointer to the topology for the domain.
   END TYPE DOMAIN_TYPE

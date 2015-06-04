@@ -3832,7 +3832,23 @@ CONTAINS
                     & FIELD_VARIABLE%COMPONENTS(COMPONENT_NUMBER)%maxNumberNodeInterpolationParameters=numParameters
                 ENDDO !nodeIdx
               CASE(FIELD_GRID_POINT_BASED_INTERPOLATION)
-                CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)             
+                FIELD_VARIABLE%COMPONENTS(COMPONENT_NUMBER)%maxNumberElementInterpolationParameters=-1
+                DO ne=1,DOMAIN%TOPOLOGY%ELEMENTS%TOTAL_NUMBER_OF_ELEMENTS
+                  BASIS=>DOMAIN%TOPOLOGY%ELEMENTS%ELEMENTS(ne)%BASIS
+                  IF(BASIS%gridPoints%numberOfGridPoints>FIELD_VARIABLE%COMPONENTS(COMPONENT_NUMBER)% &
+                    & maxNumberElementInterpolationParameters) FIELD_VARIABLE%COMPONENTS(COMPONENT_NUMBER)% &
+                    & maxNumberElementInterpolationParameters=BASIS%gridPoints%numberOfGridPoints
+                ENDDO !ne
+                FIELD_VARIABLE%COMPONENTS(COMPONENT_NUMBER)%maxNumberNodeInterpolationParameters=-1
+                DO nodeIdx=1,DOMAIN%TOPOLOGY%NODES%TOTAL_NUMBER_OF_NODES
+                  numParameters=0
+                  DO derivativeIdx=1,DOMAIN%TOPOLOGY%NODES%NODES(nodeIdx)%NUMBER_OF_DERIVATIVES
+                    numParameters=numParameters+DOMAIN%TOPOLOGY%NODES%NODES(nodeIdx)%DERIVATIVES(derivativeIdx)%numberOfVersions
+                  ENDDO !derivativeIdx
+                  IF(numParameters>FIELD_VARIABLE%COMPONENTS(COMPONENT_NUMBER)%maxNumberNodeInterpolationParameters) &
+                    & FIELD_VARIABLE%COMPONENTS(COMPONENT_NUMBER)%maxNumberNodeInterpolationParameters=numParameters
+                ENDDO !nodeIdx
+                FIELD_VARIABLE%COMPONENTS(COMPONENT_NUMBER)%maxNumberNodeInterpolationParameters = 0
               CASE(FIELD_GAUSS_POINT_BASED_INTERPOLATION) ! ?
                 MAXINTERP = -1
                 DO ne=1,DOMAIN%TOPOLOGY%ELEMENTS%TOTAL_NUMBER_OF_ELEMENTS
@@ -9558,17 +9574,17 @@ CONTAINS
     INTEGER(INTG) :: variable_idx,component_idx,domain_type_idx,VARIABLE_GLOBAL_DOFS_OFFSET,NUMBER_OF_GLOBAL_VARIABLE_DOFS, &
       & NUMBER_OF_CONSTANT_DOFS,NUMBER_OF_ELEMENT_DOFS,NUMBER_OF_NODE_DOFS,NUMBER_OF_GRID_POINT_DOFS,NUMBER_OF_GAUSS_POINT_DOFS, &
       & NUMBER_OF_LOCAL_VARIABLE_DOFS,TOTAL_NUMBER_OF_VARIABLE_DOFS,NUMBER_OF_DOMAINS,variable_global_ny, &
-      & variable_local_ny,domain_idx,domain_no,constant_nyy,element_ny,element_nyy,node_ny,node_nyy,grid_point_nyy, &
+      & variable_local_ny,domain_idx,domain_no,constant_nyy,element_ny,element_nyy,node_ny,node_nyy,grid_point_ny,grid_point_nyy, &
       & Gauss_point_nyy,version_idx,derivative_idx,ny,NUMBER_OF_COMPUTATIONAL_NODES, &
       & my_computational_node_number,domain_type_stop,start_idx,stop_idx,element_idx,node_idx,NUMBER_OF_LOCAL, NGP, MAX_NGP, &
       & gp,MPI_IERROR,NUMBER_OF_GLOBAL_DOFS,gauss_point_idx,NUMBER_OF_DATA_POINT_DOFS,data_point_nyy,dataPointIdx,elementIdx, &
-      & localDataNumber,globalElementNumber
+      & localDataNumber,globalElementNumber,gridPointIdx
     INTEGER(INTG), ALLOCATABLE :: VARIABLE_LOCAL_DOFS_OFFSETS(:),VARIABLE_GHOST_DOFS_OFFSETS(:), &
       & localDataParamCount(:),ghostDataParamCount(:)
     TYPE(DECOMPOSITION_TYPE), POINTER :: DECOMPOSITION
     TYPE(DECOMPOSITION_TOPOLOGY_TYPE), POINTER :: decompositionTopology
     TYPE(DOMAIN_TYPE), POINTER :: domain
-    TYPE(DOMAIN_MAPPING_TYPE), POINTER :: elementsMapping,DOFS_MAPPING,FIELD_VARIABLE_DOFS_MAPPING
+    TYPE(DOMAIN_MAPPING_TYPE), POINTER :: elementsMapping,gridPointsMapping,DOFS_MAPPING,FIELD_VARIABLE_DOFS_MAPPING
     TYPE(DOMAIN_TOPOLOGY_TYPE), POINTER :: DOMAIN_TOPOLOGY
     TYPE(FIELD_VARIABLE_COMPONENT_TYPE), POINTER :: FIELD_COMPONENT
     TYPE(VARYING_STRING) :: LOCAL_ERROR
@@ -9616,7 +9632,12 @@ CONTAINS
             TOTAL_NUMBER_OF_VARIABLE_DOFS=TOTAL_NUMBER_OF_VARIABLE_DOFS+DOMAIN_TOPOLOGY%DOFS%TOTAL_NUMBER_OF_DOFS
             NUMBER_OF_GLOBAL_VARIABLE_DOFS=NUMBER_OF_GLOBAL_VARIABLE_DOFS+DOMAIN_TOPOLOGY%DOFS%NUMBER_OF_GLOBAL_DOFS
           CASE(FIELD_GRID_POINT_BASED_INTERPOLATION)
-            CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+            DOMAIN=>FIELD_COMPONENT%DOMAIN
+            DOMAIN_TOPOLOGY=>DOMAIN%TOPOLOGY
+            NUMBER_OF_GRID_POINT_DOFS=NUMBER_OF_GRID_POINT_DOFS+DOMAIN_TOPOLOGY%gridPoints%totalNumberOfGridPoints
+            NUMBER_OF_LOCAL_VARIABLE_DOFS=NUMBER_OF_LOCAL_VARIABLE_DOFS+DOMAIN_TOPOLOGY%gridPoints%numberOfGridPoints
+            TOTAL_NUMBER_OF_VARIABLE_DOFS=TOTAL_NUMBER_OF_VARIABLE_DOFS+DOMAIN_TOPOLOGY%gridPoints%totalNumberOfGridPoints
+            NUMBER_OF_GLOBAL_VARIABLE_DOFS=NUMBER_OF_GLOBAL_VARIABLE_DOFS+DOMAIN_TOPOLOGY%gridPoints%numberOfGlobalGridPoints
           CASE(FIELD_GAUSS_POINT_BASED_INTERPOLATION)
             DOMAIN=>FIELD_COMPONENT%DOMAIN
             DOMAIN_TOPOLOGY=>DOMAIN%TOPOLOGY
@@ -9999,7 +10020,105 @@ CONTAINS
                     & VERSIONS(version_idx) = variable_local_ny
                 ENDDO !ny
               CASE(FIELD_GRID_POINT_BASED_INTERPOLATION)
-                CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+                DOMAIN=>FIELD_COMPONENT%DOMAIN
+                DOMAIN_TOPOLOGY=>DOMAIN%TOPOLOGY
+                gridPointsMapping=>DOMAIN%MAPPINGS%gridPoints
+                IF(domain_type_idx==1) THEN
+                  !Allocate parameter to dof map for this field variable component
+                  DOFS_MAPPING=>DOMAIN%MAPPINGS%gridPoints
+                  ALLOCATE(FIELD_COMPONENT%PARAM_TO_DOF_MAP%GRID_POINT_PARAM2DOF_MAP%GRID_POINTS(DOMAIN_TOPOLOGY%gridPoints% &
+                    & totalNumberOfGridPoints),STAT=ERR)
+                  IF(ERR/=0) CALL FLAG_ERROR("Could not allocate field component parameter to dof grid point map.",ERR,ERROR,*999)
+                  FIELD_COMPONENT%PARAM_TO_DOF_MAP%GRID_POINT_PARAM2DOF_MAP%NUMBER_OF_GRID_POINT_PARAMETERS= &
+                    & DOMAIN_TOPOLOGY%gridPoints%totalNumberOfGridPoints
+                  !Handle global dofs domain mapping
+                  DO ny=1,gridPointsMapping%NUMBER_OF_GLOBAL
+                    !Handle field variable mappings
+                    IF(ASSOCIATED(FIELD_VARIABLE_DOFS_MAPPING)) THEN
+                      variable_global_ny=ny+VARIABLE_GLOBAL_DOFS_OFFSET
+                      CALL DOMAIN_MAPPINGS_MAPPING_GLOBAL_INITIALISE(FIELD_VARIABLE_DOFS_MAPPING% &
+                        & GLOBAL_TO_LOCAL_MAP(variable_global_ny),ERR,ERROR,*999)
+                      NUMBER_OF_DOMAINS=DOFS_MAPPING%GLOBAL_TO_LOCAL_MAP(ny)%NUMBER_OF_DOMAINS
+                      ALLOCATE(FIELD_VARIABLE_DOFS_MAPPING%GLOBAL_TO_LOCAL_MAP(variable_global_ny)% &
+                        & LOCAL_NUMBER(NUMBER_OF_DOMAINS),STAT=ERR)
+                      IF(ERR/=0) CALL FLAG_ERROR("Could not allocate field variable dofs global to local map local number.", &
+                        & ERR,ERROR,*999)
+                      ALLOCATE(FIELD_VARIABLE_DOFS_MAPPING%GLOBAL_TO_LOCAL_MAP(variable_global_ny)% &
+                        & DOMAIN_NUMBER(NUMBER_OF_DOMAINS),STAT=ERR)
+                      IF(ERR/=0) CALL FLAG_ERROR("Could not allocate field variable dofs global to local map domain number.", &
+                        & ERR,ERROR,*999)
+                      ALLOCATE(FIELD_VARIABLE_DOFS_MAPPING%GLOBAL_TO_LOCAL_MAP(variable_global_ny)%LOCAL_TYPE(NUMBER_OF_DOMAINS), &
+                        & STAT=ERR)
+                      IF(ERR/=0) CALL FLAG_ERROR("Could not allocate field variable dofs global to local map local type.", &
+                        & ERR,ERROR,*999)
+                      FIELD_VARIABLE_DOFS_MAPPING%GLOBAL_TO_LOCAL_MAP(variable_global_ny)%NUMBER_OF_DOMAINS=NUMBER_OF_DOMAINS
+                      DO domain_idx=1,NUMBER_OF_DOMAINS
+                        domain_no=DOFS_MAPPING%GLOBAL_TO_LOCAL_MAP(ny)%DOMAIN_NUMBER(domain_idx)
+                        FIELD_VARIABLE_DOFS_MAPPING%GLOBAL_TO_LOCAL_MAP(variable_global_ny)%LOCAL_NUMBER(domain_idx)= &
+                          & DOFS_MAPPING%GLOBAL_TO_LOCAL_MAP(ny)%LOCAL_NUMBER(domain_idx)+VARIABLE_LOCAL_DOFS_OFFSETS(domain_no)
+                        FIELD_VARIABLE_DOFS_MAPPING%GLOBAL_TO_LOCAL_MAP(variable_global_ny)%DOMAIN_NUMBER(domain_idx)= &
+                          & DOFS_MAPPING%GLOBAL_TO_LOCAL_MAP(ny)%DOMAIN_NUMBER(domain_idx)
+                        FIELD_VARIABLE_DOFS_MAPPING%GLOBAL_TO_LOCAL_MAP(variable_global_ny)%LOCAL_TYPE(domain_idx)= &
+                          & DOFS_MAPPING%GLOBAL_TO_LOCAL_MAP(ny)%LOCAL_TYPE(domain_idx)
+                      ENDDO !domain_idx
+                    ENDIF
+                  ENDDO !ny
+                  start_idx=1
+                  stop_idx=gridPointsMapping%NUMBER_OF_LOCAL
+                  !Adjust the local and ghost offsets
+                  IF(component_idx>1) &
+                    & VARIABLE_GHOST_DOFS_OFFSETS(0:DECOMPOSITION%NUMBER_OF_DOMAINS-1)= &
+                    & VARIABLE_GHOST_DOFS_OFFSETS(0:DECOMPOSITION%NUMBER_OF_DOMAINS-1)+gridPointsMapping%NUMBER_OF_DOMAIN_LOCAL
+                  VARIABLE_LOCAL_DOFS_OFFSETS(0:DECOMPOSITION%NUMBER_OF_DOMAINS-1)= &
+                    & VARIABLE_LOCAL_DOFS_OFFSETS(0:DECOMPOSITION%NUMBER_OF_DOMAINS-1)+ &
+                    & gridPointsMapping%NUMBER_OF_DOMAIN_LOCAL+gridPointsMapping%NUMBER_OF_DOMAIN_GHOST
+                ELSE
+                  !Handle global dofs domain mapping. For the second pass adjust the local dof numbers to ensure that the ghost
+                  !dofs are at the end of the local dofs.
+                  !Adjust the ghost offsets
+                  IF(component_idx>1) &
+                    & VARIABLE_GHOST_DOFS_OFFSETS(0:DECOMPOSITION%NUMBER_OF_DOMAINS-1)= &
+                    & VARIABLE_GHOST_DOFS_OFFSETS(0:DECOMPOSITION%NUMBER_OF_DOMAINS-1)-gridPointsMapping%NUMBER_OF_DOMAIN_LOCAL
+                  DO ny=1,gridPointsMapping%NUMBER_OF_GLOBAL
+                    !Adjust variable mapping local numbers
+                    IF(ASSOCIATED(FIELD_VARIABLE_DOFS_MAPPING)) THEN
+                      variable_global_ny=ny+VARIABLE_GLOBAL_DOFS_OFFSET
+                      NUMBER_OF_DOMAINS=FIELD_VARIABLE_DOFS_MAPPING%GLOBAL_TO_LOCAL_MAP(variable_global_ny)%NUMBER_OF_DOMAINS
+                      DO domain_idx=1,NUMBER_OF_DOMAINS
+                        domain_no=FIELD_VARIABLE_DOFS_MAPPING%GLOBAL_TO_LOCAL_MAP(variable_global_ny)%DOMAIN_NUMBER(domain_idx)
+                        IF(FIELD_VARIABLE_DOFS_MAPPING%GLOBAL_TO_LOCAL_MAP(variable_global_ny)%LOCAL_TYPE(domain_idx)== &
+                          & DOMAIN_LOCAL_GHOST) THEN
+                          FIELD_VARIABLE_DOFS_MAPPING%GLOBAL_TO_LOCAL_MAP(variable_global_ny)%LOCAL_NUMBER(domain_idx)= &
+                            & FIELD_VARIABLE_DOFS_MAPPING%GLOBAL_TO_LOCAL_MAP(variable_global_ny)%LOCAL_NUMBER(domain_idx)+ &
+                            & VARIABLE_GHOST_DOFS_OFFSETS(domain_no)
+                        ELSE
+                          FIELD_VARIABLE_DOFS_MAPPING%GLOBAL_TO_LOCAL_MAP(variable_global_ny)%LOCAL_NUMBER(domain_idx)= &
+                            & FIELD_VARIABLE_DOFS_MAPPING%GLOBAL_TO_LOCAL_MAP(variable_global_ny)%LOCAL_NUMBER(domain_idx)+ &
+                            & VARIABLE_LOCAL_DOFS_OFFSETS(domain_no)
+                        ENDIF
+                      ENDDO !domain_idx
+                    ENDIF
+                  ENDDO !ny (global)
+                  start_idx=gridPointsMapping%NUMBER_OF_LOCAL+1
+                  stop_idx=gridPointsMapping%TOTAL_NUMBER_OF_LOCAL
+                  !Adjust the local offsets
+                  VARIABLE_LOCAL_DOFS_OFFSETS(0:DECOMPOSITION%NUMBER_OF_DOMAINS-1)= &
+                    & VARIABLE_LOCAL_DOFS_OFFSETS(0:DECOMPOSITION%NUMBER_OF_DOMAINS-1)-gridPointsMapping%NUMBER_OF_DOMAIN_GHOST
+                ENDIF
+                !Adjust the global offset
+                VARIABLE_GLOBAL_DOFS_OFFSET=VARIABLE_GLOBAL_DOFS_OFFSET+gridPointsMapping%NUMBER_OF_GLOBAL
+                !Handle local dofs domain mapping
+                DO gridPointIdx=start_idx,stop_idx
+                  variable_local_ny=variable_local_ny+1
+                  grid_point_nyy=grid_point_nyy+1
+                  !Setup dof to parameter map
+                  FIELD%VARIABLES(variable_idx)%DOF_TO_PARAM_MAP%DOF_TYPE(1,variable_local_ny)=FIELD_GRID_POINT_DOF_TYPE
+                  FIELD%VARIABLES(variable_idx)%DOF_TO_PARAM_MAP%DOF_TYPE(2,variable_local_ny)=grid_point_nyy
+                  FIELD%VARIABLES(variable_idx)%DOF_TO_PARAM_MAP%GRID_POINT_DOF2PARAM_MAP(1,grid_point_nyy)=gridPointIdx
+                  FIELD%VARIABLES(variable_idx)%DOF_TO_PARAM_MAP%GRID_POINT_DOF2PARAM_MAP(2,grid_point_nyy)=component_idx
+                  !Setup reverse parameter to dof map
+                  FIELD_COMPONENT%PARAM_TO_DOF_MAP%GRID_POINT_PARAM2DOF_MAP%GRID_POINTS(gridPointIdx)=variable_local_ny
+                ENDDO !gridPointIdx
               CASE(FIELD_GAUSS_POINT_BASED_INTERPOLATION)
                 DOMAIN=>FIELD_COMPONENT%DOMAIN
                 elementsMapping=>DOMAIN%MAPPINGS%ELEMENTS
@@ -10512,7 +10631,92 @@ CONTAINS
                 ENDIF
               ENDDO !domain_type_idx
             CASE(FIELD_GRID_POINT_BASED_INTERPOLATION)
-              CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+              DO component_idx=1,FIELD%VARIABLES(variable_idx)%NUMBER_OF_COMPONENTS
+                FIELD_COMPONENT=>FIELD%VARIABLES(variable_idx)%COMPONENTS(component_idx)
+                DOMAIN=>FIELD_COMPONENT%DOMAIN
+                DOMAIN_TOPOLOGY=>DOMAIN%TOPOLOGY
+                !Allocate parameter to dof map for this field variable component
+                ALLOCATE(FIELD_COMPONENT%PARAM_TO_DOF_MAP%GRID_POINT_PARAM2DOF_MAP%GRID_POINTS(DOMAIN_TOPOLOGY%gridPoints% &
+                  & totalNumberOfGridPoints),STAT=ERR)
+                IF(ERR/=0) CALL FLAG_ERROR("Could not allocate field component parameter to dof grid point map.",ERR,ERROR,*999)
+                FIELD_COMPONENT%PARAM_TO_DOF_MAP%GRID_POINT_PARAM2DOF_MAP%NUMBER_OF_GRID_POINT_PARAMETERS= &
+                  & DOMAIN_TOPOLOGY%gridPoints%totalNumberOfGridPoints
+              ENDDO !component_idx
+              !Handle global dofs domain mapping
+              grid_point_ny=0
+              DO ny=1,gridPointsMapping%NUMBER_OF_GLOBAL 
+                DO component_idx=1,FIELD%VARIABLES(variable_idx)%NUMBER_OF_COMPONENTS
+                  FIELD_COMPONENT=>FIELD%VARIABLES(variable_idx)%COMPONENTS(component_idx)
+                  DOMAIN=>FIELD_COMPONENT%DOMAIN
+                  DOFS_MAPPING=>DOMAIN%MAPPINGS%gridPoints
+                  !Handle field variable mappings
+                  IF(ASSOCIATED(FIELD_VARIABLE_DOFS_MAPPING)) THEN
+                    grid_point_ny=grid_point_ny+1
+                    variable_global_ny=grid_point_ny+VARIABLE_GLOBAL_DOFS_OFFSET
+                    CALL DOMAIN_MAPPINGS_MAPPING_GLOBAL_INITIALISE(FIELD_VARIABLE_DOFS_MAPPING% &
+                      & GLOBAL_TO_LOCAL_MAP(variable_global_ny),ERR,ERROR,*999)
+                    NUMBER_OF_DOMAINS=DOFS_MAPPING%GLOBAL_TO_LOCAL_MAP(ny)%NUMBER_OF_DOMAINS
+                    ALLOCATE(FIELD_VARIABLE_DOFS_MAPPING%GLOBAL_TO_LOCAL_MAP(variable_global_ny)%LOCAL_NUMBER(NUMBER_OF_DOMAINS), &
+                      & STAT=ERR)
+                    IF(ERR/=0) CALL FLAG_ERROR("Could not allocate field variable dofs global to local map local number.", &
+                      & ERR,ERROR,*999)
+                    ALLOCATE(FIELD_VARIABLE_DOFS_MAPPING%GLOBAL_TO_LOCAL_MAP(variable_global_ny)%DOMAIN_NUMBER(NUMBER_OF_DOMAINS), &
+                      & STAT=ERR)
+                    IF(ERR/=0) CALL FLAG_ERROR("Could not allocate field variable dofs global to local map domain number.", &
+                      & ERR,ERROR,*999)
+                    ALLOCATE(FIELD_VARIABLE_DOFS_MAPPING%GLOBAL_TO_LOCAL_MAP(variable_global_ny)%LOCAL_TYPE(NUMBER_OF_DOMAINS), &
+                      & STAT=ERR)
+                    IF(ERR/=0) CALL FLAG_ERROR("Could not allocate field variable dofs global to local map local type.", &
+                      & ERR,ERROR,*999)
+                    FIELD_VARIABLE_DOFS_MAPPING%GLOBAL_TO_LOCAL_MAP(variable_global_ny)%NUMBER_OF_DOMAINS=NUMBER_OF_DOMAINS
+                    DO domain_idx=1,NUMBER_OF_DOMAINS
+                      domain_no=DOFS_MAPPING%GLOBAL_TO_LOCAL_MAP(ny)%DOMAIN_NUMBER(domain_idx)
+                      FIELD_VARIABLE_DOFS_MAPPING%GLOBAL_TO_LOCAL_MAP(variable_global_ny)%LOCAL_NUMBER(domain_idx)= &
+                        & DOFS_MAPPING%GLOBAL_TO_LOCAL_MAP(ny)%LOCAL_NUMBER(domain_idx)+VARIABLE_LOCAL_DOFS_OFFSETS(domain_no)
+                      FIELD_VARIABLE_DOFS_MAPPING%GLOBAL_TO_LOCAL_MAP(variable_global_ny)%DOMAIN_NUMBER(domain_idx)= &
+                        & DOFS_MAPPING%GLOBAL_TO_LOCAL_MAP(ny)%DOMAIN_NUMBER(domain_idx)
+                      FIELD_VARIABLE_DOFS_MAPPING%GLOBAL_TO_LOCAL_MAP(variable_global_ny)%LOCAL_TYPE(domain_idx)= &
+                        & DOFS_MAPPING%GLOBAL_TO_LOCAL_MAP(ny)%LOCAL_TYPE(domain_idx)
+                    ENDDO !domain_idx
+                  ENDIF
+                ENDDO !component_idx
+              ENDDO !ny
+              !Loop over the domain types. Here domain_type_idx=1 for the non-ghosted dofs and =2 for the ghosted dofs.
+              DO domain_type_idx=1,domain_type_stop
+                IF(domain_type_idx==1) THEN
+                  start_idx=1
+                  stop_idx=gridPointsMapping%NUMBER_OF_LOCAL
+                ELSE
+                  start_idx=gridPointsMapping%NUMBER_OF_LOCAL+1
+                  stop_idx=gridPointsMapping%TOTAL_NUMBER_OF_LOCAL
+                ENDIF
+                !Handle local dofs domain mapping
+                grid_point_ny=0
+                DO gridPointIdx=start_idx,stop_idx
+                  DO component_idx=1,FIELD%VARIABLES(variable_idx)%NUMBER_OF_COMPONENTS
+                    FIELD_COMPONENT=>FIELD%VARIABLES(variable_idx)%COMPONENTS(component_idx)
+                    grid_point_ny=grid_point_ny+1
+                    variable_local_ny=grid_point_ny+VARIABLE_LOCAL_DOFS_OFFSETS(my_computational_node_number)
+                    grid_point_nyy=grid_point_nyy+1
+                    !Setup dof to parameter map
+                    FIELD%VARIABLES(variable_idx)%DOF_TO_PARAM_MAP%DOF_TYPE(1,variable_local_ny)=FIELD_GRID_POINT_DOF_TYPE
+                    FIELD%VARIABLES(variable_idx)%DOF_TO_PARAM_MAP%DOF_TYPE(2,variable_local_ny)=grid_point_nyy
+                    FIELD%VARIABLES(variable_idx)%DOF_TO_PARAM_MAP%GRID_POINT_DOF2PARAM_MAP(1,grid_point_nyy)=gridPointIdx
+                    FIELD%VARIABLES(variable_idx)%DOF_TO_PARAM_MAP%GRID_POINT_DOF2PARAM_MAP(2,grid_point_nyy)=component_idx
+                    !Setup reverse parameter to dof map
+                    FIELD_COMPONENT%PARAM_TO_DOF_MAP%GRID_POINT_PARAM2DOF_MAP%GRID_POINTS(gridPointIdx)=variable_local_ny
+                  ENDDO !component_idx
+                ENDDO !gridPointIdx
+                !Adjust the offsets
+                VARIABLE_LOCAL_DOFS_OFFSETS(0:DECOMPOSITION%NUMBER_OF_DOMAINS-1)= &
+                  &  VARIABLE_LOCAL_DOFS_OFFSETS(0:DECOMPOSITION%NUMBER_OF_DOMAINS-1)+ &
+                  & FIELD%VARIABLES(variable_idx)%NUMBER_OF_COMPONENTS* &
+                  & gridPointsMapping%NUMBER_OF_DOMAIN_LOCAL
+                IF(domain_type_idx==1) THEN
+                  VARIABLE_GLOBAL_DOFS_OFFSET=VARIABLE_GLOBAL_DOFS_OFFSET+FIELD%VARIABLES(variable_idx)%NUMBER_OF_COMPONENTS* &
+                    & gridPointsMapping%NUMBER_OF_GLOBAL
+                ENDIF
+              ENDDO !domain_type_idx
             CASE(FIELD_GAUSS_POINT_BASED_INTERPOLATION)
               DO component_idx=1,FIELD%VARIABLES(variable_idx)%NUMBER_OF_COMPONENTS
                 FIELD_COMPONENT=>FIELD%VARIABLES(variable_idx)%COMPONENTS(component_idx)
