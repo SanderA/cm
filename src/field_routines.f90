@@ -724,9 +724,11 @@ MODULE FIELD_ROUTINES
 
   PUBLIC FieldParameterSetUpdateGaussPoint,FIELD_PARAMETER_SET_UPDATE_GAUSS_POINT
 
-  PUBLIC FIELD_PARAMETER_SET_INTERPOLATE_SINGLE_XI, FIELD_PARAMETER_SET_INTERPOLATE_MULTIPLE_XI
+  PUBLIC FIELD_PARAMETER_SET_INTERPOLATE_SINGLE_XI,FIELD_PARAMETER_SET_INTERPOLATE_MULTIPLE_XI
 
-  PUBLIC FIELD_PARAMETER_SET_INTERPOLATE_SINGLE_GAUSS, FIELD_PARAMETER_SET_INTERPOLATE_MULTIPLE_GAUSS
+  PUBLIC FIELD_PARAMETER_SET_INTERPOLATE_SINGLE_GAUSS,FIELD_PARAMETER_SET_INTERPOLATE_MULTIPLE_GAUSS
+
+  PUBLIC FieldParametersToFieldGridPointsParameters
 
   PUBLIC Field_ParameterSetUpdateElementDataPoint
 
@@ -5651,6 +5653,192 @@ CONTAINS
     CALL EXITS("FIELD_INTERPOLATE_GAUSS")
     RETURN 1
   END SUBROUTINE FIELD_INTERPOLATE_GAUSS
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Interpolates a field at a grid point to give an interpolated point. partialDerivativeType controls which partial derivatives
+  !are evaluated. If it is NO_PART_DERIV then only the field values are interpolated. If it is FIRST_PART_DERIV then the field
+  !values and first partial derivatives are interpolated. If it is SECOND_PART_DERIV the the field values and first and second
+  !partial derivatives are evaluated.
+  SUBROUTINE FieldInterpolateGridPoint(partialDerivativeType,gridPointNumber,interpolatedPoint, &
+      & err,error,*)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: partialDerivativeType !<The partial derivative type of the provided field interpolation
+    INTEGER(INTG), INTENT(IN) :: gridPointNumber !<The number of the grid point to interpolate the field at
+    TYPE(FIELD_INTERPOLATED_POINT_TYPE), POINTER :: interpolatedPoint !<The pointer to the interpolated point which will contain the field interpolation information at the specified grid point
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+    INTEGER(INTG) :: componentIdx,xiIdx,derivativeIdx
+    INTEGER(INTG) :: startComponentIdx,endComponentIdx
+    TYPE(COORDINATE_SYSTEM_TYPE), POINTER :: coordinateSystem
+    TYPE(FIELD_TYPE), POINTER :: field
+    TYPE(FIELD_INTERPOLATION_PARAMETERS_TYPE), POINTER :: interpolationParameters
+    TYPE(VARYING_STRING) :: localError
+
+    CALL ENTERS("FieldInterpolateGridPoint",err,error,*999)
+
+    IF(ASSOCIATED(interpolatedPoint)) THEN
+      interpolationParameters=>interpolatedPoint%INTERPOLATION_PARAMETERS
+      IF(ASSOCIATED(interpolationParameters)) THEN
+        field=>interpolationParameters%FIELD
+        IF(ASSOCIATED(field)) THEN
+          NULLIFY(coordinateSystem)
+          CALL FIELD_COORDINATE_SYSTEM_GET(field,coordinateSystem,err,error,*999)
+          startComponentIdx=1
+          endComponentIdx=interpolationParameters%FIELD_VARIABLE%NUMBER_OF_COMPONENTS
+          SELECT CASE(partialDerivativeType)
+          CASE(NO_PART_DERIV)
+            DO componentIdx=startComponentidx,endComponentIdx
+              SELECT CASE(interpolationParameters%FIELD_VARIABLE%COMPONENTS(componentIdx)%INTERPOLATION_TYPE)
+              CASE(FIELD_CONSTANT_INTERPOLATION)
+                interpolatedPoint%VALUES(componentIdx,1)=interpolationParameters%PARAMETERS(1,componentIdx)
+              CASE(FIELD_ELEMENT_BASED_INTERPOLATION)
+                interpolatedPoint%VALUES(componentIdx,1)=interpolationParameters%PARAMETERS(1,componentIdx)              
+              CASE(FIELD_NODE_BASED_INTERPOLATION)
+                interpolatedPoint%VALUES(componentIdx,1)=BasisInterpolateGridPoint(interpolationParameters%BASES( &
+                  & componentIdx)%PTR,NO_PART_DERIV,gridPointNumber,interpolationParameters% &
+                  & PARAMETERS(:,componentIdx),err,error)
+                IF(err/=0) GOTO 999
+              CASE(FIELD_GRID_POINT_BASED_INTERPOLATION)
+                CALL FLAG_ERROR("Not implemented.",err,error,*999)
+              CASE(FIELD_GAUSS_POINT_BASED_INTERPOLATION)
+                CALL FLAG_ERROR("Not implemented.",err,error,*999)
+              CASE DEFAULT
+                localError="The field component interpolation type of "//TRIM(NUMBER_TO_VSTRING(interpolationParameters% &
+                  & FIELD_VARIABLE%COMPONENTS(componentIdx)%INTERPOLATION_TYPE,"*",err,error))// &
+                  & " is invalid for component index "//TRIM(NUMBER_TO_VSTRING(componentIdx,"*",err,error))//"."
+              END SELECT
+              CALL COORDINATE_INTERPOLATION_ADJUST(coordinateSystem,NO_PART_DERIV,interpolatedPoint%VALUES(componentIdx,1), &
+                & err,error,*999)
+            ENDDO! componentIdx
+            interpolatedPoint%PARTIAL_DERIVATIVE_TYPE=NO_PART_DERIV
+          CASE(FIRST_PART_DERIV)
+            DO componentIdx=startComponentidx,endComponentIdx
+              SELECT CASE(interpolationParameters%FIELD_VARIABLE%COMPONENTS(componentIdx)%INTERPOLATION_TYPE)
+              CASE(FIELD_CONSTANT_INTERPOLATION)
+                !Handle the first case of no partial derivative
+                interpolatedPoint%VALUES(componentIdx,1)=interpolationParameters%PARAMETERS(1,componentIdx)
+                CALL COORDINATE_INTERPOLATION_ADJUST(coordinateSystem,NO_PART_DERIV,interpolatedPoint%VALUES(componentIdx,1), &
+                  & err,error,*999)
+                !Now process all the first partial derivatives
+                DO xiIdx=1,interpolationParameters%BASES(componentIdx)%PTR%NUMBER_OF_XI
+                  derivativeIdx=PARTIAL_DERIVATIVE_FIRST_DERIVATIVE_MAP(xiIdx)
+                  interpolatedPoint%VALUES(componentIdx,derivativeIdx)=0.0_DP
+                  CALL COORDINATE_INTERPOLATION_ADJUST(coordinateSystem,derivativeIdx, &
+                    & interpolatedPoint%VALUES(componentIdx,derivativeIdx),err,error,*999)
+                ENDDO !xiIdx
+              CASE(FIELD_ELEMENT_BASED_INTERPOLATION)
+                !Handle the first case of no partial derivative
+                interpolatedPoint%VALUES(componentIdx,1)=interpolationParameters%PARAMETERS(1,componentIdx)
+                CALL COORDINATE_INTERPOLATION_ADJUST(coordinateSystem,NO_PART_DERIV,interpolatedPoint%VALUES(componentIdx,1), &
+                  & err,error,*999)
+                !Now process all the first partial derivatives
+                DO xiIdx=1,interpolationParameters%BASES(componentIdx)%PTR%NUMBER_OF_XI
+                  derivativeIdx=PARTIAL_DERIVATIVE_FIRST_DERIVATIVE_MAP(xiIdx)
+                  interpolatedPoint%VALUES(componentIdx,derivativeIdx)=0.0_DP
+                  CALL COORDINATE_INTERPOLATION_ADJUST(coordinateSystem,derivativeIdx, &
+                    & interpolatedPoint%VALUES(componentIdx,derivativeIdx),err,error,*999)
+                ENDDO !xiIdx
+              CASE(FIELD_NODE_BASED_INTERPOLATION)
+                !Handle the first case of no partial derivative
+                interpolatedPoint%VALUES(componentIdx,1)=BasisInterpolateGridPoint(interpolationParameters%BASES( &
+                  & componentIdx)%PTR,NO_PART_DERIV,gridPointNumber,interpolationParameters% &
+                  & PARAMETERS(:,componentIdx),err,error)
+                IF(err/=0) GOTO 999
+                CALL COORDINATE_INTERPOLATION_ADJUST(coordinateSystem,NO_PART_DERIV,interpolatedPoint%VALUES(componentIdx,1), &
+                  & err,error,*999)
+                !Now process all the first partial derivatives
+                DO xiIdx=1,interpolationParameters%BASES(componentIdx)%PTR%NUMBER_OF_XI
+                  derivativeIdx=PARTIAL_DERIVATIVE_FIRST_DERIVATIVE_MAP(xiIdx)
+                  interpolatedPoint%VALUES(componentIdx,derivativeIdx)=BasisInterpolateGridPoint(interpolationParameters% &
+                    & BASES(componentIdx)%PTR,derivativeIdx,gridPointNumber, &
+                    & interpolationParameters%PARAMETERS(:,componentIdx),err,error)
+                  IF(err/=0) GOTO 999
+                  CALL COORDINATE_INTERPOLATION_ADJUST(coordinateSystem,derivativeIdx, &
+                    & interpolatedPoint%VALUES(componentIdx,derivativeIdx), &
+                    & err,error,*999)
+                ENDDO !xiIdx
+              CASE(FIELD_GRID_POINT_BASED_INTERPOLATION)
+                CALL FLAG_ERROR("Not implemented.",err,error,*999)
+              CASE(FIELD_GAUSS_POINT_BASED_INTERPOLATION)
+                CALL FLAG_ERROR("Not implemented.",err,error,*999)
+              CASE DEFAULT
+                localError="The field component interpolation type of "//TRIM(NUMBER_TO_VSTRING(interpolationParameters% &
+                  & FIELD_VARIABLE%COMPONENTS(componentIdx)%INTERPOLATION_TYPE,"*",err,error))// &
+                  & " is invalid for component index "//TRIM(NUMBER_TO_VSTRING(componentIdx,"*",err,error))//"."
+              END SELECT
+            ENDDO! componentIdx
+            interpolatedPoint%PARTIAL_DERIVATIVE_TYPE=FIRST_PART_DERIV
+          CASE(SECOND_PART_DERIV)
+            DO componentIdx=startComponentidx,endComponentIdx
+              SELECT CASE(interpolationParameters%FIELD_VARIABLE%COMPONENTS(componentIdx)%INTERPOLATION_TYPE)
+              CASE(FIELD_CONSTANT_INTERPOLATION)
+                !Handle the first case of no partial derivative
+                interpolatedPoint%VALUES(componentIdx,1)=interpolationParameters%PARAMETERS(1,componentIdx)
+                CALL COORDINATE_INTERPOLATION_ADJUST(coordinateSystem,NO_PART_DERIV,interpolatedPoint%VALUES(componentIdx,1), &
+                  & err,error,*999)
+                !Now process the rest of partial derivatives
+                DO derivativeIdx=1,interpolationParameters%BASES(componentIdx)%PTR%NUMBER_OF_PARTIAL_DERIVATIVES
+                  interpolatedPoint%VALUES(componentIdx,derivativeIdx)=0.0_DP
+                  CALL COORDINATE_INTERPOLATION_ADJUST(coordinateSystem,derivativeIdx, &
+                    & interpolatedPoint%VALUES(componentIdx,derivativeIdx),err,error,*999)
+                ENDDO !derivativeIdx
+              CASE(FIELD_ELEMENT_BASED_INTERPOLATION)
+                !Handle the first case of no partial derivative
+                interpolatedPoint%VALUES(componentIdx,1)=interpolationParameters%PARAMETERS(1,componentIdx)
+                CALL COORDINATE_INTERPOLATION_ADJUST(coordinateSystem,NO_PART_DERIV,interpolatedPoint%VALUES(componentIdx,1), &
+                  & err,error,*999)
+                !Now process the rest of partial derivatives
+                DO derivativeIdx=1,interpolationParameters%BASES(componentIdx)%PTR%NUMBER_OF_PARTIAL_DERIVATIVES
+                  interpolatedPoint%VALUES(componentIdx,derivativeIdx)=0.0_DP
+                  CALL COORDINATE_INTERPOLATION_ADJUST(coordinateSystem,derivativeIdx, &
+                    & interpolatedPoint%VALUES(componentIdx,derivativeIdx),err,error,*999)
+                ENDDO !derivativeIdx
+              CASE(FIELD_NODE_BASED_INTERPOLATION)              
+                DO derivativeIdx=1,interpolationParameters%BASES(componentIdx)%PTR%NUMBER_OF_PARTIAL_DERIVATIVES
+                  interpolatedPoint%VALUES(componentIdx,derivativeIdx)=BasisInterpolateGridPoint(interpolationParameters% &
+                    & BASES(componentIdx)%PTR,derivativeIdx,gridPointNumber, &
+                    & interpolationParameters%PARAMETERS(:,componentIdx),err,error)
+                  IF(err/=0) GOTO 999
+                  CALL COORDINATE_INTERPOLATION_ADJUST(coordinateSystem,derivativeIdx, &
+                    & interpolatedPoint%VALUES(componentIdx,derivativeIdx),err,error,*999)
+                ENDDO! derivativeIdx
+              CASE(FIELD_GRID_POINT_BASED_INTERPOLATION)
+                CALL FLAG_ERROR("Not implemented.",err,error,*999)
+              CASE(FIELD_GAUSS_POINT_BASED_INTERPOLATION)
+                CALL FLAG_ERROR("Not implemented.",err,error,*999)
+              CASE DEFAULT
+                localError="The field component interpolation type of "//TRIM(NUMBER_TO_VSTRING(interpolationParameters% &
+                  & FIELD_VARIABLE%COMPONENTS(componentIdx)%INTERPOLATION_TYPE,"*",err,error))// &
+                  & " is invalid for component index "//TRIM(NUMBER_TO_VSTRING(componentIdx,"*",err,error))//"."
+              END SELECT
+            ENDDO !componentIdx
+            interpolatedPoint%PARTIAL_DERIVATIVE_TYPE=SECOND_PART_DERIV
+          CASE DEFAULT
+            localError="The partial derivative type of "//TRIM(NUMBER_TO_VSTRING(partialDerivativeType,"*",err,error))// &
+              & " is invalid."
+            CALL FLAG_ERROR(localError,err,error,*999)
+          END SELECT
+        ELSE
+          CALL FLAG_ERROR("The interpolation parameters field is not associated.",err,error,*999)
+        ENDIF
+      ELSE
+        CALL FLAG_ERROR("Interpolated point interpolation parameters is not associated.",err,error,*999)
+      ENDIF
+    ELSE
+      CALL FLAG_ERROR("Interpolated point is not associated.",err,error,*999)
+    ENDIF
+
+    CALL EXITS("FieldInterpolateGridPoint")
+    RETURN
+999 CALL ERRORS("FieldInterpolateGridPoint",err,error)
+    CALL EXITS("FieldInterpolateGridPoint")
+    RETURN 1
+  END SUBROUTINE FieldInterpolateGridPoint
 
   !
   !================================================================================================================================
@@ -13237,7 +13425,6 @@ CONTAINS
                                             & ELEMENT_PARAM2DOF_MAP%ELEMENTS(elem_idx)
                                           VALUE_DP=FROM_PARAMETER_DATA_DP(local_ny)
                                           CALL FIELD_PARAMETER_SET_UPDATE_LOCAL_ELEMENT(TO_FIELD,TO_VARIABLE_TYPE, &
-
                                             & TO_PARAMETER_SET_TYPE,elem_idx,TO_COMPONENT_NUMBER,VALUE_DP,ERR,ERROR,*999)
                                         ENDDO !elem_idx
                                         CALL FIELD_PARAMETER_SET_DATA_RESTORE(FROM_FIELD,FROM_VARIABLE_TYPE, &
@@ -28319,6 +28506,171 @@ CONTAINS
     CALL EXITS("FIELD_PARAMETER_SET_INTERPOLATE_MULTIPLE_GAUSS_DP")
     RETURN 1
   END SUBROUTINE FIELD_PARAMETER_SET_INTERPOLATE_MULTIPLE_GAUSS_DP
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Interpolates the given parameter set from the given "from field" to the parameter set of the "to field" at all grid points. \see
+  !OPENCMISS::CMISSFieldParametersToFieldGridPointsParameters
+  SUBROUTINE FieldParametersToFieldGridPointsParameters(fromField,fromVariableType,fromFieldSetType, &
+    & toField,toVariableType,toFieldSetType,err,error,*)
+
+    !Argument variables
+    TYPE(FIELD_TYPE), POINTER :: fromField !<A pointer to the fromField to interpolate.
+    INTEGER(INTG), INTENT(IN) :: fromVariableType !<The fromField variable type to interpolate. \see FIELD_ROUTINES_VariableTypes,FIELD_ROUTINES
+    INTEGER(INTG), INTENT(IN) :: fromFieldSetType !<The fromField parameter set identifier.
+    TYPE(FIELD_TYPE), POINTER :: toField !<A pointer to the toField to interpolate.
+    INTEGER(INTG), INTENT(IN) :: toVariableType !<The toField variable type to interpolate. \see FIELD_ROUTINES_VariableTypes,FIELD_ROUTINES
+    INTEGER(INTG), INTENT(IN) :: toFieldSetType !<The toField parameter set identifier.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string.
+    !Local Variables
+    INTEGER(INTG) :: elementIdx,localElementNumber,numberOfComponents,localBasisGridPointIdx,localGridPointNumber,componentIdx,dof
+    REAL(DP) :: valueDP
+    TYPE(BASIS_TYPE), POINTER :: basis
+    TYPE(FIELD_INTERPOLATION_PARAMETERS_PTR_TYPE), POINTER :: interpolatedParameters(:)
+    TYPE(FIELD_INTERPOLATED_POINT_PTR_TYPE), POINTER :: interpolatedPoint(:)
+    TYPE(DECOMPOSITION_TYPE), POINTER :: fromDecomposition,toDecomposition
+    TYPE(DOMAIN_ELEMENTS_TYPE), POINTER :: elements
+    TYPE(DOMAIN_MAPPING_TYPE), POINTER :: elementsMapping
+    TYPE(DomainGridPointsType), POINTER :: gridPoints
+    TYPE(FIELD_VARIABLE_TYPE), POINTER :: fromFieldVariable,toFieldVariable
+    TYPE(VARYING_STRING) :: localError
+
+    CALL ENTERS("FieldParametersToFieldGridPointsParameters",err,error,*999)
+
+    IF(ASSOCIATED(fromField)) THEN
+      IF(fromField%FIELD_FINISHED) THEN
+        IF(fromVariableType>=1.AND.fromVariableType<=FIELD_NUMBER_OF_VARIABLE_TYPES) THEN
+          fromFieldVariable=>fromField%VARIABLE_TYPE_MAP(fromVariableType)%PTR
+          IF(ASSOCIATED(fromFieldVariable)) THEN
+            IF(ASSOCIATED(toField)) THEN
+              IF(toField%FIELD_FINISHED) THEN
+                IF(toVariableType>=1.AND.toVariableType<=FIELD_NUMBER_OF_VARIABLE_TYPES) THEN
+                  toFieldVariable=>toField%VARIABLE_TYPE_MAP(toVariableType)%PTR
+                  IF(ASSOCIATED(toFieldVariable)) THEN
+                    fromDecomposition=>fromField%DECOMPOSITION
+                    IF(ASSOCIATED(fromDecomposition)) THEN
+                      toDecomposition=>toField%DECOMPOSITION
+                      IF(ASSOCIATED(toDecomposition,fromDecomposition)) THEN
+                        CALL FIELD_NUMBER_OF_COMPONENTS_GET(toField,toVariableType,numberOfComponents,err,error,*999)
+                        IF(ALL(toFieldVariable%COMPONENTS(1:numberOfComponents)%INTERPOLATION_TYPE== &
+                          & FIELD_GRID_POINT_BASED_INTERPOLATION)) THEN
+                          IF(fromFieldVariable%DATA_TYPE==toFieldVariable%DATA_TYPE) THEN
+                            CALL FIELD_INTERPOLATION_PARAMETERS_INITIALISE(fromField,interpolatedParameters,err,error,*999)
+                            CALL FIELD_INTERPOLATED_POINTS_INITIALISE(interpolatedParameters,interpolatedPoint,err,error,*999)
+                            elements=>fromFieldVariable%COMPONENTS(fromDecomposition%MESH_COMPONENT_NUMBER)%DOMAIN%TOPOLOGY%ELEMENTS
+                            elementsMapping=>fromDecomposition%DOMAIN(fromDecomposition%MESH_COMPONENT_NUMBER)%PTR% &
+                              & MAPPINGS%ELEMENTS
+                            gridPoints=>toFieldVariable%COMPONENTS(toDecomposition%MESH_COMPONENT_NUMBER)%DOMAIN%TOPOLOGY%gridPoints
+                            SELECT CASE(fromFieldVariable%DATA_TYPE)
+                            CASE(FIELD_INTG_TYPE)
+                              CALL FLAG_ERROR("Not implemented.",err,error,*999)
+                            CASE(FIELD_SP_TYPE)
+                              CALL FLAG_ERROR("Not implemented.",err,error,*999)
+                            CASE(FIELD_DP_TYPE)
+                              IF(err/=0) CALL FLAG_ERROR("Could not allocate values DP.",err,error,*999)
+                              !Optimise later by interpolate over internal element grid points, internal face element grid points, internal line
+                              !element grid points and grid points coinciding with nodes
+                              !Also interpolate ghost grid points?
+                              DO elementIdx=1,elements%NUMBER_OF_ELEMENTS
+                                localElementNumber=elementsMapping%DOMAIN_LIST(elementIdx)
+                                CALL FIELD_INTERPOLATION_PARAMETERS_ELEMENT_GET(fromFieldSetType,localElementNumber, &
+                                  & interpolatedParameters(fromVariableType)%PTR,err,error,*999)
+                                basis=>elements%ELEMENTS(localElementNumber)%BASIS
+                                DO localBasisGridPointIdx=1,basis%gridPoints%numberOfGridPoints
+                                  CALL FieldInterpolateGridPoint(1,localBasisGridPointIdx, &
+                                    & interpolatedPoint(fromVariableType)%PTR,err,error,*999)
+                                  localGridPointNumber=elements%ELEMENTS(localElementNumber)% &
+                                    & elementGridPoints(localBasisGridPointIdx)
+                                  !Values of boundary of elements are set multiple times here
+                                  DO componentIdx=1,numberOfComponents
+                                    dof=toFieldVariable%COMPONENTS(componentIdx)%PARAM_TO_DOF_MAP% &
+                                      & GRID_POINT_PARAM2DOF_MAP%GRID_POINTS(localGridPointNumber)
+                                    valueDP=interpolatedPoint(fromVariableType)%PTR%VALUES(componentIdx,1)
+                                    CALL DISTRIBUTED_VECTOR_VALUES_SET(toFieldVariable%PARAMETER_SETS%SET_TYPE(toFieldSetType)% &
+                                      & PTR%PARAMETERS,dof,valueDP,err,error,*999)
+                                  ENDDO !componentIdx
+                                ENDDO !localGridPointIdx
+                              ENDDO !elementIdx
+                            CASE(FIELD_L_TYPE)
+                              CALL FLAG_ERROR("Not implemented.",err,error,*999)
+                            CASE DEFAULT
+                              localError="The from/to field variable data type of "// &
+                                & TRIM(NUMBER_TO_VSTRING(fromFieldVariable%DATA_TYPE,"*",err,error))// &
+                                & " is invalid."
+                              CALL FLAG_ERROR(localError,err,error,*999)
+                            END SELECT
+                            !Finalise the interpolated point and parameters
+                            CALL FIELD_PARAMETER_SET_UPDATE_START(toField,toVariableType,toFieldSetType,ERR,ERROR,*999)
+                            CALL FIELD_INTERPOLATED_POINTS_FINALISE(interpolatedPoint,err,error,*999)
+                            CALL FIELD_INTERPOLATION_PARAMETERS_FINALISE(interpolatedParameters,err,error,*999)
+                            CALL FIELD_PARAMETER_SET_UPDATE_FINISH(toField,toVariableType,toFieldSetType,ERR,ERROR,*999)
+                          ELSE
+                            localError="The from field variable data type of "// &
+                              & TRIM(NUMBER_TO_VSTRING(fromFieldVariable%DATA_TYPE,"*",err,error))// &
+                              & " does not match the to variable data type of "// &
+                              & TRIM(NUMBER_TO_VSTRING(toFieldVariable%DATA_TYPE,"*",err,error))//"."
+                            CALL FLAG_ERROR(localError,err,error,*999)
+                          ENDIF
+                        ELSE
+                          localError="The to field variable components interpolation types are not of type "// &
+                          TRIM(NUMBER_TO_VSTRING(FIELD_GRID_POINT_BASED_INTERPOLATION,"*",err,error))//"."
+                          CALL FLAG_ERROR(localError,err,error,*999)
+                        ENDIF
+                       ELSE
+                        CALL FLAG_ERROR("The from field variable component decomposition is not associated with the "// &
+                          & "to field variable component decomposition.",err,error,*999)
+                      ENDIF
+                    ELSE
+                      CALL FLAG_ERROR("The from variable component decomposition is not associated.",err,error,*999)
+                    ENDIF
+                  ELSE
+                    localError="The specified to field variable type of "//TRIM(NUMBER_TO_VSTRING(toVariableType,"*",err,error))// &
+                      & " has not been defined on to field number "//TRIM(NUMBER_TO_VSTRING(toField%USER_NUMBER,"*",err,error))//"."
+                    CALL FLAG_ERROR(localError,err,error,*999)
+                  ENDIF
+                ELSE
+                  localError="The to field variable type of "//TRIM(NUMBER_TO_VSTRING(toVariableType,"*",err,error))// &
+                    & " is invalid. The variable type must be between 1 and  "// &
+                    & TRIM(NUMBER_TO_VSTRING(FIELD_NUMBER_OF_VARIABLE_TYPES,"*",err,error))//"."
+                  CALL FLAG_ERROR(localError,err,error,*999)
+                ENDIF
+              ELSE
+                localError="To field number "//TRIM(NUMBER_TO_VSTRING(toField%USER_NUMBER,"*",err,error))// &
+                  & " has not been finished."
+                CALL FLAG_ERROR(localError,err,error,*999)
+              ENDIF
+            ELSE
+              CALL FLAG_ERROR("To field is not associated.",err,error,*999)
+            ENDIF
+          ELSE
+            localError="The specified from field variable type of "//TRIM(NUMBER_TO_VSTRING(fromVariableType,"*",err,error))// &
+              & " has not been defined on from field number "//TRIM(NUMBER_TO_VSTRING(fromField%USER_NUMBER,"*",err,error))//"."
+            CALL FLAG_ERROR(localError,err,error,*999)
+          ENDIF
+        ELSE
+          localError="The from field variable type of "//TRIM(NUMBER_TO_VSTRING(fromVariableType,"*",err,error))// &
+            & " is invalid. The variable type must be between 1 and  "// &
+            & TRIM(NUMBER_TO_VSTRING(FIELD_NUMBER_OF_VARIABLE_TYPES,"*",err,error))//"."
+          CALL FLAG_ERROR(localError,err,error,*999)
+        ENDIF
+      ELSE
+        localError="From field number "//TRIM(NUMBER_TO_VSTRING(fromField%USER_NUMBER,"*",err,error))// &
+          & " has not been finished."
+        CALL FLAG_ERROR(localError,err,error,*999)
+      ENDIF
+    ELSE
+      CALL FLAG_ERROR("From field is not associated.",err,error,*999)
+    ENDIF
+
+    CALL EXITS("FieldParametersToFieldGridPointsParameters")
+    RETURN
+999 CALL ERRORS("FieldParametersToFieldGridPointsParameters",err,error)
+    CALL EXITS("FieldParametersToFieldGridPointsParameters")
+    RETURN 1
+  END SUBROUTINE FieldParametersToFieldGridPointsParameters
 
   !
   !================================================================================================================================

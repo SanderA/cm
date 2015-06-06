@@ -172,6 +172,11 @@ MODULE BASIS_ROUTINES
   INTERFACE BASIS_INTERPOLATE_GAUSS
     MODULE PROCEDURE BASIS_INTERPOLATE_GAUSS_DP
   END INTERFACE !BASIS_INTERPOLATE_GAUSS
+
+  !>Interpolates the appropriate partial derivative index of the elements parameters for basis function at a grid point \see BASIS_ROUTINES
+  INTERFACE BasisInterpolateGridPoint
+    MODULE PROCEDURE BasisInterpolateGridPointDP
+  END INTERFACE !BASIS_INTERPOLATE_GAUSS
   
   !>Interpolates the appropriate partial derivative index of the elements parameters for basis function at Xi location \see BASIS_ROUTINES
   INTERFACE BASIS_INTERPOLATE_XI
@@ -272,6 +277,8 @@ MODULE BASIS_ROUTINES
   PUBLIC BASIS_GAUSS_POINTS_CALCULATE
   
   PUBLIC BASIS_INTERPOLATE_GAUSS,BASIS_INTERPOLATE_XI,BASIS_INTERPOLATE_LOCAL_FACE_GAUSS
+
+  PUBLIC BasisInterpolateGridPoint
 
   PUBLIC BASIS_LOCAL_NODE_XI_CALCULATE
 
@@ -1040,6 +1047,7 @@ CONTAINS
       IF(ALLOCATED(BASIS%COLLAPSED_XI)) DEALLOCATE(BASIS%COLLAPSED_XI)
       IF(ALLOCATED(BASIS%NODE_AT_COLLAPSE)) DEALLOCATE(BASIS%NODE_AT_COLLAPSE)
       CALL BASIS_QUADRATURE_FINALISE(BASIS,ERR,ERROR,*999)
+      CALL BasisGridPointsFinalise(BASIS,ERR,ERROR,*999)
       IF(ALLOCATED(BASIS%NUMBER_OF_NODES_XIC)) DEALLOCATE(BASIS%NUMBER_OF_NODES_XIC)
       IF(ALLOCATED(BASIS%NUMBER_OF_DERIVATIVES)) DEALLOCATE(BASIS%NUMBER_OF_DERIVATIVES)
       IF(ALLOCATED(BASIS%NODE_POSITION_INDEX)) DEALLOCATE(BASIS%NODE_POSITION_INDEX)
@@ -1261,6 +1269,56 @@ CONTAINS
 999 CALL ERRORS("BASIS_INTERPOLATE_LOCAL_FACE_GAUSS_DP",ERR,ERROR)
     CALL EXITS("BASIS_INTERPOLATE_LOCAL_FACE_GAUSS_DP")
   END FUNCTION BASIS_INTERPOLATE_LOCAL_FACE_GAUSS_DP
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Interpolates the appropriate partial derivative index of the element parameters at a grid point for the basis
+  !>for double precision arguments. Note the interpolated value returned needs to be adjusted for the particular
+  !!>coordinate system with COORDINATE_INTERPOLATE_ADJUST. 
+  FUNCTION BasisInterpolateGridPointDP(basis,partialDerivIndex,gridPointNumber,elementParameters,err,error)
+  
+    !Argument variables
+    TYPE(BASIS_TYPE), POINTER :: basis !<A pointer to the basis
+    INTEGER(INTG), INTENT(IN) :: partialDerivIndex !<The partial derivative index to interpolate \see CONSTANTS_PartialDerivativeConstants
+    INTEGER(INTG), INTENT(IN) :: gridPointNumber !<The Gauss point number in the scheme to interpolte
+    REAL(DP), INTENT(IN) :: elementParameters(:) !<The element parameters to interpolate
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Function variable
+    REAL(DP) :: BasisInterpolateGridPointDP
+    !Local Variables
+    INTEGER(INTG) :: elementParameterIdx
+    TYPE(VARYING_STRING) :: localError
+
+    CALL ENTERS("BasisInterpolateGridPointDP",err,error,*999)
+    
+    BasisInterpolateGridPointDP=0.0_DP
+    IF(ASSOCIATED(basis)) THEN
+      IF(gridPointNumber>0.AND.gridPointNumber<=basis%gridPoints%numberOfGridPoints) THEN
+        IF(partialDerivIndex>0.AND.partialDerivIndex<=basis%NUMBER_OF_PARTIAL_DERIVATIVES) THEN
+          DO elementParameterIdx=1,basis%NUMBER_OF_ELEMENT_PARAMETERS
+            BasisInterpolateGridPointDP=BasisInterpolateGridPointDP+ &
+              & basis%gridPoints%gridPointsBasisFunctions(elementParameterIdx,partialDerivIndex,gridPointNumber)* &
+              & elementParameters(elementParameterIdx)
+          ENDDO !elementParameterIdx
+        ELSE
+          localError="The partial derivative index of "//TRIM(NUMBER_TO_VSTRING(partialDerivIndex,"*",err,error))// &
+            & " is invalid. It must be between 1 and "// &
+            & TRIM(NUMBER_TO_VSTRING(BASIS%NUMBER_OF_PARTIAL_DERIVATIVES,"*",err,error))
+          CALL flagError(localError,err,error,*999)
+        ENDIF
+      ENDIF
+    ELSE
+      CALL flagError("Basis is not associated",err,error,*999)
+    ENDIF
+    
+    CALL EXITS("BasisInterpolateGridPointDP")
+    RETURN
+999 CALL ERRORS("BasisInterpolateGridPointDP",err,error)
+    CALL EXITS("BasisInterpolateGridPointDP")
+  END FUNCTION BasisInterpolateGridPointDP
 
   !
   !================================================================================================================================
@@ -1492,7 +1550,7 @@ CONTAINS
       & localNodeIdx,localNodeIdx1,localNodeIdx2,localNodeIdx3,directionIdx,localFaceDerivative,localNodeCount, &
       & localLineParameter,localFaceParameter
     LOGICAL, ALLOCATABLE :: nodeAtCollapse(:)
-    LOGICAL :: atCollapse,collapsedFace,firstCollapsedPosition,processNode
+    LOGICAL :: atCollapse,collapsedFace,firstCollapsedPosition
     
     CALL Enters("Basis_LHTPBasisCreate",ERR,error,*999)
 

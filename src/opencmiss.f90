@@ -3789,6 +3789,13 @@ MODULE OPENCMISS
     MODULE PROCEDURE CMISSField_ParameterSetInterpolateMultipleGaussDPObj
   END INTERFACE !CMISSField_ParameterSetInterpolateGauss
 
+  !>Interpolate the parameters from the parameter set of a field variable to the paramters of a parameter set of
+  !>a component of another field variable with grid point interpolation.
+  INTERFACE CMISSField_ParametersToFieldGridPointsParameters
+    MODULE PROCEDURE CMISSField_ParametersToFieldGridPointsParametersNumber
+    MODULE PROCEDURE CMISSField_ParametersToFieldGridPointsParametersObj
+  END INTERFACE !CMISSField_ParametersToFieldGridPointsParameters
+
   !>Updates the given parameter set with the given value for a particular data point of a field variable component.
   INTERFACE CMISSField_ParameterSetUpdateElementDataPoint
     MODULE PROCEDURE CMISSField_ParameterSetUpdateElementDataPointDPObj
@@ -3985,6 +3992,8 @@ MODULE OPENCMISS
   PUBLIC CMISSField_ParameterSetUpdateFinish,CMISSField_ParameterSetUpdateStart
 
   PUBLIC CMISSField_ParametersToFieldParametersComponentCopy
+
+  PUBLIC CMISSField_ParametersToFieldGridPointsParameters
 
   PUBLIC CMISSField_ScalingTypeGet,CMISSField_ScalingTypeSet
 
@@ -35243,6 +35252,109 @@ CONTAINS
     RETURN
 
   END SUBROUTINE CMISSField_ParameterSetUpdateStartObj
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Copy the parameters from the parameter set of a field variable to the parameters of a parameter set of
+  !>a another field variable, where both fields are identified by user numbers.
+  SUBROUTINE CMISSField_ParametersToFieldGridPointsParametersNumber(fromRegionUserNumber,fromFieldUserNumber,fromVariableType, &
+      & fromParameterSetType,toRegionUserNumber,toFieldUserNumber,toVariableType,toParameterSetType,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: fromRegionUserNumber !<The user number of the region containing the field to copy from
+    INTEGER(INTG), INTENT(IN) :: fromFieldUserNumber !<The field to copy from
+    INTEGER(INTG), INTENT(IN) :: fromVariableType !<The field variable type to copy from
+    INTEGER(INTG), INTENT(IN) :: fromParameterSetType !<The field parameter set type to copy from
+    INTEGER(INTG), INTENT(IN) :: toRegionUserNumber !<The user number of the region containing the field to copy to
+    INTEGER(INTG), INTENT(IN) :: toFieldUserNumber !<The field to copy to
+    INTEGER(INTG), INTENT(IN) :: toVariableType !<The field variable type to copy to
+    INTEGER(INTG), INTENT(IN) :: toParameterSetType !<The parameter set type to copy to
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    !Local variables
+    TYPE(REGION_TYPE), POINTER :: FROM_REGION
+    TYPE(FIELD_TYPE), POINTER :: FROM_FIELD
+    TYPE(REGION_TYPE), POINTER :: TO_REGION
+    TYPE(FIELD_TYPE), POINTER :: TO_FIELD
+    TYPE(VARYING_STRING) :: LOCAL_ERROR
+
+    CALL ENTERS("CMISSField_ParametersToFieldGridPointsParametersNumber",err,error,*999)
+
+    NULLIFY(FROM_REGION)
+    NULLIFY(FROM_FIELD)
+    NULLIFY(TO_REGION)
+    NULLIFY(TO_FIELD)
+    CALL REGION_USER_NUMBER_FIND(fromRegionUserNumber,FROM_REGION,err,error,*999)
+    IF(ASSOCIATED(FROM_REGION)) THEN
+      CALL FIELD_USER_NUMBER_FIND(fromFieldUserNumber,FROM_REGION,FROM_FIELD,err,error,*999)
+      IF(ASSOCIATED(FROM_FIELD)) THEN
+        CALL REGION_USER_NUMBER_FIND(toRegionUserNumber,TO_REGION,err,error,*999)
+        IF(ASSOCIATED(TO_REGION)) THEN
+          CALL FIELD_USER_NUMBER_FIND(toFieldUserNumber,TO_REGION,TO_FIELD,err,error,*999)
+          IF(ASSOCIATED(TO_FIELD)) THEN
+            CALL FieldParametersToFieldGridPointsParameters(FROM_FIELD,fromVariableType,fromParameterSetType, &
+              & TO_FIELD,toVariableType,toParameterSetType,err,error,*999)
+          ELSE
+            LOCAL_ERROR="A field with an user number of "//TRIM(NUMBER_TO_VSTRING(toFieldUserNumber,"*",err,error))// &
+              & " does not exist on region number "//TRIM(NUMBER_TO_VSTRING(toRegionUserNumber,"*",err,error))//"."
+            CALL FLAG_ERROR(LOCAL_ERROR,err,error,*999)
+          END IF
+        ELSE
+          LOCAL_ERROR="A region with an user number of "//TRIM(NUMBER_TO_VSTRING(toRegionUserNumber,"*",err,error))// &
+            & " does not exist."
+          CALL FLAG_ERROR(LOCAL_ERROR,err,error,*999)
+        END IF
+      ELSE
+        LOCAL_ERROR="A field with an user number of "//TRIM(NUMBER_TO_VSTRING(fromFieldUserNumber,"*",err,error))// &
+          & " does not exist on region number "//TRIM(NUMBER_TO_VSTRING(fromRegionUserNumber,"*",err,error))//"."
+        CALL FLAG_ERROR(LOCAL_ERROR,err,error,*999)
+      END IF
+    ELSE
+      LOCAL_ERROR="A region with an user number of "//TRIM(NUMBER_TO_VSTRING(fromRegionUserNumber,"*",err,error))// &
+        & " does not exist."
+      CALL FLAG_ERROR(LOCAL_ERROR,err,error,*999)
+    END IF
+
+    RETURN
+999 CALL ERRORS("CMISSField_ParametersToFieldGridPointsParametersNumber",err,error)
+    CALL EXITS("CMISSField_ParametersToFieldGridPointsParametersNumber")
+    CALL CMISS_HANDLE_ERROR(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSField_ParametersToFieldGridPointsParametersNumber
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Interpolate the parameters from the parameter set of a field variable to the paramters of a parameter set of
+  !> another field variable with grid point based interpolation, where both fields are objects.
+  SUBROUTINE CMISSField_ParametersToFieldGridPointsParametersObj(fromField,fromVariableType,fromParameterSetType, &
+    & toField,toVariableType,toParameterSetType,err)
+
+    !Argument variables
+    TYPE(CMISSFieldType), INTENT(IN) :: fromField !<The field to copy from
+    INTEGER(INTG), INTENT(IN) :: fromVariableType !<The field variable type to copy from
+    INTEGER(INTG), INTENT(IN) :: fromParameterSetType !<The field parameter set type to copy from
+    TYPE(CMISSFieldType), INTENT(IN) :: toField !<The field to copy to
+    INTEGER(INTG), INTENT(IN) :: toVariableType !<The field variable type to copy to
+    INTEGER(INTG), INTENT(IN) :: toParameterSetType !<The parameter set type to copy to
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    !Local variables
+
+    CALL ENTERS("CMISSField_ParametersToFieldGridPointsParametersObj",err,error,*999)
+
+    CALL FieldParametersToFieldGridPointsParameters(fromField%FIELD,fromVariableType,fromParameterSetType, &
+      & toField%FIELD,toVariableType,toParameterSetType,err,error,*999)
+
+    RETURN
+999 CALL ERRORS("CMISSField_ParametersToFieldGridPointsParametersObj",err,error)
+    CALL EXITS("CMISSField_ParametersToFieldGridPointsParametersObj")
+    CALL CMISS_HANDLE_ERROR(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSField_ParametersToFieldGridPointsParametersObj
 
   !
   !================================================================================================================================
