@@ -656,7 +656,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
     !Local Variables
-    INTEGER(INTG) :: mi,ni,nu
+    INTEGER(INTG) :: mi,ni,nu,xiIdx1,xiIdx2,xiIdx3
     REAL(DP) :: DET_GL,DET_DX_DXI,DX_DXI2(3),DX_DXI3(3),FF,G1,G3,LENGTH,MU,R,RC,RCRC,RR,SCALE
     TYPE(FIELD_INTERPOLATED_POINT_TYPE), POINTER :: INTERPOLATED_POINT
     TYPE(VARYING_STRING) :: LOCAL_ERROR
@@ -670,7 +670,6 @@ CONTAINS
         INTERPOLATED_POINT=>METRICS%INTERPOLATED_POINT
         IF(ASSOCIATED(INTERPOLATED_POINT)) THEN
           IF(INTERPOLATED_POINT%PARTIAL_DERIVATIVE_TYPE>=FIRST_PART_DERIV) THEN
-
             SELECT CASE(METRICS%NUMBER_OF_XI_DIMENSIONS)
             CASE(1)
               !Calculate the derivatives of X with respect to XI
@@ -961,6 +960,34 @@ CONTAINS
                 ENDIF
               CASE DEFAULT
                 CALL FLAG_ERROR("Invalid embedding in space.",ERR,ERROR,*999)
+              END SELECT
+            ENDIF
+            IF(INTERPOLATED_POINT%PARTIAL_DERIVATIVE_TYPE>=SECOND_PART_DERIV) THEN
+              !\todo Optimise by making use of symmetry of Christoffel symbols.
+              SELECT CASE(COORDINATE_SYSTEM%TYPE)
+              CASE(COORDINATE_RECTANGULAR_CARTESIAN_TYPE)
+                DO xiIdx3=1,METRICS%NUMBER_OF_XI_DIMENSIONS
+                  DO xiIdx2=1,METRICS%NUMBER_OF_XI_DIMENSIONS
+                    nu=PARTIAL_DERIVATIVE_MIXED_SECOND_DERIVATIVES_MAP(xiIdx2,xiIdx3)
+                    DO xiIdx1=1,METRICS%NUMBER_OF_XI_DIMENSIONS
+                      METRICS%christoffel(xiIdx1,xiIdx2,xiIdx3)=DOT_PRODUCT( &
+                        & METRICS%DXI_DX(xiIdx1,1:METRICS%NUMBER_OF_X_DIMENSIONS), &
+                        & INTERPOLATED_POINT%VALUES(1:METRICS%NUMBER_OF_X_DIMENSIONS,nu))
+                    ENDDO
+                  ENDDO
+                ENDDO
+              CASE(COORDINATE_CYLINDRICAL_POLAR_TYPE)
+                CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+              CASE(COORDINATE_SPHERICAL_POLAR_TYPE)
+                CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+              CASE(COORDINATE_PROLATE_SPHEROIDAL_TYPE)
+                CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+              CASE(COORDINATE_OBLATE_SPHEROIDAL_TYPE)
+                CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+              CASE DEFAULT
+                LOCAL_ERROR="The coordinate system type of "//TRIM(NUMBER_TO_VSTRING(COORDINATE_SYSTEM%TYPE,"*",ERR,ERROR))// &
+                  & " is invalid."
+                CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
               END SELECT
             ENDIF
           ELSE

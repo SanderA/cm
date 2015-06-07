@@ -720,7 +720,7 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     INTEGER(INTG) :: globalNumber !<The global grid point number in the domain.
 !    INTEGER(INTG) :: userNumber !<The corresponding user number for the grid point.
     INTEGER(INTG) :: numberOfSurroundingElements !<The number of elements surrounding the grid point in the domain.
-    INTEGER(INTG), ALLOCATABLE :: surroundingElements(:) !<surroudingElements(surroundingElementIdx). The global element number of the surroundingElementIdx'th element that is surrounding the grid point.
+    INTEGER(INTG), ALLOCATABLE :: surroundingElements(:) !<surroudingElements(surroundingElementIdx). The local domain element number of the surroundingElementIdx'th element that is surrounding the grid point.
 !    TYPE(DomainAdjacentGridPointType), ALLOCATABLE :: adjacentGridPoints(:) !<adjacentGridPoints(-nic:nic). The adjacent grid points information in the nic'th xi coordinate direction. Note that -nic gives the adjacent grid point before the grid point in the nic'th direction and +nic gives the adjacent grid point after the grid point in the nic'th direction. The ni=0 index will give the information on the current grid point. 
     LOGICAL :: boundaryGridPoint !<Is .TRUE. if the grid point is on the boundary of the domain, .FALSE. if not.
   END TYPE DomainGridPointType
@@ -1246,6 +1246,7 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     REAL(DP), ALLOCATABLE :: GU(:,:) !<GU(m_xi_idx,n_xi_idx). Contravariant metric tensor. Old CMISS name GU.
     REAL(DP), ALLOCATABLE :: DX_DXI(:,:) !<DX_DXI(coord_idx,xi_idx). Rate of change of the X coordinate system wrt the x coordinate system.
     REAL(DP), ALLOCATABLE :: DXI_DX(:,:) !<DXI_DX(xi_idx,coord_idx). Rate of change of the Xi coordinate system wrt the x coordinate system. 
+    REAL(DP), ALLOCATABLE :: christoffel(:,:,:) !<christoffel(xiIdx1,xiIdx2,xiIdx3). Christoffel symbol of the second kind, a.k.a. connection coefficients of the Levi-Civita connection.
     REAL(DP) :: JACOBIAN !<The Jacobian of the Xi to X coordinate system transformation. Old CMISS name RG.
     INTEGER(INTG) :: JACOBIAN_TYPE !<The type of Jacobian. \see COORDINATE_ROUTINES_JacobianType
   END TYPE FIELD_INTERPOLATED_POINT_METRICS_TYPE
