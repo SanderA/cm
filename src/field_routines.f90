@@ -3834,22 +3834,15 @@ CONTAINS
                     & FIELD_VARIABLE%COMPONENTS(COMPONENT_NUMBER)%maxNumberNodeInterpolationParameters=numParameters
                 ENDDO !nodeIdx
               CASE(FIELD_GRID_POINT_BASED_INTERPOLATION)
-                FIELD_VARIABLE%COMPONENTS(COMPONENT_NUMBER)%maxNumberElementInterpolationParameters=-1
-                DO ne=1,DOMAIN%TOPOLOGY%ELEMENTS%TOTAL_NUMBER_OF_ELEMENTS
-                  BASIS=>DOMAIN%TOPOLOGY%ELEMENTS%ELEMENTS(ne)%BASIS
-                  IF(BASIS%gridPoints%numberOfGridPoints>FIELD_VARIABLE%COMPONENTS(COMPONENT_NUMBER)% &
-                    & maxNumberElementInterpolationParameters) FIELD_VARIABLE%COMPONENTS(COMPONENT_NUMBER)% &
-                    & maxNumberElementInterpolationParameters=BASIS%gridPoints%numberOfGridPoints
-                ENDDO !ne
-                FIELD_VARIABLE%COMPONENTS(COMPONENT_NUMBER)%maxNumberNodeInterpolationParameters=-1
-                DO nodeIdx=1,DOMAIN%TOPOLOGY%NODES%TOTAL_NUMBER_OF_NODES
-                  numParameters=0
-                  DO derivativeIdx=1,DOMAIN%TOPOLOGY%NODES%NODES(nodeIdx)%NUMBER_OF_DERIVATIVES
-                    numParameters=numParameters+DOMAIN%TOPOLOGY%NODES%NODES(nodeIdx)%DERIVATIVES(derivativeIdx)%numberOfVersions
-                  ENDDO !derivativeIdx
-                  IF(numParameters>FIELD_VARIABLE%COMPONENTS(COMPONENT_NUMBER)%maxNumberNodeInterpolationParameters) &
-                    & FIELD_VARIABLE%COMPONENTS(COMPONENT_NUMBER)%maxNumberNodeInterpolationParameters=numParameters
-                ENDDO !nodeIdx
+                ! \todo is maxNumberElementInterpolationParameters correct or needed?
+!               FIELD_VARIABLE%COMPONENTS(COMPONENT_NUMBER)%maxNumberElementInterpolationParameters=-1
+!               DO ne=1,DOMAIN%TOPOLOGY%ELEMENTS%TOTAL_NUMBER_OF_ELEMENTS
+!                 BASIS=>DOMAIN%TOPOLOGY%ELEMENTS%ELEMENTS(ne)%BASIS
+!                 IF(BASIS%gridPoints%numberOfGridPoints>FIELD_VARIABLE%COMPONENTS(COMPONENT_NUMBER)% &
+!                   & maxNumberElementInterpolationParameters) FIELD_VARIABLE%COMPONENTS(COMPONENT_NUMBER)% &
+!                   & maxNumberElementInterpolationParameters=BASIS%gridPoints%numberOfGridPoints
+!               ENDDO !ne
+                FIELD_VARIABLE%COMPONENTS(COMPONENT_NUMBER)%maxNumberElementInterpolationParameters=0
                 FIELD_VARIABLE%COMPONENTS(COMPONENT_NUMBER)%maxNumberNodeInterpolationParameters = 0
               CASE(FIELD_GAUSS_POINT_BASED_INTERPOLATION) ! ?
                 MAXINTERP = -1
@@ -7676,6 +7669,9 @@ CONTAINS
           IF(ERR/=0) CALL FLAG_ERROR("Could not allocate interpolated point metrics dX_dXi.",ERR,ERROR,*999)
           ALLOCATE(INTERPOLATED_POINT_METRICS%DXI_DX(NUMBER_OF_XI_DIMENSIONS,NUMBER_OF_X_DIMENSIONS),STAT=ERR)
           IF(ERR/=0) CALL FLAG_ERROR("Could not allocate interpolated point metrics dXi_dX.",ERR,ERROR,*999)
+          ALLOCATE(INTERPOLATED_POINT_METRICS%christoffel(NUMBER_OF_XI_DIMENSIONS,NUMBER_OF_XI_DIMENSIONS, &
+            & NUMBER_OF_XI_DIMENSIONS),STAT=ERR)
+          IF(ERR/=0) CALL FLAG_ERROR("Could not allocate interpolated point metrics Christoffel symbols.",ERR,ERROR,*999)
           INTERPOLATED_POINT_METRICS%INTERPOLATED_POINT=>INTERPOLATED_POINT
           INTERPOLATED_POINT_METRICS%NUMBER_OF_X_DIMENSIONS=NUMBER_OF_X_DIMENSIONS
           INTERPOLATED_POINT_METRICS%NUMBER_OF_XI_DIMENSIONS=NUMBER_OF_XI_DIMENSIONS
@@ -7683,6 +7679,7 @@ CONTAINS
           INTERPOLATED_POINT_METRICS%GU=0.0_DP
           INTERPOLATED_POINT_METRICS%DX_DXI=0.0_DP
           INTERPOLATED_POINT_METRICS%DXI_DX=0.0_DP
+          INTERPOLATED_POINT_METRICS%christoffel=0.0_DP
           INTERPOLATED_POINT_METRICS%JACOBIAN=0.0_DP
           INTERPOLATED_POINT_METRICS%JACOBIAN_TYPE=0
          !For now don't flag an error if the number of xi dimensions doesn't match the number of x dimensions.
@@ -28571,9 +28568,8 @@ CONTAINS
                               CALL FLAG_ERROR("Not implemented.",err,error,*999)
                             CASE(FIELD_DP_TYPE)
                               IF(err/=0) CALL FLAG_ERROR("Could not allocate values DP.",err,error,*999)
-                              !Optimise later by interpolate over internal element grid points, internal face element grid points, internal line
+                              !Optimise later by interpolating over internal element grid points, internal face element grid points, internal line
                               !element grid points and grid points coinciding with nodes
-                              !Also interpolate ghost grid points?
                               DO elementIdx=1,elements%NUMBER_OF_ELEMENTS
                                 localElementNumber=elementsMapping%DOMAIN_LIST(elementIdx)
                                 CALL FIELD_INTERPOLATION_PARAMETERS_ELEMENT_GET(fromFieldSetType,localElementNumber, &

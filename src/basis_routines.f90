@@ -3950,9 +3950,9 @@ CONTAINS
     TYPE(VARYING_STRING), intent(out) :: error !<The error string
     !Local Variables
     INTEGER(INTG) :: nn,ns,nk,nu,maxNumberOfGridPoints,xiIdx,localGridPointIdx,localGridPointIdx1,gridPointXiIdx1,gridPointXiIdx2, &
-      & gridPointXiIdx3,numberOfCollapsedXi,position(4),collapsedPosition(3),collapsedXi(3)
+      & gridPointXiIdx3,numberOfCollapsedXi,localFaceIdx,localLineIdx,localFaceNodeIdx,localLineNodeIdx,localNodeIdx,xiDirection, &
+      & localVertexGridPointIdx,gridPointPosition(4),collapsedPosition(3),collapsedXi(3),faceXi(2),normalXi(2)
     REAL(DP) :: xi(3),hxi(3)
-!    LOGICAL, ALLOCATABLE :: gridPointAtCollapse(:)
     LOGICAL :: atCollapse,firstCollapsedPosition
 
     call ENTERS("BasisGridPointsCreate",err,error,*999)
@@ -3970,61 +3970,51 @@ CONTAINS
           ENDIF
         ENDDO !xiIdx
         IF(basis%degenerate) THEN
-          !Calculate the gridPointAtCollapse array.
-!          ALLOCATE(gridPointAtCollapse(maxNumberOfGridPoints),STAT=err)
-!          IF(err/=0) CALL FlagError("Could not allocate at collapse",err,error,*999)
-          position=1
+          gridPointPosition=1
           basis%gridPoints%numberOfGridPoints=0
           !Loop over the maximum number of grid points which is currently set for the basis
           DO localGridPointIdx=1,maxNumberOfGridPoints
             atCollapse=.FALSE.
-            DO xiIdx=1,basis%NUMBER_OF_XI
-              IF(basis%COLLAPSED_XI(xiIdx)==BASIS_COLLAPSED_AT_XI0.AND.position(xiIdx)==1.OR. &
-                & basis%COLLAPSED_XI(xiIdx)==BASIS_COLLAPSED_AT_XI1.AND.position(xiIdx)==basis%numberOfGridPointsXi(xiIdx)) &
-                & atCollapse=.TRUE.
-            ENDDO !xiIdx
-            IF(atCollapse) THEN
-              IF(basis%NUMBER_OF_COLLAPSED_XI==1) THEN
-                firstCollapsedPosition=position(collapsedXi(1))==1
-              ELSE
-                firstCollapsedPosition=(position(collapsedXi(1))==1).AND.(position(collapsedXi(2))==1)
-              ENDIF
-              IF(firstCollapsedPosition) THEN
-                basis%gridPoints%numberOfGridPoints=basis%gridPoints%numberOfGridPoints+1
-!                gridPointAtCollapse(basis%gridPoints%numberOfGridPoints)=.TRUE.
-              ENDIF
-            ELSE
-              basis%gridPoints%numberOfGridPoints=basis%gridPoints%numberOfGridPoints+1
-!              gridPointAtCollapse(basis%gridPoints%numberOfGridPoints)=.FALSE.
+            IF(basis%degenerate) THEN
+              DO xiIdx=1,basis%NUMBER_OF_XI
+                IF(basis%COLLAPSED_XI(xiIdx)==BASIS_COLLAPSED_AT_XI0.AND.gridPointPosition(xiIdx)==1.OR. &
+                  & basis%COLLAPSED_XI(xiIdx)==BASIS_COLLAPSED_AT_XI1.AND.gridPointPosition(xiIdx)== &
+                  & basis%numberOfGridPointsXi(xiIdx)) THEN
+                  atCollapse=.TRUE.
+                  firstCollapsedPosition=ALL(gridPointPosition(collapsedXi(1:basis%NUMBER_OF_COLLAPSED_XI))==1)
+                ENDIF 
+              ENDDO !xiIdx
             ENDIF
-            position(1)=position(1)+1
             DO xiIdx=1,basis%NUMBER_OF_XI
-              IF(position(xiIdx)>basis%numberOfGridPointsXi(xiIdx)) THEN
-                position(xiIdx)=1
-                position(xiIdx+1)=position(xiIdx+1)+1
+              IF(basis%COLLAPSED_XI(xiIdx)==BASIS_COLLAPSED_AT_XI0.AND.gridPointPosition(xiIdx)==1.OR. &
+                & basis%COLLAPSED_XI(xiIdx)==BASIS_COLLAPSED_AT_XI1.AND.gridPointPosition(xiIdx)== &
+                & basis%numberOfGridPointsXi(xiIdx)) atCollapse=.TRUE.
+            ENDDO !xiIdx
+            IF((atCollapse.AND.firstCollapsedPosition).OR.(.NOT.atCollapse)) THEN
+              basis%gridPoints%numberOfGridPoints=basis%gridPoints%numberOfGridPoints+1
+            ENDIF
+            gridPointPosition(1)=gridPointPosition(1)+1
+            DO xiIdx=1,basis%NUMBER_OF_XI
+              IF(gridPointPosition(xiIdx)>basis%numberOfGridPointsXi(xiIdx)) THEN
+                gridPointPosition(xiIdx)=1
+                gridPointPosition(xiIdx+1)=gridPointPosition(xiIdx+1)+1
               ENDIF
             ENDDO !xiIdx
-          ENDDO !localNodeIdx
-         ! CALL MOVE_ALLOC(gridPointAtCollapse,basis%NODE_AT_COLLAPSE)
+          ENDDO !localGridPointIdx
         ELSE        
           basis%gridPoints%numberOfGridPoints=maxNumberOfGridPoints
-        !  ALLOCATE(basis%NODE_AT_COLLAPSE(basis%NUMBER_OF_NODES),STAT=err)
-        !  IF(err/=0) CALL FlagError("Could not allocate basis gridPoint at collapse.",err,error,*999)
-        !  basis%NODE_AT_COLLAPSE=.FALSE.
         ENDIF
         allocate(basis%gridPoints%gridPointsPositionIndex(basis%gridPoints%numberOfGridPoints,basis%NUMBER_OF_XI),STAT=err)
-        if(err/=0) call FLAG_ERROR("Could not allocate grid points position index",err,error,*999)
+        if(err/=0) call FLAG_ERROR("Could not allocate grid points gridPointPosition index",err,error,*999)
         allocate(basis%gridPoints%gridPointsPositionIndexInv(basis%numberOfGridPointsXi(1),basis%numberOfGridPointsXi(2), &
           & basis%numberOfGridPointsXi(3)),STAT=err)
-        if(err/=0) call FLAG_ERROR("Could not allocate inverse grid points position index",err,error,*999)
-!       allocate(basis%gridPoints%gridPointsPositions(basis%NUMBER_OF_XI,basis%gridPoints%numberOfGridPoints),STAT=err)
-!       if(err/=0) call FLAG_ERROR("Could not allocate grid points positions",err,error,*999)
+        if(err/=0) call FLAG_ERROR("Could not allocate inverse grid points gridPointPosition index",err,error,*999)
         allocate(basis%gridPoints%gridPointsBasisFunctions(basis%NUMBER_OF_ELEMENT_PARAMETERS, &
           & basis%NUMBER_OF_PARTIAL_DERIVATIVES,basis%gridPoints%numberOfGridPoints),STAT=err)
         if(err/=0) call FLAG_ERROR("Could not allocate grid points basis functions",err,error,*999)
 
-        !Determine the grid point position index and its inverse
-        position=1
+        !Determine the grid point gridPointPosition index and its inverse
+        gridPointPosition=1
         collapsedPosition=1
         localGridPointIdx=0
         firstCollapsedPosition=.TRUE.
@@ -4032,31 +4022,220 @@ CONTAINS
           atCollapse=.FALSE.
           IF(basis%degenerate) THEN
             DO xiIdx=1,basis%NUMBER_OF_XI
-              IF(basis%COLLAPSED_XI(xiIdx)==BASIS_COLLAPSED_AT_XI0.AND.position(xiIdx)==1.OR. &
-                & basis%COLLAPSED_XI(xiIdx)==BASIS_COLLAPSED_AT_XI1.AND.position(xiIdx)==basis%numberOfGridPointsXi(xiIdx)) &
-                & atCollapse=.TRUE.
+              IF(basis%COLLAPSED_XI(xiIdx)==BASIS_COLLAPSED_AT_XI0.AND.gridPointPosition(xiIdx)==1.OR. &
+                & basis%COLLAPSED_XI(xiIdx)==BASIS_COLLAPSED_AT_XI1.AND.gridPointPosition(xiIdx)== &
+                & basis%numberOfGridPointsXi(xiIdx)) THEN
+                atCollapse=.TRUE.
+                firstCollapsedPosition=ALL(gridPointPosition(collapsedXi(1:basis%NUMBER_OF_COLLAPSED_XI))==1)
+              ENDIF 
             ENDDO !xiIdx
-            firstCollapsedPosition=ALL(position(collapsedXi(1:basis%NUMBER_OF_COLLAPSED_XI))==1)
           ENDIF
           IF((atCollapse.AND.firstCollapsedPosition).OR.(.NOT.atCollapse)) THEN
             localGridPointIdx=localGridPointIdx+1
-            basis%gridPoints%gridPointsPositionIndex(localGridPointIdx,1:basis%NUMBER_OF_XI)=position(1:basis%NUMBER_OF_XI)
-            basis%gridPoints%gridPointsPositionIndexInv(position(1),position(2),position(3))=localGridPointIdx
+            basis%gridPoints%gridPointsPositionIndex(localGridPointIdx,1:basis%NUMBER_OF_XI)=gridPointPosition(1:basis%NUMBER_OF_XI)
+            basis%gridPoints%gridPointsPositionIndexInv(gridPointPosition(1),gridPointPosition(2),gridPointPosition(3))= &
+              & localGridPointIdx
           ELSE IF(atCollapse.AND.(.NOT.firstCollapsedPosition)) THEN
             !The second grid point in the collapsed xi is set to the same gridPoint number as the first grid point.
-            collapsedPosition(1:basis%NUMBER_OF_XI)=position(1:basis%NUMBER_OF_XI)
+            collapsedPosition(1:basis%NUMBER_OF_XI)=gridPointPosition(1:basis%NUMBER_OF_XI)
             collapsedPosition(collapsedXi(1:basis%NUMBER_OF_COLLAPSED_XI))=1
-            basis%gridPoints%gridPointsPositionIndexInv(position(1),position(2),position(3))= &
+            basis%gridPoints%gridPointsPositionIndexInv(gridPointPosition(1),gridPointPosition(2),gridPointPosition(3))= &
               & basis%gridPoints%gridPointsPositionIndexInv(collapsedPosition(1),collapsedPosition(2),collapsedPosition(3))
           ENDIF
-          position(1)=position(1)+1
+          gridPointPosition(1)=gridPointPosition(1)+1
           DO xiIdx=1,basis%NUMBER_OF_XI
-            IF(position(xiIdx)>basis%numberOfGridPointsXi(xiIdx)) THEN
-              position(xiIdx)=1
-              position(xiIdx+1)=position(xiIdx+1)+1
+            IF(gridPointPosition(xiIdx)>basis%numberOfGridPointsXi(xiIdx)) THEN
+              gridPointPosition(xiIdx)=1
+              gridPointPosition(xiIdx+1)=gridPointPosition(xiIdx+1)+1
             ENDIF
           ENDDO !xiIdx
         ENDDO !localGridPointIdx1
+
+        !Determine internal element gridpoints
+        basis%gridPoints%numberOfInternalElementGridPoints=PRODUCT(basis%numberOfGridPointsXi(1:basis%NUMBER_OF_XI)-2)
+        allocate(basis%gridPoints%internalElementGridPoints(basis%gridPoints%numberOfInternalElementGridPoints),STAT=err)
+        if(err/=0) call FLAG_ERROR("Could not allocate internal element grid points.",err,error,*999)
+        gridPointPosition=2
+        DO localGridPointIdx=1,basis%gridPoints%numberOfInternalElementGridPoints
+          basis%gridPoints%internalElementGridPoints(localGridPointIdx)= &
+            & basis%gridPoints%gridPointsPositionIndexInv(gridPointPosition(1),gridPointPosition(2),gridPointPosition(3))
+          gridPointPosition(1)=gridPointPosition(1)+1
+          DO xiIdx=1,basis%NUMBER_OF_XI
+            IF(gridPointPosition(xiIdx)>basis%numberOfGridPointsXi(xiIdx)-1) THEN
+              gridPointPosition(xiIdx)=2
+              gridPointPosition(xiIdx+1)=gridPointPosition(xiIdx+1)+1
+            ENDIF
+          ENDDO !xiIdx
+        ENDDO !localGridPointIdx
+      
+        SELECT CASE(basis%NUMBER_OF_XI)
+        CASE(3) 
+          allocate(basis%gridPoints%numberOfInternalFaceGridPoints(basis%NUMBER_OF_LOCAL_FACES),STAT=err)
+          if(err/=0) call FLAG_ERROR("Could not allocate number of internal face grid points.",err,error,*999)
+
+          DO localFaceIdx=1,basis%NUMBER_OF_LOCAL_FACES
+            xiDirection=ABS(basis%LOCAL_FACE_XI_DIRECTION(localFaceIdx))
+            faceXi(1)=OTHER_XI_DIRECTIONS3(xiDirection,2,1)
+            faceXi(2)=OTHER_XI_DIRECTIONS3(xiDirection,3,1)
+            basis%gridPoints%numberOfInternalFaceGridPoints(localFaceIdx)=PRODUCT(basis%numberOfGridPointsXi(faceXi)-2)
+          ENDDO !localFaceIdx
+          
+          allocate(basis%gridPoints%internalFaceGridPoints(MAXVAL(basis%gridPoints%numberOfInternalFaceGridPoints), &
+            & basis%NUMBER_OF_LOCAL_FACES),STAT=err)
+          if(err/=0) call FLAG_ERROR("Could not allocate number of internal face grid points.",err,error,*999)
+
+          DO localFaceIdx=1,basis%NUMBER_OF_LOCAL_FACES
+            xiDirection=ABS(basis%LOCAL_FACE_XI_DIRECTION(localFaceIdx))
+            faceXi(1)=OTHER_XI_DIRECTIONS3(xiDirection,2,1)
+            faceXi(2)=OTHER_XI_DIRECTIONS3(xiDirection,3,1)
+            DO localFaceNodeIdx=1,basis%NUMBER_OF_NODES_IN_LOCAL_FACE(localFaceIdx)
+              localNodeIdx=basis%NODE_NUMBERS_IN_LOCAL_FACE(localFaceNodeIdx,localFaceIdx)
+              IF(.NOT.basis%NODE_AT_COLLAPSE(localNodeIdx)) EXIT
+            ENDDO !localFaceNodeIdx
+            gridPointPosition(faceXi)=2
+            gridPointPosition(xiDirection)=INT(basis%NODE_POSITION_INDEX(localNodeIdx,xiDirection)/ &
+              & basis%NUMBER_OF_NODES_XIC(xiDirection),INTG)*(basis%numberOfGridPointsXi(xiDirection)-1)+1
+            DO localGridPointIdx=1,basis%gridPoints%numberOfInternalFaceGridPoints(localFaceIdx)
+              basis%gridPoints%internalFaceGridPoints(localGridPointIdx,localFaceIdx)= &
+                & basis%gridPoints%gridPointsPositionIndexInv(gridPointPosition(1),gridPointPosition(2),gridPointPosition(3))
+              gridPointPosition(faceXi(1))=gridPointPosition(faceXi(1))+1
+              IF(gridPointPosition(faceXi(1))>basis%numberOfGridPointsXi(faceXi(1))-1) THEN
+                gridPointPosition(faceXi(1))=2
+                gridPointPosition(faceXi(2))=gridPointPosition(faceXi(2))+1
+              ENDIF
+            ENDDO !localGridPointIdx
+          ENDDO !localFaceIdx
+
+          allocate(basis%gridPoints%numberOfInternalLineGridPoints(basis%NUMBER_OF_LOCAL_LINES),STAT=err)
+          if(err/=0) call FLAG_ERROR("Could not allocate number of internal line grid points.",err,error,*999)
+
+          DO localLineIdx=1,basis%NUMBER_OF_LOCAL_LINES
+            xiDirection=ABS(basis%LOCAL_LINE_XI_DIRECTION(localLineIdx))
+            normalXi(1)=OTHER_XI_DIRECTIONS3(xiDirection,2,1)
+            normalXi(2)=OTHER_XI_DIRECTIONS3(xiDirection,3,1)
+            basis%gridPoints%numberOfInternalLineGridPoints(localLineIdx)=basis%numberOfGridPointsXi(xiDirection)-2
+          ENDDO !localFaceIdx
+          
+          allocate(basis%gridPoints%internalLineGridPoints(MAXVAL(basis%gridPoints%numberOfInternalLineGridPoints), &
+            & basis%NUMBER_OF_LOCAL_LINES),STAT=err)
+          if(err/=0) call FLAG_ERROR("Could not allocate number of internal line grid points.",err,error,*999)
+
+          DO localLineIdx=1,basis%NUMBER_OF_LOCAL_LINES
+            xiDirection=ABS(basis%LOCAL_LINE_XI_DIRECTION(localLineIdx))
+            normalXi(1)=OTHER_XI_DIRECTIONS3(xiDirection,2,1)
+            normalXi(2)=OTHER_XI_DIRECTIONS3(xiDirection,3,1)
+            DO localLineNodeIdx=1,basis%NUMBER_OF_NODES_IN_LOCAL_LINE(localLineIdx)
+              localNodeIdx=basis%NODE_NUMBERS_IN_LOCAL_LINE(localLineNodeIdx,localLineIdx)
+              IF(.NOT.basis%NODE_AT_COLLAPSE(localNodeIdx)) EXIT
+            ENDDO !localLineNodeIdx
+            gridPointPosition(xiDirection)=2
+            gridPointPosition(normalXi)=INT(basis%NODE_POSITION_INDEX(localNodeIdx,normalXi)/ &
+              & basis%NUMBER_OF_NODES_XIC(normalXi),INTG)*(basis%numberOfGridPointsXi(normalXi)-1)+1
+            DO localGridPointIdx=1,basis%gridPoints%numberOfInternalLineGridPoints(localLineIdx)
+              basis%gridPoints%internalLineGridPoints(localGridPointIdx,localLineIdx)= &
+                & basis%gridPoints%gridPointsPositionIndexInv(gridPointPosition(1),gridPointPosition(2),gridPointPosition(3))
+              gridPointPosition(xiDirection)=gridPointPosition(xiDirection)+1
+            ENDDO !localGridPointIdx
+          ENDDO !localLineIdx
+        CASE(2)
+          allocate(basis%gridPoints%numberOfInternalLineGridPoints(basis%NUMBER_OF_LOCAL_LINES),STAT=err)
+          if(err/=0) call FLAG_ERROR("Could not allocate number of internal line grid points.",err,error,*999)
+
+          DO localLineIdx=1,basis%NUMBER_OF_LOCAL_LINES
+            xiDirection=ABS(basis%LOCAL_LINE_XI_DIRECTION(localLineIdx))
+            normalXi(1)=OTHER_XI_DIRECTIONS2(xiDirection)
+            basis%gridPoints%numberOfInternalLineGridPoints(localLineIdx)=basis%numberOfGridPointsXi(xiDirection)-2
+          ENDDO !localFaceIdx
+          
+          allocate(basis%gridPoints%internalLineGridPoints(MAXVAL(basis%gridPoints%numberOfInternalLineGridPoints), &
+            & basis%NUMBER_OF_LOCAL_LINES),STAT=err)
+          if(err/=0) call FLAG_ERROR("Could not allocate number of internal line grid points.",err,error,*999)
+
+          DO localLineIdx=1,basis%NUMBER_OF_LOCAL_LINES
+            xiDirection=ABS(basis%LOCAL_LINE_XI_DIRECTION(localLineIdx))
+            normalXi(1)=OTHER_XI_DIRECTIONS2(xiDirection)
+            DO localLineNodeIdx=1,basis%NUMBER_OF_NODES_IN_LOCAL_LINE(localLineIdx)
+              localNodeIdx=basis%NODE_NUMBERS_IN_LOCAL_LINE(localLineNodeIdx,localLineIdx)
+              IF(.NOT.basis%NODE_AT_COLLAPSE(localNodeIdx)) EXIT
+            ENDDO !localLineNodeIdx
+            gridPointPosition(xiDirection)=2
+            gridPointPosition(normalXi(1))=INT(basis%NODE_POSITION_INDEX(localNodeIdx,normalXi(1))/ &
+              & basis%NUMBER_OF_NODES_XIC(normalXi(1)),INTG)*(basis%numberOfGridPointsXi(normalXi(1))-1)+1
+            DO localGridPointIdx=1,basis%gridPoints%numberOfInternalLineGridPoints(localLineIdx)
+              basis%gridPoints%internalLineGridPoints(localGridPointIdx,localLineIdx)= &
+                & basis%gridPoints%gridPointsPositionIndexInv(gridPointPosition(1),gridPointPosition(2),gridPointPosition(3))
+              gridPointPosition(xiDirection)=gridPointPosition(xiDirection)+1
+            ENDDO !localGridPointIdx
+          ENDDO !localLineIdx
+        CASE(1)
+          !Line is already processed as element.
+        CASE DEFAULT
+          CALL FlagError("Invalid number of xi directions.",err,error,*999)
+        END SELECT
+
+        gridPointPosition=1
+        localGridPointIdx=1
+        firstCollapsedPosition=.TRUE.
+        DO WHILE(localGridPointIdx<basis%gridPoints%numberOfGridPoints)
+          atCollapse=.FALSE.
+          IF(basis%degenerate) THEN
+            DO xiIdx=1,basis%NUMBER_OF_XI
+              IF(basis%COLLAPSED_XI(xiIdx)==BASIS_COLLAPSED_AT_XI0.AND.gridPointPosition(xiIdx)==1.OR. &
+                & basis%COLLAPSED_XI(xiIdx)==BASIS_COLLAPSED_AT_XI1.AND.gridPointPosition(xiIdx)== &
+                & basis%numberOfGridPointsXi(xiIdx)) atCollapse=.TRUE.
+            ENDDO !xiIdx
+            firstCollapsedPosition=ALL(gridPointPosition(collapsedXi(1:basis%NUMBER_OF_COLLAPSED_XI))==1)
+          ENDIF
+          IF((atCollapse.AND.firstCollapsedPosition).OR.(.NOT.atCollapse)) THEN
+            localGridPointIdx=basis%gridPoints%gridPointsPositionIndexInv( &
+              & gridPointPosition(1),gridPointPosition(2),gridPointPosition(3))
+            basis%gridPoints%numberOfVertexGridPoints=basis%gridPoints%numberOfVertexGridPoints+1
+          ENDIF
+          gridPointPosition(1)=gridPointPosition(1)+basis%numberOfGridPointsXi(1)-1
+          DO xiIdx=1,basis%NUMBER_OF_XI
+            IF(gridPointPosition(xiIdx)>basis%numberOfGridPointsXi(xiIdx)) THEN
+              gridPointPosition(xiIdx)=1
+              IF(xiIdx<3) THEN
+                gridPointPosition(xiIdx+1)=gridPointPosition(xiIdx+1)+basis%numberOfGridPointsXi(xiIdx+1)-1
+              ENDIF
+            ENDIF
+          ENDDO !xiIdx
+        ENDDO
+
+        ALLOCATE(basis%gridPoints%vertexGridPoints(basis%gridPoints%numberOfVertexGridPoints),STAT=err)
+        IF(err/=0) CALL FLAG_ERROR("Could not allocate vertex grid points.",err,error,*999)
+
+        gridPointPosition=1
+        localGridPointIdx=1
+        localVertexGridPointIdx=0
+        firstCollapsedPosition=.TRUE.
+        DO WHILE(localGridPointIdx<basis%gridPoints%numberOfGridPoints)
+          atCollapse=.FALSE.
+          IF(basis%degenerate) THEN
+            DO xiIdx=1,basis%NUMBER_OF_XI
+              IF(basis%COLLAPSED_XI(xiIdx)==BASIS_COLLAPSED_AT_XI0.AND.gridPointPosition(xiIdx)==1.OR. &
+                & basis%COLLAPSED_XI(xiIdx)==BASIS_COLLAPSED_AT_XI1.AND.gridPointPosition(xiIdx)== &
+                & basis%numberOfGridPointsXi(xiIdx)) atCollapse=.TRUE.
+            ENDDO !xiIdx
+            firstCollapsedPosition=ALL(gridPointPosition(collapsedXi(1:basis%NUMBER_OF_COLLAPSED_XI))==1)
+          ENDIF
+          IF((atCollapse.AND.firstCollapsedPosition).OR.(.NOT.atCollapse)) THEN
+            localGridPointIdx=basis%gridPoints%gridPointsPositionIndexInv( &
+              & gridPointPosition(1),gridPointPosition(2),gridPointPosition(3))
+            localVertexGridPointIdx=localVertexGridPointIdx+1
+            basis%gridPoints%vertexGridPoints(localVertexGridPointIdx)=basis%gridPoints%gridPointsPositionIndexInv( &
+              & gridPointPosition(1),gridPointPosition(2),gridPointPosition(3))
+          ENDIF
+          gridPointPosition(1)=gridPointPosition(1)+basis%numberOfGridPointsXi(1)-1
+          DO xiIdx=1,basis%NUMBER_OF_XI
+            IF(gridPointPosition(xiIdx)>basis%numberOfGridPointsXi(xiIdx)) THEN
+              gridPointPosition(xiIdx)=1
+              IF(xiIdx<3) THEN
+                gridPointPosition(xiIdx+1)=gridPointPosition(xiIdx+1)+basis%numberOfGridPointsXi(xiIdx+1)-1
+              ENDIF
+            ENDIF
+          ENDDO !xiIdx
+        ENDDO
 
         hxi=0.0_DP
         hxi(1:basis%NUMBER_OF_XI)=1.0_DP/REAL(basis%numberOfGridPointsXi(1:basis%NUMBER_OF_XI)-1,DP)
@@ -4075,7 +4254,6 @@ CONTAINS
             ENDDO !nk
           ENDDO !nn
         ENDDO
-!        IF(ALLOCATED(gridPointAtCollapse)) DEALLOCATE(gridPointAtCollapse)
       case default
         call FLAG_ERROR("Invalid basis type for grid points interpolation.",err,error,*999)
       end select
@@ -4089,21 +4267,14 @@ CONTAINS
       call WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"      Total number of local grid points = ", &
         & basis%gridPoints%numberOfGridPoints,err,error,*999)
       if(DIAGNOSTICS2) then
-      ! call WRITE_STRING(DIAGNOSTIC_OUTPUT_TYPE,"      Local grid point positions: ",err,error,*999)
-      ! do localGridPointIdx=1,basis%gridPoints%numberOfGridPoints
-      !   call WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"        Local grid point = ",localGridPointIdx,err,error,*999)
-!     !   call WRITE_STRING_VECTOR(DIAGNOSTIC_OUTPUT_TYPE,1,1,basis%NUMBER_OF_XI_COORDINATES,3,3, &
-!     !     & basis%gridPoints%gridPointsPositions(:,localGridPointIdx), &
-!     !     & '("          position(ni)   :",3(X,F12.4))','(26X,3(X,F12.4))',err,error,*999)
-      ! end do !localGridPointIdx 
-        CALL WRITE_STRING(DIAGNOSTIC_OUTPUT_TYPE,"  Node position index:",err,error,*999)
+        CALL WRITE_STRING(DIAGNOSTIC_OUTPUT_TYPE,"  Grid point position index:",err,error,*999)
         DO xiIdx=1,BASIS%NUMBER_OF_XI_COORDINATES
           CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"    Xic = ",xiIdx,err,error,*999)
           CALL WRITE_STRING_VECTOR(DIAGNOSTIC_OUTPUT_TYPE,1,1,basis%gridPoints%numberOfGridPoints,16,16, &
             & basis%gridPoints%gridPointsPositionIndex(:,xiIdx), &
             & '("      INDEX(nn)  :",16(X,I2))','(18X,16(X,I2))',err,error,*999)        
         ENDDO !ni
-        CALL WRITE_STRING(DIAGNOSTIC_OUTPUT_TYPE,"  Inverse node position index:",err,error,*999)
+        CALL WRITE_STRING(DIAGNOSTIC_OUTPUT_TYPE,"  Inverse grid point position index:",err,error,*999)
         SELECT CASE(BASIS%NUMBER_OF_XI_COORDINATES)
         CASE(1)
           DO gridPointXiIdx1=1,basis%numberOfGridPointsXi(1)
@@ -4141,6 +4312,53 @@ CONTAINS
         CASE DEFAULT
           CALL FLAG_ERROR("Invalid number of xi coordinates",err,error,*999)
         END SELECT
+        CALL WRITE_STRING(DIAGNOSTIC_OUTPUT_TYPE,"  Internal element grid points:",err,error,*999)
+        CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"    Number of element grid points = ", &
+        & basis%gridPoints%numberOfInternalElementGridPoints,err,error,*999)
+        CALL WRITE_STRING_VECTOR(DIAGNOSTIC_OUTPUT_TYPE,1,1,basis%gridPoints%numberOfInternalElementGridPoints,16,16, &
+          & basis%gridPoints%internalElementGridPoints, &
+          & '("      internalElementGridPoints(:)  :",16(X,I8))','(18X,16(X,I8))',err,error,*999)        
+        SELECT CASE(BASIS%NUMBER_OF_XI_COORDINATES)
+        CASE(3)
+          CALL WRITE_STRING(DIAGNOSTIC_OUTPUT_TYPE,"  Internal face grid points:",err,error,*999)
+          DO localFaceIdx=1,basis%NUMBER_OF_LOCAL_FACES
+            CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"    Local face idx: ",localFaceIdx,err,error,*999)
+            CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"    Number of internal face grid points: ", &
+              & basis%gridPoints%numberOfInternalFaceGridPoints(localFaceIdx),err,error,*999)
+            CALL WRITE_STRING_VECTOR(DIAGNOSTIC_OUTPUT_TYPE,1,1,basis%gridPoints%numberOfInternalFaceGridPoints(localFaceIdx), &
+              & 16,16,basis%gridPoints%internalFaceGridPoints(:,localFaceIdx), &
+              & '("      internalElementGridPoints(:)  :",16(X,I8))','(18X,16(X,I8))',err,error,*999)        
+          ENDDO !localFaceIdx
+          CALL WRITE_STRING(DIAGNOSTIC_OUTPUT_TYPE,"  Internal line grid points:",err,error,*999)
+          DO localLineIdx=1,basis%NUMBER_OF_LOCAL_LINES
+            CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"    Local line idx: ",localLineIdx,err,error,*999)
+            CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"    Number of internal line grid points: ", &
+              & basis%gridPoints%numberOfInternalLineGridPoints(localLineIdx),err,error,*999)
+            CALL WRITE_STRING_VECTOR(DIAGNOSTIC_OUTPUT_TYPE,1,1,basis%gridPoints%numberOfInternalLineGridPoints(localLineIdx), &
+              & 16,16,basis%gridPoints%internalLineGridPoints(:,localLineIdx), &
+              & '("      internalElementGridPoints(:)  :",16(X,I8))','(18X,16(X,I8))',err,error,*999)        
+          ENDDO !localLineIdx
+        CASE(2)
+          CALL WRITE_STRING(DIAGNOSTIC_OUTPUT_TYPE,"  Internal line grid points:",err,error,*999)
+          DO localLineIdx=1,basis%NUMBER_OF_LOCAL_LINES
+            CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"    Local line idx: ",localLineIdx,err,error,*999)
+            CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"    Number of internal line grid points: ", &
+              & basis%gridPoints%numberOfInternalLineGridPoints(localLineIdx),err,error,*999)
+            CALL WRITE_STRING_VECTOR(DIAGNOSTIC_OUTPUT_TYPE,1,1,basis%gridPoints%numberOfInternalLineGridPoints(localLineIdx), &
+              & 16,16,basis%gridPoints%internalLineGridPoints(:,localLineIdx), &
+              & '("      internalElementGridPoints(:)  :",16(X,I8))','(18X,16(X,I8))',err,error,*999)        
+          ENDDO !localLineIdx
+        CASE(1)
+          !Do nothing
+        CASE DEFAULT
+          CALL FLAG_ERROR("Invalid number of xi coordinates",err,error,*999)
+        END SELECT
+        CALL WRITE_STRING(DIAGNOSTIC_OUTPUT_TYPE,"  Vertex grid points:",err,error,*999)
+        CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"    Number of vertex grid points: ", &
+          & basis%gridPoints%numberOfVertexGridPoints,err,error,*999)
+        CALL WRITE_STRING_VECTOR(DIAGNOSTIC_OUTPUT_TYPE,1,1,basis%gridPoints%numberOfVertexGridPoints, &
+          & 16,16,basis%gridPoints%vertexGridPoints, &
+          & '("      vertexGridPoints(:)  :",16(X,I8))','(18X,16(X,I8))',err,error,*999)        
       end if
       if(DIAGNOSTICS3) then
         call WRITE_STRING(DIAGNOSTIC_OUTPUT_TYPE,"      Basis functions evaluated at local grid points:",err,error,*999)
@@ -4158,7 +4376,6 @@ CONTAINS
     
     call EXITS("BasisGridPointsCreate")
     return
-!999 IF(ALLOCATED(gridPointAtCollapse)) DEALLOCATE(gridPointAtCollapse)
 999 call ERRORS("BasisGridPointsCreate",err,error)    
     call EXITS("BasisGridPointsCreate")
     return 1
@@ -4183,9 +4400,17 @@ CONTAINS
     if(associated(basis)) then
       if(allocated(basis%gridPoints%gridPointsPositionIndex)) deallocate(basis%gridPoints%gridPointsPositionIndex)
       if(allocated(basis%gridPoints%gridPointsPositionIndexInv)) deallocate(basis%gridPoints%gridPointsPositionIndexInv)
-!      if(allocated(basis%gridPoints%gridPointsPositions)) deallocate(basis%gridPoints%gridPointsPositions)
+      if(allocated(basis%gridPoints%internalElementGridPoints)) deallocate(basis%gridPoints%internalElementGridPoints)
+      if(allocated(basis%gridPoints%numberOfInternalFaceGridPoints)) deallocate(basis%gridPoints%numberOfInternalFaceGridPoints)
+      if(allocated(basis%gridPoints%internalFaceGridPoints)) deallocate(basis%gridPoints%internalFaceGridPoints)
+      if(allocated(basis%gridPoints%numberOfInternalLineGridPoints)) deallocate(basis%gridPoints%numberOfInternalLineGridPoints)
+      if(allocated(basis%gridPoints%internalLineGridPoints)) deallocate(basis%gridPoints%internalLineGridPoints)
+      if(allocated(basis%gridPoints%vertexGridPoints)) deallocate(basis%gridPoints%vertexGridPoints)
       if(allocated(basis%gridPoints%gridPointsBasisFunctions)) deallocate(basis%gridPoints%gridPointsBasisFunctions)
       nullify(basis%gridPoints%BASIS)
+      basis%gridPoints%numberOfGridPoints=0
+      basis%gridPoints%numberOfInternalElementGridPoints=0
+      basis%gridPoints%numberOfVertexGridPoints=0
     else
       call FLAG_error("Basis is not associated",err,error,*999)
     end if
@@ -4216,6 +4441,9 @@ CONTAINS
       select case(basis%TYPE)
       case(BASIS_LAGRANGE_HERMITE_TP_TYPE)
         basis%gridPoints%BASIS=>basis
+        basis%gridPoints%numberOfGridPoints=0
+        basis%gridPoints%numberOfInternalElementGridPoints=0
+        basis%gridPoints%numberOfVertexGridPoints=0
       end select
     else
       call FLAG_ERROR("Basis is not associated",err,error,*999)

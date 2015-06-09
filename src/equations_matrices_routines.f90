@@ -70,6 +70,8 @@ MODULE EQUATIONS_MATRICES_ROUTINES
   INTEGER(INTG), PARAMETER :: EQUATIONS_MATRIX_DIAGONAL_STRUCTURE=3 !<Diagonal matrix structure. \see EQUATIONS_MATRICES_ROUTINES_EquationsMatrixStructureTypes,EQUATIONS_MATRICES_ROUTINES
   INTEGER(INTG), PARAMETER :: EquationsMatrix_NodalStructure=4 !<Nodal matrix structure. \see EQUATIONS_MATRICES_ROUTINES_EquationsMatrixStructureTypes,EQUATIONS_MATRICES_ROUTINES
   !>@}
+  INTEGER(INTG), PARAMETER :: EQUATIONS_MATRIX_FD_STRUCTURE=5 !<Finite differencing matrix structure. \see EQUATIONS_MATRICES_ROUTINES_EquationsMatrixStructureTypes,EQUATIONS_MATRICES_ROUTINES
+  !>@}
 
 
   !> \addtogroup EQUATIONS_MATRICES_ROUTINES_LumpingTypes EQUATIONS_MATRICES_ROUTINES::LumpingTypes
@@ -130,9 +132,8 @@ MODULE EQUATIONS_MATRICES_ROUTINES
     MODULE PROCEDURE EQUATIONS_MATRICES_NONLINEAR_STRUCTURE_TYPE_SET_1
   END INTERFACE !EQUATIONS_MATRICES_NONLINEAR_STRUCTURE_TYPE_SET
 
-  PUBLIC EQUATIONS_MATRIX_NO_STRUCTURE,EQUATIONS_MATRIX_FEM_STRUCTURE,EQUATIONS_MATRIX_DIAGONAL_STRUCTURE
-
-  PUBLIC EquationsMatrix_NodalStructure
+  PUBLIC EQUATIONS_MATRIX_NO_STRUCTURE,EQUATIONS_MATRIX_FEM_STRUCTURE,EQUATIONS_MATRIX_DIAGONAL_STRUCTURE, &
+    & EquationsMatrix_NodalStructure,EQUATIONS_MATRIX_FD_STRUCTURE
 
   PUBLIC EQUATIONS_MATRIX_UNLUMPED,EQUATIONS_MATRIX_LUMPED
 
@@ -4057,6 +4058,8 @@ CONTAINS
                   EQUATIONS_MATRIX%STRUCTURE_TYPE=EQUATIONS_MATRIX_DIAGONAL_STRUCTURE
                 CASE(EquationsMatrix_NodalStructure)
                   EQUATIONS_MATRIX%STRUCTURE_TYPE=EquationsMatrix_NodalStructure
+                CASE(EQUATIONS_MATRIX_FD_STRUCTURE)
+                  EQUATIONS_MATRIX%STRUCTURE_TYPE=EQUATIONS_MATRIX_FD_STRUCTURE
                 CASE DEFAULT
                   LOCAL_ERROR="The specified strucutre type of "// &
                     & TRIM(NUMBER_TO_VSTRING(STRUCTURE_TYPE(matrix_idx),"*",ERR,ERROR))//" for dynamic matrix number "// &
@@ -4127,6 +4130,8 @@ CONTAINS
                   EQUATIONS_MATRIX%STRUCTURE_TYPE=EQUATIONS_MATRIX_DIAGONAL_STRUCTURE
                 CASE(EquationsMatrix_NodalStructure)
                   EQUATIONS_MATRIX%STRUCTURE_TYPE=EquationsMatrix_NodalStructure
+                CASE(EQUATIONS_MATRIX_FD_STRUCTURE)
+                  EQUATIONS_MATRIX%STRUCTURE_TYPE=EQUATIONS_MATRIX_FD_STRUCTURE
                 CASE DEFAULT
                   LOCAL_ERROR="The specified strucutre type of "// &
                     & TRIM(NUMBER_TO_VSTRING(STRUCTURE_TYPE(matrix_idx),"*",ERR,ERROR))//" for linear matrix number "// &
@@ -4197,6 +4202,8 @@ CONTAINS
                   JACOBIAN_MATRIX%STRUCTURE_TYPE=EQUATIONS_MATRIX_DIAGONAL_STRUCTURE
                 CASE(EquationsMatrix_NodalStructure)
                   JACOBIAN_MATRIX%STRUCTURE_TYPE=EquationsMatrix_NodalStructure
+                CASE(EQUATIONS_MATRIX_FD_STRUCTURE)
+                  JACOBIAN_MATRIX%STRUCTURE_TYPE=EQUATIONS_MATRIX_FD_STRUCTURE
                 CASE DEFAULT
                   LOCAL_ERROR="The specified strucutre type of "// &
                     & TRIM(NUMBER_TO_VSTRING(STRUCTURE_TYPE(matrix_idx),"*",ERR,ERROR))//" for the Jacobian matrix is invalid."
@@ -4941,6 +4948,8 @@ CONTAINS
               CALL FLAG_ERROR(localError,err,error,*999)
             END SELECT
 
+          CASE(EQUATIONS_MATRIX_FD_STRUCTURE)
+            CALL FLAG_ERROR("Not yet implemented.",err,error,*998)
           CASE(EQUATIONS_MATRIX_DIAGONAL_STRUCTURE)
             CALL FLAG_ERROR("There is not structure to calculate for a diagonal matrix.",err,error,*998)
           CASE DEFAULT

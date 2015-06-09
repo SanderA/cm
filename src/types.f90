@@ -142,8 +142,16 @@ MODULE TYPES
     INTEGER(INTG) :: numberOfGridPoints !< The number of local grid points in the basis.
     INTEGER(INTG), ALLOCATABLE :: gridPointsPositionIndex(:,:) !<gridPointsPositionIndex(localGridPointIdx,nic). The index of the grid point position for the localGridPointIdx'th local grid point in the nic'th coordinate. For Lagrange-Hermite tensor product basis functions: The number of coordinates equals the number of xi directions. Thus if gridPointsPositionIndex(localGridPointIdx,:)=1,2,2 then local grid point localGridPointIdx is the first grid point in the ni(c)=1 direction, the second grid point in the ni(c)=2 direction and the second grid point in the ni(c)=3 direction
     INTEGER(INTG), ALLOCATABLE :: gridPointsPositionIndexInv(:,:,:) !<gridPointsPositionIndexInv(nnc1,nnc2,nnc3). The inverse of the grid point position index for the basis. The gridPointsPositionIndexInv gives the local grid point number for the grid point that has grid point position indices of nnc1 in the 1st ni(c) direction, nnc2 in the 2nd ni(c) direction, nnc3 in the 3rd ni(c) direction.
-!    REAL(DP), ALLOCATABLE :: gridPointsPositions(:,:) !<gridPointsPositions(nic,gridPointIdx). The positions in the nic'th xi coordinate of local grid point gridPointIdx.
+    INTEGER(INTG) :: numberOfInternalElementGridPoints !<Number of local basis grid points that are internal to the element.
+    INTEGER(INTG), ALLOCATABLE :: internalElementGridPoints(:) !<internalElementGridPoints(gridPointIdx). Local basis grid point numbers that are internal to the element.
+    INTEGER(INTG), ALLOCATABLE :: numberOfInternalFaceGridPoints(:) !<numberOfInternalFaceGridPoints(faceIdx).Number of local basis grid points that are internal to the the faceIdx'th local face.
+    INTEGER(INTG), ALLOCATABLE :: internalFaceGridPoints(:,:) !<internalFaceGridPoints(gridPointIdx,faceIdx). Local basis grid point numbers that are internal to the faceIdx'th local face.
+    INTEGER(INTG), ALLOCATABLE :: numberOfInternalLineGridPoints(:) !<numberOfInternalLineGridPoints(lineIdx). Number of local basis grid points that are internal to the the lineIdx'th local line.
+    INTEGER(INTG), ALLOCATABLE :: internalLineGridPoints(:,:) !<internalLineGridPoints(gridPointIdx,lineIdx). Local basis grid point numbers that are internal to the faceIdx'th local line.
+    INTEGER(INTG) :: numberOfVertexGridPoints
+    INTEGER(INTG), ALLOCATABLE :: vertexGridPoints(:) !<vertexGridPoints(vertexIdx). Local basis grid point numbers that are on the vertexIdx'th local vertex.
     REAL(DP), ALLOCATABLE :: gridPointsBasisFunctions(:,:,:) !<GridPointsBasisFunctions(elementParameterIdx,derivativeIdx,gridPointIdx). The value of the basis functions evaluated at local grid point GridPointIdx for the parameterIdx'th derivative of the basis function associated with the elementParameterIdx'th element parameter.
+    
     !INTEGER(INTG) :: numberOfSurroundingGridPoints
     !REAL(DP), ALLOCATABLE :: surroundingGridPointsWeights(surroundingGridPointIdx,gaussPointIdx) ! The weights for linearly interpolating from the surrounding grid points to the Gauss point
     !REAL(DP), ALLOCATABLE :: surroundingGridPoints(surroundingGridPointIdx,gaussPointIdx) ! The local grid points that surround the Gauss point

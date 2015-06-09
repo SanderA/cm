@@ -7767,8 +7767,8 @@ CONTAINS
         CALL MeshTopologyGridPointsCalculate(topology,err,error,*999)
         !Calculate the elements surrounding the grid points in a mesh
         CALL MeshTopologyGridPointsSurroundingElementsCalculate(topology,err,error,*999)
-        !Calculate the grid points surrounding the grid points in a mesh
-!        CALL MeshTopologyAdjacentGridPointsCalculate(topology,err,error,*999)
+!       !Calculate the grid points surrounding the grid points in a mesh
+!       CALL MeshTopologyGridPointsAdjacentGridPointsCalculate(topology,err,error,*999)
         !Calculate the boundary nodes and elements (and grid points) in the mesh
         CALL MeshTopologyBoundaryCalculate(topology,err,error,*999)
         !Calculate the degrees of freedom in the mesh
@@ -11669,6 +11669,292 @@ CONTAINS
   !================================================================================================================================
   !
 
+!!>Calculates the grid point numbers surrounding a grid point in a mesh topology.
+!!\todo Do we need this for the mesh, or only for domain?
+! SUBROUTINE MeshTopologyGridPointsAdjacentGridPointsCalculate(topology,err,error,*)
+!
+!   !Argument variables
+!   TYPE(MeshCompoelementIdxntTopologyType), POINTER :: topology !<A pointer to the mesh topology to calculate the grid points adjacent to grid points for
+!   INTEGER(INTG), INTENT(OUT) :: err !<The error code
+!   TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+!   !Local Variables
+!   INTEGER(INTG) :: j,elementIdx,elementIdx1,elementIdxp1,ni,xiIdx,nn,nn1,nn2,nn3,node_idx,np,np1,dummyErr,FACE_XI(2),FACE_XIC(3),NODE_POSITION_INDEX(4)
+!   INTEGER(INTG) :: xi_direction,direction_index,xi_dir_check,xi_dir_search,NUMBER_NODE_MATCHES
+!   INTEGER(INTG) :: NUMBER_SURROUNDING,NUMBER_OF_NODES_XIC(4)
+!   INTEGER(INTG), ALLOCATABLE :: NODE_MATCHES(:),ADJACENT_ELEMENTS(:)
+!   LOGICAL :: XI_COLLAPSED,FACE_COLLAPSED(-3:3),SUBSET
+!   TYPE(LIST_TYPE), POINTER :: NODE_MATCH_LIST
+!   TYPE(LIST_PTR_TYPE) :: adjacentGridPointsList(-2:2,-2:2,-2:2)
+!   TYPE(BASIS_TYPE), POINTER :: BASIS
+!   TYPE(VARYING_STRING) :: dummyError,localError
+!
+!   NULLIFY(NODE_MATCH_LIST)
+!   
+!   CALL ENTERS("MeshTopologyGridPointsAdjacentGridPointsCalculate",err,error,*999)
+!   
+!   IF(ASSOCIATED(topology)) THEN
+!     IF(ASSOCIATED(topology%NODES)) THEN
+!       IF(ASSOCIATED(topology%ELEMENTS)) THEN
+!         !Loop over the global grid points in the mesh
+!         DO gridPointIdx=1,topology%gridPoints%numberOfGridPoints
+!           !First we initialize lists that are required to find the adjacent grid points list
+!           ! Process elements, faces, lines, nodes?
+!           basis=>topology%ELEMENTS%ELEMENTS(elementIdx)%BASIS
+!           DO xiIdx=1,BASIS%NUMBER_OF_XI_COORDINATES
+!             NULLIFY(adjacentGridPointsList(position(1),position(2),position(3))%PTR)
+!             CALL LIST_CREATE_START(adjacentGridPointsList(position(1),position(2),position(3))%PTR,err,error,*999)
+!             CALL LIST_DATA_TYPE_SET(adjacentGridPointsList(position(1),position(2),position(3))%PTR,LIST_INTG_TYPE,err,error,*999)
+!             CALL LIST_INITIAL_SIZE_SET(adjacentGridPointsList(position(1),position(2),position(3))%PTR,1,err,error,*999)
+!             CALL LIST_CREATE_FINISH(adjacentGridPointsList(position(1),position(2),position(3))%PTR,err,error,*999)
+!             position(1)=position(1)+1
+!             DO xiIdx=1,basis%NUMBER_OF_XI
+!               IF(position(xiIdx)>basis%NUMBER_OF_NODES_XIC(xiIdx)) THEN
+!                 position(xiIdx)=1
+!                 position(xiIdx+1)=position(xiIdx+1)+1
+!               ENDIF
+!             ENDDO !xiIdx
+!           ENDDO !ni
+!           NUMBER_OF_NODES_XIC=1
+!           NUMBER_OF_NODES_XIC(1:BASIS%NUMBER_OF_XI_COORDINATES)=BASIS%NUMBER_OF_NODES_XIC(1:BASIS%NUMBER_OF_XI_COORDINATES)
+!           !Place the current grid point in the surrounding list
+!           CALL LIST_ITEM_ADD(adjacentGridPointsList(0,0,0)%PTR,topology%gridPoints%gridPoints(gridPointIdx)%GLOBAL_NUMBER,err,error,*999)
+!           SELECT CASE(BASIS%TYPE)
+!           CASE(BASIS_LAGRANGE_HERMITE_TP_TYPE)
+!             !DetermielementIdx the collapsed "faces" if any
+!             NODE_POSITION_INDEX=1
+!             !Loop over the face normals of the grid point
+!             DO ni=1,BASIS%NUMBER_OF_XI
+!               !DetermielementIdx the xi directions that lie in this xi direction
+!               FACE_XI(1)=OTHER_XI_DIRECTIONS3(ni,2,1)
+!               FACE_XI(2)=OTHER_XI_DIRECTIONS3(ni,3,1)
+!               !Reset the node_position_index in this xi direction
+!               NODE_POSITION_INDEX(ni)=1
+!               !Loop over the two faces with this normal
+!               DO direction_index=-1,1,2
+!                 xi_direction=direction_index*ni
+!                 FACE_COLLAPSED(xi_direction)=.FALSE.
+!                 DO j=1,2
+!                   xi_dir_check=FACE_XI(j)
+!                   IF(xi_dir_check<=BASIS%NUMBER_OF_XI) THEN
+!                     xi_dir_search=FACE_XI(3-j)
+!                     NODE_POSITION_INDEX(xi_dir_search)=1
+!                     XI_COLLAPSED=.TRUE.
+!                     DO WHILE(NODE_POSITION_INDEX(xi_dir_search)<=NUMBER_OF_NODES_XIC(xi_dir_search).AND.XI_COLLAPSED)
+!                       !Get the first local node along the xi check direction
+!                       NODE_POSITION_INDEX(xi_dir_check)=1
+!                       nn1=BASIS%NODE_POSITION_INDEX_INV(NODE_POSITION_INDEX(1),NODE_POSITION_INDEX(2),NODE_POSITION_INDEX(3),1)
+!                       !Get the second local node along the xi check direction
+!                       NODE_POSITION_INDEX(xi_dir_check)=2
+!                       nn2=BASIS%NODE_POSITION_INDEX_INV(NODE_POSITION_INDEX(1),NODE_POSITION_INDEX(2),NODE_POSITION_INDEX(3),1)
+!                       IF(nn1/=0.AND.nn2/=0) THEN
+!                         IF(topology%ELEMENTS%ELEMENTS(elementIdx)%MESH_ELEMENT_NODES(nn1)/= &
+!                           & topology%ELEMENTS%ELEMENTS(elementIdx)%MESH_ELEMENT_NODES(nn2)) XI_COLLAPSED=.TRUE.
+!                       ENDIF
+!                       NODE_POSITION_INDEX(xi_dir_search)=NODE_POSITION_INDEX(xi_dir_search)+1
+!                     ENDDO !xi_dir_search
+!                     IF(XI_COLLAPSED) FACE_COLLAPSED(xi_direction)=.TRUE.
+!                   ENDIF
+!                 ENDDO !j
+!                 NODE_POSITION_INDEX(ni)=NUMBER_OF_NODES_XIC(ni)
+!               ENDDO !direction_index
+!             ENDDO !ni
+!             !Loop over the xi directions and calculate the surrounding grid points
+!             DO ni=1,BASIS%NUMBER_OF_XI
+!               !DetermielementIdx the xi directions that lie in this xi direction
+!               FACE_XI(1)=OTHER_XI_DIRECTIONS3(ni,2,1)
+!               FACE_XI(2)=OTHER_XI_DIRECTIONS3(ni,3,1)
+!               !Loop over the two faces
+!               DO direction_index=-1,1,2
+!                 xi_direction=direction_index*ni
+!                 !Find nodes in the grid point on the appropriate face/lielementIdx/point
+!                 NULLIFY(NODE_MATCH_LIST)
+!                 CALL LIST_CREATE_START(NODE_MATCH_LIST,err,error,*999)
+!                 CALL LIST_DATA_TYPE_SET(NODE_MATCH_LIST,LIST_INTG_TYPE,err,error,*999)
+!
+!                 CALL LIST_INITIAL_SIZE_SET(NODE_MATCH_LIST,16,err,error,*999)
+!                 CALL LIST_CREATE_FINISH(NODE_MATCH_LIST,err,error,*999)
+!                 IF(direction_index==-1) THEN
+!                   NODE_POSITION_INDEX(ni)=1
+!                 ELSE
+!                   NODE_POSITION_INDEX(ni)=NUMBER_OF_NODES_XIC(ni)
+!                 ENDIF
+!                 !If the face is collapsed then don't look in this xi direction. The exception is if the opposite face is also
+!                 !collapsed. This may indicate that we have a funny grid point in non-rc coordinates that goes around the central
+!                 !axis back to itself
+!                 IF(FACE_COLLAPSED(xi_direction).AND..NOT.FACE_COLLAPSED(-xi_direction)) THEN
+!                   !Do nothing - the match lists are already empty
+!                 ELSE
+!                   !Find the nodes to match and add them to the node match list
+!                   DO nn1=1,NUMBER_OF_NODES_XIC(FACE_XI(1))
+!                     NODE_POSITION_INDEX(FACE_XI(1))=nn1
+!                     DO nn2=1,NUMBER_OF_NODES_XIC(FACE_XI(2))
+!                       NODE_POSITION_INDEX(FACE_XI(2))=nn2
+!                       nn=BASIS%NODE_POSITION_INDEX_INV(NODE_POSITION_INDEX(1),NODE_POSITION_INDEX(2),NODE_POSITION_INDEX(3),1)
+!                       IF(nn/=0) THEN
+!                         np=topology%ELEMENTS%ELEMENTS(elementIdx)%MESH_ELEMENT_NODES(nn)
+!                         CALL LIST_ITEM_ADD(NODE_MATCH_LIST,np,err,error,*999)
+!                       ENDIF
+!                     ENDDO !nn2
+!                   ENDDO !nn1
+!                 ENDIF
+!                 CALL LIST_REMOVE_DUPLICATES(NODE_MATCH_LIST,err,error,*999)
+!                 CALL LIST_DETACH_AND_DESTROY(NODE_MATCH_LIST,NUMBER_NODE_MATCHES,NODE_MATCHES,err,error,*999)
+!                 NUMBER_SURROUNDING=0
+!                 IF(NUMBER_NODE_MATCHES>0) THEN
+!                   !Find list of grid points surrounding those nodes
+!                   np1=NODE_MATCHES(1)
+!                   DO elementIdxp1=1,topology%NODES%NODES(np1)%numberOfSurroundingElements
+!                     elementIdx1=topology%NODES%NODES(np1)%surroundingElements(elementIdxp1)
+!                     IF(elementIdx1/=elementIdx) THEN !Don't want the current grid point
+!                       ! grab the nodes list for current and this surrouding grid points
+!                       ! current face : NODE_MATCHES
+!                       ! candidate elem : topology%ELEMENTS%ELEMENTS(elementIdx1)%MESH_ELEMENT_NODES ! should this be GLOBAL_ELEMENT_NODES?
+!                       ! if all of current face belongs to the candidate grid point, we will have found the elementIdxighbour
+!                       CALL LIST_SUBSET_OF(NODE_MATCHES(1:NUMBER_NODE_MATCHES),topology%ELEMENTS%ELEMENTS(elementIdx1)% &
+!                         & MESH_ELEMENT_NODES,SUBSET,err,error,*999)
+!                       IF(SUBSET) THEN
+!                         CALL LIST_ITEM_ADD(adjacentGridPointsList(xi_direction)%PTR,elementIdx1,err,error,*999)
+!                         NUMBER_SURROUNDING=NUMBER_SURROUNDING+1
+!                       ENDIF
+!                     ENDIF
+!                   ENDDO !elementIdxp1
+!                 ENDIF
+!                 IF(ALLOCATED(NODE_MATCHES)) DEALLOCATE(NODE_MATCHES)
+!               ENDDO !direction_index
+!             ENDDO !ni
+!           CASE(BASIS_SIMPLEX_TYPE)
+!             !Loop over the xi coordinates and calculate the surrounding grid points
+!             DO xiIdx=1,BASIS%NUMBER_OF_XI_COORDINATES
+!               !Find the other coordinates of the face/lielementIdx/point
+!               FACE_XIC(1)=OTHER_XI_DIRECTIONS4(xiIdx,1)
+!               FACE_XIC(2)=OTHER_XI_DIRECTIONS4(xiIdx,2)
+!               FACE_XIC(3)=OTHER_XI_DIRECTIONS4(xiIdx,3)
+!               !Find nodes in the grid point on the appropriate face/lielementIdx/point
+!               NULLIFY(NODE_MATCH_LIST)
+!               CALL LIST_CREATE_START(NODE_MATCH_LIST,err,error,*999)
+!               CALL LIST_DATA_TYPE_SET(NODE_MATCH_LIST,LIST_INTG_TYPE,err,error,*999)
+!               CALL LIST_INITIAL_SIZE_SET(NODE_MATCH_LIST,16,err,error,*999)
+!               CALL LIST_CREATE_FINISH(NODE_MATCH_LIST,err,error,*999)
+!               NODE_POSITION_INDEX(xiIdx)=1 !Furtherest away from node with the xiIdx'th coordinate
+!               !Find the nodes to match and add them to the node match list
+!               DO nn1=1,NUMBER_OF_NODES_XIC(FACE_XIC(1))
+!                 NODE_POSITION_INDEX(FACE_XIC(1))=nn1
+!                 DO nn2=1,NUMBER_OF_NODES_XIC(FACE_XIC(2))
+!                   NODE_POSITION_INDEX(FACE_XIC(2))=nn2
+!                   DO nn3=1,NUMBER_OF_NODES_XIC(FACE_XIC(3))
+!                     NODE_POSITION_INDEX(FACE_XIC(3))=nn3
+!                     nn=BASIS%NODE_POSITION_INDEX_INV(NODE_POSITION_INDEX(1),NODE_POSITION_INDEX(2),NODE_POSITION_INDEX(3), &
+!                       NODE_POSITION_INDEX(4))
+!                     IF(nn/=0) THEN
+!                       np=topology%ELEMENTS%ELEMENTS(elementIdx)%MESH_ELEMENT_NODES(nn)
+!                       CALL LIST_ITEM_ADD(NODE_MATCH_LIST,np,err,error,*999)
+!                     ENDIF
+!                   ENDDO !nn3
+!                 ENDDO !nn2
+!               ENDDO !nn1
+!               CALL LIST_REMOVE_DUPLICATES(NODE_MATCH_LIST,err,error,*999)
+!               CALL LIST_DETACH_AND_DESTROY(NODE_MATCH_LIST,NUMBER_NODE_MATCHES,NODE_MATCHES,err,error,*999)
+!               IF(NUMBER_NODE_MATCHES>0) THEN
+!                 !Find list of grid points surrounding those nodes
+!                 DO node_idx=1,NUMBER_NODE_MATCHES
+!                   np1=NODE_MATCHES(node_idx)
+!                   DO elementIdxp1=1,topology%NODES%NODES(np1)%numberOfSurroundingElements
+!                     elementIdx1=topology%NODES%NODES(np1)%surroundingElements(elementIdxp1)
+!                     IF(elementIdx1/=elementIdx) THEN !Don't want the current grid point
+!                       ! grab the nodes list for current and this surrouding grid points
+!                       ! current face : NODE_MATCHES
+!                       ! candidate elem : topology%ELEMENTS%ELEMENTS(elementIdx1)%MESH_ELEMENT_NODES 
+!                       ! if all of current face belongs to the candidate grid point, we will have found the elementIdxighbour
+!                       CALL LIST_SUBSET_OF(NODE_MATCHES(1:NUMBER_NODE_MATCHES),topology%ELEMENTS%ELEMENTS(elementIdx1)% &
+!                         & MESH_ELEMENT_NODES,SUBSET,err,error,*999)
+!                       IF(SUBSET) THEN
+!                         CALL LIST_ITEM_ADD(adjacentGridPointsList(xiIdx)%PTR,elementIdx1,err,error,*999)
+!                       ENDIF
+!                     ENDIF
+!                   ENDDO !elementIdxp1
+!                 ENDDO !node_idx
+!               ENDIF
+!               IF(ALLOCATED(NODE_MATCHES)) DEALLOCATE(NODE_MATCHES)
+!             ENDDO !xiIdx
+!           CASE(BASIS_SERENDIPITY_TYPE)
+!             CALL FLAG_ERROR("Not implemented.",err,error,*999)
+!           CASE(BASIS_AUXILLIARY_TYPE)
+!             CALL FLAG_ERROR("Not implemented.",err,error,*999)
+!           CASE(BASIS_B_SPLINE_TP_TYPE)
+!             CALL FLAG_ERROR("Not implemented.",err,error,*999)
+!           CASE(BASIS_FOURIER_LAGRANGE_HERMITE_TP_TYPE)
+!             CALL FLAG_ERROR("Not implemented.",err,error,*999)
+!           CASE(BASIS_EXTENDED_LAGRANGE_TP_TYPE)
+!             CALL FLAG_ERROR("Not implemented.",err,error,*999)
+!           CASE DEFAULT
+!             localError="The basis type of "//TRIM(NUMBER_TO_VSTRING(BASIS%TYPE,"*",err,error))// &
+!               & " is invalid."
+!             CALL FLAG_ERROR(localError,err,error,*999)
+!           END SELECT
+!           !Set the surrounding grid points for this grid point
+!           ALLOCATE(topology%ELEMENTS%ELEMENTS(elementIdx)%ADJACENT_ELEMENTS(-BASIS%NUMBER_OF_XI_COORDINATES: &
+!             & BASIS%NUMBER_OF_XI_COORDINATES),STAT=err)
+!           IF(err/=0) CALL FLAG_ERROR("Could not allocate adjacent grid points.",err,error,*999)
+!           DO xiIdx=-BASIS%NUMBER_OF_XI_COORDINATES,BASIS%NUMBER_OF_XI_COORDINATES
+!             CALL MESH_ADJACENT_ELEMENT_INITIALISE(topology%ELEMENTS%ELEMENTS(elementIdx)%ADJACENT_ELEMENTS(xiIdx),err,error,*999)
+!             CALL LIST_REMOVE_DUPLICATES(adjacentGridPointsList(xiIdx)%PTR,err,error,*999)
+!             CALL LIST_DETACH_AND_DESTROY(adjacentGridPointsList(xiIdx)%PTR,topology%ELEMENTS%ELEMENTS(elementIdx)% &
+!               & ADJACENT_ELEMENTS(xiIdx)%NUMBER_OF_ADJACENT_ELEMENTS,ADJACENT_ELEMENTS,err,error,*999)
+!             ALLOCATE(topology%ELEMENTS%ELEMENTS(elementIdx)%ADJACENT_ELEMENTS(xiIdx)%ADJACENT_ELEMENTS(topology%ELEMENTS%ELEMENTS(elementIdx)% &
+!               ADJACENT_ELEMENTS(xiIdx)%NUMBER_OF_ADJACENT_ELEMENTS),STAT=err)
+!             IF(err/=0) CALL FLAG_ERROR("Could not allocate grid point adjacent grid points.",err,error,*999)
+!             topology%ELEMENTS%ELEMENTS(elementIdx)%ADJACENT_ELEMENTS(xiIdx)%ADJACENT_ELEMENTS(1:topology%ELEMENTS%ELEMENTS(elementIdx)% &
+!               ADJACENT_ELEMENTS(xiIdx)%NUMBER_OF_ADJACENT_ELEMENTS) = ADJACENT_ELEMENTS(1:topology%ELEMENTS% &
+!               & ELEMENTS(elementIdx)%ADJACENT_ELEMENTS(xiIdx)%NUMBER_OF_ADJACENT_ELEMENTS)
+!             IF(ALLOCATED(ADJACENT_ELEMENTS)) DEALLOCATE(ADJACENT_ELEMENTS)
+!           ENDDO !xiIdx
+!         ENDDO !elementIdx           
+!       ELSE
+!         CALL FLAG_ERROR("Mesh topology grid points is not associated.",err,error,*999)
+!       ENDIF
+!     ELSE
+!       CALL FLAG_ERROR("Mesh topology nodes is not associated.",err,error,*999)
+!     ENDIF
+!   ELSE
+!     CALL FLAG_ERROR("Mesh topology is not allocated.",err,error,*999)
+!   ENDIF
+!   
+!   IF(DIAGNOSTICS1) THEN
+!     CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"Number of grid points = ",topology%ELEMENTS%NUMBER_OF_ELEMENTS,err,error,*999)
+!     DO elementIdx=1,topology%ELEMENTS%NUMBER_OF_ELEMENTS
+!       BASIS=>topology%ELEMENTS%ELEMENTS(elementIdx)%BASIS
+!       CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"  Global grid point number : ",elementIdx,err,error,*999)
+!       CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"    Number of xi coordinates = ",BASIS%NUMBER_OF_XI_COORDINATES, &
+!         & err,error,*999)
+!       DO xiIdx=-BASIS%NUMBER_OF_XI_COORDINATES,BASIS%NUMBER_OF_XI_COORDINATES
+!         CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"      Xi coordinate : ",xiIdx,err,error,*999)
+!         CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"        Number of adjacent grid points = ", &
+!           & topology%ELEMENTS%ELEMENTS(elementIdx)%ADJACENT_ELEMENTS(xiIdx)%NUMBER_OF_ADJACENT_ELEMENTS,err,error,*999)
+!         IF(topology%ELEMENTS%ELEMENTS(elementIdx)%ADJACENT_ELEMENTS(xiIdx)%NUMBER_OF_ADJACENT_ELEMENTS>0) THEN
+!           CALL WRITE_STRING_VECTOR(DIAGNOSTIC_OUTPUT_TYPE,1,1,topology%ELEMENTS%ELEMENTS(elementIdx)% &
+!             & ADJACENT_ELEMENTS(xiIdx)%NUMBER_OF_ADJACENT_ELEMENTS,8,8,topology%ELEMENTS%ELEMENTS(elementIdx)%ADJACENT_ELEMENTS(xiIdx)% &
+!             & ADJACENT_ELEMENTS,'("        Adjacent grid points :",8(X,I8))','(30x,8(X,I8))',err,error,*999)
+!         ENDIF
+!       ENDDO !xiIdx
+!     ENDDO !elementIdx
+!   ENDIF
+!   CALL EXITS("MeshTopologyGridPointsAdjacentGridPointsCalculate")
+!   RETURN
+!99 IF(ALLOCATED(NODE_MATCHES)) DEALLOCATE(NODE_MATCHES)
+!   IF(ALLOCATED(ADJACENT_ELEMENTS)) DEALLOCATE(ADJACENT_ELEMENTS)
+!   IF(ASSOCIATED(NODE_MATCH_LIST)) CALL LIST_DESTROY(NODE_MATCH_LIST,dummyErr,dummyError,*998)
+!98 DO xiIdx=-4,4
+!     IF(ASSOCIATED(adjacentGridPointsList(xiIdx)%PTR)) CALL LIST_DESTROY(adjacentGridPointsList(xiIdx)%PTR,dummyErr,dummyError,*997)
+!   ENDDO !ni
+!97 CALL ERRORS("MeshTopologyGridPointsAdjacentGridPointsCalculate",err,error)
+!   CALL EXITS("MeshTopologyGridPointsAdjacentGridPointsCalculate")
+!   RETURN 1   
+! END SUBROUTINE MeshTopologyGridPointsAdjacentGridPointsCalculate
+  
+  !
+  !================================================================================================================================
+  !
+
   !>Finalises the given mesh adjacent grid points. 
   SUBROUTINE MeshAdjacentGridPointFinalise(adjacentGridPoint,err,error,*)
 
@@ -11694,6 +11980,32 @@ CONTAINS
   !
   !================================================================================================================================
   !
+
+  !>Initialises the given mesh adjacent grid points. 
+  SUBROUTINE MeshAdjacentGridPointInitialise(adjacentGridPoint,err,error,*)
+
+    !Argument variables
+    TYPE(MeshAdjacentGridPointType) :: adjacentGridPoint !<The adjacent grid point to initialise
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+
+    CALL Enters("MeshAdjacentGridPointInitialise",err,error,*999)
+
+    adjacentGridPoint%numberOfAdjacentGridPoints=0
+
+    CALL Exits("MeshAdjacentGridPointInitialise")
+    RETURN
+999 CALL Errors("MeshAdjacentGridPointInitialise",err,error)
+    CALL Exits("MeshAdjacentGridPointInitialise")
+    RETURN 1
+    
+  END SUBROUTINE MeshAdjacentGridPointInitialise
+
+  !
+  !================================================================================================================================
+  !
+
   !>Calculates the grid points used the mesh identified by a given mesh topology.
   SUBROUTINE MeshTopologyGridPointsCalculate(topology,err,error,*)
 
@@ -11702,9 +12014,9 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
     !Local Variables
-    INTEGER(INTG) :: elementIdx,surroundingElementIdx,faceIdx,lineIdx,nodeIdx,localgridPointIdx,localGridPointIdx1, &
-      & meshGridPointIdx,localFaceIdx,localLineIdx,localLineNodeIdx,localFaceNodeIdx,localNodeIdx,maxNumberOfGridPoints, &
-      & numberOfGridPoints,tempNumberOfGridPoints,xiDirection,xiIdx,faceXi(2),normalXi(2),position(4)
+    INTEGER(INTG) :: elementIdx,surroundingElementIdx,faceIdx,lineIdx,nodeIdx,localgridPointIdx, &
+      & meshGridPointIdx,localFaceIdx,localLineIdx,numberOfGridPoints,tempNumberOfGridPoints, &
+      & internalElementGridPointIdx,internalFaceGridPointIdx,internalLineGridPointIdx,vertexGridPointIdx
     TYPE(BASIS_TYPE), POINTER :: basis
     TYPE(MESH_TYPE), POINTER :: mesh
     TYPE(MeshElementsType), POINTER :: elements
@@ -11728,149 +12040,74 @@ CONTAINS
                 & " already has allocated mesh topology grid points."
               CALL FlagError(localError,err,error,*999)
             ELSE
-              position=1 
               numberOfGridPoints=0
               !1) Process all internal element grid points
               DO elementIdx=1,elements%NUMBER_OF_ELEMENTS
                 basis=>elements%elements(elementIdx)%BASIS
-                position(1:basis%NUMBER_OF_XI)=2
-                maxNumberOfGridPoints=PRODUCT(basis%numberOfGridPointsXi(1:basis%NUMBER_OF_XI)-2)
-                DO localGridPointIdx1=1,maxNumberOfGridPoints
+                DO internalElementGridPointIdx=1,basis%gridPoints%numberOfInternalElementGridPoints
                   numberOfGridPoints=numberOfGridPoints+1
-                  localGridpointIdx=basis%gridPoints%gridPointsPositionIndexInv(position(1),position(2),position(3))
+                  localGridpointIdx=basis%gridPoints%internalElementGridPoints(internalElementGridPointIdx)
                   elements%elements(elementIdx)%globalElementGridPoints(localGridPointIdx)=numberOfGridPoints
-                  position(1)=position(1)+1
-                  DO xiIdx=1,basis%NUMBER_OF_XI
-                    IF(position(xiIdx)>basis%numberOfGridPointsXi(xiIdx)-1) THEN
-                      position(xiIdx)=2
-                      position(xiIdx+1)=position(xiIdx+1)+1
-                    ENDIF
-                  ENDDO !xiIdx
-                ENDDO !localGridPointIdx1
+                ENDDO !internalElementGridPointIdx
               ENDDO !elementIdx
               
               !2) Process all internal face element grid points
-              SELECT CASE(basis%NUMBER_OF_XI)
-              CASE(3) 
+              IF(basis%NUMBER_OF_XI==3) THEN
                 faces=>topology%faces
                 IF(ASSOCIATED(faces)) THEN
                   DO faceIdx=1,faces%numberOfFaces
-                    xiDirection=faces%faces(faceIdx)%xiDirection
-                    faceXi(1)=OTHER_XI_DIRECTIONS3(xiDirection,2,1)
-                    faceXi(2)=OTHER_XI_DIRECTIONS3(xiDirection,3,1)
                     DO surroundingElementIdx=1,faces%faces(faceIdx)%numberOfSurroundingElements
                       tempNumberOfGridPoints=numberOfGridPoints
                       elementIdx=faces%faces(faceIdx)%surroundingElements(surroundingElementIdx)
                       basis=>elements%elements(elementIdx)%BASIS
                       localFaceIdx=faces%faces(faceIdx)%elementFaces(surroundingElementIdx)
-                      DO localFaceNodeIdx=1,basis%NUMBER_OF_NODES_IN_LOCAL_FACE(localFaceIdx)
-                        localNodeIdx=basis%NODE_NUMBERS_IN_LOCAL_FACE(localFaceNodeIdx,localFaceIdx)
-                        IF(.NOT.basis%NODE_AT_COLLAPSE(localNodeIdx)) EXIT
-                      ENDDO
-                      position(faceXi)=2
-                      position(xiDirection)=INT(basis%NODE_POSITION_INDEX(localNodeIdx,xiDirection)/ &
-                        & basis%NUMBER_OF_NODES_XIC(xiDirection),INTG)*(basis%numberOfGridPointsXi(xiDirection)-1)+1
-                      maxNumberOfGridPoints=PRODUCT(basis%numberOfGridPointsXi(faceXi)-2)
-                      DO localGridPointIdx1=1,maxNumberOfGridPoints
+                      DO internalFaceGridPointIdx=1,basis%gridPoints%numberOfInternalFaceGridPoints(localFaceIdx)
                         tempNumberOfGridPoints=tempNumberOfGridPoints+1
-                        localGridpointIdx=basis%gridPoints%gridPointsPositionIndexInv(position(1),position(2),position(3))
+                        localGridpointIdx=basis%gridPoints%internalFaceGridPoints(internalFaceGridPointIdx,localFaceIdx)
                         elements%elements(elementIdx)%globalElementGridPoints(localGridPointIdx)=tempNumberOfGridPoints
-                        position(faceXi(1))=position(faceXi(1))+1
-                        IF(position(faceXi(1))>basis%numberOfGridPointsXi(faceXi(1))-1) THEN
-                            position(faceXi(1))=2
-                            position(faceXi(2))=position(faceXi(2))+1
-                        ENDIF
-                      ENDDO !localGridPointIdx1
+                      ENDDO !internalFaceGridPointIdx
                     ENDDO !surroundingElementIdx
                     numberOfGridPoints=tempNumberOfGridPoints
                   ENDDO !faceIdx
                 ELSE
                   CALL FlagError("Mesh topology faces is not associated.",err,error,*999)
                 ENDIF
+              ENDIF
 
-                !3) Process all internal line element grid points
+              !3) Process all internal line element grid points
+              IF(basis%NUMBER_OF_XI>1) THEN
                 lines=>topology%lines
                 IF(ASSOCIATED(lines)) THEN
                   DO lineIdx=1,lines%numberOfLines
-                    xiDirection=lines%lines(lineIdx)%xiDirection
-                    normalXi(1)=OTHER_XI_DIRECTIONS3(xiDirection,2,1)
-                    normalXi(2)=OTHER_XI_DIRECTIONS3(xiDirection,3,1)
                     DO surroundingElementIdx=1,lines%lines(lineIdx)%numberOfSurroundingElements
                       tempNumberOfGridPoints=numberOfGridPoints
                       elementIdx=lines%lines(lineIdx)%surroundingElements(surroundingElementIdx)
                       basis=>elements%elements(elementIdx)%BASIS
                       localLineIdx=lines%lines(lineIdx)%elementLines(surroundingElementIdx)
-                      DO localLineNodeIdx=1,basis%NUMBER_OF_NODES_IN_LOCAL_LINE(localLineIdx)
-                        localNodeIdx=basis%NODE_NUMBERS_IN_LOCAL_LINE(localLineNodeIdx,localLineIdx)
-                        IF(.NOT.basis%NODE_AT_COLLAPSE(localNodeIdx)) EXIT
-                      ENDDO
-                      position(xiDirection)=2
-                      position(normalXi)=INT(basis%NODE_POSITION_INDEX(localNodeIdx,normalXi)/ &
-                        & basis%NUMBER_OF_NODES_XIC(normalXi),INTG)*(basis%numberOfGridPointsXi(normalXi)-1)+1
-                      maxNumberOfGridPoints=basis%numberOfGridPointsXi(xiDirection)-2
-                      DO localGridPointIdx1=1,maxNumberOfGridPoints
+                      DO internalLineGridPointIdx=1,basis%gridPoints%numberOfInternalLineGridPoints(localLineIdx)
                         tempNumberOfGridPoints=tempNumberOfGridPoints+1
-                        localGridpointIdx=basis%gridPoints%gridPointsPositionIndexInv(position(1),position(2),position(3))
+                        localGridpointIdx=basis%gridPoints%internalLineGridPoints(internalLineGridPointIdx,localLineIdx)
                         elements%elements(elementIdx)%globalElementGridPoints(localGridPointIdx)=tempNumberOfGridPoints
-                        position(xiDirection)=position(xiDirection)+1
-                      ENDDO !localGridPointIdx1
+                      ENDDO !internalLineGridPointIdx
                     ENDDO !surroundingElementIdx
                     numberOfGridPoints=tempNumberOfGridPoints
                   ENDDO !lineIdx
                 ELSE
                   CALL FlagError("Mesh topology lines is not associated.",err,error,*999)
                 ENDIF
-              CASE(2)
-                !3) Process all internal line element grid points
-                lines=>topology%lines
-                IF(ASSOCIATED(lines)) THEN
-                  DO lineIdx=1,lines%numberOfLines
-                    xiDirection=lines%lines(lineIdx)%xiDirection
-                    normalXi(1)=OTHER_XI_DIRECTIONS2(xiDirection)
-                    DO surroundingElementIdx=1,lines%lines(lineIdx)%numberOfSurroundingElements
-                      tempNumberOfGridPoints=numberOfGridPoints
-                      elementIdx=lines%lines(lineIdx)%surroundingElements(surroundingElementIdx)
-                      basis=>elements%elements(elementIdx)%BASIS
-                      localLineIdx=lines%lines(lineIdx)%elementLines(surroundingElementIdx)
-                      DO localLineNodeIdx=1,basis%NUMBER_OF_NODES_IN_LOCAL_LINE(localLineIdx)
-                        localNodeIdx=basis%NODE_NUMBERS_IN_LOCAL_LINE(localLineNodeIdx,localLineIdx)
-                        IF(.NOT.basis%NODE_AT_COLLAPSE(localNodeIdx)) EXIT
-                      ENDDO
-                      position(xiDirection)=2
-                      position(normalXi(1))=INT(basis%NODE_POSITION_INDEX(localNodeIdx,normalXi(1))/ &
-                        & basis%NUMBER_OF_NODES_XIC(normalXi(1)),INTG)*(basis%numberOfGridPointsXi(normalXi(1))-1)+1
-                      maxNumberOfGridPoints=basis%numberOfGridPointsXi(xiDirection)-2
-                      DO localGridPointIdx1=1,maxNumberOfGridPoints
-                        tempNumberOfGridPoints=tempNumberOfGridPoints+1
-                        localGridpointIdx=basis%gridPoints%gridPointsPositionIndexInv(position(1),position(2),position(3))
-                        elements%elements(elementIdx)%globalElementGridPoints(localGridPointIdx)=tempNumberOfGridPoints
-                        position(xiDirection)=position(xiDirection)+1
-                      ENDDO !localGridPointIdx1
-                    ENDDO !surroundingElementIdx
-                    numberOfGridPoints=tempNumberOfGridPoints
-                  ENDDO !lineIdx
-                ELSE
-                  CALL FlagError("Mesh topology lines is not associated.",err,error,*999)
-                ENDIF
-              CASE(1)
-                !Line is already processed as element.
-              CASE DEFAULT
-                CALL FlagError("Invalid number of xi directions.",err,error,*999)
-              END SELECT
+              ENDIF
 
               !4) Process all grid points coinciding with nodes
+              !\todo should be vertices instead of nodes, or restrict to trilinear Lagrange or Cubic Hermite
               nodes=>topology%nodes
               IF(ASSOCIATED(nodes)) THEN
                 DO nodeIdx=1,nodes%numberOfNodes
                   numberOfGridPoints=numberOfGridPoints+1
                   DO surroundingElementIdx=1,nodes%nodes(nodeIdx)%numberOfSurroundingElements
                     elementIdx=nodes%nodes(nodeIdx)%surroundingElements(surroundingElementIdx)
-                    localNodeIdx=nodes%nodes(nodeIdx)%elementNodes(surroundingElementIdx)
                     basis=>elements%elements(elementIdx)%basis
-                    position(1:basis%NUMBER_OF_XI)=INT(basis%NODE_POSITION_INDEX(localNodeIdx,1:basis%NUMBER_OF_XI)/ &
-                      & basis%NUMBER_OF_NODES_XIC(1:basis%NUMBER_OF_XI),INTG)* &
-                      & (basis%numberOfGridPointsXi(1:basis%NUMBER_OF_XI)-1)+1
-                    localGridpointIdx=basis%gridPoints%gridPointsPositionIndexInv(position(1),position(2),position(3))
+                    vertexGridPointIdx=nodes%nodes(nodeIdx)%elementNodes(surroundingElementIdx)
+                    localGridpointIdx=basis%gridPoints%vertexGridPoints(vertexGridPointIdx)
                     elements%elements(elementIdx)%globalElementGridPoints(localGridPointIdx)=numberOfGridPoints
                   ENDDO !surroundingElementIdx
                 ENDDO
