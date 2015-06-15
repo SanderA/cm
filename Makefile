@@ -153,6 +153,7 @@ OBJECTS = $(OBJECT_DIR)/advection_diffusion_equation_routines.o \
 	$(OBJECT_DIR)/cmiss_cellml.o \
 	$(OBJECT_DIR)/cmiss_fortran_c.o \
 	$(OBJECT_DIR)/cmiss_mpi.o \
+	$(OBJECT_DIR)/cmiss_p4est.o \
 	$(OBJECT_DIR)/cmiss_parmetis.o \
 	$(OBJECT_DIR)/cmiss_petsc.o \
 	$(OBJECT_DIR)/cmiss_petsc_types.o \
@@ -459,6 +460,11 @@ $(OBJECT_DIR)/cmiss_mpi.o	:	$(SOURCE_DIR)/cmiss_mpi.f90 \
 	$(OBJECT_DIR)/iso_varying_string.o \
 	$(OBJECT_DIR)/kinds.o \
 	$(OBJECT_DIR)/strings.o
+
+$(OBJECT_DIR)/cmiss_p4est.o	:	$(SOURCE_DIR)/cmiss_p4est.f90 \
+	$(OBJECT_DIR)/base_routines.o \
+	$(OBJECT_DIR)/iso_varying_string.o \
+	$(OBJECT_DIR)/kinds.o
 
 $(OBJECT_DIR)/cmiss_parmetis.o	:	$(SOURCE_DIR)/cmiss_parmetis.f90 \
 	$(OBJECT_DIR)/base_routines.o \
