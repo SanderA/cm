@@ -89,6 +89,7 @@ include $(OCE_MAKEINC_ROOT)/Makefile_LibXML2.inc
 include $(OCE_MAKEINC_ROOT)/Makefile_Mumps.inc
 include $(OCE_MAKEINC_ROOT)/Makefile_NetCDF.inc
 include $(OCE_MAKEINC_ROOT)/Makefile_OSOperations.inc
+include $(OCE_MAKEINC_ROOT)/Makefile_p4est.inc
 include $(OCE_MAKEINC_ROOT)/Makefile_PAPI.inc
 include $(OCE_MAKEINC_ROOT)/Makefile_Parmetis.inc
 include $(OCE_MAKEINC_ROOT)/Makefile_Pastix.inc

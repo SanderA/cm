@@ -49,8 +49,6 @@ MODULE CMISS_P4EST
   USE ISO_VARYING_STRING
   USE ISO_C_BINDING
 
-#include "p4est.h"
-
   IMPLICIT NONE
  
   PRIVATE
@@ -59,23 +57,25 @@ MODULE CMISS_P4EST
 
   !Module types
   TYPE P4estType
-    p4est_t :: p4est
+    TYPE(C_PTR) :: p4est
   END TYPE P4estType
 
   TYPE P4estConnectivityType
-    p4est_connectivity_t :: p4estConnectivity
+    TYPE(C_PTR) :: p4estConnectivity
   END TYPE P4estConnectivityType
 
   !Module variables
 
   !Interfaces
   INTERFACE
-    p4est_connectivity_t FUNCTION(C_PTR) p4est_connectivity_new(num_vertices,num_trees,num_corners,num_ctt) BIND(C)
-      USE, INTRINSIC :: ISO_C_BINDING, ONLY: C_PTR
-      p4est_topidx_t num_vertices
-      p4est_topidx_t num_trees
-      p4est_topidx_t num_corners
-      p4est_topidx_t num_ctt
+    FUNCTION p4est_connectivity_new(num_vertices,num_trees,num_corners,num_ctt) BIND(C,NAME='p4est_connectivity_new')
+      USE ISO_C_BINDING, ONLY:p4est_topidx_t=>C_INT32_T,C_PTR
+      TYPE(C_PTR) :: p4est_connectivity_new
+      INTEGER(p4est_topidx_t) :: num_vertices
+      INTEGER(p4est_topidx_t) :: num_trees
+      INTEGER(p4est_topidx_t) :: num_corners
+      INTEGER(p4est_topidx_t) :: num_ctt
+    END FUNCTION
   END INTERFACE
 
 !  PUBLIC 
