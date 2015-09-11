@@ -6587,13 +6587,6 @@ MODULE OPENCMISS
     MODULE PROCEDURE CMISSSolver_LinearIterativeMaximumIterationsSetObj
   END INTERFACE !CMISSSolver_LinearIterativeMaximumIterationsSet
 
-  !>Sets the block for the preconditioner for an iterative linear solver.
-  INTERFACE CMISSSolver_LinearIterativePreconditionerBlockSet
-    MODULE PROCEDURE CMISSSolver_LinearIterativePreconditionerBlockSetNumber0
-    MODULE PROCEDURE CMISSSolver_LinearIterativePreconditionerBlockSetNumber1
-    MODULE PROCEDURE CMISSSolver_LinearIterativePreconditionerBlockSetObj
-  END INTERFACE !CMISSSolver_LinearIterativePreconditionerBlockSet
-
   !>Sets/changes the type of preconditioner for an iterative linear solver.
   INTERFACE CMISSSolver_LinearIterativePreconditionerTypeSet
     MODULE PROCEDURE CMISSSolver_LinearIterativePreconditionerTypeSetNumber0
@@ -7090,8 +7083,6 @@ MODULE OPENCMISS
   PUBLIC CMISSSolver_LinearIterativeGMRESRestartSet
 
   PUBLIC CMISSSolver_LinearIterativeMaximumIterationsSet
-
-  PUBLIC CMISSSolver_LinearIterativePreconditionerBlockSet
 
   PUBLIC CMISSSolver_LinearIterativePreconditionerTypeSet
 
@@ -54198,156 +54189,6 @@ CONTAINS
   !================================================================================================================================
   !
 
-  !>Sets/changes the preconditioner block for an iterative linear solver identified by an user number.
-  SUBROUTINE CMISSSolver_LinearIterativePreconditionerBlockSetNumber0(problemUserNumber,controlLoopIdentifier,solverIndex, &
-    & regionUserNumber,fieldUserNumber,variableType,err)
-
-    !Argument variables
-    INTEGER(INTG), INTENT(IN) :: problemUserNumber !<The user number of the problem number with the iterative linear solver to set the preconditioner type for.
-    INTEGER(INTG), INTENT(IN) :: controlLoopIdentifier !<The control loop identifier with the iterative linear solver to set the preconditioner type for.
-    INTEGER(INTG), INTENT(IN) :: solverIndex !<The solver index to set the preconditioner type for.
-    INTEGER(INTG), INTENT(IN) :: regionUserNumber !<The user number of the region containing the field to set the block of the preconditioner for.
-    INTEGER(INTG), INTENT(IN) :: fieldUserNumber !<The user number of the field to set the block of the preconditioner for.
-    INTEGER(INTG), INTENT(IN) :: variableType !<The variable type of the field to set the block of the preconditioner for. \see OPENCMISS_FieldVariableTypes
-    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
-    !Local variables
-    TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(FIELD_TYPE), POINTER :: FIELD
-    TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
-    
-    CALL ENTERS("CMISSSolver_LinearIterativePreconditionerBlockSetNumber0",err,error,*999)
-
-    NULLIFY(PROBLEM)
-    NULLIFY(SOLVER)
-    NULLIFY(REGION)
-    NULLIFY(FIELD)
-
-    CALL PROBLEM_USER_NUMBER_FIND(problemUserNumber,PROBLEM,err,error,*999)
-    IF(ASSOCIATED(PROBLEM)) THEN
-      CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
-      CALL REGION_USER_NUMBER_FIND(regionUserNumber,REGION,err,error,*999)
-      IF(ASSOCIATED(REGION)) THEN
-        CALL FIELD_USER_NUMBER_FIND(fieldUserNumber,REGION,FIELD,err,error,*999)
-        IF(ASSOCIATED(FIELD)) THEN
-          CALL SOLVER_LINEAR_ITERATIVE_PRECONDITIONER_BLOCK_SET(SOLVER,FIELD,variableType,err,error,*999)
-        ELSE
-          LOCAL_ERROR="A field with an user number of "//TRIM(NUMBER_TO_VSTRING(fieldUserNumber,"*",err,error))// &
-            & " does not exist on region number "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//"."
-          CALL FLAG_ERROR(LOCAL_ERROR,err,error,*999)
-        END IF
-      ELSE
-        LOCAL_ERROR="A region with an user number of "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//" does not exist."
-        CALL FLAG_ERROR(LOCAL_ERROR,err,error,*999)
-    END IF
-    ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NUMBER_TO_VSTRING(problemUserNumber,"*",err,error))// &
-        & " does not exist."
-      CALL FLAG_ERROR(LOCAL_ERROR,err,error,*999)
-    END IF
-
-    CALL EXITS("CMISSSolver_LinearIterativePreconditionerBlockSetNumber0")
-    RETURN
-999 CALL ERRORS("CMISSSolver_LinearIterativePreconditionerBlockSetNumber0",err,error)
-    CALL EXITS("CMISSSolver_LinearIterativePreconditionerBlockSetNumber0")
-    CALL CMISS_HANDLE_ERROR(err,error)
-    RETURN
-
-  END SUBROUTINE CMISSSolver_LinearIterativePreconditionerBlockSetNumber0
-
-  !
-  !================================================================================================================================
-  !
-
-  !>Sets/changes the preconditioner block for an iterative linear solver identified by an user number.
-  SUBROUTINE CMISSSolver_LinearIterativePreconditionerBlockSetNumber1(problemUserNumber,controlLoopIdentifiers,solverIndex, &
-    & regionUserNumber,fieldUserNumber,variableType,err)
-
-    !Argument variables
-    INTEGER(INTG), INTENT(IN) :: problemUserNumber !<The user number of the problem number with the iterative linear solver to set the preconditioner type for.
-    INTEGER(INTG), INTENT(IN) :: controlLoopIdentifiers(:) !<The control loop identifiers with the iterative linear solver to set the preconditioner type for.
-    INTEGER(INTG), INTENT(IN) :: solverIndex !<The solver index to set the preconditioner type for.
-    INTEGER(INTG), INTENT(IN) :: regionUserNumber !<The user number of the region containing the field to set the block of the preconditioner for.
-    INTEGER(INTG), INTENT(IN) :: fieldUserNumber !<The user number of the field to set the block of the preconditioner for.
-    INTEGER(INTG), INTENT(IN) :: variableType !<The variable type of the field to set the block of the preconditioner for. \see OPENCMISS_FieldVariableTypes
-    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
-    !Local variables
-    TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(FIELD_TYPE), POINTER :: FIELD
-    TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
-
-    CALL ENTERS("CMISSSolver_LinearIterativePreconditionerBlockSetNumber1",err,error,*999)
-
-    NULLIFY(PROBLEM)
-    NULLIFY(SOLVER)
-    NULLIFY(REGION)
-    NULLIFY(FIELD)
-
-    CALL PROBLEM_USER_NUMBER_FIND(problemUserNumber,PROBLEM,err,error,*999)
-    IF(ASSOCIATED(PROBLEM)) THEN
-      CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
-      CALL REGION_USER_NUMBER_FIND(regionUserNumber,REGION,err,error,*999)
-      IF(ASSOCIATED(REGION)) THEN
-        CALL FIELD_USER_NUMBER_FIND(fieldUserNumber,REGION,FIELD,err,error,*999)
-        IF(ASSOCIATED(FIELD)) THEN
-          CALL SOLVER_LINEAR_ITERATIVE_PRECONDITIONER_BLOCK_SET(SOLVER,FIELD,variableType,err,error,*999)
-        ELSE
-          LOCAL_ERROR="A field with an user number of "//TRIM(NUMBER_TO_VSTRING(fieldUserNumber,"*",err,error))// &
-            & " does not exist on region number "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//"."
-          CALL FLAG_ERROR(LOCAL_ERROR,err,error,*999)
-        END IF
-      ELSE
-        LOCAL_ERROR="A region with an user number of "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//" does not exist."
-        CALL FLAG_ERROR(LOCAL_ERROR,err,error,*999)
-    END IF
-    ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NUMBER_TO_VSTRING(problemUserNumber,"*",err,error))// &
-        & " does not exist."
-      CALL FLAG_ERROR(LOCAL_ERROR,err,error,*999)
-    END IF
-
-    CALL EXITS("CMISSSolver_LinearIterativePreconditionerBlockSetNumber1")
-    RETURN
-999 CALL ERRORS("CMISSSolver_LinearIterativePreconditionerBlockSetNumber1",err,error)
-    CALL EXITS("CMISSSolver_LinearIterativePreconditionerBlockSetNumber1")
-    CALL CMISS_HANDLE_ERROR(err,error)
-    RETURN
-
-  END SUBROUTINE CMISSSolver_LinearIterativePreconditionerBlockSetNumber1
-
-  !
-  !================================================================================================================================
-  !
-
-  !>Sets/changes the preconditioner block for an iterative linear solver identified by an object.
-  SUBROUTINE CMISSSolver_LinearIterativePreconditionerBlockSetObj(solver,field,variableType,err)
-
-    !Argument variables
-    TYPE(CMISSSolverType), INTENT(IN) :: solver !<The iterative linear solver to set the preconditioner type for.
-    TYPE(CMISSFieldType), INTENT(IN) :: field !<The field to set the block of the preconditioner for
-    INTEGER(INTG), INTENT(IN) :: variableType !<The variable type of the field to set the block of the preconditioner for. \see OPENCMISS_FieldVariableTypes
-    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
-    !Local variables
-
-    CALL ENTERS("CMISSSolver_LinearIterativePreconditionerBlockSetObj",err,error,*999)
-
-    CALL SOLVER_LINEAR_ITERATIVE_PRECONDITIONER_BLOCK_SET(solver%SOLVER,field%FIELD,variableType,err,error,*999)
-
-    CALL EXITS("CMISSSolver_LinearIterativePreconditionerBlockSetObj")
-    RETURN
-999 CALL ERRORS("CMISSSolver_LinearIterativePreconditionerBlockSetObj",err,error)
-    CALL EXITS("CMISSSolver_LinearIterativePreconditionerBlockSetObj")
-    CALL CMISS_HANDLE_ERROR(err,error)
-    RETURN
-
-  END SUBROUTINE CMISSSolver_LinearIterativePreconditionerBlockSetObj
-
-  !
-  !================================================================================================================================
-  !
   !>Sets/changes the preconditioner type for an iterative linear solver identified by an user number.
   SUBROUTINE CMISSSolver_LinearIterativePreconditionerTypeSetNumber0(problemUserNumber,controlLoopIdentifier,solverIndex, &
     & preconditionerType,err)

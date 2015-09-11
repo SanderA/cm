@@ -310,6 +310,8 @@ ifeq ($(OPERATING_SYSTEM),linux)
       # turn on warnings,
       # warn about non-standard Fortran 95
       F_FLGS += -cpp -warn all -m$(ABI) -fPIC
+      # turn on assignment to allocatable array (this simplifies the return of variable-sized array functions, e.g. pack and unpack)
+      F_FLGS += -assume realloc-lhs
       DBGF_FLGS += -O0 -check all -traceback -debug all -fpe-all=0
       OPTF_FLGS = -O3
 #     MP_FLGS = -openmp
@@ -668,7 +670,7 @@ ifeq ($(or ${OPENCMISS_USE_CELLML},${OPENCMISS_USE_FIELDML}),true)
   ZLIB_LIB_PATH += $(addprefix -L, $(OCE_ZLIBLIBPATH) )
   ZLIB_INCLUDE_PATH += $(addprefix -I, $(OCE_ZLIBINCLUDEPATH) )
 else
-  ifeq ($(and ${OPENCMISS_USE_HDF5},$(OCE_HDF5),true)
+  ifeq ($(and ${OPENCMISS_USE_HDF5},$(OCE_HDF5)),true)
     ZLIB_LIBRARIES += $(call convertlistlink,$(OCE_ZLIBLIBS))
     ZLIB_LIB_PATH += $(addprefix -L, $(OCE_ZLIBLIBPATH) )
     ZLIB_INCLUDE_PATH += $(addprefix -I, $(OCE_ZLIBINCLUDEPATH) )

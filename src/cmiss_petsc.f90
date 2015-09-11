@@ -472,6 +472,28 @@ MODULE CMISS_PETSC
 
   INTERFACE
 
+    SUBROUTINE DMDestroy(dm,ierr)
+      DM dm
+      PetscInt ierr
+    END SUBROUTINE DMDestroy
+
+    SUBROUTINE DMSetDefaultSection(dm,section,ierr)
+      DM dm
+      PetscSection section
+      PetscInt ierr
+    END SUBROUTINE DMSetDefaultSection
+    
+    SUBROUTINE DMSetUp(dm,ierr)
+      DM dm
+      PetscInt ierr
+    END SUBROUTINE DMSetUp
+
+    SUBROUTINE  DMShellCreate(comm,dm,ierr)
+      MPI_Comm comm
+      DM dm
+      PetscInt ierr
+    END SUBROUTINE DMShellCreate
+
     SUBROUTINE ISCreateGeneral(comm,n,idx,mode,indexset,ierr)
       MPI_Comm comm
       PetscInt n
@@ -593,6 +615,18 @@ MODULE CMISS_PETSC
       PetscInt ierr
     END SUBROUTINE KSPSetOperators
 #endif
+
+    SUBROUTINE KSPSetDM(snes,dm,ierr)
+      KSP snes
+      DM dm
+      PetscInt ierr
+    END SUBROUTINE KSPSetDM
+
+    SUBROUTINE KSPSetDMActive(snes,flag,ierr)
+      KSP snes
+      PetscBool flag
+      PetscInt ierr
+    END SUBROUTINE KSPSetDMActive
 
     SUBROUTINE KSPSetTolerances(ksp,rtol,atol,dtol,maxits,ierr)
       KSP ksp
@@ -973,6 +1007,12 @@ MODULE CMISS_PETSC
 #endif
 #endif
     
+    SUBROUTINE PCSetDM(pc,dm,ierr)
+      PC pc
+      DM dm
+      PetscInt ierr
+    END SUBROUTINE PCSetDM
+    
     SUBROUTINE PCSetType(pc,method,ierr)
       PC pc
       PCType method
@@ -1004,6 +1044,50 @@ MODULE CMISS_PETSC
       PetscInt ierr
     END SUBROUTINE PetscLogPrintSummary
 #endif
+
+    SUBROUTINE PetscSectionCreate(comm,section,ierr)
+      MPI_Comm comm
+      PetscSection section
+      PetscInt ierr
+    END SUBROUTINE PetscSectionCreate
+
+    SUBROUTINE PetscSectionDestroy(section,ierr)
+      PetscSection section
+      PetscInt ierr
+    END SUBROUTINE PetscSectionDestroy
+
+    SUBROUTINE PetscSectionSetChart(section,pStart,pEnd,ierr)
+      PetscSection section
+      PetscInt pStart
+      PetscInt pEnd
+      PetscInt ierr
+    END SUBROUTINE PetscSectionSetChart
+
+    SUBROUTINE PetscSectionSetNumFields(section,numFields,ierr)
+      PetscSection section
+      PetscInt numFields
+      PetscInt ierr
+    END SUBROUTINE PetscSectionSetNumFields
+
+    SUBROUTINE PetscSectionSetDof(section,point,numDof,ierr)
+      PetscSection section
+      PetscInt point
+      PetscInt numDof
+      PetscInt ierr
+    END SUBROUTINE PetscSectionSetDof
+
+    SUBROUTINE PetscSectionSetFieldDof(section,point,field,numDof,ierr)
+      PetscSection section
+      PetscInt point
+      PetscInt field
+      PetscInt numDof
+      PetscInt ierr
+    END SUBROUTINE PetscSectionSetFieldDof
+
+    SUBROUTINE PetscSectionSetUp(section,ierr)
+      PetscSection section
+      PetscInt ierr
+    END SUBROUTINE PetscSectionSetUp
 
     SUBROUTINE SNESCreate(comm,snes,ierr)
       MPI_Comm comm
@@ -1223,6 +1307,12 @@ MODULE CMISS_PETSC
       PetscInt ierr
     END SUBROUTINE SNESQNSetScaleType
 #endif
+    
+    SUBROUTINE SNESSetDM(snes,dm,ierr)
+      SNES snes
+      DM dm
+      PetscInt ierr
+    END SUBROUTINE SNESSetDM
 
     SUBROUTINE SNESSetJacobian(snes,A,B,Jfunction,ctx,ierr)
       USE TYPES
@@ -1647,7 +1737,9 @@ MODULE CMISS_PETSC
 #else
   PUBLIC PETSC_DOUBLE_PRECISION
 #endif
-  
+
+  PUBLIC PetscDMInitialise,PetscDMShellCreate,PetscDMSetDefaultSection,PetscDMSetUp,PetscDMView,PetscDMFinalise
+
   PUBLIC PETSC_KSPRICHARDSON,PETSC_KSPCG,PETSC_KSPCGNE,PETSC_KSPSTCG,PETSC_KSPGMRES,PETSC_KSPFGMRES, &
     & PETSC_KSPLGMRES,PETSC_KSPTCQMR,PETSC_KSPBCGS,PETSC_KSPBCGSL,PETSC_KSPCGS,PETSC_KSPTFQMR,PETSC_KSPCR,PETSC_KSPLSQR, &
     & PETSC_KSPPREONLY,PETSC_KSPQCG,PETSC_KSPBICG,PETSC_KSPMINRES,PETSC_KSPSYMMLQ,PETSC_KSPLCD
@@ -1694,7 +1786,7 @@ MODULE CMISS_PETSC
   PUBLIC PETSC_KSPCREATE,PETSC_KSPDESTROY,PETSC_KSPGETCONVERGEDREASON,PETSC_KSPGETITERATIONNUMBER,PETSC_KSPGETPC, &
     & PETSC_KSPGETRESIDUALNORM,PETSC_KSPGMRESSETRESTART,PETSC_KSPFINALISE,PETSC_KSPINITIALISE,PETSC_KSPSETFROMOPTIONS, &
     & PETSC_KSPSETINITIALGUESSNONZERO,PETSC_KSPSETOPERATORS,PETSC_KSPSETTYPE,PETSC_KSPSETUP,PETSC_KSPSETTOLERANCES, &
-    & PETSC_KSPSOLVE
+    & PETSC_KSPSOLVE,PetscKSPSetDM,PetscKSPSetDMActive
 
 #if ( PETSC_VERSION_MAJOR < 3 )
   PUBLIC MAT_COLUMN_ORIENTED,MAT_COLUMNS_SORTED,MAT_ROWS_SORTED,MAT_FINAL_ASSEMBLY,MAT_FLUSH_ASSEMBLY, &
@@ -1778,6 +1870,9 @@ MODULE CMISS_PETSC
     
   PUBLIC PETSC_NORM_1,PETSC_NORM_2,PETSC_NORM_INFINITY
 
+  PUBLIC PetscPetscSectionInitialise,PetscPetscSectionCreate,PetscPetscSectionSetNumFields,PetscPetscSectionSetChart, &
+    & PetscPetscSectionSetDof,PetscPetscSectionSetFieldDof,PetscPetscSectionSetUp,PetscPetscSectionView,PetscPetscSectionFinalise
+
   PUBLIC PETSC_PCINITIALISE,PETSC_PCFINALISE,PETSC_PCSETTYPE
 
 #if ( PETSC_VERSION_MAJOR == 3 )
@@ -1795,6 +1890,8 @@ MODULE CMISS_PETSC
 #if ( PETSC_VERSION_MAJOR >= 3 )
   PUBLIC PETSC_PCFIELDSPLITSETIS,PETSC_PCFIELDSPLITGETIS
 #endif
+
+  PUBLIC PetscPCSetDM
   
   PUBLIC PETSC_TS_EULER,PETSC_TS_BEULER,PETSC_TS_PSEUDO,PETSC_TS_SUNDIALS,PETSC_TS_CRANK_NICHOLSON,PETSC_TS_RUNGE_KUTTA
 #if ( PETSC_VERSION_MAJOR >= 3 && PETSC_VERSION_MINOR >= 2 )
@@ -1868,7 +1965,8 @@ MODULE CMISS_PETSC
     & petsc_sneslinesearchsetnorms,petsc_sneslinesearchgetnorms,PETSC_SNESGETITERATIONNUMBER,PETSC_SNESGETKSP, &
     & PETSC_SNESMONITORSET,PETSC_SNESSETFROMOPTIONS,PETSC_SNESGETFUNCTION,PETSC_SNESSETFUNCTION,PETSC_SNESSETJACOBIAN, &
     & PETSC_SNESSETTOLERANCES,PETSC_SNESSETTRUSTREGIONTOLERANCE,PETSC_SNESSETTYPE,PETSC_SNESSOLVE,PETSC_SNESSETKSP, & 
-    & PETSC_SNESGETJACOBIAN,PETSC_SNESSETCONVERGENCETEST,Petsc_SnesLineSearchGetVecs,Petsc_SnesGetSolutionUpdate
+    & PETSC_SNESGETJACOBIAN,PETSC_SNESSETCONVERGENCETEST,Petsc_SnesLineSearchGetVecs,Petsc_SnesGetSolutionUpdate, &
+    & PetscSNESSetDM
 #if ( PETSC_VERSION_MAJOR <= 3 && PETSC_VERSION_MINOR < 5 )
   PUBLIC PETSC_SNESGETFUNCTIONNORM,PETSC_SNESSETFUNCTIONNORM
 #endif
@@ -1919,6 +2017,209 @@ MODULE CMISS_PETSC
 
 CONTAINS
 
+  !
+  !================================================================================================================================
+  !
+
+  !Initialise the PETSc DMShell structure
+  SUBROUTINE PetscDMInitialise(DM_,err,error,*)
+
+    !Argument Variables
+    TYPE(PetscDMType), INTENT(INOUT) :: DM_ !<The DM type to initialise
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+
+    CALL ENTERS("PetscDMInitialise",err,error,*999)
+    
+    DM_%DM_=PETSC_NULL_OBJECT
+
+    CALL EXITS("PetscDMInitialise")
+    RETURN
+999 CALL ERRORS("PetscDMInitialise",err,error)
+    CALL EXITS("PetscDMInitialise")
+    RETURN 1
+  END SUBROUTINE PetscDMInitialise
+    
+  !
+  !================================================================================================================================
+  !
+
+  !Create the PETSc DMShell structure
+  SUBROUTINE PetscDMShellCreate(communicator,DM_,err,error,*)
+
+    !Argument Variables
+    MPI_Comm, INTENT(IN) :: communicator !<The MPI communicator
+    TYPE(PetscDMType), INTENT(INOUT) :: DM_ !<The DM type to create
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+
+    CALL ENTERS("PetscDMShellCreate",err,error,*999)
+    
+    CALL DMShellCreate(communicator,DM_%DM_,err)
+    IF(err/=0) THEN
+      IF(PETSC_HANDLE_ERROR) THEN
+        CHKERRQ(ERR)
+      ENDIF
+      CALL FLAG_ERROR("PETSc error in DMShellCreate",err,error,*999)
+    ENDIF
+
+    CALL EXITS("PetscDMShellCreate")
+    RETURN
+999 CALL ERRORS("PetscDMShellCreate",err,error)
+    CALL EXITS("PetscDMShellCreate")
+    RETURN 1
+  END SUBROUTINE PetscDMShellCreate
+    
+  !
+  !================================================================================================================================
+  !
+
+  !Destroy the PETSc DM structure
+  SUBROUTINE PetscDMDestroy(DM_,err,error,*)
+
+    !Argument Variables
+    TYPE(PetscDMType), INTENT(INOUT) :: DM_ !<The DM type to destroy
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+
+    CALL ENTERS("PetscDMDestroy",err,error,*999)
+    
+    CALL DMDestroy(DM_%DM_,err)
+    IF(err/=0) THEN
+      IF(PETSC_HANDLE_ERROR) THEN
+        CHKERRQ(ERR)
+      ENDIF
+      CALL FLAG_ERROR("PETSc error in DMDestroy",err,error,*999)
+    ENDIF
+    DM_%DM_=PETSC_NULL_OBJECT
+
+    CALL EXITS("PetscDMDestroy")
+    RETURN
+999 CALL ERRORS("PetscDMDestroy",err,error)
+    CALL EXITS("PetscDMDestroy")
+    RETURN 1
+  END SUBROUTINE PetscDMDestroy
+    
+  !
+  !================================================================================================================================
+  !
+
+  !Finalise the PETSc DM structure and destroy the PETSc DM
+  SUBROUTINE PetscDMFinalise(DM_,err,error,*)
+
+    !Argument Variables
+    TYPE(PetscDMType), INTENT(INOUT) :: DM_ !<The DM to finalise
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+
+    CALL ENTERS("PetscDMFinalise",err,error,*999)
+
+    IF(DM_%DM_/=PETSC_NULL_OBJECT) THEN
+      CALL PetscDMDestroy(DM_,err,error,*999)
+    ENDIF
+    
+    CALL EXITS("PetscDMFinalise")
+    RETURN
+999 CALL ERRORS("PetscDMFinalise",err,error)
+    CALL EXITS("PetscDMFinalise")
+    RETURN 1
+  END SUBROUTINE PetscDMFinalise
+    
+  !
+  !================================================================================================================================
+  !
+
+  !Set the default section of the PETSc DM structure
+  SUBROUTINE PetscDMSetDefaultSection(DM_,section,err,error,*)
+
+    !Argument Variables
+    TYPE(PetscDMType), INTENT(INOUT) :: DM_ !<The DM type to set the default section for 
+    TYPE(PetscPetscSectionType), INTENT(INOUT) :: section !<The section type to set that the dm type needs to be set for
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+
+    CALL ENTERS("PetscDMSetDefaultSection",err,error,*999)
+    
+    CALL DMSetDefaultSection(DM_%DM_,section%petscSection,err)
+    IF(err/=0) THEN
+      IF(PETSC_HANDLE_ERROR) THEN
+        CHKERRQ(ERR)
+      ENDIF
+      CALL FLAG_ERROR("PETSc error in DMSetDefaultSection",err,error,*999)
+    ENDIF
+
+    CALL EXITS("PetscDMSetDefaultSection")
+    RETURN
+999 CALL ERRORS("PetscDMSetDefaultSection",err,error)
+    CALL EXITS("PetscDMSetDefaultSection")
+    RETURN 1
+  END SUBROUTINE PetscDMSetDefaultSection
+    
+  !
+  !================================================================================================================================
+  !
+
+  !Set up the PETSc DM structure
+  SUBROUTINE PetscDMSetUp(DM_,err,error,*)
+
+    !Argument Variables
+    TYPE(PetscDMType), INTENT(INOUT) :: DM_ !<The DM to set up
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+
+    CALL ENTERS("PetscDMSetUp",err,error,*999)
+
+    CALL DMSetUp(DM_%DM_,err)
+    IF(err/=0) THEN
+      IF(PETSC_HANDLE_ERROR) THEN
+        CHKERRQ(ERR)
+      ENDIF
+      CALL FLAG_ERROR("PETSc error in DMSetUp",err,error,*999)
+    ENDIF
+    
+    CALL EXITS("PetscDMSetUp")
+    RETURN
+999 CALL ERRORS("PetscDMSetUp",err,error)
+    CALL EXITS("PetscDMSetUp")
+    RETURN 1
+  END SUBROUTINE PetscDMSetUp
+    
+  !
+  !================================================================================================================================
+  !
+
+  !Set up the PETSc DM structure
+  SUBROUTINE PetscDMView(DM_,err,error,*)
+
+    !Argument Variables
+    TYPE(PetscDMType), INTENT(INOUT) :: DM_ !<The DM to set up
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+
+    CALL ENTERS("PetscDMView",err,error,*999)
+
+    CALL DMView(DM_%DM_,PETSC_VIEWER_STDOUT_SELF,err)
+    IF(err/=0) THEN
+      IF(PETSC_HANDLE_ERROR) THEN
+        CHKERRQ(ERR)
+      ENDIF
+      CALL FLAG_ERROR("PETSc error in DMView",err,error,*999)
+    ENDIF
+    
+    CALL EXITS("PetscDMView")
+    RETURN
+999 CALL ERRORS("PetscDMView",err,error)
+    CALL EXITS("PetscDMView")
+    RETURN 1
+  END SUBROUTINE PetscDMView
+    
   !
   !================================================================================================================================
   !
@@ -2070,11 +2371,8 @@ CONTAINS
   !
   !================================================================================================================================
   !
-  !
-  !================================================================================================================================
-  !
 
-  !Create the PETSc IS structure
+  !View the PETSc IS structure
   SUBROUTINE PETSC_ISVIEW(IS_,ERR,ERROR,*)
 
     !Argument Variables
@@ -2715,11 +3013,73 @@ CONTAINS
     CALL EXITS("PETSC_KSPINITIALISE")
     RETURN 1
   END SUBROUTINE PETSC_KSPINITIALISE
+
+  !
+  !================================================================================================================================
+  !
+
+  !Sets the dm that may be used for the preconditioner
+  SUBROUTINE PetscKSPSetDM(KSP_,DM_,err,error,*)
+
+    !Argument Variables
+    TYPE(PETSC_KSP_TYPE), INTENT(INOUT) :: KSP_ !<The preconditioner to set the DM for
+    TYPE(PetscDMType), INTENT(INOUT) :: DM_ !<The DM type
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+
+    CALL ENTERS("PetscKSPSetDM",err,error,*999)
+    
+    CALL KSPSetDM(KSP_%KSP_,DM_%DM_,err)
+    IF(err/=0) THEN
+      IF(PETSC_HANDLE_ERROR) THEN
+        CHKERRQ(ERR)
+      ENDIF
+      CALL FLAG_ERROR("PETSc error in KSPSetDM",err,error,*999)
+    ENDIF
+
+    CALL EXITS("PetscKSPSetDM")
+    RETURN
+999 CALL ERRORS("PetscKSPSetDM",err,error)
+    CALL EXITS("PetscKSPSetDM")
+    RETURN 1
+  END SUBROUTINE PetscKSPSetDM
     
   !
   !================================================================================================================================
   !
 
+  !Sets the dm that may be used for the preconditioner
+  SUBROUTINE PetscKSPSetDMActive(KSP_,flag,err,error,*)
+
+    !Argument Variables
+    TYPE(PETSC_KSP_TYPE), INTENT(INOUT) :: KSP_ !<The preconditioner to set the DM for
+    PetscBool, INTENT(IN) :: flag !<The option flag to set
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+
+    CALL ENTERS("PetscKSPSetDMActive",err,error,*999)
+    
+    CALL KSPSetDMActive(KSP_%KSP_,flag,err)
+    IF(err/=0) THEN
+      IF(PETSC_HANDLE_ERROR) THEN
+        CHKERRQ(ERR)
+      ENDIF
+      CALL FLAG_ERROR("PETSc error in KSPSetDMActive",err,error,*999)
+    ENDIF
+
+    CALL EXITS("PetscKSPSetDMActive")
+    RETURN
+999 CALL ERRORS("PetscKSPSetDMActive",err,error)
+    CALL EXITS("PetscKSPSetDMActive")
+    RETURN 1
+  END SUBROUTINE PetscKSPSetDMActive
+    
+  !
+  !================================================================================================================================
+  !
+    
   !>Buffer routine to the PETSc KSPSetFromOptions routine
   SUBROUTINE PETSC_KSPSETFROMOPTIONS(KSP_,ERR,ERROR,*)
 
@@ -5179,6 +5539,37 @@ CONTAINS
   !================================================================================================================================
   !
 
+  !Sets the dm that may be used for the preconditioner
+  SUBROUTINE PetscPCSetDM(PC_,DM_,err,error,*)
+
+    !Argument Variables
+    TYPE(PETSC_PC_TYPE), INTENT(INOUT) :: PC_ !<The preconditioner to set the DM for
+    TYPE(PetscDMType), INTENT(INOUT) :: DM_ !<The DM type
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+
+    CALL ENTERS("PetscPCSetDM",err,error,*999)
+    
+    CALL PCSetDM(PC_%PC_,DM_%DM_,err)
+    IF(err/=0) THEN
+      IF(PETSC_HANDLE_ERROR) THEN
+        CHKERRQ(ERR)
+      ENDIF
+      CALL FLAG_ERROR("PETSc error in PCSetDM",err,error,*999)
+    ENDIF
+
+    CALL EXITS("PetscPCSetDM")
+    RETURN
+999 CALL ERRORS("PetscPCSetDM",err,error)
+    CALL EXITS("PetscPCSetDM")
+    RETURN 1
+  END SUBROUTINE PetscPCSetDM
+    
+  !
+  !================================================================================================================================
+  !
+
 #if ( PETSC_VERSION_MAJOR >= 3 && PETSC_VERSION_MINOR >= 5 )
   !>Buffer routine to the PETSc PCSetReusePreconditioner routine.
   SUBROUTINE PETSC_PCSETREUSEPRECONDITIONER(PC_,FLAG,ERR,ERROR,*)
@@ -5238,6 +5629,306 @@ CONTAINS
     CALL EXITS("PETSC_PCSETTYPE")
     RETURN 1
   END SUBROUTINE PETSC_PCSETTYPE
+    
+  !
+  !================================================================================================================================
+  !
+
+  !Initialise the PETSc section structure
+  SUBROUTINE PetscPetscSectionInitialise(section,err,error,*)
+
+    !Argument Variables
+    TYPE(PetscPetscSectionType), INTENT(INOUT) :: section !<The PETSc section type to initialise
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+
+    CALL ENTERS("PetscSectionInitialise",err,error,*999)
+    
+    section%petscSection=PETSC_NULL_OBJECT
+
+    CALL EXITS("PetscSectionInitialise")
+    RETURN
+999 CALL ERRORS("PetscSectionInitialise",err,error)
+    CALL EXITS("PetscSectionInitialise")
+    RETURN 1
+  END SUBROUTINE PetscPetscSectionInitialise
+    
+  !
+  !================================================================================================================================
+  !
+
+  !Create the PETSc section structure
+  SUBROUTINE PetscPetscSectionCreate(communicator,section,err,error,*)
+
+    !Argument Variables
+    MPI_Comm, INTENT(IN) :: communicator !<The MPI communicator
+    TYPE(PetscPetscSectionType), INTENT(INOUT) :: section !<The section type to create
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+
+    CALL ENTERS("PetscSectionCreate",err,error,*999)
+    
+    CALL PetscSectionCreate(communicator,section%petscSection,err)
+    IF(err/=0) THEN
+      IF(PETSC_HANDLE_ERROR) THEN
+        CHKERRQ(ERR)
+      ENDIF
+      CALL FLAG_ERROR("PETSc error in SectionCreate",err,error,*999)
+    ENDIF
+
+    CALL EXITS("PetscSectionCreate")
+    RETURN
+999 CALL ERRORS("PetscSectionCreate",err,error)
+    CALL EXITS("PetscSectionCreate")
+    RETURN 1
+  END SUBROUTINE PetscPetscSectionCreate
+    
+  !
+  !================================================================================================================================
+  !
+
+  !Destroy the PETSc section structure
+  SUBROUTINE PetscPetscSectionDestroy(section,err,error,*)
+
+    !Argument Variables
+    TYPE(PetscPetscSectionType), INTENT(INOUT) :: section !<The section type to destroy
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+
+    CALL ENTERS("PetscSectionDestroy",err,error,*999)
+    
+    CALL PetscSectionDestroy(section%petscSection,err)
+    IF(err/=0) THEN
+      IF(PETSC_HANDLE_ERROR) THEN
+        CHKERRQ(ERR)
+      ENDIF
+      CALL FLAG_ERROR("PETSc error in SectionDestroy",err,error,*999)
+    ENDIF
+    section%petscSection=PETSC_NULL_OBJECT
+
+    CALL EXITS("PetscSectionDestroy")
+    RETURN
+999 CALL ERRORS("PetscSectionDestroy",err,error)
+    CALL EXITS("PetscSectionDestroy")
+    RETURN 1
+  END SUBROUTINE PetscPetscSectionDestroy
+
+  !
+  !================================================================================================================================
+  !
+
+  !Finalise the PETSc section structure and destroy the PETSc section
+  SUBROUTINE PetscPetscSectionFinalise(section,err,error,*)
+
+    !Argument Variables
+    TYPE(PetscPetscSectionType), INTENT(INOUT) :: section !<The PetscSection to finalise
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+
+    CALL ENTERS("PetscPetscSectionFinalise",err,error,*999)
+
+    IF(section%petscSection/=PETSC_NULL_OBJECT) THEN
+      CALL PetscPetscSectionDestroy(section,err,error,*999)
+    ENDIF
+    
+    CALL EXITS("PetscPetscSectionFinalise")
+    RETURN
+999 CALL ERRORS("PetscPetscSectionFinalise",err,error)
+    CALL EXITS("PetscPetscSectionFinalise")
+    RETURN 1
+  END SUBROUTINE PetscPetscSectionFinalise
+    
+  !
+  !================================================================================================================================
+  !
+
+  !Set the chart for the PETSc section structure
+  SUBROUTINE PetscPetscSectionSetChart(section,pStart,pEnd,err,error,*)
+
+    !Argument Variables
+    TYPE(PetscPetscSectionType), INTENT(INOUT) :: section !<The section type to set the chart for 
+    INTEGER(INTG), INTENT(IN) :: pStart !<The first point
+    INTEGER(INTG), INTENT(IN) :: pEnd !<One past the last point
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+
+    CALL ENTERS("PetscSectionSetChart",err,error,*999)
+    
+    CALL PetscSectionSetChart(section%petscSection,pStart,pEnd,err)
+    IF(err/=0) THEN
+      IF(PETSC_HANDLE_ERROR) THEN
+        CHKERRQ(ERR)
+      ENDIF
+      CALL FLAG_ERROR("PETSc error in SectionSetChart",err,error,*999)
+    ENDIF
+
+    CALL EXITS("PetscSectionSetChart")
+    RETURN
+999 CALL ERRORS("PetscSectionSetChart",err,error)
+    CALL EXITS("PetscSectionSetChart")
+    RETURN 1
+  END SUBROUTINE PetscPetscSectionSetChart
+
+  !
+  !================================================================================================================================
+  !
+
+  !Set the number of dofs associated to the given point for the PETSc section structure
+  SUBROUTINE PetscPetscSectionSetDof(section,point,numDof,err,error,*)
+
+    !Argument Variables
+    TYPE(PetscPetscSectionType), INTENT(INOUT) :: section !<The section type to set the number of dofs for the given point for
+    INTEGER(INTG), INTENT(IN) :: point !<The point to set the number of dofs for
+    INTEGER(INTG), INTENT(IN) :: numDof !<The number of dofs for the given point
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+
+    CALL ENTERS("PetscSectionSetDof",err,error,*999)
+    
+    CALL PetscSectionSetDof(section%petscSection,point,numDof,err)
+    IF(err/=0) THEN
+      IF(PETSC_HANDLE_ERROR) THEN
+        CHKERRQ(ERR)
+      ENDIF
+      CALL FLAG_ERROR("PETSc error in SectionSetDof",err,error,*999)
+    ENDIF
+
+    CALL EXITS("PetscSectionSetDof")
+    RETURN
+999 CALL ERRORS("PetscSectionSetDof",err,error)
+    CALL EXITS("PetscSectionSetDof")
+    RETURN 1
+  END SUBROUTINE PetscPetscSectionSetDof
+    
+  !
+  !================================================================================================================================
+  !
+
+  !Set the number of dofs associated with the given field for a given point for the PETSc section structure
+  SUBROUTINE PetscPetscSectionSetFieldDof(section,point,field,numDof,err,error,*)
+
+    !Argument Variables
+    TYPE(PetscPetscSectionType), INTENT(INOUT) :: section !<The section type to set the number of dofs for the given point for
+    INTEGER(INTG), INTENT(IN) :: point !<The point to set the number of dofs for
+    INTEGER(INTG), INTENT(IN) :: field !<The field to set the number of dofs for at the given point
+    INTEGER(INTG), INTENT(IN) :: numDof !<The number of dofs for the given point
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+
+    CALL ENTERS("PetscSectionSetFieldDof",err,error,*999)
+    
+    CALL PetscSectionSetFieldDof(section%petscSection,point,field,numDof,err)
+    IF(err/=0) THEN
+      IF(PETSC_HANDLE_ERROR) THEN
+        CHKERRQ(ERR)
+      ENDIF
+      CALL FLAG_ERROR("PETSc error in SectionSetFieldDof",err,error,*999)
+    ENDIF
+
+    CALL EXITS("PetscSectionSetFieldDof")
+    RETURN
+999 CALL ERRORS("PetscSectionSetFieldDof",err,error)
+    CALL EXITS("PetscSectionSetFieldDof")
+    RETURN 1
+  END SUBROUTINE PetscPetscSectionSetFieldDof
+    
+  !
+  !================================================================================================================================
+  !
+
+  !Set the number of fields for the PETSc section structure
+  SUBROUTINE PetscPetscSectionSetNumFields(section,numFields,err,error,*)
+
+    !Argument Variables
+    TYPE(PetscPetscSectionType), INTENT(INOUT) :: section !<The section type to set the number of fields for
+    INTEGER(INTG), INTENT(IN) :: numFields !<The number of fields
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+
+    CALL ENTERS("PetscSectionSetNumFields",err,error,*999)
+    
+    CALL PetscSectionSetNumFields(section%petscSection,numFields,err)
+    IF(err/=0) THEN
+      IF(PETSC_HANDLE_ERROR) THEN
+        CHKERRQ(ERR)
+      ENDIF
+      CALL FLAG_ERROR("PETSc error in SectionSetNumFields",err,error,*999)
+    ENDIF
+
+    CALL EXITS("PetscSectionSetNumFields")
+    RETURN
+999 CALL ERRORS("PetscSectionSetNumFields",err,error)
+    CALL EXITS("PetscSectionSetNumFields")
+    RETURN 1
+  END SUBROUTINE PetscPetscSectionSetNumFields
+    
+  !
+  !================================================================================================================================
+  !
+
+  !Set up the PETSc section structure
+  SUBROUTINE PetscPetscSectionSetUp(section,err,error,*)
+
+    !Argument Variables
+    TYPE(PetscPetscSectionType), INTENT(INOUT) :: section !<The section type to destroy
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+
+    CALL ENTERS("PetscSectionSetUp",err,error,*999)
+    
+    CALL PetscSectionSetUp(section%petscSection,err)
+    IF(err/=0) THEN
+      IF(PETSC_HANDLE_ERROR) THEN
+        CHKERRQ(ERR)
+      ENDIF
+      CALL FLAG_ERROR("PETSc error in SectionSetUp",err,error,*999)
+    ENDIF
+
+    CALL EXITS("PetscSectionSetUp")
+    RETURN
+999 CALL ERRORS("PetscSectionSetUp",err,error)
+    CALL EXITS("PetscSectionSetUp")
+    RETURN 1
+  END SUBROUTINE PetscPetscSectionSetUp
+    
+  !
+  !================================================================================================================================
+  !
+
+  !View the PETSc section structure
+  SUBROUTINE PetscPetscSectionView(section,err,error,*)
+
+    !Argument Variables
+    TYPE(PetscPetscSectionType), INTENT(INOUT) :: section !<The section type to destroy
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+
+    CALL ENTERS("PetscSectionView",err,error,*999)
+    
+    CALL PetscSectionView(section%petscSection,PETSC_VIEWER_STDOUT_WORLD,err)
+    IF(err/=0) THEN
+      IF(PETSC_HANDLE_ERROR) THEN
+        CHKERRQ(ERR)
+      ENDIF
+      CALL FLAG_ERROR("PETSc error in SectionView",err,error,*999)
+    ENDIF
+
+    CALL EXITS("PetscSectionView")
+    RETURN
+999 CALL ERRORS("PetscSectionView",err,error)
+    CALL EXITS("PetscSectionView")
+    RETURN 1
+  END SUBROUTINE PetscPetscSectionView
     
   !
   !================================================================================================================================
@@ -6285,6 +6976,37 @@ CONTAINS
   END SUBROUTINE PETSC_SNESSETCONVERGENCETEST
 
 
+  !
+  !================================================================================================================================
+  !
+
+  !Sets the dm that may be used for the preconditioner
+  SUBROUTINE PetscSNESSetDM(SNES_,DM_,err,error,*)
+
+    !Argument Variables
+    TYPE(PETSC_SNES_TYPE), INTENT(INOUT) :: SNES_ !<The preconditioner to set the DM for
+    TYPE(PetscDMType), INTENT(INOUT) :: DM_ !<The DM type
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+
+    CALL ENTERS("PetscSNESSetDM",err,error,*999)
+    
+    CALL SNESSetDM(SNES_%SNES_,DM_%DM_,err)
+    IF(err/=0) THEN
+      IF(PETSC_HANDLE_ERROR) THEN
+        CHKERRQ(ERR)
+      ENDIF
+      CALL FLAG_ERROR("PETSc error in SNESSetDM",err,error,*999)
+    ENDIF
+
+    CALL EXITS("PetscSNESSetDM")
+    RETURN
+999 CALL ERRORS("PetscSNESSetDM",err,error)
+    CALL EXITS("PetscSNESSetDM")
+    RETURN 1
+  END SUBROUTINE PetscSNESSetDM
+    
   !
   !================================================================================================================================
   !

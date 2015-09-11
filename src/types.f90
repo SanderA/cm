@@ -69,8 +69,8 @@
 !> This module contains all type definitions in order to avoid cyclic module references.
 MODULE TYPES
 
-  USE CMISS_PETSC_TYPES, ONLY : PETSC_IS_TYPE,PETSC_ISCOLORING_TYPE,PETSC_KSP_TYPE,PETSC_MAT_TYPE, &
-    & PETSC_MATCOLORING_TYPE,PETSC_MATFDCOLORING_TYPE,PETSC_PC_TYPE,PETSC_SNES_TYPE,PetscSnesLineSearchType,PETSC_VEC_TYPE
+  USE CMISS_PETSC_TYPES, ONLY : PETSC_ISCOLORING_TYPE,PETSC_KSP_TYPE,PETSC_MAT_TYPE,PETSC_MATCOLORING_TYPE,PETSC_MATFDCOLORING_TYPE, & 
+    & PETSC_PC_TYPE,PETSC_SNES_TYPE,PetscSnesLineSearchType,PETSC_VEC_TYPE,PetscDMType,PetscPetscSectionType
   USE CONSTANTS
   USE KINDS
   USE ISO_C_BINDING
@@ -2945,10 +2945,10 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     REAL(DP) :: ABSOLUTE_TOLERANCE !<The absolute tolerance of the residual norm
     REAL(DP) :: DIVERGENCE_TOLERANCE !<The absolute tolerance of the residual norm
     INTEGER(INTG) :: GMRES_RESTART !<The GMRES restart iterations size
-    INTEGER(INTG) :: NUMBER_OF_IS
-    TYPE(PETSC_IS_TYPE), ALLOCATABLE :: IS(:) !<The PETSc IS type used for defining blocks for a block preconditioner.
     TYPE(PETSC_PC_TYPE) :: PC !<The PETSc preconditioner object
     TYPE(PETSC_KSP_TYPE) :: KSP !<The PETSc solver object
+    TYPE(PetscDMType) :: DM !<The PETSc DM (distributed mesh) type, used for defining the blocks for a block preconditioner
+    TYPE(PetscPetscSectionType) :: section !<The PETSc section type, used for setting up the DM
   END TYPE LINEAR_ITERATIVE_SOLVER_TYPE
   
   !>Contains information for a linear solver

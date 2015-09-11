@@ -599,8 +599,6 @@ MODULE SOLVER_ROUTINES
 
   PUBLIC SOLVER_LINEAR_ITERATIVE_MAXIMUM_ITERATIONS_SET
 
-  PUBLIC SOLVER_LINEAR_ITERATIVE_PRECONDITIONER_BLOCK_SET
-
   PUBLIC SOLVER_LINEAR_ITERATIVE_PRECONDITIONER_TYPE_SET
 
   PUBLIC SOLVER_LINEAR_ITERATIVE_RELATIVE_TOLERANCE_SET
@@ -10049,6 +10047,133 @@ CONTAINS
   !================================================================================================================================
   !
 
+  !>Sets up the block preconditioner.
+  SUBROUTINE SolverLinearIterativePreconditionerBlockSetUp(solver,err,error,*)
+
+    !Argument variables
+    TYPE(SOLVER_TYPE), POINTER :: solver !<A pointer to the solver.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+    TYPE(VARYING_STRING) :: localError 
+    INTEGER(INTG) :: solverMatrixIdx,variableIdx,equationsType,equationsIdx,variableDofIdx,localColumnIdx
+    INTEGER(INTG), POINTER :: columnNumbers(:)
+    TYPE(SOLVER_EQUATIONS_TYPE), POINTER :: solverEquations
+    TYPE(SOLVER_MAPPING_TYPE), POINTER :: solverMapping
+
+    CALL ENTERS("SolverLinearIterativePreconditionerBlockSetUp",err,error,*999)
+
+    IF(ASSOCIATED(solver)) THEN
+      IF(solver%SOLVE_TYPE==SOLVER_LINEAR_TYPE) THEN
+        IF(ASSOCIATED(solver%LINEAR_SOLVER)) THEN
+          IF(solver%LINEAR_SOLVER%LINEAR_SOLVE_TYPE==SOLVER_LINEAR_ITERATIVE_SOLVE_TYPE) THEN
+            IF(ASSOCIATED(solver%LINEAR_SOLVER%ITERATIVE_SOLVER)) THEN
+              IF(solver%LINEAR_SOLVER%ITERATIVE_SOLVER%ITERATIVE_PRECONDITIONER_TYPE== &
+                & SOLVER_ITERATIVE_BLOCK_PRECONDITIONER) THEN
+                solverEquations=>solver%SOLVER_EQUATIONS
+                IF(ASSOCIATED(solverEquations)) THEN
+                  solverMapping=>solverEquations%SOLVER_MAPPING
+                  IF(ASSOCIATED(solverMapping)) THEN
+                    solverMatrixIdx=1
+                    CALL PetscPetscSectionInitialise(solver%LINEAR_SOLVER%ITERATIVE_SOLVER%section,err,error,*999)
+                    CALL PetscPetscSectionCreate(COMPUTATIONAL_ENVIRONMENT%MPI_COMM,solver%LINEAR_SOLVER%ITERATIVE_SOLVER%section, &
+                      & err,error,*999)
+                    CALL PetscPetscSectionSetNumFields(solver%LINEAR_SOLVER%ITERATIVE_SOLVER%section, &
+                      & solverMapping%VARIABLES_LIST(solverMatrixIdx)%NUMBER_OF_VARIABLES,err,error,*999)
+                    !For now associate each solver matrix dof to a petsc point with 1 dof
+                    CALL PetscPetscSectionSetChart(solver%LINEAR_SOLVER%ITERATIVE_SOLVER%section, &
+                      & solverMapping%ROW_DOFS_MAPPING%LOCAL_TO_GLOBAL_MAP(1), &
+                      & solverMapping%ROW_DOFS_MAPPING%LOCAL_TO_GLOBAL_MAP(solverMapping%ROW_DOFS_MAPPING% &
+                      & TOTAL_NUMBER_OF_LOCAL)+1,err,error,*999)
+                    DO variableIdx=1,solverMapping%VARIABLES_LIST(solverMatrixIdx)%NUMBER_OF_VARIABLES
+                      equationsType=solverMapping%VARIABLES_LIST(solverMatrixIdx)%VARIABLES(variableIdx)%EQUATIONS_TYPE
+                      equationsIdx=solverMapping%VARIABLES_LIST(solverMatrixIdx)%VARIABLES(variableIdx)%EQUATIONS_INDEX
+                      SELECT CASE(equationsType)
+                      CASE(SOLVER_MAPPING_EQUATIONS_EQUATIONS_SET)
+                        columnNumbers=>solverMapping%EQUATIONS_SET_TO_SOLVER_MAP(equationsIdx)% &
+                          & EQUATIONS_TO_SOLVER_MATRIX_MAPS_SM(solverMatrixIdx)%VARIABLE_TO_SOLVER_COL_MAPS(variableIdx)% &
+                          & COLUMN_NUMBERS
+                      CASE(SOLVER_MAPPING_EQUATIONS_CONSTRAINT_CONDITION)
+                        columnNumbers=>solverMapping%CONSTRAINT_CONDITION_TO_SOLVER_MAP(equationsIdx)% &
+                          & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solverMatrixIdx)% &
+                          & LAGRANGE_VARIABLE_TO_SOLVER_COL_MAP%COLUMN_NUMBERS
+                      CASE(SOLVER_MAPPING_EQUATIONS_INTERFACE_CONDITION)
+                        columnNumbers=>solverMapping%INTERFACE_CONDITION_TO_SOLVER_MAP(equationsIdx)% &
+                          & INTERFACE_TO_SOLVER_MATRIX_MAPS_SM(solverMatrixIdx)% &
+                          & LAGRANGE_VARIABLE_TO_SOLVER_COL_MAP%COLUMN_NUMBERS
+                      CASE DEFAULT
+                        localError="The solver mapping equations type of "// &
+                          & TRIM(NUMBER_TO_VSTRING(equationsType,"*",err,error))// &
+                          & " is invalid."
+                        CALL FLAG_ERROR(localError,err,error,*999)
+                      END SELECT
+                      DO variableDofIdx=1,solverMapping%VARIABLES_LIST(solverMatrixIdx)%VARIABLES(variableIdx)% &
+                        & VARIABLE%TOTAL_NUMBER_OF_DOFS
+                        localColumnIdx=columnNumbers(variableDofIdx)
+                        !The dof is not constrained, so it is included.
+                        IF(localColumnIdx/=0) THEN
+                          CALL PetscPetscSectionSetDof(solver%LINEAR_SOLVER%ITERATIVE_SOLVER%section, &
+                            & localColumnIdx,1,err,error,*999)
+                          CALL PetscPetscSectionSetFieldDof(solver%LINEAR_SOLVER%ITERATIVE_SOLVER%section, &
+                            & localColumnIdx,variableIdx-1,1,err,error,*999)
+                        ENDIF
+                      ENDDO
+                    ENDDO
+                    CALL PetscPetscSectionSetUp(solver%LINEAR_SOLVER%ITERATIVE_SOLVER%section,err,error,*999)
+                    CALL PetscDMInitialise(solver%LINEAR_SOLVER%ITERATIVE_SOLVER%DM,err,error,*999)
+                    CALL PetscDMShellCreate(COMPUTATIONAL_ENVIRONMENT%MPI_COMM,solver%LINEAR_SOLVER%ITERATIVE_SOLVER%DM, &
+                      & err,error,*999)
+                    CALL PetscDMSetDefaultSection(solver%LINEAR_SOLVER%ITERATIVE_SOLVER%DM, &
+                      & solver%LINEAR_SOLVER%ITERATIVE_SOLVER%section,err,error,*999)
+                    CALL PetscDMSetUp(solver%LINEAR_SOLVER%ITERATIVE_SOLVER%DM,err,error,*999)
+                    CALL PetscPCSetDM(solver%LINEAR_SOLVER%ITERATIVE_SOLVER%PC,solver%LINEAR_SOLVER%ITERATIVE_SOLVER%DM, &
+                      & err,error,*999)
+                    !CALL PetscSNESSetDM(solver%NONLINEAR_SOLVER%NEWTON_SOLVER%LINESEARCH_SOLVER%SNES, &
+                    !  & solver%LINEAR_SOLVER%ITERATIVE_SOLVER%DM,err,error,*999)
+                    !CALL PetscDMView(solver%LINEAR_SOLVER%ITERATIVE_SOLVER%DM,err,error,*999)
+                    !CALL PetscKSPSetDM(solver%LINEAR_SOLVER%ITERATIVE_SOLVER%KSP, &
+                    !  & solver%LINEAR_SOLVER%ITERATIVE_SOLVER%DM,err,error,*999)
+                    !CALL PetscKSPSetDMActive(solver%LINEAR_SOLVER%ITERATIVE_SOLVER%KSP,PETSC_FALSE,err,error,*999)
+                  ELSE
+                    CALL FLAG_ERROR("The solver solver equations mapping is not associated.",err,error,*999)
+                  ENDIF
+                ELSE
+                  CALL FLAG_ERROR("The solver solver equations is not associated.",err,error,*999)
+                ENDIF
+              ELSE
+                localError="The solver linear solver iterative solver preconditioner of type "// &
+                  & TRIM(NUMBER_TO_VSTRING(solver%LINEAR_SOLVER%ITERATIVE_SOLVER%ITERATIVE_PRECONDITIONER_TYPE,"*",err,error))// &
+                  & " is not a block preconditioner type"
+                CALL FLAG_ERROR(localError,err,error,*999)
+              ENDIF
+            ELSE
+              CALL FLAG_ERROR("The solver linear solver iterative solver is not associated.",err,error,*999)
+            ENDIF
+          ELSE
+            CALL FLAG_ERROR("The solver is not a linear iterative solver.",err,error,*999)
+          ENDIF
+        ELSE
+          CALL FLAG_ERROR("The solver linear solver is not associated.",err,error,*999)
+        ENDIF
+      ELSE
+        CALL FLAG_ERROR("The solver is not a linear solver.",err,error,*999)
+      ENDIF
+    ELSE
+      CALL FLAG_ERROR("Solver is not associated.",err,error,*999)
+    ENDIF
+
+    CALL EXITS("SolverLinearIterativePreconditionerBlockSetUp")
+    RETURN
+999 CALL ERRORS("SolverLinearIterativePreconditionerBlockSetUp",err,error)
+    CALL EXITS("SolverLinearIterativePreconditionerBlockSetUp")
+    RETURN 1
+   
+  END SUBROUTINE SolverLinearIterativePreconditionerBlockSetUp
+        
+  !
+  !================================================================================================================================
+  !
+
   !>Initialise a linear solver for a solver.
   SUBROUTINE SOLVER_LINEAR_INITIALISE(SOLVER,ERR,ERROR,*)
 
@@ -10334,6 +10459,7 @@ CONTAINS
               CALL PETSC_PCSETTYPE(LINEAR_ITERATIVE_SOLVER%PC,PETSC_PCASM,ERR,ERROR,*999)
             CASE(SOLVER_ITERATIVE_BLOCK_PRECONDITIONER)
               CALL PETSC_PCSETTYPE(LINEAR_ITERATIVE_SOLVER%PC,PETSC_PCFIELDSPLIT,ERR,ERROR,*999)
+              CALL SolverLinearIterativePreconditionerBlockSetUp(SOLVER,ERR,ERROR,*999)
             CASE DEFAULT
               LOCAL_ERROR="The iterative preconditioner type of "// &
                 & TRIM(NUMBER_TO_VSTRING(LINEAR_ITERATIVE_SOLVER%ITERATIVE_PRECONDITIONER_TYPE,"*",ERR,ERROR))//" is invalid."
@@ -10468,14 +10594,10 @@ CONTAINS
     CALL ENTERS("SOLVER_LINEAR_ITERATIVE_FINALISE",ERR,ERROR,*999)
 
     IF(ASSOCIATED(LINEAR_ITERATIVE_SOLVER)) THEN
+      CALL PetscPetscSectionFinalise(LINEAR_ITERATIVE_SOLVER%section,ERR,ERROR,*999)
+      CALL PetscDMFinalise(LINEAR_ITERATIVE_SOLVER%DM,ERR,ERROR,*999)
       LINEAR_SOLVER=>LINEAR_ITERATIVE_SOLVER%LINEAR_SOLVER
       IF(ASSOCIATED(LINEAR_SOLVER)) THEN
-        IF(ALLOCATED(LINEAR_ITERATIVE_SOLVER%IS)) THEN
-          DO is_idx=1,LINEAR_ITERATIVE_SOLVER%NUMBER_OF_IS
-            CALL PETSC_ISFINALISE(LINEAR_ITERATIVE_SOLVER%IS(is_idx),ERR,ERROR,*999)
-          ENDDO
-          DEALLOCATE(LINEAR_ITERATIVE_SOLVER%IS)
-        ENDIF
         IF(.NOT.LINEAR_SOLVER%LINKED_NEWTON_PETSC_SOLVER) THEN
           CALL PETSC_PCFINALISE(LINEAR_ITERATIVE_SOLVER%PC,ERR,ERROR,*999)
           CALL PETSC_KSPFINALISE(LINEAR_ITERATIVE_SOLVER%KSP,ERR,ERROR,*999)
@@ -10592,9 +10714,10 @@ CONTAINS
         LINEAR_SOLVER%ITERATIVE_SOLVER%ABSOLUTE_TOLERANCE=1.0E-10_DP
         LINEAR_SOLVER%ITERATIVE_SOLVER%DIVERGENCE_TOLERANCE=1.0E5_DP
         LINEAR_SOLVER%ITERATIVE_SOLVER%GMRES_RESTART=30
-        LINEAR_SOLVER%ITERATIVE_SOLVER%NUMBER_OF_IS=0
         CALL PETSC_PCINITIALISE(LINEAR_SOLVER%ITERATIVE_SOLVER%PC,ERR,ERROR,*999)
         CALL PETSC_KSPINITIALISE(LINEAR_SOLVER%ITERATIVE_SOLVER%KSP,ERR,ERROR,*999)
+        CALL PetscDMInitialise(LINEAR_SOLVER%ITERATIVE_SOLVER%DM,err,error,*999)
+        CALL PetscPetscSectionInitialise(LINEAR_SOLVER%ITERATIVE_SOLVER%section,err,error,*999)
       ENDIF
     ELSE
       CALL FLAG_ERROR("Linear solver is not associated.",ERR,ERROR,*998)
@@ -10865,149 +10988,149 @@ CONTAINS
   !================================================================================================================================
   !
  
-  !>Sets the blocks of a block preconditioner for an iterative linear solver. \see !OPENCMISS::CMISSSolverLinearIterativePreconditionerBlocksSet
-  SUBROUTINE SOLVER_LINEAR_ITERATIVE_PRECONDITIONER_BLOCK_SET(SOLVER,FIELD,VARIABLE_TYPE,ERR,ERROR,*)
- 
-    !Argument variables
-    TYPE(SOLVER_TYPE), POINTER :: SOLVER !<A pointer the solver to set the iterative linear solver type
-    TYPE(FIELD_TYPE), POINTER :: FIELD !<A pointer to the field to set the fieldsplit/block for
-    INTEGER(INTG), INTENT(IN) :: VARIABLE_TYPE !<The field variable type to set the fieldsplit/block for \see FIELD_ROUTINES_VariableTypes,FIELD_ROUTINES
-    INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
-    TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
-    !Local Variables
-    INTEGER(INTG) :: equations_type,equations_index,solver_matrix_idx,is_idx,variable_idx
-    INTEGER(INTG), POINTER :: COLUMN_NUMBERS(:)
-    INTEGER(INTG), ALLOCATABLE :: INDICES(:)
-    LOGICAL :: FOUND
-    TYPE(EQUATIONS_SET_TO_SOLVER_MAP_TYPE), POINTER :: EQUATIONS_SET_TO_SOLVER_MAP
-    TYPE(EQUATIONS_TO_SOLVER_MATRIX_MAPS_SM_TYPE), POINTER :: EQUATIONS_TO_SOLVER_MATRIX_MAPS_SM_TYPE
-    TYPE(FIELD_VARIABLE_TYPE), POINTER :: VARIABLE
-    TYPE(PETSC_IS_TYPE), ALLOCATABLE :: NEW_IS(:)
-    TYPE(SOLVER_EQUATIONS_TYPE), POINTER :: SOLVER_EQUATIONS
-    TYPE(SOLVER_MAPPING_TYPE), POINTER :: SOLVER_MAPPING
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
-    
-    CALL ENTERS("SOLVER_LINEAR_ITERATIVE_PRECONDITIONER_BLOCK_SET",ERR,ERROR,*999)
- 
-    IF(ASSOCIATED(SOLVER)) THEN
-      IF(SOLVER%SOLVE_TYPE==SOLVER_LINEAR_TYPE) THEN
-        IF(ASSOCIATED(SOLVER%LINEAR_SOLVER)) THEN
-          IF(SOLVER%LINEAR_SOLVER%LINEAR_SOLVE_TYPE==SOLVER_LINEAR_ITERATIVE_SOLVE_TYPE) THEN
-            IF(ASSOCIATED(SOLVER%LINEAR_SOLVER%ITERATIVE_SOLVER)) THEN
-              IF(SOLVER%LINEAR_SOLVER%ITERATIVE_SOLVER%ITERATIVE_PRECONDITIONER_TYPE== &
-                & SOLVER_ITERATIVE_BLOCK_PRECONDITIONER) THEN
-                SOLVER_EQUATIONS=>SOLVER%SOLVER_EQUATIONS
-                IF(ASSOCIATED(SOLVER_EQUATIONS)) THEN
-                  SOLVER_MAPPING=>SOLVER_EQUATIONS%SOLVER_MAPPING
-                  IF(ASSOCIATED(SOLVER_MAPPING)) THEN
-                    IF(ASSOCIATED(FIELD)) THEN
-                      VARIABLE=>FIELD%VARIABLE_TYPE_MAP(VARIABLE_TYPE)%PTR
-                      IF(ASSOCIATED(VARIABLE)) THEN
-                        !Loop over solver matrices here?
-                        solver_matrix_idx=1
-                        FOUND=.FALSE.
-                        DO variable_idx=1,SOLVER_MAPPING%VARIABLES_LIST(solver_matrix_idx)%NUMBER_OF_VARIABLES
-                          IF(ASSOCIATED(VARIABLE,SOLVER_MAPPING%VARIABLES_LIST(solver_matrix_idx)%VARIABLES( &
-                            & variable_idx)%VARIABLE)) THEN
-                            FOUND=.TRUE.
-                            EXIT
-                          ENDIF
-                        ENDDO !variable_idx
-                        IF(FOUND) THEN
-                          equations_type=SOLVER_MAPPING%VARIABLES_LIST(solver_matrix_idx)%VARIABLES(variable_idx)%EQUATIONS_TYPE
-                          equations_index=SOLVER_MAPPING%VARIABLES_LIST(solver_matrix_idx)%VARIABLES(variable_idx)%EQUATIONS_INDEX
-                          SELECT CASE(equations_type)
-                          CASE(SOLVER_MAPPING_EQUATIONS_EQUATIONS_SET)
-                            COLUMN_NUMBERS=>SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_index)% &
-                              & EQUATIONS_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%VARIABLE_TO_SOLVER_COL_MAPS(variable_idx)% &
-                              & COLUMN_NUMBERS
-                          CASE(SOLVER_MAPPING_EQUATIONS_CONSTRAINT_CONDITION)
-                            COLUMN_NUMBERS=>SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(equations_index)% &
-                              & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
-                              & LAGRANGE_VARIABLE_TO_SOLVER_COL_MAP%COLUMN_NUMBERS
-                          CASE(SOLVER_MAPPING_EQUATIONS_INTERFACE_CONDITION)
-                            COLUMN_NUMBERS=>SOLVER_MAPPING%INTERFACE_CONDITION_TO_SOLVER_MAP(equations_index)% &
-                              & INTERFACE_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
-                              & LAGRANGE_VARIABLE_TO_SOLVER_COL_MAP%COLUMN_NUMBERS
-                          CASE DEFAULT
-                            LOCAL_ERROR="The solver mapping equations type of "// &
-                              & TRIM(NUMBER_TO_VSTRING(equations_type,"*",ERR,ERROR))// &
-                              & " is invalid."
-                            CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
-                          END SELECT
-                          SELECT CASE(SOLVER%LINEAR_SOLVER%ITERATIVE_SOLVER%SOLVER_LIBRARY)
-                          CASE(SOLVER_PETSC_LIBRARY)
-                              !Get the column numbers greater than zero and subtract 1 for petsc numbering.
-                              INDICES=PACK(COLUMN_NUMBERS,COLUMN_NUMBERS>0)-1
-                              ALLOCATE(NEW_IS(SOLVER%LINEAR_SOLVER%ITERATIVE_SOLVER%NUMBER_OF_IS+1),STAT=ERR)
-                              IF(ERR/=0) CALL FLAG_ERROR("Could not allocate new IS pointer type.",ERR,ERROR,*999)
-                              DO is_idx=1,SOLVER%LINEAR_SOLVER%ITERATIVE_SOLVER%NUMBER_OF_IS
-                                NEW_IS(is_idx)=SOLVER%LINEAR_SOLVER%ITERATIVE_SOLVER%IS(is_idx)
-                              ENDDO
-                              CALL MOVE_ALLOC(NEW_IS,SOLVER%LINEAR_SOLVER%ITERATIVE_SOLVER%IS)
-                              CALL PETSC_ISINITIALISE(SOLVER%LINEAR_SOLVER%ITERATIVE_SOLVER%IS(SOLVER%LINEAR_SOLVER% &
-                                & ITERATIVE_SOLVER%NUMBER_OF_IS+1),ERR,ERROR,*999)
-                              CALL PETSC_ISCREATEGENERAL(COMPUTATIONAL_ENVIRONMENT%MPI_COMM,SIZE(INDICES),INDICES, &
-                                & SOLVER%LINEAR_SOLVER%ITERATIVE_SOLVER%IS(SOLVER%LINEAR_SOLVER%ITERATIVE_SOLVER%NUMBER_OF_IS+1), &
-                                & PETSC_COPY_VALUES,ERR,ERROR,*999)
-                              CALL PETSC_PCFIELDSPLITSETIS(SOLVER%LINEAR_SOLVER%ITERATIVE_SOLVER%PC,VARIABLE%VARIABLE_LABEL, &
-                                & SOLVER%LINEAR_SOLVER%ITERATIVE_SOLVER%IS(SOLVER%LINEAR_SOLVER%ITERATIVE_SOLVER%NUMBER_OF_IS+1), &
-                                & ERR,ERROR,*999)
-                              SOLVER%LINEAR_SOLVER%ITERATIVE_SOLVER%NUMBER_OF_IS=SOLVER%LINEAR_SOLVER%ITERATIVE_SOLVER% &
-                                & NUMBER_OF_IS+1
-                          CASE DEFAULT
-                            LOCAL_ERROR="The solver library type of "// &
-                              & TRIM(NUMBER_TO_VSTRING(SOLVER%LINEAR_SOLVER%ITERATIVE_SOLVER%SOLVER_LIBRARY,"*",ERR,ERROR))// &
-                              & " is invalid."
-                            CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
-                          END SELECT                  
-                        ELSE
-                          LOCAL_ERROR="The given variable type of "// &
-                            & TRIM(NUMBER_TO_VSTRING(VARIABLE%VARIABLE_TYPE,"*",ERR,ERROR))// &
-                            & " is not in found in the solver mapping."
-                          CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
-                        ENDIF
-                      ELSE
-                        CALL FLAG_ERROR("The field variable is not associated.",ERR,ERROR,*999)
-                      ENDIF
-                    ELSE
-                      CALL FLAG_ERROR("The field is not associated.",ERR,ERROR,*999)
-                    ENDIF
-                  ELSE
-                    CALL FLAG_ERROR("The solver solver equations mapping is not associated.",ERR,ERROR,*999)
-                  ENDIF
-                ELSE
-                  CALL FLAG_ERROR("The solver solver equations is not associated.",ERR,ERROR,*999)
-                ENDIF
-              ELSE
-                LOCAL_ERROR="The solver linear solver iterative solver preconditioner of type "// &
-                  & TRIM(NUMBER_TO_VSTRING(SOLVER%LINEAR_SOLVER%ITERATIVE_SOLVER%ITERATIVE_PRECONDITIONER_TYPE,"*",ERR,ERROR))// &
-                  & " is not a block preconditioner type"
-                CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
-              ENDIF
-            ELSE
-              CALL FLAG_ERROR("The solver linear solver iterative solver is not associated.",ERR,ERROR,*999)
-            ENDIF
-          ELSE
-            CALL FLAG_ERROR("The solver is not a linear iterative solver.",ERR,ERROR,*999)
-          ENDIF
-        ELSE
-          CALL FLAG_ERROR("The solver linear solver is not associated.",ERR,ERROR,*999)
-        ENDIF
-      ELSE
-        CALL FLAG_ERROR("The solver is not a linear solver.",ERR,ERROR,*999)
-      ENDIF
-    ELSE
-      CALL FLAG_ERROR("Solver is not associated.",ERR,ERROR,*999)
-    ENDIF
-    
-    CALL EXITS("SOLVER_LINEAR_ITERATIVE_PRECONDITIONER_BLOCK_SET")
-    RETURN
-999 CALL ERRORS("SOLVER_LINEAR_ITERATIVE_PRECONDITIONER_BLOCK_SET",ERR,ERROR)
-    CALL EXITS("SOLVER_LINEAR_ITERATIVE_PRECONDITIONER_BLOCK_SET")
-    RETURN 1
-   
-  END SUBROUTINE SOLVER_LINEAR_ITERATIVE_PRECONDITIONER_BLOCK_SET
+! !>Sets the blocks of a block preconditioner for an iterative linear solver. \see !OPENCMISS::CMISSSolverLinearIterativePreconditionerBlocksSet
+! SUBROUTINE SOLVER_LINEAR_ITERATIVE_PRECONDITIONER_BLOCK_SET(SOLVER,FIELD,VARIABLE_TYPE,ERR,ERROR,*)
+!
+!   !Argument variables
+!   TYPE(SOLVER_TYPE), POINTER :: SOLVER !<A pointer the solver to set the iterative linear solver type
+!   TYPE(FIELD_TYPE), POINTER :: FIELD !<A pointer to the field to set the fieldsplit/block for
+!   INTEGER(INTG), INTENT(IN) :: VARIABLE_TYPE !<The field variable type to set the fieldsplit/block for \see FIELD_ROUTINES_VariableTypes,FIELD_ROUTINES
+!   INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
+!   TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
+!   !Local Variables
+!   INTEGER(INTG) :: equations_type,equations_index,solver_matrix_idx,is_idx,variable_idx
+!   INTEGER(INTG), POINTER :: COLUMN_NUMBERS(:)
+!   INTEGER(INTG), ALLOCATABLE :: INDICES(:)
+!   LOGICAL :: FOUND
+!   TYPE(EQUATIONS_SET_TO_SOLVER_MAP_TYPE), POINTER :: EQUATIONS_SET_TO_SOLVER_MAP
+!   TYPE(EQUATIONS_TO_SOLVER_MATRIX_MAPS_SM_TYPE), POINTER :: EQUATIONS_TO_SOLVER_MATRIX_MAPS_SM_TYPE
+!   TYPE(FIELD_VARIABLE_TYPE), POINTER :: VARIABLE
+!   TYPE(PETSC_IS_TYPE), ALLOCATABLE :: NEW_IS(:)
+!   TYPE(SOLVER_EQUATIONS_TYPE), POINTER :: SOLVER_EQUATIONS
+!   TYPE(SOLVER_MAPPING_TYPE), POINTER :: SOLVER_MAPPING
+!   TYPE(VARYING_STRING) :: LOCAL_ERROR
+!   
+!   CALL ENTERS("SOLVER_LINEAR_ITERATIVE_PRECONDITIONER_BLOCK_SET",ERR,ERROR,*999)
+!
+!   IF(ASSOCIATED(SOLVER)) THEN
+!     IF(SOLVER%SOLVE_TYPE==SOLVER_LINEAR_TYPE) THEN
+!       IF(ASSOCIATED(SOLVER%LINEAR_SOLVER)) THEN
+!         IF(SOLVER%LINEAR_SOLVER%LINEAR_SOLVE_TYPE==SOLVER_LINEAR_ITERATIVE_SOLVE_TYPE) THEN
+!           IF(ASSOCIATED(SOLVER%LINEAR_SOLVER%ITERATIVE_SOLVER)) THEN
+!             IF(SOLVER%LINEAR_SOLVER%ITERATIVE_SOLVER%ITERATIVE_PRECONDITIONER_TYPE== &
+!               & SOLVER_ITERATIVE_BLOCK_PRECONDITIONER) THEN
+!               SOLVER_EQUATIONS=>SOLVER%SOLVER_EQUATIONS
+!               IF(ASSOCIATED(SOLVER_EQUATIONS)) THEN
+!                 SOLVER_MAPPING=>SOLVER_EQUATIONS%SOLVER_MAPPING
+!                 IF(ASSOCIATED(SOLVER_MAPPING)) THEN
+!                   IF(ASSOCIATED(FIELD)) THEN
+!                     VARIABLE=>FIELD%VARIABLE_TYPE_MAP(VARIABLE_TYPE)%PTR
+!                     IF(ASSOCIATED(VARIABLE)) THEN
+!                       !Loop over solver matrices here?
+!                       solver_matrix_idx=1
+!                       FOUND=.FALSE.
+!                       DO variable_idx=1,SOLVER_MAPPING%VARIABLES_LIST(solver_matrix_idx)%NUMBER_OF_VARIABLES
+!                         IF(ASSOCIATED(VARIABLE,SOLVER_MAPPING%VARIABLES_LIST(solver_matrix_idx)%VARIABLES( &
+!                           & variable_idx)%VARIABLE)) THEN
+!                           FOUND=.TRUE.
+!                           EXIT
+!                         ENDIF
+!                       ENDDO !variable_idx
+!                       IF(FOUND) THEN
+!                         equations_type=SOLVER_MAPPING%VARIABLES_LIST(solver_matrix_idx)%VARIABLES(variable_idx)%EQUATIONS_TYPE
+!                         equations_index=SOLVER_MAPPING%VARIABLES_LIST(solver_matrix_idx)%VARIABLES(variable_idx)%EQUATIONS_INDEX
+!                         SELECT CASE(equations_type)
+!                         CASE(SOLVER_MAPPING_EQUATIONS_EQUATIONS_SET)
+!                           COLUMN_NUMBERS=>SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_index)% &
+!                             & EQUATIONS_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%VARIABLE_TO_SOLVER_COL_MAPS(variable_idx)% &
+!                             & COLUMN_NUMBERS
+!                         CASE(SOLVER_MAPPING_EQUATIONS_CONSTRAINT_CONDITION)
+!                           COLUMN_NUMBERS=>SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(equations_index)% &
+!                             & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
+!                             & LAGRANGE_VARIABLE_TO_SOLVER_COL_MAP%COLUMN_NUMBERS
+!                         CASE(SOLVER_MAPPING_EQUATIONS_INTERFACE_CONDITION)
+!                           COLUMN_NUMBERS=>SOLVER_MAPPING%INTERFACE_CONDITION_TO_SOLVER_MAP(equations_index)% &
+!                             & INTERFACE_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
+!                             & LAGRANGE_VARIABLE_TO_SOLVER_COL_MAP%COLUMN_NUMBERS
+!                         CASE DEFAULT
+!                           LOCAL_ERROR="The solver mapping equations type of "// &
+!                             & TRIM(NUMBER_TO_VSTRING(equations_type,"*",ERR,ERROR))// &
+!                             & " is invalid."
+!                           CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
+!                         END SELECT
+!                         SELECT CASE(SOLVER%LINEAR_SOLVER%ITERATIVE_SOLVER%SOLVER_LIBRARY)
+!                         CASE(SOLVER_PETSC_LIBRARY)
+!                             !Get the column numbers greater than zero and subtract 1 for petsc numbering.
+!                             INDICES=PACK(COLUMN_NUMBERS,COLUMN_NUMBERS>0)-1
+!                             ALLOCATE(NEW_IS(SOLVER%LINEAR_SOLVER%ITERATIVE_SOLVER%NUMBER_OF_IS+1),STAT=ERR)
+!                             IF(ERR/=0) CALL FLAG_ERROR("Could not allocate new IS pointer type.",ERR,ERROR,*999)
+!                             DO is_idx=1,SOLVER%LINEAR_SOLVER%ITERATIVE_SOLVER%NUMBER_OF_IS
+!                               NEW_IS(is_idx)=SOLVER%LINEAR_SOLVER%ITERATIVE_SOLVER%IS(is_idx)
+!                             ENDDO
+!                             CALL MOVE_ALLOC(NEW_IS,SOLVER%LINEAR_SOLVER%ITERATIVE_SOLVER%IS)
+!                             CALL PETSC_ISINITIALISE(SOLVER%LINEAR_SOLVER%ITERATIVE_SOLVER%IS(SOLVER%LINEAR_SOLVER% &
+!                               & ITERATIVE_SOLVER%NUMBER_OF_IS+1),ERR,ERROR,*999)
+!                             CALL PETSC_ISCREATEGENERAL(COMPUTATIONAL_ENVIRONMENT%MPI_COMM,SIZE(INDICES),INDICES, &
+!                               & SOLVER%LINEAR_SOLVER%ITERATIVE_SOLVER%IS(SOLVER%LINEAR_SOLVER%ITERATIVE_SOLVER%NUMBER_OF_IS+1), &
+!                               & PETSC_COPY_VALUES,ERR,ERROR,*999)
+!                             CALL PETSC_PCFIELDSPLITSETIS(SOLVER%LINEAR_SOLVER%ITERATIVE_SOLVER%PC,VARIABLE%VARIABLE_LABEL, &
+!                               & SOLVER%LINEAR_SOLVER%ITERATIVE_SOLVER%IS(SOLVER%LINEAR_SOLVER%ITERATIVE_SOLVER%NUMBER_OF_IS+1), &
+!                               & ERR,ERROR,*999)
+!                             SOLVER%LINEAR_SOLVER%ITERATIVE_SOLVER%NUMBER_OF_IS=SOLVER%LINEAR_SOLVER%ITERATIVE_SOLVER% &
+!                               & NUMBER_OF_IS+1
+!                         CASE DEFAULT
+!                           LOCAL_ERROR="The solver library type of "// &
+!                             & TRIM(NUMBER_TO_VSTRING(SOLVER%LINEAR_SOLVER%ITERATIVE_SOLVER%SOLVER_LIBRARY,"*",ERR,ERROR))// &
+!                             & " is invalid."
+!                           CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
+!                         END SELECT                  
+!                       ELSE
+!                         LOCAL_ERROR="The given variable type of "// &
+!                           & TRIM(NUMBER_TO_VSTRING(VARIABLE%VARIABLE_TYPE,"*",ERR,ERROR))// &
+!                           & " is not in found in the solver mapping."
+!                         CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
+!                       ENDIF
+!                     ELSE
+!                       CALL FLAG_ERROR("The field variable is not associated.",ERR,ERROR,*999)
+!                     ENDIF
+!                   ELSE
+!                     CALL FLAG_ERROR("The field is not associated.",ERR,ERROR,*999)
+!                   ENDIF
+!                 ELSE
+!                   CALL FLAG_ERROR("The solver solver equations mapping is not associated.",ERR,ERROR,*999)
+!                 ENDIF
+!               ELSE
+!                 CALL FLAG_ERROR("The solver solver equations is not associated.",ERR,ERROR,*999)
+!               ENDIF
+!             ELSE
+!               LOCAL_ERROR="The solver linear solver iterative solver preconditioner of type "// &
+!                 & TRIM(NUMBER_TO_VSTRING(SOLVER%LINEAR_SOLVER%ITERATIVE_SOLVER%ITERATIVE_PRECONDITIONER_TYPE,"*",ERR,ERROR))// &
+!                 & " is not a block preconditioner type"
+!               CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
+!             ENDIF
+!           ELSE
+!             CALL FLAG_ERROR("The solver linear solver iterative solver is not associated.",ERR,ERROR,*999)
+!           ENDIF
+!         ELSE
+!           CALL FLAG_ERROR("The solver is not a linear iterative solver.",ERR,ERROR,*999)
+!         ENDIF
+!       ELSE
+!         CALL FLAG_ERROR("The solver linear solver is not associated.",ERR,ERROR,*999)
+!       ENDIF
+!     ELSE
+!       CALL FLAG_ERROR("The solver is not a linear solver.",ERR,ERROR,*999)
+!     ENDIF
+!   ELSE
+!     CALL FLAG_ERROR("Solver is not associated.",ERR,ERROR,*999)
+!   ENDIF
+!   
+!   CALL EXITS("SOLVER_LINEAR_ITERATIVE_PRECONDITIONER_BLOCK_SET")
+!   RETURN
+!99 CALL ERRORS("SOLVER_LINEAR_ITERATIVE_PRECONDITIONER_BLOCK_SET",ERR,ERROR)
+!   CALL EXITS("SOLVER_LINEAR_ITERATIVE_PRECONDITIONER_BLOCK_SET")
+!   RETURN 1
+!  
+! END SUBROUTINE SOLVER_LINEAR_ITERATIVE_PRECONDITIONER_BLOCK_SET
         
   !
   !================================================================================================================================
@@ -20370,10 +20493,6 @@ CONTAINS
   !================================================================================================================================
   !
 
-        
-  !
-  !================================================================================================================================
-  !
 
   !>Finishes the process of creating a nonlinear solver 
   SUBROUTINE SOLVER_NONLINEAR_CREATE_FINISH(NONLINEAR_SOLVER,ERR,ERROR,*)
