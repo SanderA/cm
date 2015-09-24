@@ -159,6 +159,35 @@ MODULE SOLVER_ROUTINES
   INTEGER(INTG), PARAMETER :: SOLVER_ITERATIVE_BLOCK_PRECONDITIONER=7 !<Block preconditioner type \see SOLVER_ROUTINES_IterativePreconditionerTypes,SOLVER_ROUTINES
   !>@}
 
+  !> \addtogroup SOLVER_ROUTINES_BlockPreconditionerTypes SOLVER_ROUTINES::BlockPreconditionerTypes
+  !> \brief The types of block preconditioners
+  !> \see SOLVER_ROUTINES
+  !>@{
+  INTEGER(INTG), PARAMETER :: BLOCK_PRECONDITIONER_ADDITIVE=1 !<Additive block preconditioner type \see SOLVER_ROUTINES_BlockPreconditionerTypes,SOLVER_ROUTINES
+  INTEGER(INTG), PARAMETER :: BLOCK_PRECONDITIONER_MULTIPLICATIVE=2 !<Multiplicative block preconditioner type \see SOLVER_ROUTINES_BlockPreconditionerTypes,SOLVER_ROUTINES
+  INTEGER(INTG), PARAMETER :: BLOCK_PRECONDITIONER_SYMMETRIC_MULTIPLICATIVE=3 !<Symmetric multiplicative block preconditioner type \see SOLVER_ROUTINES_BlockPreconditionerTypes,SOLVER_ROUTINES
+  INTEGER(INTG), PARAMETER :: BLOCK_PRECONDITIONER_SCHUR=4 !<Schur complement reduction preconditioner type \see SOLVER_ROUTINES_BlockPreconditionerTypes,SOLVER_ROUTINES
+  !>@}
+
+  !> \addtogroup SOLVER_ROUTINES_BlockPreconditionerSchurFactTypes SOLVER_ROUTINES::BlockPreconditionerSchurFactTypes
+  !> \brief The types of schur complement reduction factorization types.
+  !> \see SOLVER_ROUTINES
+  !>@{
+  INTEGER(INTG), PARAMETER :: BLOCK_PRECONDITIONER_SCHUR_FACT_DIAG=1 !<Use diagonal factoriation (P=D with the sign of the Schur complement switched) \see SOLVER_ROUTINES_BlockPreconditionerSchurFactTypes,SOLVER_ROUTINES
+  INTEGER(INTG), PARAMETER :: BLOCK_PRECONDITIONER_SCHUR_FACT_LOWER=2 !<Use lower factorization (P=LD) \see SOLVER_ROUTINES_BlockPreconditionerSchurFactTypes,SOLVER_ROUTINES
+  INTEGER(INTG), PARAMETER :: BLOCK_PRECONDITIONER_SCHUR_FACT_UPPER=3 !<Use upper factorization (P=DU) \see SOLVER_ROUTINES_BlockPreconditionerSchurFactTypes,SOLVER_ROUTINES
+  INTEGER(INTG), PARAMETER :: BLOCK_PRECONDITIONER_SCHUR_FACT_FULL=4 !<Use full factorization (P=LDU) \see SOLVER_ROUTINES_BlockPreconditionerSchurFactTypes,SOLVER_ROUTINES
+  !>@}
+
+  !> \addtogroup SOLVER_ROUTINES_BlockPreconditionerSchurPreTypes SOLVER_ROUTINES::BlockPreconditionerSchurPreTypes
+  !> \brief The types of Schur complement preconditioner types.
+  !> \see SOLVER_ROUTINES
+  !>@{
+  INTEGER(INTG), PARAMETER :: BLOCK_PRECONDITIONER_SCHUR_PRE_SELF=1 !<The preconditioner for the Schur complement is generated from the Schur complement matrix itself. \see SOLVER_ROUTINES_BlockPreconditionerSchurPreTypes,SOLVER_ROUTINES
+  INTEGER(INTG), PARAMETER :: BLOCK_PRECONDITIONER_SCHUR_PRE_A11=2 !<Uses the lower diagonal block as a preconditioner for the Schur complement. \see SOLVER_ROUTINES_BlockPreconditionerSchurPreTypes,SOLVER_ROUTINES
+  INTEGER(INTG), PARAMETER :: BLOCK_PRECONDITIONER_SCHUR_PRE_USER=3 !<The user provides a matrix as a preconditioner for the Schur complement. \see SOLVER_ROUTINES_BlockPreconditionerSchurPreTypes,SOLVER_ROUTINES
+  !>@}
+
   !> \addtogroup SOLVER_ROUTINES_NonlinearSolverTypes SOLVER_ROUTINES::NonlinearSolverTypes
   !> \brief The types of nonlinear solvers
   !> \see SOLVER_ROUTINES
@@ -447,6 +476,14 @@ MODULE SOLVER_ROUTINES
     & SOLVER_ITERATIVE_INCOMPLETE_LU_PRECONDITIONER,SOLVER_ITERATIVE_ADDITIVE_SCHWARZ_PRECONDITIONER, &
     & SOLVER_ITERATIVE_BLOCK_PRECONDITIONER
 
+  PUBLIC BLOCK_PRECONDITIONER_ADDITIVE,BLOCK_PRECONDITIONER_MULTIPLICATIVE,BLOCK_PRECONDITIONER_SYMMETRIC_MULTIPLICATIVE, &
+    & BLOCK_PRECONDITIONER_SCHUR
+
+  PUBLIC BLOCK_PRECONDITIONER_SCHUR_FACT_DIAG,BLOCK_PRECONDITIONER_SCHUR_FACT_LOWER,BLOCK_PRECONDITIONER_SCHUR_FACT_UPPER, &
+    & BLOCK_PRECONDITIONER_SCHUR_FACT_FULL
+
+  PUBLIC BLOCK_PRECONDITIONER_SCHUR_PRE_A11,BLOCK_PRECONDITIONER_SCHUR_PRE_USER
+
   PUBLIC SOLVER_NONLINEAR_NEWTON,SOLVER_NONLINEAR_BFGS_INVERSE,SOLVER_NONLINEAR_SQP,SOLVER_NONLINEAR_QUASI_NEWTON
 
   PUBLIC SOLVER_NEWTON_LINESEARCH,SOLVER_NEWTON_TRUSTREGION
@@ -599,8 +636,22 @@ MODULE SOLVER_ROUTINES
 
   PUBLIC SOLVER_LINEAR_ITERATIVE_MAXIMUM_ITERATIONS_SET
 
-  PUBLIC SOLVER_LINEAR_ITERATIVE_PRECONDITIONER_TYPE_SET
+  PUBLIC SolverLinearIterativePreconditionerGet
 
+  PUBLIC PreconditionerDestroy
+
+  PUBLIC PreconditionerTypeSet
+
+  PUBLIC PreconditionerBlockPreconditionerGet 
+
+  PUBLIC BlockPreconditionerNumberOfComponentsSet 
+
+  PUBLIC BlockPreconditionerComponentFieldVariableAdd 
+
+  PUBLIC BlockPreconditionerDestroy
+  
+  PUBLIC BlockPreconditionerTypeSet
+  
   PUBLIC SOLVER_LINEAR_ITERATIVE_RELATIVE_TOLERANCE_SET
   
   PUBLIC SOLVER_LINEAR_ITERATIVE_SOLUTION_INIT_TYPE_SET
@@ -10048,127 +10099,139 @@ CONTAINS
   !
 
   !>Sets up the block preconditioner.
-  SUBROUTINE SolverLinearIterativePreconditionerBlockSetUp(solver,err,error,*)
+  SUBROUTINE BlockPreconditionerCreateFinish(blockPreconditioner,err,error,*)
 
     !Argument variables
-    TYPE(SOLVER_TYPE), POINTER :: solver !<A pointer to the solver.
+    TYPE(BlockPreconditionerType), POINTER :: blockPreconditioner !<A pointer to the block preconditioner.
     INTEGER(INTG), INTENT(OUT) :: err !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
     !Local Variables
     TYPE(VARYING_STRING) :: localError 
-    INTEGER(INTG) :: solverMatrixIdx,variableIdx,equationsType,equationsIdx,variableDofIdx,localColumnIdx
+    INTEGER(INTG) :: solverMatrixIdx,variableIdx,componentIdx,equationsType,equationsIdx,variableDofIdx,localColumnIdx
     INTEGER(INTG), POINTER :: columnNumbers(:)
+    TYPE(BlockPreconditionerComponentType), POINTER :: blockPreconditionerComponent
+    TYPE(PreconditionerType), POINTER :: preconditioner
+    TYPE(LINEAR_ITERATIVE_SOLVER_TYPE), POINTER :: linearIterativeSolver
+    TYPE(LINEAR_SOLVER_TYPE), POINTER :: linearSolver
+    TYPE(PETSC_IS_TYPE), POINTER :: subIS
+    TYPE(PetscDMType), POINTER :: subDM
+    TYPE(SOLVER_TYPE), POINTER :: solver
     TYPE(SOLVER_EQUATIONS_TYPE), POINTER :: solverEquations
     TYPE(SOLVER_MAPPING_TYPE), POINTER :: solverMapping
 
-    CALL ENTERS("SolverLinearIterativePreconditionerBlockSetUp",err,error,*999)
+    CALL ENTERS("BlockPreconditionerCreateFinish",err,error,*999)
 
-    IF(ASSOCIATED(solver)) THEN
-      IF(solver%SOLVE_TYPE==SOLVER_LINEAR_TYPE) THEN
-        IF(ASSOCIATED(solver%LINEAR_SOLVER)) THEN
-          IF(solver%LINEAR_SOLVER%LINEAR_SOLVE_TYPE==SOLVER_LINEAR_ITERATIVE_SOLVE_TYPE) THEN
-            IF(ASSOCIATED(solver%LINEAR_SOLVER%ITERATIVE_SOLVER)) THEN
-              IF(solver%LINEAR_SOLVER%ITERATIVE_SOLVER%ITERATIVE_PRECONDITIONER_TYPE== &
-                & SOLVER_ITERATIVE_BLOCK_PRECONDITIONER) THEN
-                solverEquations=>solver%SOLVER_EQUATIONS
-                IF(ASSOCIATED(solverEquations)) THEN
-                  solverMapping=>solverEquations%SOLVER_MAPPING
-                  IF(ASSOCIATED(solverMapping)) THEN
-                    solverMatrixIdx=1
-                    CALL PetscPetscSectionInitialise(solver%LINEAR_SOLVER%ITERATIVE_SOLVER%section,err,error,*999)
-                    CALL PetscPetscSectionCreate(COMPUTATIONAL_ENVIRONMENT%MPI_COMM,solver%LINEAR_SOLVER%ITERATIVE_SOLVER%section, &
+    IF(ASSOCIATED(blockPreconditioner)) THEN
+      preconditioner=>blockPreconditioner%preconditioner
+      IF(ASSOCIATED(preconditioner)) THEN
+        linearIterativeSolver=>preconditioner%linearIterativeSolver
+        IF(ASSOCIATED(linearIterativeSolver)) THEN
+          linearSolver=>linearIterativeSolver%LINEAR_SOLVER
+          IF(ASSOCIATED(linearSolver)) THEN
+            solver=>linearSolver%SOLVER
+            IF(ASSOCIATED(solver)) THEN
+              solverEquations=>solver%SOLVER_EQUATIONS
+              IF(ASSOCIATED(solverEquations)) THEN
+                solverMapping=>solverEquations%SOLVER_MAPPING
+                IF(ASSOCIATED(solverMapping)) THEN
+                  !First create the PETSc section and DM, to define the splitting of the variables for the PETSc solver
+                  solverMatrixIdx=1
+                  CALL PetscPetscSectionCreate(COMPUTATIONAL_ENVIRONMENT%MPI_COMM,blockPreconditioner%section,err,error,*999)
+                  CALL PetscPetscSectionSetNumFields(blockPreconditioner%section,solverMapping%VARIABLES_LIST(solverMatrixIdx)% &
+                    & NUMBER_OF_VARIABLES,err,error,*999)
+                  !For now associate each solver matrix dof to a petsc point with 1 dof
+                  CALL PetscPetscSectionSetChart(blockPreconditioner%section, &
+                    & solverMapping%ROW_DOFS_MAPPING%LOCAL_TO_GLOBAL_MAP(1), &
+                    & solverMapping%ROW_DOFS_MAPPING%LOCAL_TO_GLOBAL_MAP(solverMapping%ROW_DOFS_MAPPING%TOTAL_NUMBER_OF_LOCAL)+1, &
+                    & err,error,*999)
+                  DO variableIdx=1,solverMapping%VARIABLES_LIST(solverMatrixIdx)%NUMBER_OF_VARIABLES
+                    CALL PetscPetscSectionSetFieldName(blockPreconditioner%section,variableIdx-1, &
+                      & solverMapping%VARIABLES_LIST(solverMatrixIdx)%VARIABLES(variableIdx)%VARIABLE%VARIABLE_LABEL, &
                       & err,error,*999)
-                    CALL PetscPetscSectionSetNumFields(solver%LINEAR_SOLVER%ITERATIVE_SOLVER%section, &
-                      & solverMapping%VARIABLES_LIST(solverMatrixIdx)%NUMBER_OF_VARIABLES,err,error,*999)
-                    !For now associate each solver matrix dof to a petsc point with 1 dof
-                    CALL PetscPetscSectionSetChart(solver%LINEAR_SOLVER%ITERATIVE_SOLVER%section, &
-                      & solverMapping%ROW_DOFS_MAPPING%LOCAL_TO_GLOBAL_MAP(1), &
-                      & solverMapping%ROW_DOFS_MAPPING%LOCAL_TO_GLOBAL_MAP(solverMapping%ROW_DOFS_MAPPING% &
-                      & TOTAL_NUMBER_OF_LOCAL)+1,err,error,*999)
-                    DO variableIdx=1,solverMapping%VARIABLES_LIST(solverMatrixIdx)%NUMBER_OF_VARIABLES
-                      equationsType=solverMapping%VARIABLES_LIST(solverMatrixIdx)%VARIABLES(variableIdx)%EQUATIONS_TYPE
-                      equationsIdx=solverMapping%VARIABLES_LIST(solverMatrixIdx)%VARIABLES(variableIdx)%EQUATIONS_INDEX
-                      SELECT CASE(equationsType)
-                      CASE(SOLVER_MAPPING_EQUATIONS_EQUATIONS_SET)
-                        columnNumbers=>solverMapping%EQUATIONS_SET_TO_SOLVER_MAP(equationsIdx)% &
-                          & EQUATIONS_TO_SOLVER_MATRIX_MAPS_SM(solverMatrixIdx)%VARIABLE_TO_SOLVER_COL_MAPS(variableIdx)% &
-                          & COLUMN_NUMBERS
-                      CASE(SOLVER_MAPPING_EQUATIONS_CONSTRAINT_CONDITION)
-                        columnNumbers=>solverMapping%CONSTRAINT_CONDITION_TO_SOLVER_MAP(equationsIdx)% &
-                          & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solverMatrixIdx)% &
-                          & LAGRANGE_VARIABLE_TO_SOLVER_COL_MAP%COLUMN_NUMBERS
-                      CASE(SOLVER_MAPPING_EQUATIONS_INTERFACE_CONDITION)
-                        columnNumbers=>solverMapping%INTERFACE_CONDITION_TO_SOLVER_MAP(equationsIdx)% &
-                          & INTERFACE_TO_SOLVER_MATRIX_MAPS_SM(solverMatrixIdx)% &
-                          & LAGRANGE_VARIABLE_TO_SOLVER_COL_MAP%COLUMN_NUMBERS
-                      CASE DEFAULT
-                        localError="The solver mapping equations type of "// &
-                          & TRIM(NUMBER_TO_VSTRING(equationsType,"*",err,error))// &
-                          & " is invalid."
-                        CALL FLAG_ERROR(localError,err,error,*999)
-                      END SELECT
-                      DO variableDofIdx=1,solverMapping%VARIABLES_LIST(solverMatrixIdx)%VARIABLES(variableIdx)% &
-                        & VARIABLE%TOTAL_NUMBER_OF_DOFS
-                        localColumnIdx=columnNumbers(variableDofIdx)
-                        !The dof is not constrained, so it is included.
-                        IF(localColumnIdx/=0) THEN
-                          CALL PetscPetscSectionSetDof(solver%LINEAR_SOLVER%ITERATIVE_SOLVER%section, &
-                            & localColumnIdx,1,err,error,*999)
-                          CALL PetscPetscSectionSetFieldDof(solver%LINEAR_SOLVER%ITERATIVE_SOLVER%section, &
-                            & localColumnIdx,variableIdx-1,1,err,error,*999)
-                        ENDIF
-                      ENDDO
+                    equationsType=solverMapping%VARIABLES_LIST(solverMatrixIdx)%VARIABLES(variableIdx)%EQUATIONS_TYPE
+                    equationsIdx=solverMapping%VARIABLES_LIST(solverMatrixIdx)%VARIABLES(variableIdx)%EQUATIONS_INDEX
+                    SELECT CASE(equationsType)
+                    CASE(SOLVER_MAPPING_EQUATIONS_EQUATIONS_SET)
+                      columnNumbers=>solverMapping%EQUATIONS_SET_TO_SOLVER_MAP(equationsIdx)% &
+                        & EQUATIONS_TO_SOLVER_MATRIX_MAPS_SM(solverMatrixIdx)%VARIABLE_TO_SOLVER_COL_MAPS(variableIdx)% &
+                        & COLUMN_NUMBERS
+                    CASE(SOLVER_MAPPING_EQUATIONS_CONSTRAINT_CONDITION)
+                      columnNumbers=>solverMapping%CONSTRAINT_CONDITION_TO_SOLVER_MAP(equationsIdx)% &
+                        & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solverMatrixIdx)% &
+                        & LAGRANGE_VARIABLE_TO_SOLVER_COL_MAP%COLUMN_NUMBERS
+                    CASE(SOLVER_MAPPING_EQUATIONS_INTERFACE_CONDITION)
+                      columnNumbers=>solverMapping%INTERFACE_CONDITION_TO_SOLVER_MAP(equationsIdx)% &
+                        & INTERFACE_TO_SOLVER_MATRIX_MAPS_SM(solverMatrixIdx)% &
+                        & LAGRANGE_VARIABLE_TO_SOLVER_COL_MAP%COLUMN_NUMBERS
+                    CASE DEFAULT
+                      localError="The solver mapping equations type of "// &
+                        & TRIM(NUMBER_TO_VSTRING(equationsType,"*",err,error))// &
+                        & " is invalid."
+                      CALL FLAG_ERROR(localError,err,error,*999)
+                    END SELECT
+                    DO variableDofIdx=1,solverMapping%VARIABLES_LIST(solverMatrixIdx)%VARIABLES(variableIdx)% &
+                      & VARIABLE%TOTAL_NUMBER_OF_DOFS
+                      localColumnIdx=columnNumbers(variableDofIdx)
+                      !The dof is not constrained, so it is included.
+                      IF(localColumnIdx/=0) THEN
+                        CALL PetscPetscSectionSetDof(blockPreconditioner%section,localColumnIdx,1,err,error,*999)
+                        CALL PetscPetscSectionSetFieldDof(blockPreconditioner%section,localColumnIdx,variableIdx-1,1, &
+                          & err,error,*999)
+                      ENDIF
                     ENDDO
-                    CALL PetscPetscSectionSetUp(solver%LINEAR_SOLVER%ITERATIVE_SOLVER%section,err,error,*999)
-                    CALL PetscDMInitialise(solver%LINEAR_SOLVER%ITERATIVE_SOLVER%DM,err,error,*999)
-                    CALL PetscDMShellCreate(COMPUTATIONAL_ENVIRONMENT%MPI_COMM,solver%LINEAR_SOLVER%ITERATIVE_SOLVER%DM, &
-                      & err,error,*999)
-                    CALL PetscDMSetDefaultSection(solver%LINEAR_SOLVER%ITERATIVE_SOLVER%DM, &
-                      & solver%LINEAR_SOLVER%ITERATIVE_SOLVER%section,err,error,*999)
-                    CALL PetscDMSetUp(solver%LINEAR_SOLVER%ITERATIVE_SOLVER%DM,err,error,*999)
-                    CALL PetscPCSetDM(solver%LINEAR_SOLVER%ITERATIVE_SOLVER%PC,solver%LINEAR_SOLVER%ITERATIVE_SOLVER%DM, &
-                      & err,error,*999)
-                    !CALL PetscSNESSetDM(solver%NONLINEAR_SOLVER%NEWTON_SOLVER%LINESEARCH_SOLVER%SNES, &
-                    !  & solver%LINEAR_SOLVER%ITERATIVE_SOLVER%DM,err,error,*999)
-                    !CALL PetscDMView(solver%LINEAR_SOLVER%ITERATIVE_SOLVER%DM,err,error,*999)
-                    !CALL PetscKSPSetDM(solver%LINEAR_SOLVER%ITERATIVE_SOLVER%KSP, &
-                    !  & solver%LINEAR_SOLVER%ITERATIVE_SOLVER%DM,err,error,*999)
-                    !CALL PetscKSPSetDMActive(solver%LINEAR_SOLVER%ITERATIVE_SOLVER%KSP,PETSC_FALSE,err,error,*999)
-                  ELSE
-                    CALL FLAG_ERROR("The solver solver equations mapping is not associated.",err,error,*999)
-                  ENDIF
+                  ENDDO
+                  CALL PetscPetscSectionSetUp(blockPreconditioner%section,err,error,*999)
+                  CALL PetscDMShellCreate(COMPUTATIONAL_ENVIRONMENT%MPI_COMM,blockPreconditioner%DM,err,error,*999)
+                  CALL PetscDMSetDefaultSection(blockPreconditioner%DM,blockPreconditioner%section,err,error,*999)
+                  CALL PetscDMSetUp(blockPreconditioner%DM,err,error,*999)
+                  !Second finish the components of the block preconditioner
+                  CALL BlockPreconditionerComponentsCreateFinish(blockPreconditioner,err,error,*999)
+                  !Third inform PETSc which variables belong to which component/split
+                  DO componentIdx=1,blockPreconditioner%numberOfComponents
+                    blockPreconditionerComponent=>blockPreconditioner%components(componentIdx)%ptr
+                    CALL PETSC_ISINITIALISE(subIS,err,error,*999)
+                    CALL PetscDMInitialise(subDM,err,error,*999)
+                    CALL PetscDMCreateSubDM(blockPreconditioner%DM,blockPreconditionerComponent%numberOfVariables, &
+                      & blockPreconditionerComponent%solverVariableIndices-1,subIS,subDM,err,error,*999)
+                    CALL PetscPCFieldSplitSetIS(preconditioner%PC,TRIM(NUMBER_TO_VSTRING(componentIdx-1,"*",err,error)), &
+                      & subIS,err,error,*999)
+                    !PetscKSPSetDM here?
+                    CALL PETSC_ISFINALISE(subIS,err,error,*999)
+                    CALL PetscDMFinalise(subDM,err,error,*999)
+                  END DO !componentIdx
                 ELSE
-                  CALL FLAG_ERROR("The solver solver equations is not associated.",err,error,*999)
+                  CALL FLAG_ERROR("The block preconditioner preconditioner linear iterative solver linear solver solver &
+                    &solver equations mapping is not associated.",err,error,*999)
                 ENDIF
               ELSE
-                localError="The solver linear solver iterative solver preconditioner of type "// &
-                  & TRIM(NUMBER_TO_VSTRING(solver%LINEAR_SOLVER%ITERATIVE_SOLVER%ITERATIVE_PRECONDITIONER_TYPE,"*",err,error))// &
-                  & " is not a block preconditioner type"
-                CALL FLAG_ERROR(localError,err,error,*999)
+                CALL FLAG_ERROR("The block preconditioner preconditioner linear iterative solver linear solver solver &
+                  &solver equations is not associated.",err,error,*999)
               ENDIF
             ELSE
-              CALL FLAG_ERROR("The solver linear solver iterative solver is not associated.",err,error,*999)
+              CALL FLAG_ERROR("The block preconditioner preconditioner linear iterative solver linear solver &
+                &solver is not associated.",err,error,*999)
             ENDIF
           ELSE
-            CALL FLAG_ERROR("The solver is not a linear iterative solver.",err,error,*999)
+            CALL FLAG_ERROR("The block preconditioner preconditioner linear iterative solver linear solver is not associated.", &
+              & err,error,*999)
           ENDIF
         ELSE
-          CALL FLAG_ERROR("The solver linear solver is not associated.",err,error,*999)
+          CALL FLAG_ERROR("The block preconditioner preconditioner linear iterative solver is not associated.",err,error,*999)
         ENDIF
       ELSE
-        CALL FLAG_ERROR("The solver is not a linear solver.",err,error,*999)
+        CALL FLAG_ERROR("The block preconditioner preconditioner is not associated.",err,error,*999)
       ENDIF
     ELSE
-      CALL FLAG_ERROR("Solver is not associated.",err,error,*999)
+      CALL FLAG_ERROR("The block preconditioner is not associated.",err,error,*999)
     ENDIF
 
-    CALL EXITS("SolverLinearIterativePreconditionerBlockSetUp")
+    CALL EXITS("BlockPreconditionerCreateFinish")
     RETURN
-999 CALL ERRORS("SolverLinearIterativePreconditionerBlockSetUp",err,error)
-    CALL EXITS("SolverLinearIterativePreconditionerBlockSetUp")
+999 CALL ERRORS("BlockPreconditionerCreateFinish",err,error)
+    CALL EXITS("BlockPreconditionerCreateFinish")
     RETURN 1
    
-  END SUBROUTINE SolverLinearIterativePreconditionerBlockSetUp
+  END SUBROUTINE BlockPreconditionerCreateFinish
         
   !
   !================================================================================================================================
@@ -10439,32 +10502,8 @@ CONTAINS
                 & TRIM(NUMBER_TO_VSTRING(LINEAR_ITERATIVE_SOLVER%ITERATIVE_SOLVER_TYPE,"*",ERR,ERROR))//" is invalid."
               CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
             END SELECT
-            !Get the pre-conditioner
-            CALL PETSC_KSPGETPC(LINEAR_ITERATIVE_SOLVER%KSP,LINEAR_ITERATIVE_SOLVER%PC,ERR,ERROR,*999)
-            !Set the pre-conditioner type
-            SELECT CASE(LINEAR_ITERATIVE_SOLVER%ITERATIVE_PRECONDITIONER_TYPE)
-            CASE(SOLVER_ITERATIVE_NO_PRECONDITIONER)
-              CALL PETSC_PCSETTYPE(LINEAR_ITERATIVE_SOLVER%PC,PETSC_PCNONE,ERR,ERROR,*999)
-            CASE(SOLVER_ITERATIVE_JACOBI_PRECONDITIONER)
-              CALL PETSC_PCSETTYPE(LINEAR_ITERATIVE_SOLVER%PC,PETSC_PCJACOBI,ERR,ERROR,*999)
-            CASE(SOLVER_ITERATIVE_BLOCK_JACOBI_PRECONDITIONER)
-              CALL PETSC_PCSETTYPE(LINEAR_ITERATIVE_SOLVER%PC,PETSC_PCBJACOBI,ERR,ERROR,*999)
-            CASE(SOLVER_ITERATIVE_SOR_PRECONDITIONER)
-              CALL PETSC_PCSETTYPE(LINEAR_ITERATIVE_SOLVER%PC,PETSC_PCSOR,ERR,ERROR,*999)
-            CASE(SOLVER_ITERATIVE_INCOMPLETE_CHOLESKY_PRECONDITIONER)
-              CALL PETSC_PCSETTYPE(LINEAR_ITERATIVE_SOLVER%PC,PETSC_PCICC,ERR,ERROR,*999)
-            CASE(SOLVER_ITERATIVE_INCOMPLETE_LU_PRECONDITIONER)
-              CALL PETSC_PCSETTYPE(LINEAR_ITERATIVE_SOLVER%PC,PETSC_PCILU,ERR,ERROR,*999)
-            CASE(SOLVER_ITERATIVE_ADDITIVE_SCHWARZ_PRECONDITIONER)
-              CALL PETSC_PCSETTYPE(LINEAR_ITERATIVE_SOLVER%PC,PETSC_PCASM,ERR,ERROR,*999)
-            CASE(SOLVER_ITERATIVE_BLOCK_PRECONDITIONER)
-              CALL PETSC_PCSETTYPE(LINEAR_ITERATIVE_SOLVER%PC,PETSC_PCFIELDSPLIT,ERR,ERROR,*999)
-              CALL SolverLinearIterativePreconditionerBlockSetUp(SOLVER,ERR,ERROR,*999)
-            CASE DEFAULT
-              LOCAL_ERROR="The iterative preconditioner type of "// &
-                & TRIM(NUMBER_TO_VSTRING(LINEAR_ITERATIVE_SOLVER%ITERATIVE_PRECONDITIONER_TYPE,"*",ERR,ERROR))//" is invalid."
-              CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
-            END SELECT
+            !Finish the preconditioner
+            CALL SolverLinearIterativePreconditionerCreateFinish(LINEAR_ITERATIVE_SOLVER,err,error,*999)
             !Set the tolerances for the KSP solver
             CALL PETSC_KSPSETTOLERANCES(LINEAR_ITERATIVE_SOLVER%KSP,LINEAR_ITERATIVE_SOLVER%RELATIVE_TOLERANCE, &
               & LINEAR_ITERATIVE_SOLVER%ABSOLUTE_TOLERANCE,LINEAR_ITERATIVE_SOLVER%DIVERGENCE_TOLERANCE, &
@@ -10588,18 +10627,17 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
     !Local Variables
-    INTEGER(INTG) :: is_idx
     TYPE(LINEAR_SOLVER_TYPE), POINTER :: LINEAR_SOLVER
 
     CALL ENTERS("SOLVER_LINEAR_ITERATIVE_FINALISE",ERR,ERROR,*999)
 
     IF(ASSOCIATED(LINEAR_ITERATIVE_SOLVER)) THEN
-      CALL PetscPetscSectionFinalise(LINEAR_ITERATIVE_SOLVER%section,ERR,ERROR,*999)
-      CALL PetscDMFinalise(LINEAR_ITERATIVE_SOLVER%DM,ERR,ERROR,*999)
+      IF(ASSOCIATED(LINEAR_ITERATIVE_SOLVER%preconditioner)) THEN
+        CALL PreconditionerFinalise(LINEAR_ITERATIVE_SOLVER%preconditioner,err,error,*999)
+      ENDIF
       LINEAR_SOLVER=>LINEAR_ITERATIVE_SOLVER%LINEAR_SOLVER
       IF(ASSOCIATED(LINEAR_SOLVER)) THEN
         IF(.NOT.LINEAR_SOLVER%LINKED_NEWTON_PETSC_SOLVER) THEN
-          CALL PETSC_PCFINALISE(LINEAR_ITERATIVE_SOLVER%PC,ERR,ERROR,*999)
           CALL PETSC_KSPFINALISE(LINEAR_ITERATIVE_SOLVER%KSP,ERR,ERROR,*999)
         ENDIF
       ENDIF
@@ -10707,17 +10745,14 @@ CONTAINS
         LINEAR_SOLVER%ITERATIVE_SOLVER%SOLVER_LIBRARY=SOLVER_PETSC_LIBRARY
         LINEAR_SOLVER%ITERATIVE_SOLVER%SOLVER_MATRICES_LIBRARY=DISTRIBUTED_MATRIX_VECTOR_PETSC_TYPE
         LINEAR_SOLVER%ITERATIVE_SOLVER%ITERATIVE_SOLVER_TYPE=SOLVER_ITERATIVE_GMRES
-        LINEAR_SOLVER%ITERATIVE_SOLVER%ITERATIVE_PRECONDITIONER_TYPE=SOLVER_ITERATIVE_JACOBI_PRECONDITIONER
         LINEAR_SOLVER%ITERATIVE_SOLVER%SOLUTION_INITIALISE_TYPE=SOLVER_SOLUTION_INITIALISE_CURRENT_FIELD
         LINEAR_SOLVER%ITERATIVE_SOLVER%MAXIMUM_NUMBER_OF_ITERATIONS=100000
         LINEAR_SOLVER%ITERATIVE_SOLVER%RELATIVE_TOLERANCE=1.0E-05_DP
         LINEAR_SOLVER%ITERATIVE_SOLVER%ABSOLUTE_TOLERANCE=1.0E-10_DP
         LINEAR_SOLVER%ITERATIVE_SOLVER%DIVERGENCE_TOLERANCE=1.0E5_DP
         LINEAR_SOLVER%ITERATIVE_SOLVER%GMRES_RESTART=30
-        CALL PETSC_PCINITIALISE(LINEAR_SOLVER%ITERATIVE_SOLVER%PC,ERR,ERROR,*999)
         CALL PETSC_KSPINITIALISE(LINEAR_SOLVER%ITERATIVE_SOLVER%KSP,ERR,ERROR,*999)
-        CALL PetscDMInitialise(LINEAR_SOLVER%ITERATIVE_SOLVER%DM,err,error,*999)
-        CALL PetscPetscSectionInitialise(LINEAR_SOLVER%ITERATIVE_SOLVER%section,err,error,*999)
+        CALL SolverLinearIterativePreconditionerCreateStart(LINEAR_SOLVER%ITERATIVE_SOLVER,err,error,*999)
       ENDIF
     ELSE
       CALL FLAG_ERROR("Linear solver is not associated.",ERR,ERROR,*998)
@@ -10988,7 +11023,7 @@ CONTAINS
   !================================================================================================================================
   !
  
-! !>Sets the blocks of a block preconditioner for an iterative linear solver. \see !OPENCMISS::CMISSSolverLinearIterativePreconditionerBlocksSet
+! !>Sets the blocks of a block preconditioner for an iterative linear solver. \see !OPENCMISS::CMISSSolverLinearIterativePreconditionerBlockPreconditionersSet
 ! SUBROUTINE SOLVER_LINEAR_ITERATIVE_PRECONDITIONER_BLOCK_SET(SOLVER,FIELD,VARIABLE_TYPE,ERR,ERROR,*)
 !
 !   !Argument variables
@@ -11017,7 +11052,7 @@ CONTAINS
 !       IF(ASSOCIATED(SOLVER%LINEAR_SOLVER)) THEN
 !         IF(SOLVER%LINEAR_SOLVER%LINEAR_SOLVE_TYPE==SOLVER_LINEAR_ITERATIVE_SOLVE_TYPE) THEN
 !           IF(ASSOCIATED(SOLVER%LINEAR_SOLVER%ITERATIVE_SOLVER)) THEN
-!             IF(SOLVER%LINEAR_SOLVER%ITERATIVE_SOLVER%ITERATIVE_PRECONDITIONER_TYPE== &
+!             IF(SOLVER%LINEAR_SOLVER%ITERATIVE_SOLVER%preconditionerType== &
 !               & SOLVER_ITERATIVE_BLOCK_PRECONDITIONER) THEN
 !               SOLVER_EQUATIONS=>SOLVER%SOLVER_EQUATIONS
 !               IF(ASSOCIATED(SOLVER_EQUATIONS)) THEN
@@ -11104,7 +11139,7 @@ CONTAINS
 !               ENDIF
 !             ELSE
 !               LOCAL_ERROR="The solver linear solver iterative solver preconditioner of type "// &
-!                 & TRIM(NUMBER_TO_VSTRING(SOLVER%LINEAR_SOLVER%ITERATIVE_SOLVER%ITERATIVE_PRECONDITIONER_TYPE,"*",ERR,ERROR))// &
+!                 & TRIM(NUMBER_TO_VSTRING(SOLVER%LINEAR_SOLVER%ITERATIVE_SOLVER%preconditionerType,"*",ERR,ERROR))// &
 !                 & " is not a block preconditioner type"
 !               CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
 !             ENDIF
@@ -11131,95 +11166,1091 @@ CONTAINS
 !   RETURN 1
 !  
 ! END SUBROUTINE SOLVER_LINEAR_ITERATIVE_PRECONDITIONER_BLOCK_SET
+
+  !
+  !================================================================================================================================
+  !
+
+  !> Finalise the Schur complement reduction based block preconditioner type.
+  SUBROUTINE BlockPreconditionerSchurFinalise(blockPreconditionerSchur,err,error,*)
+
+    !Argument variables
+    TYPE(BlockPreconditionerSchurType), POINTER :: blockPreconditionerSchur !<The Schur complement reduction based block preconditioner to finalise
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+    
+    CALL ENTERS("BlockPreconditionerSchurFinalise",err,error,*999)
+
+    IF(ASSOCIATED(blockPreconditionerSchur)) THEN
+      CALL DISTRIBUTED_MATRIX_DESTROY(blockPreconditionerSchur%schurComplementPreconditioner,err,error,*999)
+      DEALLOCATE(blockPreconditionerSchur)
+    END IF
+    
+    CALL EXITS("BlockPreconditionerSchurFinalise")
+    RETURN
+999 CALL ERRORS("BlockPreconditionerSchurFinalise",err,error)
+    CALL EXITS("BlockPreconditionerSchurFinalise")
+    RETURN 1
+   
+  END SUBROUTINE BlockPreconditionerSchurFinalise
+
+  !
+  !================================================================================================================================
+  !
+
+  !> Initialise the block preconditioner Schur complement reduction type.
+  SUBROUTINE BlockPreconditionerSchurInitialise(blockPreconditionerSchur,err,error,*)
+
+    !Argument variables
+    TYPE(blockPreconditionerSchurType), POINTER :: blockPreconditionerSchur !<The block preconditioner Schur complement reduction type to initialise
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+    
+    CALL ENTERS("BlockPreconditionerSchurInitialise",err,error,*999)
+
+    IF(ASSOCIATED(blockPreconditionerSchur)) THEN
+      NULLIFY(blockPreconditionerSchur%blockPreconditioner)
+      NULLIFY(blockPreconditionerSchur%schurComplementPreconditioner)
+      blockPreconditionerSchur%schurFactorizationType=0
+      blockPreconditionerSchur%schurComplementPreconditionerType=0
+    ELSE
+      CALL FLAG_ERROR("Block preconditioner component is not associated.",err,error,*999)
+    END IF
+    
+    CALL EXITS("BlockPreconditionerSchurInitialise")
+    RETURN
+999 CALL ERRORS("BlockPreconditionerSchurInitialise",err,error)
+    CALL EXITS("BlockPreconditionerSchurInitialise")
+    RETURN 1
+   
+  END SUBROUTINE BlockPreconditionerSchurInitialise
         
   !
   !================================================================================================================================
   !
 
-  !>Sets/changes the type of preconditioner for an iterative linear solver. \see OPENCMISS::CMISSSolverLinearIterativePreconditionerTypeSet
-  SUBROUTINE SOLVER_LINEAR_ITERATIVE_PRECONDITIONER_TYPE_SET(SOLVER,ITERATIVE_PRECONDITIONER_TYPE,ERR,ERROR,*)
+  !> Start the creation of the block preconditioner Schur complement reduction type.
+  SUBROUTINE BlockPreconditionerSchurCreateStart(blockPreconditioner,err,error,*)
 
     !Argument variables
-    TYPE(SOLVER_TYPE), POINTER :: SOLVER !<A pointer the solver to set the iterative linear solver type
-    INTEGER(INTG), INTENT(IN) :: ITERATIVE_PRECONDITIONER_TYPE !<The type of iterative preconditioner to set \see SOLVER_ROUTINES_IterativeLinearSolverTypes,SOLVER_ROUTINES
-    INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
-    TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
+    TYPE(blockPreconditionerType), POINTER :: blockPreconditioner !<The block preconditioner to start the creation for
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
     !Local Variables
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
     
-    CALL ENTERS("SOLVER_LINEAR_ITERATIVE_PRECONDITIONER_TYPE_SET",ERR,ERROR,*999)
+    CALL ENTERS("BlockPreconditionerSchurCreateStart",err,error,*999)
 
-    IF(ASSOCIATED(SOLVER)) THEN
-      IF(SOLVER%SOLVER_FINISHED) THEN
-        CALL FLAG_ERROR("Solver has already been finished.",ERR,ERROR,*999)
+    IF(ASSOCIATED(blockPreconditioner)) THEN
+      IF(ASSOCIATED(blockPreconditioner%schur)) THEN
+        CALL FLAG_ERROR("Block preconditioner Schur is already associated.",err,error,*999)
       ELSE
-        IF(SOLVER%SOLVE_TYPE==SOLVER_LINEAR_TYPE) THEN
-          IF(ASSOCIATED(SOLVER%LINEAR_SOLVER)) THEN
-            IF(SOLVER%LINEAR_SOLVER%LINEAR_SOLVE_TYPE==SOLVER_LINEAR_ITERATIVE_SOLVE_TYPE) THEN
-              IF(ASSOCIATED(SOLVER%LINEAR_SOLVER%ITERATIVE_SOLVER)) THEN
-                IF(ITERATIVE_PRECONDITIONER_TYPE/=SOLVER%LINEAR_SOLVER%ITERATIVE_SOLVER%ITERATIVE_PRECONDITIONER_TYPE) THEN
-                  !Intialise the new preconditioner type
-                  SELECT CASE(SOLVER%LINEAR_SOLVER%ITERATIVE_SOLVER%SOLVER_LIBRARY)
-                  CASE(SOLVER_PETSC_LIBRARY)
-                    SELECT CASE(ITERATIVE_PRECONDITIONER_TYPE)
-                    CASE(SOLVER_ITERATIVE_NO_PRECONDITIONER)
-                      SOLVER%LINEAR_SOLVER%ITERATIVE_SOLVER%ITERATIVE_PRECONDITIONER_TYPE=SOLVER_ITERATIVE_NO_PRECONDITIONER
-                    CASE(SOLVER_ITERATIVE_JACOBI_PRECONDITIONER)
-                      CALL FLAG_ERROR("Iterative Jacobi preconditioning is not implemented for a PETSc library.",ERR,ERROR,*999)
-                    CASE(SOLVER_ITERATIVE_BLOCK_JACOBI_PRECONDITIONER)
-                      SOLVER%LINEAR_SOLVER%ITERATIVE_SOLVER%ITERATIVE_PRECONDITIONER_TYPE= &
-                        & SOLVER_ITERATIVE_BLOCK_JACOBI_PRECONDITIONER
-                    CASE(SOLVER_ITERATIVE_SOR_PRECONDITIONER)
-                      SOLVER%LINEAR_SOLVER%ITERATIVE_SOLVER%ITERATIVE_PRECONDITIONER_TYPE= &
-                        & SOLVER_ITERATIVE_SOR_PRECONDITIONER
-                    CASE(SOLVER_ITERATIVE_INCOMPLETE_CHOLESKY_PRECONDITIONER)
-                      SOLVER%LINEAR_SOLVER%ITERATIVE_SOLVER%ITERATIVE_PRECONDITIONER_TYPE= &
-                        & SOLVER_ITERATIVE_INCOMPLETE_CHOLESKY_PRECONDITIONER 
-                    CASE(SOLVER_ITERATIVE_INCOMPLETE_LU_PRECONDITIONER)
-                      SOLVER%LINEAR_SOLVER%ITERATIVE_SOLVER%ITERATIVE_PRECONDITIONER_TYPE= &
-                        & SOLVER_ITERATIVE_INCOMPLETE_LU_PRECONDITIONER
-                    CASE(SOLVER_ITERATIVE_ADDITIVE_SCHWARZ_PRECONDITIONER)
-                      SOLVER%LINEAR_SOLVER%ITERATIVE_SOLVER%ITERATIVE_PRECONDITIONER_TYPE= &
-                        & SOLVER_ITERATIVE_ADDITIVE_SCHWARZ_PRECONDITIONER
-                    CASE(SOLVER_ITERATIVE_BLOCK_PRECONDITIONER)
-                      SOLVER%LINEAR_SOLVER%ITERATIVE_SOLVER%ITERATIVE_PRECONDITIONER_TYPE= &
-                        & SOLVER_ITERATIVE_BLOCK_PRECONDITIONER
-                   CASE DEFAULT
-                      LOCAL_ERROR="The iterative preconditioner type of "// &
-                        & TRIM(NUMBER_TO_VSTRING(ITERATIVE_PRECONDITIONER_TYPE,"*",ERR,ERROR))//" is invalid."
-                      CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
-                    END SELECT
-                  CASE DEFAULT
-                    LOCAL_ERROR="The solver library type of "// &
-                      & TRIM(NUMBER_TO_VSTRING(SOLVER%LINEAR_SOLVER%ITERATIVE_SOLVER%SOLVER_LIBRARY,"*",ERR,ERROR))// &
-                      & " is invalid."
-                    CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
-                  END SELECT                  
-                ENDIF
-              ELSE
-                CALL FLAG_ERROR("The solver linear solver iterative solver is not associated.",ERR,ERROR,*999)
-              ENDIF
-            ELSE
-              CALL FLAG_ERROR("The solver is not a linear iterative solver.",ERR,ERROR,*999)
-            ENDIF
-          ELSE
-            CALL FLAG_ERROR("The solver linear solver is not associated.",ERR,ERROR,*999)
-          ENDIF
-        ELSE
-          CALL FLAG_ERROR("The solver is not a linear solver.",ERR,ERROR,*999)
-        ENDIF
-      ENDIF
+        ALLOCATE(blockPreconditioner%Schur,STAT=err)
+        IF(err/=0) CALL FLAG_ERROR("Could not allocate new block preconditioner Schur type.",err,error,*999)
+        CALL BlockPreconditionerSchurInitialise(blockPreconditioner%schur,err,error,*999)
+        blockPreconditioner%schur%blockPreconditioner=>blockPreconditioner
+        blockPreconditioner%schur%schurFactorizationType=BLOCK_PRECONDITIONER_SCHUR_FACT_FULL
+        blockPreconditioner%schur%schurComplementPreconditionerType=BLOCK_PRECONDITIONER_SCHUR_PRE_A11
+      END IF
     ELSE
-      CALL FLAG_ERROR("Solver is not associated.",ERR,ERROR,*999)
-    ENDIF
+      CALL FLAG_ERROR("Preconditioner is not associated.",err,error,*999)
+    END IF
     
-    CALL EXITS("SOLVER_LINEAR_ITERATIVE_PRECONDITIONER_TYPE_SET")
+    CALL EXITS("BlockPreconditionerSchurCreateStart")
     RETURN
-999 CALL ERRORS("SOLVER_LINEAR_ITERATIVE_PRECONDITIONER_TYPE_SET",ERR,ERROR)
-    CALL EXITS("SOLVER_LINEAR_ITERATIVE_PRECONDITIONER_TYPE_SET")
+999 CALL ERRORS("BlockPreconditionerSchurCreateStart",err,error)
+    CALL EXITS("BlockPreconditionerSchurCreateStart")
     RETURN 1
    
-  END SUBROUTINE SOLVER_LINEAR_ITERATIVE_PRECONDITIONER_TYPE_SET
+  END SUBROUTINE BlockPreconditionerSchurCreateStart
+        
+  !
+  !================================================================================================================================
+  !
+        
+  !> Finalise the block preconditioner component type.
+  SUBROUTINE BlockPreconditionerComponentFinalise(blockPreconditionerComponent,err,error,*)
+
+    !Argument variables
+    TYPE(BlockPreconditionerComponentType), POINTER :: blockPreconditionerComponent !<The block preconditioner component to finalise
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+    
+    CALL ENTERS("BlockPreconditionerComponentFinalise",err,error,*999)
+
+    IF(ASSOCIATED(blockPreconditionerComponent)) THEN
+      IF(ASSOCIATED(blockPreconditionerComponent%linearSolver)) &
+        & CALL SOLVER_FINALISE(blockPreconditionerComponent%linearSolver,err,error,*999)
+      IF(ALLOCATED(blockPreconditionerComponent%variables)) &
+        & DEALLOCATE(blockPreconditionerComponent%variables)
+      IF(ALLOCATED(blockPreconditionerComponent%solverVariableIndices)) &
+        & DEALLOCATE(blockPreconditionerComponent%solverVariableIndices)
+      DEALLOCATE(blockPreconditionerComponent)
+    END IF
+    
+    CALL EXITS("BlockPreconditionerComponentFinalise")
+    RETURN
+999 CALL ERRORS("BlockPreconditionerComponentFinalise",err,error)
+    CALL EXITS("BlockPreconditionerComponentFinalise")
+    RETURN 1
+   
+  END SUBROUTINE BlockPreconditionerComponentFinalise
+
+  !
+  !================================================================================================================================
+  !
+
+  !> Initialise the block preconditioner component type.
+  SUBROUTINE BlockPreconditionerComponentInitialise(blockPreconditionerComponent,err,error,*)
+
+    !Argument variables
+    TYPE(BlockPreconditionerComponentType), POINTER :: blockPreconditionerComponent !<The block preconditioner component type to initialise
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+    
+    CALL ENTERS("BlockPreconditionerComponentInitialise",err,error,*999)
+
+    IF(ASSOCIATED(blockPreconditionerComponent)) THEN
+      NULLIFY(blockPreconditionerComponent%blockPreconditioner)
+      NULLIFY(blockPreconditionerComponent%linearSolver)
+      blockPreconditionerComponent%numberOfVariables=0
+    ELSE
+      CALL FLAG_ERROR("Block preconditioner component is not associated.",err,error,*999)
+    END IF
+    
+    CALL EXITS("BlockPreconditionerComponentInitialise")
+    RETURN
+999 CALL ERRORS("BlockPreconditionerComponentInitialise",err,error)
+    CALL EXITS("BlockPreconditionerComponentInitialise")
+    RETURN 1
+   
+  END SUBROUTINE BlockPreconditionerComponentInitialise
+
+  !
+  !================================================================================================================================
+  !
+
+  !> Add a field variable to the block preconditioner component.
+  SUBROUTINE BlockPreconditionerComponentFieldVariableAdd(blockPreconditioner,componentIdx,field,variableType,err,error,*)
+
+    !Argument variables
+    TYPE(BlockPreconditionerType), POINTER :: blockPreconditioner !<The block preconditioner to set the componentIdx'th component variables for
+    INTEGER(INTG), INTENT(IN) :: componentIdx !<The component index to set the variables for
+    TYPE(FIELD_TYPE), POINTER :: field !<The field for which to add the variable of type variableType to the componentIdx'th block preconditioner component
+    INTEGER(INTG), INTENT(IN) :: variableType !<The field variable type to add to the componentIdx'th block preconditioner component
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+    TYPE(BlockPreconditionerComponentType), POINTER :: blockPreconditionerComponent
+    TYPE(FIELD_VARIABLE_TYPE), POINTER :: variable 
+    TYPE(FIELD_VARIABLE_PTR_TYPE), ALLOCATABLE :: newVariables(:) 
+    TYPE(VARYING_STRING) :: localError
+    
+    CALL ENTERS("BlockPreconditionerComponentFieldVariableAdd",err,error,*999)
+
+    IF(ASSOCIATED(blockPreconditioner)) THEN
+      IF(0<componentIdx.AND.componentIdx<blockPreconditioner%numberOfComponents) THEN
+        blockPreconditionerComponent=>blockPreconditioner%components(componentIdx)%ptr
+        IF(ASSOCIATED(blockPreconditionerComponent)) THEN
+          IF(ASSOCIATED(field)) THEN
+            NULLIFY(variable)
+            CALL FIELD_VARIABLE_GET(field,variableType,variable,err,error,*999)
+            ALLOCATE(newVariables(blockPreconditionerComponent%numberOfVariables+1),STAT=err)
+            IF(err/=0) CALL FLAG_ERROR("Could not allocate new block preconditioner component variables.",err,error,*999)
+            newVariables(1:blockPreconditionerComponent%numberOfVariables)= &
+              & blockPreconditionerComponent%variables(1:blockPreconditionerComponent%numberOfVariables)
+            newVariables(blockPreconditionerComponent%numberOfVariables+1)%ptr=>variable
+            CALL MOVE_ALLOC(newVariables,blockPreconditionerComponent%variables)
+            blockPreconditionerComponent%numberOfVariables=blockPreconditionerComponent%numberOfVariables+1
+          ELSE
+            CALL FLAG_ERROR("The field is not associated.",err,error,*999)
+          END IF
+        ELSE
+          CALL FLAG_ERROR("The block preconditioner component is not associated.",err,error,*999)
+        END IF
+      ELSE
+        localError="The specified block preconditioner component index "//TRIM(NUMBER_TO_VSTRING(componentIdx,"*",err,error))// &
+          & " is invalid. The block preconditioner component index must be between 0 and " &
+          & //TRIM(NUMBER_TO_VSTRING(blockPreconditioner%numberOfComponents,"*",err,error))//"."
+        CALL FLAG_ERROR(localError,err,error,*999)
+      END IF
+    ELSE
+      CALL FLAG_ERROR("The block preconditioner is not associated.",err,error,*999)
+    END IF
+    
+    CALL EXITS("BlockPreconditionerComponentFieldVariableAdd")
+    RETURN
+999 CALL ERRORS("BlockPreconditionerComponentFieldVariableAdd",err,error)
+    CALL EXITS("BlockPreconditionerComponentFieldVariableAdd")
+    RETURN 1
+   
+  END SUBROUTINE BlockPreconditionerComponentFieldVariableAdd
+
+  !
+  !================================================================================================================================
+  !
+
+  !> Get the linear solver for the block preconditioner component.
+  SUBROUTINE BlockPreconditionerComponentLinearSolverGet(blockPreconditioner,componentIdx,linearSolver,err,error,*)
+
+    !Argument variables
+    TYPE(BlockPreconditionerType), POINTER :: blockPreconditioner !<The block preconditioner to get the componentIdx'th component linear solver for
+    INTEGER(INTG), INTENT(IN) :: componentIdx !<The component index to get the linear solver for
+    TYPE(SOLVER_TYPE), POINTER :: linearSolver !<The linear solver to get
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+    TYPE(BlockPreconditionerComponentType), POINTER :: blockPreconditionerComponent
+    TYPE(VARYING_STRING) :: localError
+    
+    CALL ENTERS("BlockPreconditionerComponentLinearSolverGet",err,error,*999)
+
+    IF(ASSOCIATED(blockPreconditioner)) THEN
+      IF(0<componentIdx.AND.componentIdx<blockPreconditioner%numberOfComponents) THEN
+        blockPreconditionerComponent=>blockPreconditioner%components(componentIdx)%ptr
+        IF(ASSOCIATED(blockPreconditionerComponent)) THEN
+          IF(ASSOCIATED(linearSolver)) THEN
+            CALL FLAG_ERROR("The linear solver is already associated.",err,error,*999)
+          ELSE
+            IF(ASSOCIATED(blockPreconditionerComponent%linearSolver)) THEN
+              linearSolver=>blockPreconditionerComponent%linearSolver
+            ELSE
+              CALL FLAG_ERROR("The block preconditioner component linear solver is already associated.",err,error,*999)
+            END IF
+          END IF
+        ELSE
+          CALL FLAG_ERROR("The block preconditioner component is not associated.",err,error,*999)
+        END IF
+      ELSE
+        localError="The specified block preconditioner component index "//TRIM(NUMBER_TO_VSTRING(componentIdx,"*",err,error))// &
+          & " is invalid. The block preconditioner component index must be between 0 and " &
+          & //TRIM(NUMBER_TO_VSTRING(blockPreconditioner%numberOfComponents,"*",err,error))//"."
+        CALL FLAG_ERROR(localError,err,error,*999)
+      END IF
+    ELSE
+      CALL FLAG_ERROR("The block preconditioner is not associated.",err,error,*999)
+    END IF
+    
+    CALL EXITS("BlockPreconditionerComponentLinearSolverGet")
+    RETURN
+999 CALL ERRORS("BlockPreconditionerComponentLinearSolverGet",err,error)
+    CALL EXITS("BlockPreconditionerComponentLinearSolverGet")
+    RETURN 1
+   
+  END SUBROUTINE BlockPreconditionerComponentLinearSolverGet
+        
+  !
+  !================================================================================================================================
+  !
+
+  !> Finish the creation of the block preconditioner components.
+  SUBROUTINE BlockPreconditionerComponentsCreateFinish(blockPreconditioner,err,error,*)
+
+    !Argument variables
+    TYPE(BlockPreconditionerType), POINTER :: blockPreconditioner !<The block preconditioner to finish the creation for
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+    INTEGER(INTG) :: componentIdx,variableIdx,solverMatrixIdx,solverVariableIdx
+    LOGICAL :: found
+    TYPE(BlockPreconditionerComponentType), POINTER :: blockPreconditionerComponent
+    TYPE(PreconditionerType), POINTER :: preconditioner
+    TYPE(LINEAR_ITERATIVE_SOLVER_TYPE), POINTER :: linearIterativeSolver
+    TYPE(LINEAR_SOLVER_TYPE), POINTER :: linearSolver
+    TYPE(SOLVER_TYPE), POINTER :: solver 
+    TYPE(SOLVER_EQUATIONS_TYPE), POINTER :: solverEquations
+    TYPE(SOLVER_MAPPING_TYPE), POINTER :: solverMapping
+    TYPE(VARYING_STRING) :: localError
+    
+    CALL ENTERS("BlockPreconditionerComponentsCreateFinish",err,error,*999)
+
+    IF(ASSOCIATED(blockPreconditioner)) THEN
+      preconditioner=>blockPreconditioner%preconditioner
+      IF(ASSOCIATED(preconditioner)) THEN
+        linearIterativeSolver=>preconditioner%linearIterativeSolver
+        IF(ASSOCIATED(linearIterativeSolver)) THEN
+          linearSolver=>linearIterativeSolver%LINEAR_SOLVER
+          IF(ASSOCIATED(linearSolver)) THEN
+            solver=>linearSolver%SOLVER
+            IF(ASSOCIATED(solver)) THEN
+              solverEquations=>solver%SOLVER_EQUATIONS
+              IF(ASSOCIATED(solverEquations)) THEN
+                solverMapping=>solverEquations%SOLVER_MAPPING
+                IF(ASSOCIATED(solverMapping)) THEN
+                  IF(ALLOCATED(blockPreconditioner%components)) THEN
+                    solverMatrixIdx=1
+                    DO componentIdx=1,blockPreconditioner%numberOfComponents
+                      blockPreconditionerComponent=>blockPreconditioner%components(componentIdx)%ptr
+                      IF(ASSOCIATED(blockPreconditionerComponent)) THEN
+                        DO variableIdx=1,blockPreconditionerComponent%numberOfVariables
+                          found=.FALSE.
+                          DO solverVariableIdx=1,solverMapping%VARIABLES_LIST(solverMatrixIdx)%NUMBER_OF_VARIABLES
+                            IF(ASSOCIATED(blockPreconditionerComponent%variables(variableIdx)%ptr, &
+                              & solverMapping%VARIABLES_LIST(solverMatrixIdx)%VARIABLES(solverVariableIdx)%VARIABLE)) THEN
+                              blockPreconditionerComponent%solverVariableIndices(variableIdx)=solverVariableIdx
+                              found=.TRUE.
+                              EXIT
+                            ENDIF
+                          END DO !solverVariableIdx
+                          IF(.NOT.found) THEN
+                            localError="The field variable with index "// &
+                              & TRIM(NUMBER_TO_VSTRING(variableIdx,"*",err,error))// &
+                              & " of the block preconditioner component with index "// &
+                              & TRIM(NUMBER_TO_VSTRING(componentIdx,"*",err,error))// &
+                              & " is not found in the solver variables."
+                            CALL FLAG_ERROR(localError,err,error,*999)
+                          ENDIF
+                        END DO !variableIdx
+                      ELSE
+                        CALL FLAG_ERROR("The block preconditioner component is not associated.",err,error,*999)
+                      ENDIF
+                    END DO !componentIdx
+                  ELSE
+                    CALL FLAG_ERROR("The block preconditioner components is not allocated.",err,error,*999)
+                  ENDIF
+                ELSE
+                  CALL FLAG_ERROR("The block preconditioner preconditioner linear iterative solver linear solver &
+                    &solver solver equations mapping is not associated.",err,error,*999)
+                ENDIF
+              ELSE
+                CALL FLAG_ERROR("The block preconditioner preconditioner linear iterative solver linear solver &
+                  &solver solver equations is not associated.",err,error,*999)
+              ENDIF
+            ELSE
+              CALL FLAG_ERROR("The block preconditioner preconditioner linear iterative solver linear solver &
+                &solver is not associated.",err,error,*999)
+            ENDIF
+          ELSE
+            CALL FLAG_ERROR("The block preconditioner preconditioner linear iterative solver linear solver &
+              &is not associated.",err,error,*999)
+          ENDIF
+        ELSE
+          CALL FLAG_ERROR("The block preconditioner preconditioner linear iterative solver is not associated.",err,error,*999)
+        ENDIF
+     ELSE
+       CALL FLAG_ERROR("The block preconditioner preconditioner is not associated.",err,error,*999)
+     ENDIF
+    ELSE
+      CALL FLAG_ERROR("The block Preconditioner is not associated.",err,error,*999)
+    END IF
+    
+    CALL EXITS("BlockPreconditionerComponentsCreateFinish")
+    RETURN
+999 CALL ERRORS("BlockPreconditionerComponentsCreateFinish",err,error)
+    CALL EXITS("BlockPreconditionerComponentsCreateFinish")
+    RETURN 1
+   
+  END SUBROUTINE BlockPreconditionerComponentsCreateFinish
+        
+  !
+  !================================================================================================================================
+  !
+
+  !> Start the creation of the block preconditioner components.
+  SUBROUTINE BlockPreconditionerComponentsCreateStart(blockPreconditioner,err,error,*)
+
+    !Argument variables
+    TYPE(BlockPreconditionerType), POINTER :: blockPreconditioner !<The block preconditioner to start the creation for
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+    INTEGER(INTG) :: componentIdx
+    
+    CALL ENTERS("BlockPreconditionerComponentsCreateStart",err,error,*999)
+
+    IF(ASSOCIATED(blockPreconditioner)) THEN
+      IF(ALLOCATED(blockPreconditioner%components)) THEN
+        CALL FLAG_ERROR("Block preconditioner components is already associated.",err,error,*999)
+      ELSE
+        ALLOCATE(blockPreconditioner%components(blockPreconditioner%numberOfComponents),STAT=err)
+        IF(err/=0) CALL FLAG_ERROR("Could not allocate new block preconditioner components type.",err,error,*999)
+        DO componentIdx=1,blockPreconditioner%numberOfComponents
+          ALLOCATE(blockPreconditioner%components(componentIdx)%ptr,STAT=err)
+          IF(err/=0) CALL FLAG_ERROR("Could not allocate new block preconditioner component type.",err,error,*999)
+          CALL BlockPreconditionerComponentInitialise(blockPreconditioner%components(componentIdx)%ptr,err,error,*999)
+          blockPreconditioner%components(componentIdx)%ptr%blockPreconditioner=>blockPreconditioner
+          ALLOCATE(blockPreconditioner%components(componentIdx)%ptr%linearSolver,STAT=err)
+          IF(err/=0) CALL FLAG_ERROR("Could not allocate linear solver for components of a block preconditioner.",err,error,*999)
+          NULLIFY(blockPreconditioner%components(componentIdx)%ptr%linearSolver%SOLVERS)
+          CALL SOLVER_INITIALISE_PTR(blockPreconditioner%components(componentIdx)%ptr%linearSolver,err,error,*999)
+          CALL SOLVER_LINEAR_INITIALISE(blockPreconditioner%components(componentIdx)%ptr%linearSolver,err,error,*999)
+        END DO
+      END IF
+    ELSE
+      CALL FLAG_ERROR("Block preconditioner is not associated.",err,error,*999)
+    END IF
+    
+    CALL EXITS("BlockPreconditionerComponentsCreateStart")
+    RETURN
+999 CALL ERRORS("BlockPreconditionerComponentsCreateStart",err,error)
+    CALL EXITS("BlockPreconditionerComponentsCreateStart")
+    RETURN 1
+   
+  END SUBROUTINE BlockPreconditionerComponentsCreateStart
+        
+  !
+  !================================================================================================================================
+  !
+
+  !> Set the number of components for the block preconditioner.
+  SUBROUTINE BlockPreconditionerNumberOfComponentsSet(blockPreconditioner,numberOfComponents,err,error,*)
+
+    !Argument variables
+    TYPE(BlockPreconditionerType), POINTER :: blockPreconditioner !<The block preconditioner to start the creation for
+    INTEGER(INTG), INTENT(IN) :: numberOfComponents !<The number of components to set for the block preconditioner
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+    INTEGER(INTG) :: componentIdx
+    TYPE(BlockPreconditionerComponentPtrType), ALLOCATABLE :: newComponents(:)
+    
+    CALL ENTERS("BlockPreconditionerNumberOfComponentsSet",err,error,*999)
+
+    IF(ASSOCIATED(blockPreconditioner)) THEN
+      IF(numberOfComponents>0) THEN
+        IF(numberOfComponents/=blockPreconditioner%numberOfComponents) THEN
+          ALLOCATE(newComponents(numberOfComponents),STAT=err)
+          IF(err/=0) CALL FLAG_ERROR("Could not allocate new block preconditioner components type.",err,error,*999)
+          IF(numberOfComponents>blockPreconditioner%numberOfComponents) THEN
+            newComponents(1:blockPreconditioner%numberOfComponents)= &
+              & blockPreconditioner%components(1:blockPreconditioner%numberOfComponents)
+          ELSE
+            newComponents(1:numberOfComponents)= &
+              & blockPreconditioner%components(1:numberOfComponents)
+          END IF
+          CALL MOVE_ALLOC(newComponents,blockPreconditioner%components)
+          blockPreconditioner%numberOfComponents=numberOfComponents
+        END IF
+      ELSE
+        CALL FLAG_ERROR("Number of components for block preconditioner must be greater than 0.",err,error,*999)
+      END IF
+    ELSE
+      CALL FLAG_ERROR("Block preconditioner is not associated.",err,error,*999)
+    END IF
+    
+    CALL EXITS("BlockPreconditionerNumberOfComponentsSet")
+    RETURN
+999 CALL ERRORS("BlockPreconditionerNumberOfComponentsSet",err,error)
+    CALL EXITS("BlockPreconditionerNumberOfComponentsSet")
+    RETURN 1
+   
+  END SUBROUTINE BlockPreconditionerNumberOfComponentsSet
+        
+  !
+  !================================================================================================================================
+  !
+
+  !> Initialise the block preconditioner type.
+  SUBROUTINE BlockPreconditionerInitialise(blockPreconditioner,err,error,*)
+
+    !Argument variables
+    TYPE(BlockPreconditionerType), POINTER :: blockPreconditioner !<The block preconditioner to initialise
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+    
+    CALL ENTERS("BlockPreconditionerInitialise",err,error,*999)
+
+    IF(ASSOCIATED(blockPreconditioner)) THEN
+      NULLIFY(blockPreconditioner%preconditioner)
+      blockPreconditioner%blockPreconditionerType=0
+      blockPreconditioner%numberOfComponents=0
+      NULLIFY(blockPreconditioner%schur)
+      CALL PetscDMInitialise(blockPreconditioner%DM,err,error,*999)
+      CALL PetscPetscSectionInitialise(blockPreconditioner%section,err,error,*999)
+    ELSE
+      CALL FLAG_ERROR("Block preconditioner is not associated.",err,error,*999)
+    END IF
+    
+    CALL EXITS("BlockPreconditionerInitialise")
+    RETURN
+999 CALL ERRORS("BlockPreconditionerInitialise",err,error)
+    CALL EXITS("BlockPreconditionerInitialise")
+    RETURN 1
+   
+  END SUBROUTINE BlockPreconditionerInitialise
+        
+  !
+  !================================================================================================================================
+  !
+
+  !>Sets/changes the type of block preconditioner for an iterative linear solver. \see OPENCMISS::CMISSBlockPreconditionerTypeSet
+  SUBROUTINE BlockPreconditionerTypeSet(blockPreconditioner,iterativeBlockPreconditionerType,err,error,*)
+
+    !Argument variables
+    TYPE(BlockPreconditionerType), POINTER :: blockPreconditioner !<A pointer the block preconditioner
+    INTEGER(INTG), INTENT(IN) :: iterativeBlockPreconditionerType !<The type of block preconditioner to set \see SOLVER_ROUTINES_BlockPreconditionerTypes,SOLVER_ROUTINES
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+    TYPE(PreconditionerType), POINTER :: preconditioner
+    TYPE(LINEAR_ITERATIVE_SOLVER_TYPE), POINTER :: linearIterativeSolver
+    TYPE(VARYING_STRING) :: localError
+    
+    CALL ENTERS("BlockPreconditionerTypeSet",err,error,*999)
+
+    IF(ASSOCIATED(blockPreconditioner)) THEN
+      preconditioner=>blockPreconditioner%preconditioner
+      IF(ASSOCIATED(preconditioner)) THEN
+        linearIterativeSolver=>preconditioner%linearIterativeSolver
+        IF(ASSOCIATED(linearIterativeSolver)) THEN
+          IF(iterativeBlockPreconditionerType/=blockPreconditioner%blockPreconditionerType) THEN
+            !Create the new blockPreconditioner type
+            SELECT CASE(linearIterativeSolver%SOLVER_LIBRARY)
+            CASE(SOLVER_PETSC_LIBRARY)
+              !Create the new blockPreconditioner type
+              SELECT CASE(iterativeBlockPreconditionerType)
+              CASE(BLOCK_PRECONDITIONER_ADDITIVE)
+                !Do nothing
+              CASE(BLOCK_PRECONDITIONER_MULTIPLICATIVE)
+                !Do nothing
+              CASE(BLOCK_PRECONDITIONER_SYMMETRIC_MULTIPLICATIVE)
+                !Do nothing
+              CASE(BLOCK_PRECONDITIONER_SCHUR)
+                !Do nothing
+              CASE DEFAULT
+                localError="The block preconditioner type of "// &
+                  & TRIM(NUMBER_TO_VSTRING(iterativeBlockPreconditionerType,"*",err,error))//" is invalid."
+                CALL FLAG_ERROR(localError,err,error,*999)
+              END SELECT
+              !Finalise the old blockPreconditioner type
+              SELECT CASE(blockPreconditioner%blockPreconditionerType)
+              CASE(BLOCK_PRECONDITIONER_ADDITIVE)
+                !Do nothing
+              CASE(BLOCK_PRECONDITIONER_MULTIPLICATIVE)
+                !Do nothing
+              CASE(BLOCK_PRECONDITIONER_SYMMETRIC_MULTIPLICATIVE)
+                !Do nothing
+              CASE(BLOCK_PRECONDITIONER_SCHUR)
+                !Do nothing
+              CASE DEFAULT
+                localError="The block preconditioner type of "// &
+                  & TRIM(NUMBER_TO_VSTRING(iterativeBlockPreconditionerType,"*",err,error))//" is invalid."
+                CALL FLAG_ERROR(localError,err,error,*999)
+              END SELECT
+              blockPreconditioner%blockPreconditionerType=iterativeBlockPreconditionerType
+            CASE DEFAULT
+              localError="The solver library type of "// &
+                & TRIM(NUMBER_TO_VSTRING(linearIterativeSolver%SOLVER_LIBRARY,"*",err,error))// &
+                & " is invalid."
+              CALL FLAG_ERROR(localError,err,error,*999)
+            END SELECT                  
+          ENDIF
+        ELSE
+          CALL FLAG_ERROR("The block preconditioner preconditioner linear iterative solver is not associated.",err,error,*999)
+        ENDIF
+      ELSE
+        CALL FLAG_ERROR("The block preconditioner preconditioner is not associated.",err,error,*999)
+      ENDIF
+    ELSE
+      CALL FLAG_ERROR("The block preconditioner is not associated.",err,error,*999)
+    ENDIF
+    
+    CALL EXITS("BlockPreconditionerTypeSet")
+    RETURN
+999 CALL ERRORS("BlockPreconditionerTypeSet",err,error)
+    CALL EXITS("BlockPreconditionerTypeSet")
+    RETURN 1
+   
+  END SUBROUTINE BlockPreconditionerTypeSet
+        
+  !
+  !================================================================================================================================
+  !
+
+  !> Get the block preconditioner type.
+  SUBROUTINE PreconditionerBlockPreconditionerGet(preconditioner,blockPreconditioner,err,error,*)
+
+    !Argument variables
+    TYPE(PreconditionerType), POINTER :: preconditioner !<The preconditioner to get the block preconditioner from 
+    TYPE(BlockPreconditionerType), POINTER :: blockPreconditioner !<The block preconditioner to get
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+    
+    CALL ENTERS("PreconditionerBlockPreconditionerGet",err,error,*999)
+
+    IF(ASSOCIATED(preconditioner)) THEN
+      IF(ASSOCIATED(preconditioner%blockPreconditioner)) THEN
+        CALL FLAG_ERROR("Preconditioner block preconditioner is not associated.",err,error,*999)
+      ELSE
+        IF(ASSOCIATED(blockPreconditioner)) THEN
+          CALL FLAG_ERROR("Block preconditioner is already associated.",err,error,*999)
+        ELSE
+          blockPreconditioner=>preconditioner%blockPreconditioner
+        END IF
+      END IF
+    ELSE
+      CALL FLAG_ERROR("Preconditioner is not associated.",err,error,*999)
+    END IF
+    
+    CALL EXITS("PreconditionerBlockPreconditionerGet")
+    RETURN
+999 CALL ERRORS("PreconditionerBlockPreconditionerGet",err,error)
+    CALL EXITS("PreconditionerBlockPreconditionerGet")
+    RETURN 1
+   
+  END SUBROUTINE PreconditionerBlockPreconditionerGet
+        
+  !
+  !================================================================================================================================
+  !
+
+  !> Start the creation of the block preconditioner type.
+  SUBROUTINE PreconditionerBlockPreconditionerCreateStart(preconditioner,err,error,*)
+
+    !Argument variables
+    TYPE(PreconditionerType), POINTER :: preconditioner !<The preconditioner to start the creation for
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+    
+    CALL ENTERS("PreconditionerBlockPreconditionerCreateStart",err,error,*999)
+
+    IF(ASSOCIATED(preconditioner)) THEN
+      IF(ASSOCIATED(preconditioner%blockPreconditioner)) THEN
+        CALL FLAG_ERROR("Block preconditioner is already associated.",err,error,*999)
+      ELSE
+        ALLOCATE(preconditioner%blockPreconditioner,STAT=err)
+        IF(err/=0) CALL FLAG_ERROR("Could not allocate new block preconditioner type.",err,error,*999)
+        CALL BlockPreconditionerInitialise(preconditioner%blockPreconditioner,err,error,*999)
+        preconditioner%blockPreconditioner%preconditioner=>preconditioner
+        preconditioner%blockPreconditioner%blockPreconditionerType=BLOCK_PRECONDITIONER_ADDITIVE
+        preconditioner%blockPreconditioner%numberOfComponents=2
+        CALL BlockPreconditionerComponentsCreateStart(preconditioner%blockPreconditioner,err,error,*999)
+      END IF
+    ELSE
+      CALL FLAG_ERROR("Preconditioner is not associated.",err,error,*999)
+    END IF
+    
+    CALL EXITS("PreconditionerBlockPreconditionerCreateStart")
+    RETURN
+999 CALL ERRORS("PreconditionerBlockPreconditionerCreateStart",err,error)
+    CALL EXITS("PreconditionerBlockPreconditionerCreateStart")
+    RETURN 1
+   
+  END SUBROUTINE PreconditionerBlockPreconditionerCreateStart
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Destroys the block preconditioner. \see OPENCMISS::CMISSBlockPreconditionerDestroy
+  SUBROUTINE BlockPreconditionerDestroy(blockPreconditioner,err,error,*)
+
+    !Argument variables
+    TYPE(BlockPreconditionerType), POINTER :: blockPreconditioner !<A pointer the block preconditioner
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+    
+    CALL ENTERS("BlockPreconditionerDestroy",err,error,*999)
+
+    IF(ASSOCIATED(blockPreconditioner)) THEN
+      CALL BlockPreconditionerFinalise(blockPreconditioner,err,error,*999)
+    ELSE
+      CALL FLAG_ERROR("BlockPreconditioner is not associated.",err,error,*999)
+    ENDIF
+    
+    CALL EXITS("BlockPreconditionerDestroy")
+    RETURN
+999 CALL ERRORS("BlockPreconditionerDestroy",err,error)
+    CALL EXITS("BlockPreconditionerDestroy")
+    RETURN 1
+   
+  END SUBROUTINE BlockPreconditionerDestroy
+        
+  !
+  !================================================================================================================================
+  !
+
+  !> Finalise the block preconditioner type.
+  SUBROUTINE BlockPreconditionerFinalise(blockPreconditioner,err,error,*)
+
+    !Argument variables
+    TYPE(BlockPreconditionerType), POINTER :: blockPreconditioner !<The block preconditioner to finalise
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+    INTEGER(INTG) :: componentIdx
+    
+    CALL ENTERS("BlockPreconditionerFinalise",err,error,*999)
+
+    IF(ASSOCIATED(blockPreconditioner)) THEN
+      IF(ALLOCATED(blockPreconditioner%components)) THEN
+        DO componentIdx=1,blockPreconditioner%numberOfComponents
+          CALL BlockPreconditionerComponentFinalise(blockPreconditioner%components(componentIdx)%ptr,err,error,*999)
+        END DO
+        DEALLOCATE(blockPreconditioner%components)
+      END IF
+      CALL BlockPreconditionerSchurFinalise(blockPreconditioner%schur,err,error,*999)
+      CALL PetscPetscSectionFinalise(blockPreconditioner%section,ERR,ERROR,*999)
+      CALL PetscDMFinalise(blockPreconditioner%DM,ERR,ERROR,*999)
+      DEALLOCATE(blockPreconditioner)
+    END IF
+    
+    CALL EXITS("BlockPreconditionerFinalise")
+    RETURN
+999 CALL ERRORS("BlockPreconditionerFinalise",err,error)
+    CALL EXITS("BlockPreconditionerFinalise")
+    RETURN 1
+   
+  END SUBROUTINE BlockPreconditionerFinalise
+        
+  !
+  !================================================================================================================================
+  !
+
+  !>Start the creation of the preconditioner for an iterative linear solver.
+  SUBROUTINE SolverLinearIterativePreconditionerCreateStart(linearIterativeSolver,err,error,*)
+
+    !Argument variables
+    TYPE(LINEAR_ITERATIVE_SOLVER_TYPE), POINTER :: linearIterativeSolver !Pointer to the linear iterative solver to create a preconditioner for
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+    
+    CALL ENTERS("SolverLinearIterativePreconditionerCreateStart",err,error,*999)
+
+    IF(ASSOCIATED(linearIterativeSolver)) THEN
+      IF(ASSOCIATED(linearIterativeSolver%preconditioner)) THEN
+        CALL FLAG_ERROR("The linear iterative solver preconditioner is alreadyassociated.",err,error,*999)
+      ELSE
+        !Allocate and initialise the preconditioner
+        ALLOCATE(linearIterativeSolver%preconditioner,STAT=err)
+        IF(err/=0) CALL FLAG_ERROR("Could not allocate new preconditioner type.",err,error,*999)
+        CALL PreconditionerInitialise(linearIterativeSolver%preconditioner,err,error,*999)
+        linearIterativeSolver%preconditioner%preconditionerType=SOLVER_ITERATIVE_JACOBI_PRECONDITIONER
+        linearIterativeSolver%preconditioner%linearIterativeSolver=>linearIterativeSolver
+      END IF
+    ELSE
+      CALL FLAG_ERROR("The linear iterative solver is not associated.",err,error,*999)
+    END IF
+
+    CALL EXITS("SolverLinearIterativePreconditionerCreateStart")
+    RETURN
+999 CALL ERRORS("SolverLinearIterativePreconditionerCreateStart",err,error)
+    CALL EXITS("SolverLinearIterativePreconditionerCreateStart")
+    RETURN 1
+   
+  END SUBROUTINE SolverLinearIterativePreconditionerCreateStart
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Finish the creation of the preconditioner for an iterative linear solver.
+  SUBROUTINE SolverLinearIterativePreconditionerCreateFinish(linearIterativeSolver,err,error,*)
+
+    !Argument variables
+    TYPE(LINEAR_ITERATIVE_SOLVER_TYPE), POINTER :: linearIterativeSolver !Pointer to the linear iterative solver to create a preconditioner for
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+    TYPE(PreconditionerType), POINTER :: preconditioner
+    TYPE(VARYING_STRING) :: localError
+    
+    CALL ENTERS("SolverLinearIterativePreconditionerCreateFinish",err,error,*999)
+
+    IF(ASSOCIATED(linearIterativeSolver)) THEN
+      preconditioner=>linearIterativeSolver%preconditioner
+      IF(ASSOCIATED(preconditioner)) THEN
+        !Get the pre-conditioner
+        CALL PETSC_KSPGETPC(linearIterativeSolver%KSP,preconditioner%PC,err,error,*999)
+        !Set the pre-conditioner type
+        SELECT CASE(preconditioner%preconditionerType)
+        CASE(SOLVER_ITERATIVE_NO_PRECONDITIONER)
+          CALL PETSC_PCSETTYPE(preconditioner%PC,PETSC_PCNONE,err,error,*999)
+        CASE(SOLVER_ITERATIVE_JACOBI_PRECONDITIONER)
+          CALL PETSC_PCSETTYPE(preconditioner%PC,PETSC_PCJACOBI,err,error,*999)
+        CASE(SOLVER_ITERATIVE_BLOCK_JACOBI_PRECONDITIONER)
+          CALL PETSC_PCSETTYPE(preconditioner%PC,PETSC_PCBJACOBI,err,error,*999)
+        CASE(SOLVER_ITERATIVE_SOR_PRECONDITIONER)
+          CALL PETSC_PCSETTYPE(preconditioner%PC,PETSC_PCSOR,err,error,*999)
+        CASE(SOLVER_ITERATIVE_INCOMPLETE_CHOLESKY_PRECONDITIONER)
+          CALL PETSC_PCSETTYPE(preconditioner%PC,PETSC_PCICC,err,error,*999)
+        CASE(SOLVER_ITERATIVE_INCOMPLETE_LU_PRECONDITIONER)
+          CALL PETSC_PCSETTYPE(preconditioner%PC,PETSC_PCILU,err,error,*999)
+        CASE(SOLVER_ITERATIVE_ADDITIVE_SCHWARZ_PRECONDITIONER)
+          CALL PETSC_PCSETTYPE(preconditioner%PC,PETSC_PCASM,err,error,*999)
+        CASE(SOLVER_ITERATIVE_BLOCK_PRECONDITIONER)
+          CALL BlockPreconditionerCreateFinish(preconditioner%blockPreconditioner,err,error,*999)
+          !Should this be moved to the previous function?
+          CALL PETSC_PCSETTYPE(preconditioner%PC,PETSC_PCFIELDSPLIT,err,error,*999)
+          CALL PetscPCSetDM(preconditioner%PC,preconditioner%blockPreconditioner%DM,err,error,*999)
+        CASE DEFAULT
+          localError="The iterative preconditioner type of "// &
+            & TRIM(NUMBER_TO_VSTRING(preconditioner%preconditionerType,"*",err,error))//" is invalid."
+          CALL FLAG_ERROR(localError,err,error,*999)
+        END SELECT
+      ELSE
+        CALL FLAG_ERROR("The linear iterative solver preconditioner is not associated.",err,error,*999)
+      END IF
+    ELSE
+      CALL FLAG_ERROR("The linear iterative solver is not associated.",err,error,*999)
+    END IF
+
+    CALL EXITS("SolverLinearIterativePreconditionerCreateFinish")
+    RETURN
+999 CALL ERRORS("SolverLinearIterativePreconditionerCreateFinish",err,error)
+    CALL EXITS("SolverLinearIterativePreconditionerCreateFinish")
+    RETURN 1
+   
+  END SUBROUTINE SolverLinearIterativePreconditionerCreateFinish
+        
+  !
+  !================================================================================================================================
+  !
+
+  !> Finalise the preconditioner for an iterative linear solver.
+  SUBROUTINE PreconditionerFinalise(preconditioner,err,error,*)
+
+    !Argument variables
+    TYPE(PreconditionerType), POINTER :: preconditioner !<The preconditioner to finalise
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+    TYPE(LINEAR_ITERATIVE_SOLVER_TYPE), POINTER :: linearIterativeSolver
+    TYPE(LINEAR_SOLVER_TYPE), POINTER :: linearSolver
+    
+    CALL ENTERS("PreconditionerFinalise",err,error,*999)
+
+    IF(ASSOCIATED(preconditioner)) THEN
+      IF(ASSOCIATED(preconditioner%blockPreconditioner)) THEN
+        CALL BlockPreconditionerFinalise(preconditioner%blockPreconditioner,err,error,*999)
+      END IF
+      linearIterativeSolver=>preconditioner%linearIterativeSolver
+      IF(ASSOCIATED(linearIterativeSolver)) THEN
+        linearSolver=>linearIterativeSolver%LINEAR_SOLVER
+        IF(ASSOCIATED(linearSolver)) THEN
+          IF(.NOT.linearSolver%LINKED_NEWTON_PETSC_SOLVER) THEN
+            CALL PETSC_PCFINALISE(preconditioner%PC,ERR,ERROR,*999)
+          END IF
+        END IF
+      END IF
+      DEALLOCATE(preconditioner)
+    END IF
+    
+    CALL EXITS("PreconditionerFinalise")
+    RETURN
+999 CALL ERRORS("PreconditionerFinalise",err,error)
+    CALL EXITS("PreconditionerFinalise")
+    RETURN 1
+   
+  END SUBROUTINE PreconditionerFinalise
+        
+  !
+  !================================================================================================================================
+  !
+
+  !>Initialise the preconditioner for an iterative linear solver.
+  SUBROUTINE PreconditionerInitialise(preconditioner,err,error,*)
+
+    !Argument variables
+    TYPE(PreconditionerType), POINTER :: preconditioner !<The preconditioner to initialise 
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+    
+    CALL ENTERS("PreconditionerInitialise",err,error,*999)
+
+    IF(ASSOCIATED(preconditioner)) THEN
+      !Initialise the preconditioner
+      NULLIFY(preconditioner%linearIterativeSolver) 
+      NULLIFY(preconditioner%blockPreconditioner)
+      preconditioner%preconditionerType=0
+      CALL PETSC_PCINITIALISE(preconditioner%PC,err,error,*999)
+    ELSE
+      CALL FLAG_ERROR("Preconditioner is not associated.",err,error,*999)
+    END IF
+    
+    CALL EXITS("PreconditionerInitialise")
+    RETURN
+999 CALL ERRORS("PreconditionerInitialise",err,error)
+    CALL EXITS("PreconditionerInitialise")
+    RETURN 1
+   
+  END SUBROUTINE PreconditionerInitialise
+        
+  !
+  !================================================================================================================================
+  !
+
+  !>Gets the preconditioner for an iterative linear solver. \see OPENCMISS::CMISSSolverLinearIterativePreconditionerGet
+  SUBROUTINE SolverLinearIterativePreconditionerGet(solver,preconditioner,err,error,*)
+
+    !Argument variables
+    TYPE(SOLVER_TYPE), POINTER :: solver !<A pointer to the solver to get the iterative linear preconditioner from
+    TYPE(PreconditionerType), POINTER :: preconditioner !The preconditioner to get
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+    
+    CALL ENTERS("SolverLinearIterativePreconditionerGet",err,error,*999)
+
+    IF(ASSOCIATED(SOLVER)) THEN
+      IF(ASSOCIATED(preconditioner)) THEN
+        CALL FLAG_ERROR("Preconditioner is already associated.",err,error,*999)
+      ELSE
+        NULLIFY(preconditioner)
+        IF(solver%SOLVE_TYPE==SOLVER_LINEAR_TYPE) THEN
+          IF(ASSOCIATED(solver%LINEAR_SOLVER)) THEN
+            IF(solver%LINEAR_SOLVER%LINEAR_SOLVE_TYPE==SOLVER_LINEAR_ITERATIVE_SOLVE_TYPE) THEN
+              IF(ASSOCIATED(solver%LINEAR_SOLVER%ITERATIVE_SOLVER)) THEN
+                preconditioner=>solver%LINEAR_SOLVER%ITERATIVE_SOLVER%preconditioner
+                IF(.NOT.ASSOCIATED(solver%LINEAR_SOLVER%ITERATIVE_SOLVER%preconditioner)) THEN
+                  CALL FLAG_ERROR("The solver linear solver iterative solver preconditioner is not associated.",err,error,*999)
+                END IF
+              ELSE
+                CALL FLAG_ERROR("The solver linear solver iterative solver is not associated.",err,error,*999)
+              END IF
+            ELSE
+              CALL FLAG_ERROR("The solver is not a linear iterative solver.",err,error,*999)
+            END IF
+          ELSE
+            CALL FLAG_ERROR("The solver linear solver is not associated.",err,error,*999)
+          END IF
+        ELSE
+          CALL FLAG_ERROR("The solver is not a linear solver.",err,error,*999)
+        END IF
+      END IF
+    ELSE
+      CALL FLAG_ERROR("Solver is not associated.",err,error,*999)
+    END IF
+    
+    CALL EXITS("SolverLinearIterativePreconditionerGet")
+    RETURN
+999 CALL ERRORS("SolverLinearIterativePreconditionerGet",err,error)
+    CALL EXITS("SolverLinearIterativePreconditionerGet")
+    RETURN 1
+   
+  END SUBROUTINE SolverLinearIterativePreconditionerGet
+        
+  !
+  !================================================================================================================================
+  !
+
+  !>Destroys the preconditioner. \see OPENCMISS::CMISSPreconditionerDestroy
+  SUBROUTINE PreconditionerDestroy(preconditioner,err,error,*)
+
+    !Argument variables
+    TYPE(PreconditionerType), POINTER :: preconditioner !<A pointer the preconditioner
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+    
+    CALL ENTERS("PreconditionerDestroy",err,error,*999)
+
+    IF(ASSOCIATED(preconditioner)) THEN
+      CALL PreconditionerFinalise(preconditioner,err,error,*999)
+    ELSE
+      CALL FLAG_ERROR("Preconditioner is not associated.",err,error,*999)
+    ENDIF
+    
+    CALL EXITS("PreconditionerDestroy")
+    RETURN
+999 CALL ERRORS("PreconditionerDestroy",err,error)
+    CALL EXITS("PreconditionerDestroy")
+    RETURN 1
+   
+  END SUBROUTINE PreconditionerDestroy
+        
+  !
+  !================================================================================================================================
+  !
+
+  !>Sets/changes the type of preconditioner for an iterative linear solver. \see OPENCMISS::CMISSPreconditionerTypeSet
+  SUBROUTINE PreconditionerTypeSet(preconditioner,iterativePreconditionerType,err,error,*)
+
+    !Argument variables
+    TYPE(PreconditionerType), POINTER :: preconditioner !<A pointer the preconditioner
+    INTEGER(INTG), INTENT(IN) :: iterativePreconditionerType !<The type of iterative preconditioner to set \see SOLVER_ROUTINES_IterativePreconditionerTypes,SOLVER_ROUTINES
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+    TYPE(LINEAR_ITERATIVE_SOLVER_TYPE), POINTER :: linearIterativeSolver
+    TYPE(VARYING_STRING) :: localError
+    
+    CALL ENTERS("PreconditionerTypeSet",err,error,*999)
+
+    IF(ASSOCIATED(preconditioner)) THEN
+      linearIterativeSolver=>preconditioner%linearIterativeSolver
+      IF(ASSOCIATED(linearIterativeSolver)) THEN
+        IF(iterativePreconditionerType/=preconditioner%preconditionerType) THEN
+          !Create the new preconditioner type
+          SELECT CASE(linearIterativeSolver%SOLVER_LIBRARY)
+          CASE(SOLVER_PETSC_LIBRARY)
+            !Create the new preconditioner type
+            SELECT CASE(iterativePreconditionerType)
+            CASE(SOLVER_ITERATIVE_NO_PRECONDITIONER)
+              !Do nothing
+            CASE(SOLVER_ITERATIVE_JACOBI_PRECONDITIONER)
+              !Do nothing
+            CASE(SOLVER_ITERATIVE_BLOCK_JACOBI_PRECONDITIONER)
+              !Do nothing
+            CASE(SOLVER_ITERATIVE_SOR_PRECONDITIONER)
+              !Do nothing
+            CASE(SOLVER_ITERATIVE_INCOMPLETE_CHOLESKY_PRECONDITIONER)
+              !Do nothing
+            CASE(SOLVER_ITERATIVE_INCOMPLETE_LU_PRECONDITIONER)
+              !Do nothing
+            CASE(SOLVER_ITERATIVE_ADDITIVE_SCHWARZ_PRECONDITIONER)
+              !Do nothing
+            CASE(SOLVER_ITERATIVE_BLOCK_PRECONDITIONER)
+              CALL PreconditionerBlockPreconditionerCreateStart(preconditioner,err,error,*999)
+            CASE DEFAULT
+              localError="The iterative preconditioner type of "// &
+                & TRIM(NUMBER_TO_VSTRING(iterativePreconditionerType,"*",err,error))//" is invalid."
+              CALL FLAG_ERROR(localError,err,error,*999)
+            END SELECT
+            !Finalise the old preconditioner type
+            SELECT CASE(preconditioner%preconditionerType)
+            CASE(SOLVER_ITERATIVE_NO_PRECONDITIONER)
+              !Do nothing
+            CASE(SOLVER_ITERATIVE_JACOBI_PRECONDITIONER)
+              !Do nothing
+            CASE(SOLVER_ITERATIVE_BLOCK_JACOBI_PRECONDITIONER)
+              !Do nothing
+            CASE(SOLVER_ITERATIVE_SOR_PRECONDITIONER)
+              !Do nothing
+            CASE(SOLVER_ITERATIVE_INCOMPLETE_CHOLESKY_PRECONDITIONER)
+              !Do nothing
+            CASE(SOLVER_ITERATIVE_INCOMPLETE_LU_PRECONDITIONER)
+              !Do nothing
+            CASE(SOLVER_ITERATIVE_ADDITIVE_SCHWARZ_PRECONDITIONER)
+              !Do nothing
+            CASE(SOLVER_ITERATIVE_BLOCK_PRECONDITIONER)
+              CALL BlockPreconditionerFinalise(preconditioner%blockPreconditioner,err,error,*999)
+            CASE DEFAULT
+              localError="The iterative preconditioner type of "// &
+                & TRIM(NUMBER_TO_VSTRING(iterativePreconditionerType,"*",err,error))//" is invalid."
+              CALL FLAG_ERROR(localError,err,error,*999)
+            END SELECT
+            preconditioner%preconditionerType=iterativePreconditionerType
+          CASE DEFAULT
+            localError="The solver library type of "// &
+              & TRIM(NUMBER_TO_VSTRING(linearIterativeSolver%SOLVER_LIBRARY,"*",err,error))// &
+              & " is invalid."
+            CALL FLAG_ERROR(localError,err,error,*999)
+          END SELECT                  
+        ENDIF
+      ELSE
+        CALL FLAG_ERROR("The preconditioner linear iterative solver is not associated.",err,error,*999)
+      ENDIF
+    ELSE
+      CALL FLAG_ERROR("Preconditioner is not associated.",err,error,*999)
+    ENDIF
+    
+    CALL EXITS("PreconditionerTypeSet")
+    RETURN
+999 CALL ERRORS("PreconditionerTypeSet",err,error)
+    CALL EXITS("PreconditionerTypeSet")
+    RETURN 1
+   
+  END SUBROUTINE PreconditionerTypeSet
         
   !
   !================================================================================================================================

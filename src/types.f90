@@ -70,7 +70,7 @@
 MODULE TYPES
 
   USE CMISS_PETSC_TYPES, ONLY : PETSC_ISCOLORING_TYPE,PETSC_KSP_TYPE,PETSC_MAT_TYPE,PETSC_MATCOLORING_TYPE,PETSC_MATFDCOLORING_TYPE, & 
-    & PETSC_PC_TYPE,PETSC_SNES_TYPE,PetscSnesLineSearchType,PETSC_VEC_TYPE,PetscDMType,PetscPetscSectionType
+    & PETSC_PC_TYPE,PETSC_SNES_TYPE,PetscSnesLineSearchType,PETSC_VEC_TYPE,PETSC_IS_TYPE,PetscDMType,PetscPetscSectionType
   USE CONSTANTS
   USE KINDS
   USE ISO_C_BINDING
@@ -2932,6 +2932,47 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     TYPE(PETSC_KSP_TYPE) :: KSP !<The PETSc solver object
   END TYPE LINEAR_DIRECT_SOLVER_TYPE
 
+  !Contains information for a block preconditioner component type
+  TYPE BlockPreconditionerComponentType
+    TYPE(BlockPreconditionerType), POINTER :: blockPreconditioner !<A pointer to the block preconditioner
+    TYPE(SOLVER_TYPE), POINTER :: linearSolver !<A pointer to the linear solver to use (calculate the preconditioner) for this component.
+    INTEGER(INTG) :: numberOfVariables !<The number of variables in this component of the block preconditioner.
+    TYPE(FIELD_VARIABLE_PTR_TYPE), ALLOCATABLE :: variables(:) !<The variables per split
+    INTEGER(INTG), ALLOCATABLE :: solverVariableIndices(:) !<The solver variable indices
+  END TYPE BlockPreconditionerComponentType
+
+  !Contains information for a block preconditioner type
+  TYPE BlockPreconditionerComponentPtrType
+    TYPE(BlockPreconditionerComponentType), POINTER :: ptr !<A pointer to the block preconditioner
+  END TYPE BlockPreconditionerComponentPtrType
+
+  !Contains information for a block preconditioner based on Schur complement reduction
+  TYPE BlockPreconditionerSchurType
+    TYPE(BlockPreconditionerType), POINTER :: blockPreconditioner !<A pointer to the block preconditioner
+    INTEGER(INTG) :: schurFactorizationType !<The factorization type \see SOLVER_ROUTINES_SchurFactorizationTypes,SOLVER_ROUTINES
+    INTEGER(INTG) :: schurComplementPreconditionerType !<The type of Schur complement preconditioner \see SOLVER_ROUTINES_SchurComplementPreconditionerTypes,SOLVER_ROUTINES
+    TYPE(DISTRIBUTED_MATRIX_TYPE), POINTER :: schurComplementPreconditioner !<A user defined preconditioner for the Schur complement, for example the (pressure) mass matrix for LBB-stable elements.
+  END TYPE BlockPreconditionerSchurType
+
+  !Contains information for a block preconditioner type
+  TYPE BlockPreconditionerType
+    TYPE(PreconditionerType), POINTER :: preconditioner !<A pointer to the preconditioner
+    INTEGER(INTG) :: blockPreconditionerType !<The type of block preconditioner \see SOLVER_ROUTINES_BlockPreconditionerTypes,SOLVER_ROUTINES
+    INTEGER(INTG) :: numberOfComponents !<The number of components/splits
+    TYPE(BlockPreconditionerComponentPtrType), ALLOCATABLE :: components(:) !<Pointer to the components of the block preconditioner, which defines the blocks/splits.
+    TYPE(BlockPreconditionerSchurType), POINTER :: schur !<Block preconditioner based on Schur complement reduction.
+    TYPE(PetscDMType) :: DM !<The PETSc DM (distributed mesh) type, used for defining the blocks for this block preconditioner
+    TYPE(PetscPetscSectionType) :: section !<The PETSc section type, used for setting up the DM
+  END TYPE BlockPreconditionerType
+
+  !Contains information for a preconditioner type
+  TYPE PreconditionerType
+    TYPE(LINEAR_ITERATIVE_SOLVER_TYPE), POINTER :: linearIterativeSolver !<A pointer to the linear iterative solver
+    INTEGER(INTG) :: preconditionerType !<The type of preconditioner \see SOLVER_ROUTINES_IterativePreconditionerTypes,SOLVER_ROUTINES
+    TYPE(BlockPreconditionerType), POINTER :: blockPreconditioner !<Pointer to a block preconditioner
+    TYPE(PETSC_PC_TYPE) :: PC !<The PETSc preconditioner object
+  END TYPE PreconditionerType
+
   !>Contains information for an iterative linear solver
   TYPE LINEAR_ITERATIVE_SOLVER_TYPE
     TYPE(LINEAR_SOLVER_TYPE), POINTER :: LINEAR_SOLVER !<A pointer to the linear solver
@@ -2945,10 +2986,8 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     REAL(DP) :: ABSOLUTE_TOLERANCE !<The absolute tolerance of the residual norm
     REAL(DP) :: DIVERGENCE_TOLERANCE !<The absolute tolerance of the residual norm
     INTEGER(INTG) :: GMRES_RESTART !<The GMRES restart iterations size
-    TYPE(PETSC_PC_TYPE) :: PC !<The PETSc preconditioner object
     TYPE(PETSC_KSP_TYPE) :: KSP !<The PETSc solver object
-    TYPE(PetscDMType) :: DM !<The PETSc DM (distributed mesh) type, used for defining the blocks for a block preconditioner
-    TYPE(PetscPetscSectionType) :: section !<The PETSc section type, used for setting up the DM
+    TYPE(PreconditionerType), POINTER :: preconditioner
   END TYPE LINEAR_ITERATIVE_SOLVER_TYPE
   
   !>Contains information for a linear solver

@@ -270,6 +270,24 @@ MODULE CMISS_PETSC
   PCType, PARAMETER ::  PETSC_PCMILU = PCMILU
 #endif
 
+  !PCComposite types
+  PCCompositeType, PARAMETER :: PETSC_PC_COMPOSITE_ADDITIVE = PC_COMPOSITE_ADDITIVE
+  PCCompositeType, PARAMETER :: PETSC_PC_COMPOSITE_MULTIPLICATIVE = PC_COMPOSITE_MULTIPLICATIVE
+  PCCompositeType, PARAMETER :: PETSC_PC_COMPOSITE_SYM_MULTIPLICATIVE = PC_COMPOSITE_SYM_MULTIPLICATIVE
+  PCCompositeType, PARAMETER :: PETSC_PC_COMPOSITE_SPECIAL = PC_COMPOSITE_SPECIAL
+  PCCompositeType, PARAMETER :: PETSC_PC_COMPOSITE_SCHUR = PC_COMPOSITE_SCHUR
+
+  !PCFieldSplitSchurFact types
+  PCFieldSplitSchurFactType, PARAMETER :: PETSC_PC_FIELDSPLIT_SCHUR_FACT_DIAG = PC_FIELDSPLIT_SCHUR_FACT_DIAG
+  PCFieldSplitSchurFactType, PARAMETER :: PETSC_PC_FIELDSPLIT_SCHUR_FACT_LOWER = PC_FIELDSPLIT_SCHUR_FACT_LOWER
+  PCFieldSplitSchurFactType, PARAMETER :: PETSC_PC_FIELDSPLIT_SCHUR_FACT_UPPER = PC_FIELDSPLIT_SCHUR_FACT_UPPER
+  PCFieldSplitSchurFactType, PARAMETER :: PETSC_PC_FIELDSPLIT_SCHUR_FACT_FULL = PC_FIELDSPLIT_SCHUR_FACT_FULL
+ 
+  !PCFieldSplitSchurPre types
+  PCFieldSplitSchurPreType, PARAMETER :: PETSC_PC_FIELDSPLIT_SCHUR_PRE_SELF = PC_FIELDSPLIT_SCHUR_PRE_SELF
+  PCFieldSplitSchurPreType, PARAMETER :: PETSC_PC_FIELDSPLIT_SCHUR_PRE_A11 = PC_FIELDSPLIT_SCHUR_PRE_A11
+  PCFieldSplitSchurPreType, PARAMETER :: PETSC_PC_FIELDSPLIT_SCHUR_PRE_USER = PC_FIELDSPLIT_SCHUR_PRE_USER
+
   !Matrix Solver Package types
 #if ( PETSC_VERSION_MAJOR >= 3 && PETSC_VERSION_MINOR >= 2 )
   MatSolverPackage, PARAMETER :: PETSC_MAT_SOLVER_SUPERLU = MATSOLVERSUPERLU
@@ -471,6 +489,15 @@ MODULE CMISS_PETSC
   !Interfaces
 
   INTERFACE
+
+    SUBROUTINE DMCreateSubDM(dm,numFields,fields,is,subdm,ierr)
+      DM dm
+      PetscInt numFields
+      PetscInt fields(*)
+      IS is
+      DM subdm
+      PetscInt ierr
+    END SUBROUTINE DMCreateSubDM
 
     SUBROUTINE DMDestroy(dm,ierr)
       DM dm
@@ -972,7 +999,7 @@ MODULE CMISS_PETSC
 
     SUBROUTINE PCFieldSplitSetIS(pc,splitname,indexset,ierr)
       PC pc
-      char splitname(*) 
+      PetscChar(*) splitname 
       IS indexset
       PetscInt ierr
     END SUBROUTINE PCFieldSplitSetIs
@@ -1006,6 +1033,13 @@ MODULE CMISS_PETSC
     END SUBROUTINE PCSetReusePreconditioner
 #endif
 #endif
+
+    SUBROUTINE PCFieldSplitSetSchurPre(pc,ptype,pre,ierr)
+      PC pc
+      PCFieldSplitSchurPreType ptype
+      Mat pre
+      PetscInt ierr
+    END SUBROUTINE PCFieldSplitSetSchurPre
     
     SUBROUTINE PCSetDM(pc,dm,ierr)
       PC pc
@@ -1062,6 +1096,13 @@ MODULE CMISS_PETSC
       PetscInt pEnd
       PetscInt ierr
     END SUBROUTINE PetscSectionSetChart
+
+    SUBROUTINE PetscSectionSetFieldName(section,field,fieldName,ierr)
+      PetscSection section
+      PetscInt field
+      PetscChar(*) fieldName
+      PetscInt ierr
+    END SUBROUTINE PetscSectionSetFieldName
 
     SUBROUTINE PetscSectionSetNumFields(section,numFields,ierr)
       PetscSection section
@@ -1738,7 +1779,7 @@ MODULE CMISS_PETSC
   PUBLIC PETSC_DOUBLE_PRECISION
 #endif
 
-  PUBLIC PetscDMInitialise,PetscDMShellCreate,PetscDMSetDefaultSection,PetscDMSetUp,PetscDMView,PetscDMFinalise
+  PUBLIC PetscDMInitialise,PetscDMCreateSubDM,PetscDMShellCreate,PetscDMSetDefaultSection,PetscDMSetUp,PetscDMView,PetscDMFinalise
 
   PUBLIC PETSC_KSPRICHARDSON,PETSC_KSPCG,PETSC_KSPCGNE,PETSC_KSPSTCG,PETSC_KSPGMRES,PETSC_KSPFGMRES, &
     & PETSC_KSPLGMRES,PETSC_KSPTCQMR,PETSC_KSPBCGS,PETSC_KSPBCGSL,PETSC_KSPCGS,PETSC_KSPTFQMR,PETSC_KSPCR,PETSC_KSPLSQR, &
@@ -1765,6 +1806,15 @@ MODULE CMISS_PETSC
 #else
   PUBLIC PETSC_PCMILU
 #endif
+  
+  PUBLIC PETSC_PC_COMPOSITE_ADDITIVE,PETSC_PC_COMPOSITE_MULTIPLICATIVE,PETSC_PC_COMPOSITE_SYM_MULTIPLICATIVE, &
+    & PETSC_PC_COMPOSITE_SPECIAL,PETSC_PC_COMPOSITE_SCHUR
+
+  PUBLIC PETSC_PC_FIELDSPLIT_SCHUR_PRE_SELF,PETSC_PC_FIELDSPLIT_SCHUR_PRE_A11,PETSC_PC_FIELDSPLIT_SCHUR_PRE_USER
+  
+  PUBLIC PETSC_PC_FIELDSPLIT_SCHUR_FACT_DIAG,PETSC_PC_FIELDSPLIT_SCHUR_FACT_LOWER,PETSC_PC_FIELDSPLIT_SCHUR_FACT_UPPER, &
+    & PETSC_PC_FIELDSPLIT_SCHUR_FACT_FULL
+ 
 #if ( PETSC_VERSION_MAJOR <= 3 && PETSC_VERSION_MINOR < 5 )
   PUBLIC PETSC_SAME_PRECONDITIONER
 #endif
@@ -1871,7 +1921,8 @@ MODULE CMISS_PETSC
   PUBLIC PETSC_NORM_1,PETSC_NORM_2,PETSC_NORM_INFINITY
 
   PUBLIC PetscPetscSectionInitialise,PetscPetscSectionCreate,PetscPetscSectionSetNumFields,PetscPetscSectionSetChart, &
-    & PetscPetscSectionSetDof,PetscPetscSectionSetFieldDof,PetscPetscSectionSetUp,PetscPetscSectionView,PetscPetscSectionFinalise
+    & PetscPetscSectionSetDof,PetscPetscSectionSetFieldDof,PetscPetscSectionSetFieldName, &
+    & PetscPetscSectionSetUp,PetscPetscSectionView,PetscPetscSectionFinalise
 
   PUBLIC PETSC_PCINITIALISE,PETSC_PCFINALISE,PETSC_PCSETTYPE
 
@@ -1888,7 +1939,7 @@ MODULE CMISS_PETSC
 #endif
 #endif
 #if ( PETSC_VERSION_MAJOR >= 3 )
-  PUBLIC PETSC_PCFIELDSPLITSETIS,PETSC_PCFIELDSPLITGETIS
+  PUBLIC PetscPCFieldSplitSetIS,PetscPCFieldSplitGetIS
 #endif
 
   PUBLIC PetscPCSetDM
@@ -2040,6 +2091,40 @@ CONTAINS
     CALL EXITS("PetscDMInitialise")
     RETURN 1
   END SUBROUTINE PetscDMInitialise
+    
+  !
+  !================================================================================================================================
+  !
+
+  !Create the PETSc DMShell structure
+  SUBROUTINE PetscDMCreateSubDM(DM_,numFields,fields,subIS,subDM,err,error,*)
+
+    !Argument Variables
+    TYPE(PetscDMType), INTENT(INOUT) :: DM_ !<The DM to create the subDM for
+    INTEGER(INTG), INTENT(IN) :: numFields !<The number of fields in this subproblem
+    INTEGER(INTG), INTENT(IN) :: fields(:) !<The fields in this subproblem
+    TYPE(PETSC_IS_TYPE), INTENT(INOUT) :: subIS !<The subIS to create
+    TYPE(PetscDMType), INTENT(INOUT) :: subDM !<The subDM to create
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+
+    CALL ENTERS("PetscDMCreateSubDM",err,error,*999)
+    
+    CALL DMCreateSubDM(DM_%DM_,numFields,fields,subIS%IS_,subDM%DM_,err)
+    IF(err/=0) THEN
+      IF(PETSC_HANDLE_ERROR) THEN
+        CHKERRQ(ERR)
+      ENDIF
+      CALL FLAG_ERROR("PETSc error in DMCreateSubDM",err,error,*999)
+    ENDIF
+
+    CALL EXITS("PetscDMCreateSubDM")
+    RETURN
+999 CALL ERRORS("PetscDMCreateSubDM",err,error)
+    CALL EXITS("PetscDMCreateSubDM")
+    RETURN 1
+  END SUBROUTINE PetscDMCreateSubDM
     
   !
   !================================================================================================================================
@@ -5471,70 +5556,99 @@ CONTAINS
   !
   !================================================================================================================================
   !
-
-#if ( PETSC_VERSION_MAJOR >= 3 )
   !>Buffer routine to the PETSc PCFieldSplitGetIs
-  SUBROUTINE PETSC_PCFIELDSPLITGETIS(PC_,SPLITNAME,IS_,ERR,ERROR,*)
+  SUBROUTINE PetscPcFieldSplitGetIS(PC_,SPLITNAME,IS_,err,error,*)
 
     !Argument Variables
     TYPE(PETSC_PC_TYPE), INTENT(INOUT) :: PC_ !<The preconditioner to set the solver package for
-    TYPE(VARYING_STRING), INTENT(IN) :: SPLITNAME !<The name of this split, if NULL the number of the split is used 
+    TYPE(VARYING_STRING), INTENT(IN) :: splitName !<The name of this split, if NULL the number of the split is used 
     TYPE(PETSC_IS_TYPE), INTENT(INOUT) :: IS_ !<The index set that defines the vector elements in this field 
-    INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
-    TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
     !Local Variables
 
-    CALL ENTERS("PETSC_PCFIELDSPLITGETIS",ERR,ERROR,*999)
+    CALL ENTERS("PetscPcFieldSplitGetIS",err,error,*999)
 
-    CALL PCFieldSplitGetIS(PC_%PC_,CCHAR(SPLITNAME),IS_%IS_,ERR)
-    IF(ERR/=0) THEN
+    CALL PCFieldSplitGetIS(PC_%PC_,CHAR(splitName),IS_%IS_,err)
+    IF(err/=0) THEN
       IF(PETSC_HANDLE_ERROR) THEN
         CHKERRQ(ERR)
       ENDIF
-      CALL FLAG_ERROR("PETSc error in PCFieldSplitGetIs",ERR,ERROR,*999)
+      CALL FLAG_ERROR("PETSc error in PCFieldSplitGetIs",err,error,*999)
     ENDIF
     
-    CALL EXITS("PETSC_PCFIELDSPLITGETIS")
+    CALL EXITS("PetscPcFieldSplitGetIS")
     RETURN
-999 CALL ERRORS("PETSC_PCFIELDSPLITGETIS",ERR,ERROR)
-    CALL EXITS("PETSC_PCFIELDSPLITGETIS")
+999 CALL ERRORS("PetscPcFieldSplitGetIS",err,error)
+    CALL EXITS("PetscPcFieldSplitGetIS")
     RETURN 1
-  END SUBROUTINE PETSC_PCFIELDSPLITGETIS
+  END SUBROUTINE PetscPcFieldSplitGetIS
 
   !
   !================================================================================================================================
   !
 
   !>Buffer routine to the PETSc PCFieldSplitSetIs
-  SUBROUTINE PETSC_PCFIELDSPLITSETIS(PC_,SPLITNAME,IS_,ERR,ERROR,*)
+  SUBROUTINE PetscPCFieldSplitSetIS(PC_,splitName,IS_,err,error,*)
 
     !Argument Variables
     TYPE(PETSC_PC_TYPE), INTENT(INOUT) :: PC_ !<The preconditioner to set the solver package for
-    TYPE(VARYING_STRING), INTENT(IN) :: SPLITNAME !<The name of this split, if NULL the number of the split is used 
+    TYPE(VARYING_STRING), INTENT(IN) :: splitName !<The name of this split, if NULL the number of the split is used 
     TYPE(PETSC_IS_TYPE), INTENT(INOUT) :: IS_ !<The index set that defines the vector elements in this field 
-    INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
-    TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
     !Local Variables
 
-    CALL ENTERS("PETSC_PCFIELDSPLITSETIS",ERR,ERROR,*999)
+    CALL ENTERS("PetscPCFieldSplitSetIS",err,error,*999)
 
     !Don't forget to convert the string to a c character array.
-    CALL PCFieldSplitSetIS(PC_%PC_,CCHAR(SPLITNAME),IS_%IS_,ERR)
+    CALL PCFieldSplitSetIS(PC_%PC_,CHAR(splitName),IS_%IS_,err)
     IF(ERR/=0) THEN
       IF(PETSC_HANDLE_ERROR) THEN
         CHKERRQ(ERR)
       ENDIF
-      CALL FLAG_ERROR("PETSc error in PCFieldSplitSetIs",ERR,ERROR,*999)
+      CALL FLAG_ERROR("PETSc error in PCFieldSplitSetIs",err,error,*999)
     ENDIF
     
-    CALL EXITS("PETSC_PCFIELDSPLITSETIS")
+    CALL EXITS("PetscPCFieldSplitSetIS")
     RETURN
-999 CALL ERRORS("PETSC_PCFIELDSPLITSETIS",ERR,ERROR)
-    CALL EXITS("PETSC_PCFIELDSPLITSETIS")
+999 CALL ERRORS("PetscPCFieldSplitSetIS",err,error)
+    CALL EXITS("PetscPCFieldSplitSetIS")
     RETURN 1
-  END SUBROUTINE PETSC_PCFIELDSPLITSETIS
-#endif
+  END SUBROUTINE PetscPCFieldSplitSetIS
 
+  !
+  !================================================================================================================================
+  !
+
+  !Sets the preconditioner type for the Schur complement of a saddle point matrix
+  SUBROUTINE PetscPCFieldSplitSetSchurPre(PC_,ptype,pre,err,error,*)
+
+    !Argument Variables
+    TYPE(PETSC_PC_TYPE), INTENT(INOUT) :: PC_ !<The preconditioner to set the preconditioner type for the Schur complement for
+    PCFieldSplitSchurPreType, INTENT(IN) :: ptype !<The DM type
+    TYPE(PETSC_MAT_TYPE), INTENT(INOUT) :: pre !<The preconditioner matrix
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+
+    CALL ENTERS("PetscPCFieldSplitSetSchurPre",err,error,*999)
+    
+    CALL PCFieldSplitSetSchurPre(PC_%PC_,ptype,pre%MAT,err)
+    IF(err/=0) THEN
+      IF(PETSC_HANDLE_ERROR) THEN
+        CHKERRQ(ERR)
+      ENDIF
+      CALL FLAG_ERROR("PETSc error in PCFieldSplitSetSchurPre",err,error,*999)
+    ENDIF
+
+    CALL EXITS("PetscPCFieldSplitSetSchurPre")
+    RETURN
+999 CALL ERRORS("PetscPCFieldSplitSetSchurPre",err,error)
+    CALL EXITS("PetscPCFieldSplitSetSchurPre")
+    RETURN 1
+  END SUBROUTINE PetscPCFieldSplitSetSchurPre
+    
   !
   !================================================================================================================================
   !
@@ -5838,6 +5952,38 @@ CONTAINS
     CALL EXITS("PetscSectionSetFieldDof")
     RETURN 1
   END SUBROUTINE PetscPetscSectionSetFieldDof
+    
+  !
+  !================================================================================================================================
+  !
+
+  !Set the name of a field in the PETSc section 
+  SUBROUTINE PetscPetscSectionSetFieldName(section,field,fieldName,err,error,*)
+
+    !Argument Variables
+    TYPE(PetscPetscSectionType), INTENT(INOUT) :: section !<The section type to set the name of the given field for 
+    INTEGER(INTG), INTENT(IN) :: field !<The field to set the name for 
+    TYPE(VARYING_STRING), INTENT(IN) :: fieldName !<The name of the field
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+
+    CALL ENTERS("PetscSectionSetFieldName",err,error,*999)
+   
+    CALL PetscSectionSetFieldName(section%petscSection,field,CHAR(fieldName),err)
+    IF(err/=0) THEN
+      IF(PETSC_HANDLE_ERROR) THEN
+        CHKERRQ(ERR)
+      ENDIF
+      CALL FLAG_ERROR("PETSc error in SectionSetFieldName",err,error,*999)
+    ENDIF
+
+    CALL EXITS("PetscSectionSetFieldName")
+    RETURN
+999 CALL ERRORS("PetscSectionSetFieldName",err,error)
+    CALL EXITS("PetscSectionSetFieldName")
+    RETURN 1
+  END SUBROUTINE PetscPetscSectionSetFieldName
     
   !
   !================================================================================================================================
