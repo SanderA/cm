@@ -47,6 +47,8 @@ MODULE PROBLEM_ROUTINES
   USE BASE_ROUTINES
   USE BIOELECTRIC_ROUTINES
   USE CLASSICAL_FIELD_ROUTINES
+  USE CONSTRAINT_CONDITIONS_CONSTANTS
+  USE CONSTRAINT_CONDITIONS_ROUTINES
   USE CONTROL_LOOP_ROUTINES
   USE DISTRIBUTED_MATRIX_VECTOR
   USE ELASTICITY_ROUTINES
@@ -1349,10 +1351,11 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
     !Local Variables
-    INTEGER(INTG) :: equations_set_idx,solver_matrix_idx
+    INTEGER(INTG) :: equations_set_idx,constraintConditionIdx,solver_matrix_idx
     TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET
     TYPE(SOLVER_TYPE), POINTER :: CELLML_SOLVER
     TYPE(NEWTON_SOLVER_TYPE), POINTER :: NEWTON_SOLVER
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: constraintCondition 
     TYPE(SOLVER_EQUATIONS_TYPE), POINTER :: SOLVER_equations
     TYPE(SOLVER_MAPPING_TYPE), POINTER :: SOLVER_MAPPING
     TYPE(SOLVER_MATRICES_TYPE), POINTER :: SOLVER_MATRICES
@@ -1437,6 +1440,12 @@ CONTAINS
                   !Assemble the equations for linear problems
                   CALL EQUATIONS_SET_JACOBIAN_EVALUATE(EQUATIONS_SET,ERR,ERROR,*999)
                 ENDDO !equations_set_idx
+                !Update constraint matrices
+                DO constraintConditionIdx=1,SOLVER_MAPPING%NUMBER_OF_CONSTRAINT_CONDITIONS
+                  constraintCondition=>SOLVER_MAPPING%CONSTRAINT_CONDITIONS(constraintConditionIdx)%PTR
+                  !Assemble the constraint condition for the Jacobian
+                  CALL CONSTRAINT_CONDITION_JACOBIAN_EVALUATE(constraintCondition,err,error,*999)
+                ENDDO
                 !Update interface matrices
 !                DO interfaceConditionIdx=1,SOLVER_MAPPING%NUMBER_OF_INTERFACE_CONDITIONS
 !                  interfaceCondition=>SOLVER_MAPPING%INTERFACE_CONDITIONS(interfaceConditionIdx)%PTR
@@ -1481,7 +1490,8 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
     !Local Variables
-    INTEGER(INTG) :: equations_set_idx,solver_matrix_idx
+    INTEGER(INTG) :: equations_set_idx,constraintConditionIdx,solver_matrix_idx
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: constraintCondition 
     TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET
     TYPE(SOLVER_TYPE), POINTER :: CELLML_SOLVER,LINKING_SOLVER
     TYPE(SOLVER_EQUATIONS_TYPE), POINTER :: SOLVER_EQUATIONS
@@ -1593,6 +1603,18 @@ CONTAINS
                     CALL EQUATIONS_SET_RESIDUAL_EVALUATE(EQUATIONS_SET,ERR,ERROR,*999)
                   END SELECT
                 ENDDO !equations_set_idx
+                !Update constraints matrices
+                DO constraintConditionIdx=1,SOLVER_MAPPING%NUMBER_OF_CONSTRAINT_CONDITIONS
+                  constraintCondition=>SOLVER_MAPPING%CONSTRAINT_CONDITIONS(constraintConditionIdx)%PTR
+                  SELECT CASE(constraintCondition%CONSTRAINT_EQUATIONS%LINEARITY)
+                  CASE(CONSTRAINT_CONDITION_LINEAR)
+                    !Assemble the equations for linear constraint conditions
+                    CALL CONSTRAINT_CONDITION_ASSEMBLE(constraintCondition,ERR,ERROR,*999)
+                  CASE(CONSTRAINT_CONDITION_NONLINEAR)
+                    !Evaluate the residual for nonlinear constraint conditions
+                    CALL CONSTRAINT_CONDITION_RESIDUAL_EVALUATE(constraintCondition,ERR,ERROR,*999)
+                  END SELECT
+                ENDDO !constraintConditionIdx
                 !Note that the linear interface matrices are not required to be updated since these matrices do not change
                 !Update interface matrices
 !                DO interfaceConditionIdx=1,SOLVER_MAPPING%NUMBER_OF_INTERFACE_CONDITIONS
@@ -2459,8 +2481,10 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
     !Local Variables
-    INTEGER(INTG) :: equations_set_idx,loop_idx,interface_condition_idx
+    INTEGER(INTG) :: equations_set_idx,loop_idx,constraint_condition_idx,interface_condition_idx
     REAL(DP) :: CURRENT_TIME,TIME_INCREMENT
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION
+    TYPE(CONSTRAINT_EQUATIONS_TYPE), POINTER :: CONSTRAINT_EQUATIONS
     TYPE(CONTROL_LOOP_TYPE), POINTER :: CONTROL_LOOP,CONTROL_TIME_LOOP
     TYPE(EQUATIONS_TYPE), POINTER :: EQUATIONS
     TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET
@@ -2510,6 +2534,31 @@ CONTAINS
                     ENDIF
                   ENDIF
                 ENDDO !equations_set_idx
+                DO constraint_condition_idx=1,SOLVER_MAPPING%NUMBER_OF_CONSTRAINT_CONDITIONS
+                  CONSTRAINT_CONDITION=>SOLVER_MAPPING%CONSTRAINT_CONDITIONS(constraint_condition_idx)%PTR
+                  IF(DYNAMIC_SOLVER%RESTART.OR..NOT.DYNAMIC_SOLVER%SOLVER_INITIALISED) THEN
+                    CONSTRAINT_EQUATIONS=>CONSTRAINT_CONDITION%CONSTRAINT_EQUATIONS
+                    IF(ASSOCIATED(CONSTRAINT_EQUATIONS)) THEN
+                      SELECT CASE(CONSTRAINT_EQUATIONS%LINEARITY)
+                      CASE(CONSTRAINT_CONDITION_LINEAR)
+                        !Assemble the equations
+                        CALL CONSTRAINT_CONDITION_ASSEMBLE(CONSTRAINT_CONDITION,ERR,ERROR,*999)
+                      CASE(CONSTRAINT_CONDITION_NONLINEAR)
+                        !Evaluate the residuals
+                        CALL CONSTRAINT_CONDITION_RESIDUAL_EVALUATE(CONSTRAINT_CONDITION,ERR,ERROR,*999)
+                      CASE(CONSTRAINT_CONDITION_NONLINEAR_BCS)
+                        CALL FlagError("Not implemented.",ERR,ERROR,*999)
+                      CASE DEFAULT
+                        LOCAL_ERROR="The constraint equations linearity type of "// &
+                          & TRIM(NUMBER_TO_VSTRING(CONSTRAINT_EQUATIONS%LINEARITY,"*",ERR,ERROR))// &
+                          & " is invalid."
+                        CALL FlagError(LOCAL_ERROR,ERR,ERROR,*999)
+                      END SELECT
+                    ELSE
+                      CALL FlagError("Constraint conditions equations is not associated.",ERR,ERROR,*999)
+                    ENDIF
+                  ENDIF
+                ENDDO !constraint_condition_idx
                 !Make sure the interface matrices are up to date
                 DO interface_condition_idx=1,SOLVER_MAPPING%NUMBER_OF_INTERFACE_CONDITIONS
                   INTERFACE_CONDITION=>SOLVER_MAPPING%INTERFACE_CONDITIONS(interface_condition_idx)%PTR
@@ -2711,7 +2760,8 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
     !Local Variables
-    INTEGER(INTG) :: equations_set_idx,interface_condition_idx
+    INTEGER(INTG) :: equations_set_idx,constraint_condition_idx,interface_condition_idx
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION
     TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET
     TYPE(INTERFACE_CONDITION_TYPE), POINTER :: INTERFACE_CONDITION
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
@@ -2745,6 +2795,19 @@ CONTAINS
             CALL TAU_PHASE_STOP(PHASE)
 #endif
           ENDDO !equations_set_idx
+          !Make sure the constraint matrices are up to date
+          DO constraint_condition_idx=1,SOLVER_MAPPING%NUMBER_OF_CONSTRAINT_CONDITIONS
+#ifdef TAUPROF
+            WRITE (CVAR,'(a8,i2)') 'Constraint',constraint_condition_idx
+            CALL TAU_PHASE_CREATE_DYNAMIC(PHASE,CVAR)
+            CALL TAU_PHASE_START(PHASE)
+#endif
+            CONSTRAINT_CONDITION=>SOLVER_MAPPING%CONSTRAINT_CONDITIONS(constraint_condition_idx)%PTR
+            CALL CONSTRAINT_CONDITION_ASSEMBLE(CONSTRAINT_CONDITION,ERR,ERROR,*999)
+#ifdef TAUPROF
+            CALL TAU_PHASE_STOP(PHASE)
+#endif
+          ENDDO !constraint_condition_idx
           !Make sure the interface matrices are up to date
           DO interface_condition_idx=1,SOLVER_MAPPING%NUMBER_OF_INTERFACE_CONDITIONS
 #ifdef TAUPROF
@@ -2802,7 +2865,8 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
     !Local Variables
-    INTEGER(INTG) :: equations_set_idx,interface_condition_idx
+    INTEGER(INTG) :: equations_set_idx,constraint_condition_idx,interface_condition_idx
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION
     TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET
     TYPE(EQUATIONS_TYPE), POINTER :: EQUATIONS
     TYPE(INTERFACE_CONDITION_TYPE), POINTER :: INTERFACE_CONDITION
@@ -2827,6 +2891,11 @@ CONTAINS
             !Assemble the equations set
             CALL EQUATIONS_SET_ASSEMBLE(EQUATIONS_SET,ERR,ERROR,*999)
           ENDDO !equations_set_idx
+          !Make sure the constraint matrices are up to date
+          DO constraint_condition_idx=1,SOLVER_MAPPING%NUMBER_OF_CONSTRAINT_CONDITIONS
+            CONSTRAINT_CONDITION=>SOLVER_MAPPING%CONSTRAINT_CONDITIONS(constraint_condition_idx)%PTR
+            CALL CONSTRAINT_CONDITION_ASSEMBLE(CONSTRAINT_CONDITION,ERR,ERROR,*999)
+          ENDDO !constraint_condition_idx
           !Make sure the interface matrices are up to date
           DO interface_condition_idx=1,SOLVER_MAPPING%NUMBER_OF_INTERFACE_CONDITIONS
 #ifdef TAUPROF

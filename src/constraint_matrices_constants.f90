@@ -1,6 +1,6 @@
 !> \file
 !> \author Chris Bradley
-!> \brief This module contains type definitions related to the PETSc library.
+!> \brief This module handles all constants shared across constraint condition routines.
 !>
 !> \section LICENSE
 !>
@@ -41,81 +41,32 @@
 !> the terms of any one of the MPL, the GPL or the LGPL.
 !>
 
-!>This module contains types related to the PETSc library.
-MODULE CmissPetscTypes
-  
-  USE KINDS
-  
-  IMPLICIT NONE
- 
-  PRIVATE
+!> This module defines all constants shared across constraint matrices routines.
+MODULE CONSTRAINT_MATRICES_CONSTANTS
 
-#include "petsc/finclude/petsc.h"
+  USE KINDS
+
+  IMPLICIT NONE
 
   !Module parameters
+
+  !> \addtogroup CONSTRAINT_MATRICES_ROUTINES_ConstraintMatricesTimeDependenceTypes CONSTRAINT_MATRICES_ROUTINES::ConstraintMatricesTimeDependenceTypes
+  !> \brief Constraint matrices time dependency types
+  !> \see CONSTRAINT_MATRICES_ROUTINES
+  !>@{
+  INTEGER(INTG), PARAMETER :: NUMBER_OF_CONSTRAINT_MATRIX_TYPES=3
+  INTEGER(INTG), PARAMETER :: CONSTRAINT_MATRIX_STATIC=1 !<Constraint matrix is of static type \see CONSTRAINT_MATRICES_ROUTINES_ConstraintMatricesTimeDependenceTypes,CONSTRAINT_MATRICES_ROUTINES
+  INTEGER(INTG), PARAMETER :: CONSTRAINT_MATRIX_FIRST_ORDER_DYNAMIC=2 !<Constraint matrix is of first order dynamic type \see CONSTRAINT_MATRICES_ROUTINES_ConstraintMatricesTimeDependenceTypes,CONSTRAINT_MATRICES_ROUTINES
+  INTEGER(INTG), PARAMETER :: CONSTRAINT_MATRIX_SECOND_ORDER_DYNAMIC=3 !<Constraint matrix is of second order dynamic type \see CONSTRAINT_MATRICES_ROUTINES_ConstraintMatricesTimeDependenceTypes,CONSTRAINT_MATRICES_ROUTINES
+  !>@}
+
+  !> \addtogroup CONSTRAINT_MATRICES_CONSTANTS_DynamicMatrixTypes CONSTRAINT_MATRICES_CONSTANTS:DynamicMatrixTypes
+  !> \brief Type of matrix in a dynamic constraint condition
+  !>@{
+  INTEGER(INTG), PARAMETER :: CONSTRAINT_MATRIX_STIFFNESS=1 !<A stiffness matrix (multiplies displacement values)
+  INTEGER(INTG), PARAMETER :: CONSTRAINT_MATRIX_DAMPING=2 !<A damping matrix (multiplies velocity values)
+  INTEGER(INTG), PARAMETER :: CONSTRAINT_MATRIX_MASS=3 !<A mass matrix (multiplies acceleration values)
+  !>@}
   
-  !Module types
 
-  TYPE PetscISType
-    IS :: is
-  END TYPE PetscISType
-
-  TYPE PetscDMType
-    DM :: dm
-  END TYPE PetscDMType
-
-  TYPE PetscISLocalToGloabalMappingType
-    ISLocalToGlobalMapping :: isLocalToGlobalMapping
-  END TYPE PetscISLocalToGloabalMappingType
-
-  TYPE PetscISColoringType
-    ISColoring :: isColoring
-  END TYPE PetscISColoringType
-
-  TYPE PetscKspType
-    KSP :: ksp
-  END TYPE PetscKspType
-
-  TYPE PetscMatType
-    Mat :: mat
-  END TYPE PetscMatType
-  
-  TYPE PetscMatColoringType
-    MatColoring :: matColoring
-  END TYPE PetscMatColoringType
-  
-  TYPE PETScMatFDColoringType
-    MatFDColoring :: matFDColoring
-  END TYPE PETScMatFDColoringType
-
-  TYPE PetscPCType
-    PC :: pc
-  END TYPE PetscPCType
-
-  TYPE PetscPetscSectionType
-    PetscSection :: petscSection
-  END TYPE PetscPetscSectionType
-  
-  TYPE PetscSnesType
-    SNES :: snes
-  END TYPE PetscSnesType
-
-  TYPE PetscSnesLineSearchType
-    SNESLineSearch :: snesLineSearch
-  END TYPE PetscSnesLineSearchType
-  
-  TYPE PetscTSType
-    TS :: ts
-  END TYPE PetscTSType
-  
-  TYPE PetscVecType
-    Vec :: vec
-  END TYPE PetscVecType
-  
-  !Interfaces
- 
-  PUBLIC PetscDMType,PetscISType,PetscISLocalToGloabalMappingType,PetscISColoringType,PetscKspType,PetscMatType, &
-    & PetscMatColoringType,PetscMatFDColoringType,PetscPetscSectionType,PetscPCType,PetscSnesType,PetscSnesLineSearchType, &
-    & PetscTSType,PetscVecType
-
-END MODULE CmissPetscTypes
+END MODULE CONSTRAINT_MATRICES_CONSTANTS

@@ -159,6 +159,13 @@ OBJECTS = $(OBJECT_DIR)/advection_equation_routines.o \
 	$(OBJECT_DIR)/cmiss_petsc_types.o \
 	$(OBJECT_DIR)/computational_environment.o \
 	$(OBJECT_DIR)/constants.o \
+	$(OBJECT_DIR)/constraint_conditions_routines.o \
+	$(OBJECT_DIR)/constraint_conditions_constants.o \
+	$(OBJECT_DIR)/constraint_equations_routines.o \
+	$(OBJECT_DIR)/constraint_mapping_routines.o \
+	$(OBJECT_DIR)/constraint_matrices_constants.o \
+	$(OBJECT_DIR)/constraint_matrices_routines.o \
+	$(OBJECT_DIR)/constraint_operators_routines.o \
 	$(OBJECT_DIR)/control_loop_routines.o \
 	$(OBJECT_DIR)/coordinate_routines.o \
 	$(OBJECT_DIR)/Darcy_equations_routines.o \
@@ -418,6 +425,7 @@ $(OBJECT_DIR)/boundary_condition_routines.o  : $(SOURCE_DIR)/boundary_condition_
 	$(OBJECT_DIR)/cmiss_mpi.o \
 	$(OBJECT_DIR)/computational_environment.o \
 	$(OBJECT_DIR)/constants.o \
+	$(OBJECT_DIR)/constraint_conditions_constants.o \
 	$(OBJECT_DIR)/coordinate_routines.o \
 	$(OBJECT_DIR)/distributed_matrix_vector.o \
 	$(OBJECT_DIR)/domain_mappings.o \
@@ -889,6 +897,82 @@ $(OBJECT_DIR)/characteristic_equation_routines.o	:	$(SOURCE_DIR)/characteristic_
 	$(OBJECT_DIR)/solver_routines.o \
 	$(OBJECT_DIR)/strings.o \
 	$(OBJECT_DIR)/timer_f.o \
+	$(OBJECT_DIR)/types.o
+
+$(OBJECT_DIR)/constraint_operators_routines.o	:	$(SOURCE_DIR)/constraint_operators_routines.f90 \
+	$(OBJECT_DIR)/base_routines.o \
+	$(OBJECT_DIR)/basis_routines.o \
+	$(OBJECT_DIR)/constants.o \
+	$(OBJECT_DIR)/field_routines.o \
+	$(OBJECT_DIR)/input_output.o \
+	$(OBJECT_DIR)/constraint_conditions_constants.o \
+	$(OBJECT_DIR)/constraint_equations_routines.o \
+	$(OBJECT_DIR)/constraint_mapping_routines.o \
+	$(OBJECT_DIR)/constraint_matrices_routines.o \
+	$(OBJECT_DIR)/iso_varying_string.o \
+	$(OBJECT_DIR)/kinds.o \
+	$(OBJECT_DIR)/matrix_vector.o \
+	$(OBJECT_DIR)/strings.o \
+	$(OBJECT_DIR)/timer_f.o \
+	$(OBJECT_DIR)/types.o
+
+$(OBJECT_DIR)/constraint_conditions_constants.o	:	$(SOURCE_DIR)/constraint_conditions_constants.f90 \
+	$(OBJECT_DIR)/kinds.o
+
+$(OBJECT_DIR)/constraint_conditions_routines.o	:	$(SOURCE_DIR)/constraint_conditions_routines.f90 \
+	$(OBJECT_DIR)/base_routines.o \
+	$(OBJECT_DIR)/basis_routines.o \
+	$(OBJECT_DIR)/field_routines.o \
+	$(OBJECT_DIR)/input_output.o \
+	$(OBJECT_DIR)/constraint_conditions_constants.o \
+	$(OBJECT_DIR)/constraint_equations_routines.o \
+	$(OBJECT_DIR)/constraint_mapping_routines.o \
+	$(OBJECT_DIR)/constraint_operators_routines.o \
+	$(OBJECT_DIR)/constraint_matrices_routines.o \
+	$(OBJECT_DIR)/iso_varying_string.o \
+	$(OBJECT_DIR)/kinds.o \
+	$(OBJECT_DIR)/matrix_vector.o \
+	$(OBJECT_DIR)/strings.o \
+	$(OBJECT_DIR)/timer_f.o \
+	$(OBJECT_DIR)/types.o
+
+$(OBJECT_DIR)/constraint_equations_routines.o	:	$(SOURCE_DIR)/constraint_equations_routines.f90 \
+	$(OBJECT_DIR)/base_routines.o \
+	$(OBJECT_DIR)/equations_routines.o \
+	$(OBJECT_DIR)/field_routines.o \
+	$(OBJECT_DIR)/constraint_conditions_constants.o \
+	$(OBJECT_DIR)/constraint_mapping_routines.o \
+	$(OBJECT_DIR)/constraint_matrices_constants.o \
+	$(OBJECT_DIR)/constraint_matrices_routines.o \
+	$(OBJECT_DIR)/iso_varying_string.o \
+	$(OBJECT_DIR)/kinds.o \
+	$(OBJECT_DIR)/strings.o \
+	$(OBJECT_DIR)/types.o
+
+$(OBJECT_DIR)/constraint_mapping_routines.o	:	$(SOURCE_DIR)/constraint_mapping_routines.f90 \
+	$(OBJECT_DIR)/base_routines.o \
+	$(OBJECT_DIR)/field_routines.o \
+	$(OBJECT_DIR)/input_output.o \
+	$(OBJECT_DIR)/constraint_conditions_constants.o \
+	$(OBJECT_DIR)/iso_varying_string.o \
+	$(OBJECT_DIR)/kinds.o \
+	$(OBJECT_DIR)/strings.o \
+	$(OBJECT_DIR)/types.o
+
+$(OBJECT_DIR)/constraint_matrices_constants.o	:	$(SOURCE_DIR)/constraint_matrices_constants.f90 \
+	$(OBJECT_DIR)/kinds.o
+
+$(OBJECT_DIR)/constraint_matrices_routines.o	:	$(SOURCE_DIR)/constraint_matrices_routines.f90 \
+	$(OBJECT_DIR)/base_routines.o \
+	$(OBJECT_DIR)/distributed_matrix_vector.o \
+	$(OBJECT_DIR)/equations_matrices_routines.o \
+	$(OBJECT_DIR)/field_routines.o \
+	$(OBJECT_DIR)/input_output.o \
+	$(OBJECT_DIR)/constraint_conditions_constants.o \
+	$(OBJECT_DIR)/iso_varying_string.o \
+	$(OBJECT_DIR)/kinds.o \
+	$(OBJECT_DIR)/matrix_vector.o \
+	$(OBJECT_DIR)/strings.o \
 	$(OBJECT_DIR)/types.o
 
 $(OBJECT_DIR)/distributed_matrix_vector.o	:	$(SOURCE_DIR)/distributed_matrix_vector.f90 \
@@ -1553,6 +1637,11 @@ $(OBJECT_DIR)/opencmiss.o	:	$(SOURCE_DIR)/opencmiss.f90 \
 	$(OBJECT_DIR)/cmiss_cellml.o \
 	$(OBJECT_DIR)/computational_environment.o \
 	$(OBJECT_DIR)/constants.o \
+	$(OBJECT_DIR)/constraint_conditions_constants.o \
+	$(OBJECT_DIR)/constraint_conditions_routines.o \
+	$(OBJECT_DIR)/constraint_equations_routines.o \
+	$(OBJECT_DIR)/constraint_matrices_constants.o \
+	$(OBJECT_DIR)/constraint_matrices_routines.o \
 	$(OBJECT_DIR)/control_loop_routines.o \
 	$(OBJECT_DIR)/coordinate_routines.o \
 	$(OBJECT_DIR)/data_point_routines.o \
@@ -1647,6 +1736,8 @@ $(OBJECT_DIR)/problem_routines.o	:	$(SOURCE_DIR)/problem_routines.f90 \
 	$(OBJECT_DIR)/base_routines.o \
 	$(OBJECT_DIR)/bioelectric_routines.o \
 	$(OBJECT_DIR)/classical_field_routines.o \
+	$(OBJECT_DIR)/constraint_conditions_constants.o \
+	$(OBJECT_DIR)/constraint_conditions_routines.o \
 	$(OBJECT_DIR)/control_loop_routines.o \
 	$(OBJECT_DIR)/distributed_matrix_vector.o \
 	$(OBJECT_DIR)/elasticity_routines.o \
@@ -1708,6 +1799,7 @@ $(OBJECT_DIR)/region_routines.o	:	$(SOURCE_DIR)/region_routines.f90 \
 	$(OBJECT_DIR)/base_routines.o \
 	$(OBJECT_DIR)/cmiss_cellml.o \
 	$(OBJECT_DIR)/coordinate_routines.o \
+	$(OBJECT_DIR)/constraint_conditions_routines.o \
 	$(OBJECT_DIR)/data_point_routines.o \
 	$(OBJECT_DIR)/equations_set_routines.o \
 	$(OBJECT_DIR)/field_routines.o \
@@ -1728,6 +1820,7 @@ $(OBJECT_DIR)/solver_routines.o	:	$(SOURCE_DIR)/solver_routines.f90 \
 	$(OBJECT_DIR)/cmiss_petsc.o \
 	$(OBJECT_DIR)/computational_environment.o \
 	$(OBJECT_DIR)/constants.o \
+	$(OBJECT_DIR)/constraint_conditions_constants.o \
 	$(OBJECT_DIR)/distributed_matrix_vector.o \
 	$(OBJECT_DIR)/equations_set_constants.o \
 	$(OBJECT_DIR)/external_dae_solver_routines.o \
@@ -1748,6 +1841,7 @@ $(OBJECT_DIR)/solver_mapping_routines.o	:	$(SOURCE_DIR)/solver_mapping_routines.
 	$(OBJECT_DIR)/base_routines.o \
 	$(OBJECT_DIR)/boundary_condition_routines.o \
 	$(OBJECT_DIR)/computational_environment.o \
+	$(OBJECT_DIR)/constraint_conditions_constants.o \
 	$(OBJECT_DIR)/distributed_matrix_vector.o \
 	$(OBJECT_DIR)/domain_mappings.o \
 	$(OBJECT_DIR)/equations_set_constants.o \
@@ -1764,6 +1858,7 @@ $(OBJECT_DIR)/solver_mapping_routines.o	:	$(SOURCE_DIR)/solver_mapping_routines.
 
 $(OBJECT_DIR)/solver_matrices_routines.o	:	$(SOURCE_DIR)/solver_matrices_routines.f90 \
 	$(OBJECT_DIR)/base_routines.o \
+	$(OBJECT_DIR)/constraint_conditions_constants.o \
 	$(OBJECT_DIR)/distributed_matrix_vector.o \
 	$(OBJECT_DIR)/interface_conditions_constants.o \
 	$(OBJECT_DIR)/iso_varying_string.o \

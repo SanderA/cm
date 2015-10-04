@@ -59,6 +59,11 @@ MODULE OPENCMISS
   USE CMISS_CELLML
   USE COMP_ENVIRONMENT
   USE CONSTANTS
+  USE CONSTRAINT_CONDITIONS_CONSTANTS
+  USE CONSTRAINT_CONDITIONS_ROUTINES
+  USE CONSTRAINT_EQUATIONS_ROUTINES
+  USE CONSTRAINT_MATRICES_CONSTANTS
+  USE CONSTRAINT_MATRICES_ROUTINES
   USE CONTROL_LOOP_ROUTINES
   USE COORDINATE_ROUTINES
   USE DATA_POINT_ROUTINES
@@ -114,6 +119,12 @@ MODULE OPENCMISS
     TYPE(BASIS_TYPE), POINTER :: BASIS
   END TYPE CMISSBasisType
 
+  !>Contains information for a block preconditioner.
+  TYPE CMISSBlockPreconditionerType
+    PRIVATE
+    TYPE(BlockPreconditionerType), POINTER :: blockPreconditioner
+  END TYPE CMISSBlockPreconditionerType
+
   !>Contains information on the boundary conditions for the equations set.
   TYPE CMISSBoundaryConditionsType
     PRIVATE
@@ -131,6 +142,18 @@ MODULE OPENCMISS
     PRIVATE
     TYPE(CELLML_EQUATIONS_TYPE), POINTER :: CELLML_EQUATIONS
   END TYPE CMISSCellMLEquationsType
+
+  !>Contains information about an constraint condition.
+  TYPE CMISSConstraintConditionType
+    PRIVATE
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION
+  END TYPE CMISSConstraintConditionType
+
+  !>Contains information about an constraint condition.
+  TYPE CMISSConstraintEquationsType
+    PRIVATE
+    TYPE(CONSTRAINT_EQUATIONS_TYPE), POINTER :: CONSTRAINT_EQUATIONS
+  END TYPE CMISSConstraintEquationsType
 
   !>Contains information on a control loop.
   TYPE CMISSControlLoopType
@@ -271,6 +294,12 @@ MODULE OPENCMISS
     TYPE(NODES_TYPE), POINTER :: NODES
   END TYPE CMISSNodesType
 
+  !>Contains information for a preconditioner.
+  TYPE CMISSPreconditionerType
+    PRIVATE
+    TYPE(PreconditionerType), POINTER :: preconditioner
+  END TYPE CMISSPreconditionerType
+
   !>Contains information for a problem.
   TYPE CMISSProblemType
     PRIVATE
@@ -330,6 +359,8 @@ MODULE OPENCMISS
 
   PUBLIC CMISSBasisType,CMISSBasisTypesCopy,CMISSBasis_Finalise,CMISSBasis_Initialise
 
+  PUBLIC CMISSBlockPreconditionerType,CMISSBlockPreconditioner_Finalise,CMISSBlockPreconditioner_Initialise
+
   PUBLIC CMISSBoundaryConditionsType,CMISSBoundaryConditions_Finalise,CMISSBoundaryConditions_Initialise
 
   PUBLIC CMISSCellMLType,CMISSCellML_Finalise,CMISSCellML_Initialise
@@ -337,6 +368,10 @@ MODULE OPENCMISS
   PUBLIC CMISSCellMLEquationsType,CMISSCellMLEquations_Finalise,CMISSCellMLEquations_Initialise
 
   PUBLIC CMISSComputationalWorkGroupType,CMISSComputationalWorkGroup_Initialise
+
+  PUBLIC CMISSConstraintConditionType,CMISSConstraintCondition_Finalise,CMISSConstraintCondition_Initialise
+
+  PUBLIC CMISSConstraintEquationsType,CMISSConstraintEquations_Finalise,CMISSConstraintEquations_Initialise
 
   PUBLIC CMISSControlLoopType,CMISSControlLoop_Finalise,CMISSControlLoop_Initialise,CMISSControlLoop_LoadOutputSet
 
@@ -385,6 +420,8 @@ MODULE OPENCMISS
   PUBLIC CMISSMeshNodesType,CMISSMeshNodes_Finalise,CMISSMeshNodes_Initialise
 
   PUBLIC CMISSNodesType,CMISSNodes_Finalise,CMISSNodes_Initialise
+
+  PUBLIC CMISSPreconditionerType,CMISSPreconditioner_Finalise,CMISSPreconditioner_Initialise
 
   PUBLIC CMISSProblemType,CMISSProblem_Finalise,CMISSProblem_Initialise
 
@@ -818,6 +855,113 @@ MODULE OPENCMISS
   PUBLIC CMISSBasis_QuadratureTypeGet,CMISSBasis_QuadratureTypeSet, CMISSBasis_QuadratureLocalFaceGaussEvaluateSet
 
   PUBLIC CMISSBasis_TypeGet,CMISSBasis_TypeSet
+
+!!==================================================================================================================================
+!!
+!! BLOCK_PRECONDITIONER_ROUTINES
+!!
+!!==================================================================================================================================
+
+  !Module parameters
+  !> \addtogroup OPENCMISS_BlockPreconditionerTypes OPENCMISS::BlockPreconditioner::BlockPreconditionerTypes
+  !> \brief The types of block preconditioners
+  !> \see OPENCMISS::BlockPreconditioner::Constants,OPENCMISS
+  !>@{
+  INTEGER(INTG), PARAMETER :: CMISS_BLOCK_PRECONDITIONER_ADDITIVE=BLOCK_PRECONDITIONER_ADDITIVE !<Additive block preconditioner type \see OPENCMISS_BlockPreconditionerTypes,OPENCMISS
+  INTEGER(INTG), PARAMETER :: CMISS_BLOCK_PRECONDITIONER_MULTIPLICATIVE=BLOCK_PRECONDITIONER_MULTIPLICATIVE !<Multiplicative block preconditioner type \see OPENCMISS_BlockPreconditionerTypes,OPENCMISS
+  INTEGER(INTG), PARAMETER :: CMISS_BLOCK_PRECONDITIONER_SYMMETRIC_MULTIPLICATIVE=BLOCK_PRECONDITIONER_SYMMETRIC_MULTIPLICATIVE !<Symmetric multiplicative block preconditioner type \see OPENCMISS_BlockPreconditionerTypes,OPENCMISS
+  INTEGER(INTG), PARAMETER :: CMISS_BLOCK_PRECONDITIONER_SCHUR=BLOCK_PRECONDITIONER_SCHUR !<Schur complement reduction preconditioner type \see OPENCMISS_BlockPreconditionerTypes,OPENCMISS
+  !>@}
+
+  !> \addtogroup OPENCMISS_BlockPreconditionerSchurFactTypes OPENCMISS::BlockPreconditioner::BlockPreconditionerSchurFactTypes
+  !> \brief The types of schur complement reduction factorization types.
+  !> \see OPENCMISS::BlockPreconditioner::Constants,OPENCMISS
+  !>@{
+  INTEGER(INTG), PARAMETER :: CMISS_BLOCK_PRECONDITIONER_SCHUR_FACT_DIAG=BLOCK_PRECONDITIONER_SCHUR_FACT_DIAG !<Use diagonal factoriation (P=D with the sign of the Schur complement switched) \see OPENCMISS_BlockPreconditionerSchurFactTypes,OPENCMISS
+  INTEGER(INTG), PARAMETER :: CMISS_BLOCK_PRECONDITIONER_SCHUR_FACT_LOWER=BLOCK_PRECONDITIONER_SCHUR_FACT_LOWER !<Use lower factorization (P=LD) \see OPENCMISS_BlockPreconditionerSchurFactTypes,OPENCMISS
+  INTEGER(INTG), PARAMETER :: CMISS_BLOCK_PRECONDITIONER_SCHUR_FACT_UPPER=BLOCK_PRECONDITIONER_SCHUR_FACT_UPPER !<Use upper factorization (P=DU) \see OPENCMISS_BlockPreconditionerSchurFactTypes,OPENCMISS
+  INTEGER(INTG), PARAMETER :: CMISS_BLOCK_PRECONDITIONER_SCHUR_FACT_FULL=BLOCK_PRECONDITIONER_SCHUR_FACT_FULL !<Use full factorization (P=LDU) \see OPENCMISS_BlockPreconditionerSchurFactTypes,OPENCMISS
+  !>@}
+
+  !> \addtogroup OPENCMISS_BlockPreconditionerSchurPreTypes OPENCMISS::BlockPreconditioner::BlockPreconditionerSchurPreTypes
+  !> \brief The types of Schur complement preconditioner types.
+  !> \see OPENCMISS::BlockPreconditioner::Constants,OPENCMISS
+  !>@{
+  INTEGER(INTG), PARAMETER :: CMISS_BLOCK_PRECONDITIONER_SCHUR_PRE_SELF=BLOCK_PRECONDITIONER_SCHUR_PRE_SELF !<The preconditioner for the Schur complement is generated from the Schur complement matrix itself. \see OPENCMISS_BlockPreconditionerSchurPreTypes,OPENCMISS
+  INTEGER(INTG), PARAMETER :: CMISS_BLOCK_PRECONDITIONER_SCHUR_PRE_SELFP=BLOCK_PRECONDITIONER_SCHUR_PRE_SELFP  !<The preconditioner for the Schur complement is assembled as A11 - A10 inv(diag(A00)) A01. \see OPENCMISS_BlockPreconditionerSchurPreTypes,OPENCMISS
+  INTEGER(INTG), PARAMETER :: CMISS_BLOCK_PRECONDITIONER_SCHUR_PRE_A11=BLOCK_PRECONDITIONER_SCHUR_PRE_A11 !<Uses the lower diagonal block as a preconditioner for the Schur complement. \see OPENCMISS_BlockPreconditionerSchurPreTypes,OPENCMISS
+  INTEGER(INTG), PARAMETER :: CMISS_BLOCK_PRECONDITIONER_SCHUR_PRE_USER=BLOCK_PRECONDITIONER_SCHUR_PRE_USER !<The user provides a matrix as a preconditioner for the Schur complement. \see OPENCMISS_BlockPreconditionerSchurPreTypes,OPENCMISS
+  INTEGER(INTG), PARAMETER :: CMISS_BLOCK_PRECONDITIONER_SCHUR_PRE_FULL=BLOCK_PRECONDITIONER_SCHUR_PRE_FULL !<The preconditioner for the Schur complement is exact. \see OPENCMISS_BlockPreconditionerSchurPreTypes,OPENCMISS
+  !>@}
+
+  !Module types
+
+  !Module variables
+
+  !Interfaces
+
+  !>Set the number of splits of the block preconditioner. \see OPENCMISS::CMISSBlockPreconditioner_NumberOfSplitsSet
+  INTERFACE CMISSBlockPreconditioner_NumberOfSplitsSet
+    MODULE PROCEDURE CMISSBlockPreconditioner_NumberOfSplitsSetNumber0
+    MODULE PROCEDURE CMISSBlockPreconditioner_NumberOfSplitsSetNumber1
+    MODULE PROCEDURE CMISSBlockPreconditioner_NumberOfSplitsSetObj
+  END INTERFACE !CMISSBlockPreconditioner_NumberOfSplitsSet
+
+  !>Add a field variable to the given split of the block preconditioner. \see OPENCMISS::CMISSBlockPreconditioner_SplitFieldVariableAdd
+  INTERFACE CMISSBlockPreconditioner_SplitFieldVariableAdd
+    MODULE PROCEDURE CMISSBlockPreconditioner_SplitFieldVariableAddNumber0
+    MODULE PROCEDURE CMISSBlockPreconditioner_SplitFieldVariableAddNumber1
+    MODULE PROCEDURE CMISSBlockPreconditioner_SplitFieldVariableAddObj
+  END INTERFACE !CMISSBlockPreconditioner_SplitFieldVariableAdd
+
+  !>Get the linear solver for the given split of the block preconditioner. \see OPENCMISS::CMISSBlockPreconditioner_SplitLinearSolverGet
+  INTERFACE CMISSBlockPreconditioner_SplitLinearSolverGet
+    MODULE PROCEDURE CMISSBlockPreconditioner_SplitLinearSolverGetNumber0
+    MODULE PROCEDURE CMISSBlockPreconditioner_SplitLinearSolverGetNumber1
+    MODULE PROCEDURE CMISSBlockPreconditioner_SplitLinearSolverGetObj
+  END INTERFACE !CMISSBlockPreconditioner_SplitLinearSolverGet
+
+  !>Set the type of block preconditioner Schur complement preconditioner. \see OPENCMISS::CMISSBlockPreconditioner_SchurPreTypeSet
+  INTERFACE CMISSBlockPreconditioner_SchurPreTypeSet
+    MODULE PROCEDURE CMISSBlockPreconditioner_SchurPreTypeSetNumber0
+    MODULE PROCEDURE CMISSBlockPreconditioner_SchurPreTypeSetNumber1
+    MODULE PROCEDURE CMISSBlockPreconditioner_SchurPreTypeSetObj
+  END INTERFACE !CMISSBlockPreconditioner_SchurPreTypeSet
+
+  !>Set the type of block preconditioner Schur factorisation. \see OPENCMISS::CMISSBlockPreconditioner_SchurFactorisationTypeSet
+  INTERFACE CMISSBlockPreconditioner_SchurFactorisationTypeSet
+    MODULE PROCEDURE CMISSBlockPreconditioner_SchurFactorisationTypeSetNumber0
+    MODULE PROCEDURE CMISSBlockPreconditioner_SchurFactorisationTypeSetNumber1
+    MODULE PROCEDURE CMISSBlockPreconditioner_SchurFactorisationTypeSetObj
+  END INTERFACE !CMISSBlockPreconditioner_SchurFactorisationTypeSet
+
+  !>Set the type of block preconditioner. \see OPENCMISS::CMISSBlockPreconditioner_TypeSet
+  INTERFACE CMISSBlockPreconditioner_TypeSet
+    MODULE PROCEDURE CMISSBlockPreconditioner_TypeSetNumber0
+    MODULE PROCEDURE CMISSBlockPreconditioner_TypeSetNumber1
+    MODULE PROCEDURE CMISSBlockPreconditioner_TypeSetObj
+  END INTERFACE !CMISSBlockPreconditioner_TypeSet
+
+  PUBLIC CMISS_BLOCK_PRECONDITIONER_ADDITIVE,CMISS_BLOCK_PRECONDITIONER_MULTIPLICATIVE, &
+    & CMISS_BLOCK_PRECONDITIONER_SYMMETRIC_MULTIPLICATIVE,CMISS_BLOCK_PRECONDITIONER_SCHUR
+
+  PUBLIC CMISS_BLOCK_PRECONDITIONER_SCHUR_FACT_DIAG,CMISS_BLOCK_PRECONDITIONER_SCHUR_FACT_LOWER, &
+    & CMISS_BLOCK_PRECONDITIONER_SCHUR_FACT_UPPER,CMISS_BLOCK_PRECONDITIONER_SCHUR_FACT_FULL
+
+  PUBLIC CMISS_BLOCK_PRECONDITIONER_SCHUR_PRE_SELF,CMISS_BLOCK_PRECONDITIONER_SCHUR_PRE_SELFP, &
+    & CMISS_BLOCK_PRECONDITIONER_SCHUR_PRE_A11,CMISS_BLOCK_PRECONDITIONER_SCHUR_PRE_USER,CMISS_BLOCK_PRECONDITIONER_SCHUR_PRE_FULL
+
+  PUBLIC CMISSBlockPreconditioner_NumberOfSplitsSet
+
+  PUBLIC CMISSBlockPreconditioner_SplitFieldVariableAdd
+
+  PUBLIC CMISSBlockPreconditioner_SplitLinearSolverGet
+
+  PUBLIC CMISSBlockPreconditioner_SchurPreTypeSet
+
+  PUBLIC CMISSBlockPreconditioner_SchurFactorisationTypeSet
+
+  PUBLIC CMISSBlockPreconditioner_TypeSet
 
 !!==================================================================================================================================
 !!
@@ -1284,6 +1428,220 @@ MODULE OPENCMISS
 
   PUBLIC CMISS_NO_GLOBAL_DERIV,CMISS_GLOBAL_DERIV_S1,CMISS_GLOBAL_DERIV_S2,CMISS_GLOBAL_DERIV_S1_S2, &
     & CMISS_GLOBAL_DERIV_S3,CMISS_GLOBAL_DERIV_S1_S3,CMISS_GLOBAL_DERIV_S2_S3,CMISS_GLOBAL_DERIV_S1_S2_S3
+
+!!==================================================================================================================================
+!!
+!! CONSTRAINT_CONDITION_ROUTINES
+!!
+!!==================================================================================================================================
+
+  !Module parameters
+
+  !> \addtogroup OPENCMISS_ConstraintConditionConstants OPENCMISS::ConstraintConditions::Constants
+  !> \brief Constraint conditions constants.
+  !>@{
+  !> \addtogroup OPENCMISS_ConstraintConditionMethods OPENCMISS::ConstraintConditions::Methods
+  !> \brief Constraint condition methods.
+  !> \see OPENCMISS::ConstraintConditions,OPENCMISS
+  !>@{
+  INTEGER(INTG), PARAMETER :: CMISS_CONSTRAINT_CONDITION_LAGRANGE_MULTIPLIERS_METHOD = &
+    & CONSTRAINT_CONDITION_LAGRANGE_MULTIPLIERS_METHOD !<Lagrange multipliers constraint condition method. \see OPENCMISS_ConstraintConditionMethods,OPENCMISS
+  INTEGER(INTG), PARAMETER :: CMISS_CONSTRAINT_CONDITION_AUGMENTED_LAGRANGE_METHOD = CONSTRAINT_CONDITION_AUGMENTED_LAGRANGE_METHOD !<Augmented Lagrange multiplers constraint condition method. \see OPENCMISS_ConstraintConditionMethods,OPENCMISS
+  INTEGER(INTG), PARAMETER :: CMISS_CONSTRAINT_CONDITION_PENALTY_METHOD = CONSTRAINT_CONDITION_PENALTY_METHOD !<Penalty constraint condition method. \see OPENCMISS_ConstraintConditionMethods,OPENCMISS
+  INTEGER(INTG), PARAMETER :: CMISS_CONSTRAINT_CONDITION_POINT_TO_POINT_METHOD = CONSTRAINT_CONDITION_POINT_TO_POINT_METHOD !<Point to point constraint condition method. \see OPENCMISS_ConstraintConditionMethods,OPENCMISS
+  !>@}
+  !> \addtogroup OPENCMISS_ConstraintConditionOperators OPENCMISS::ConstraintConditions::Operators
+  !> \brief Constraint condition operator types.
+  !> \see OPENCMISS::ConstraintConditions,OPENCMISS
+  !>@{
+  INTEGER(INTG), PARAMETER :: CMISS_CONSTRAINT_CONDITION_FE_INCOMPRESSIBILITY_OPERATOR = &
+    & CONSTRAINT_CONDITION_FE_INCOMPRESSIBILITY_OPERATOR !<Finite elasticity incompressibility operator, i.e., lambda.(J-1). \see OPENCMISS_ConstraintConditionOperators,OPENCMISS
+  INTEGER(INTG), PARAMETER :: CMISS_CONSTRAINT_CONDITION_DUMMY_OPERATOR = &
+    & 100 !<Dummy operator. \see OPENCMISS_ConstraintConditionOperators,OPENCMISS
+  !>@}
+  !> \addtogroup OPENCMISS_ConstraintConditionsLinearityTypes OPENCMISS::ConstraintConditions::LinearityTypes
+  !> \brief The constraint conditions linearity types
+  !> \see OPENCMISS::ConstraintConditions,OPENCMISS
+  !>@{
+  INTEGER(INTG), PARAMETER :: CMISS_CONSTRAINT_CONDITION_LINEAR = CONSTRAINT_CONDITION_LINEAR !<The constraint conditions are linear. \see OPENCMISS_ConstraintConditionsLinearityTypes,OPENCMISS
+  INTEGER(INTG), PARAMETER :: CMISS_CONSTRAINT_CONDITION_NONLINEAR = CONSTRAINT_CONDITION_NONLINEAR !<The constraint conditions are non-linear. \see \see OPENCMISS_ConstraintConditionsLinearityTypes,OPENCMISS
+  INTEGER(INTG), PARAMETER :: CMISS_CONSTRAINT_CONDITION_NONLINEAR_BCS = CONSTRAINT_CONDITION_NONLINEAR_BCS !<The constraint conditions have non-linear boundary conditions. \see \see OPENCMISS_ConstraintConditionsLinearityTypes,OPENCMISS
+  !>@}
+  !> \addtogroup OPENCMISS_ConstraintConditionsTimeDependenceTypes OPENCMISS::ConstraintConditions::TimeDependenceTypes
+  !> \brief The constraint conditions time dependence types
+  !> \see OPENCMISS::ConstraintConditions,OPENCMISS
+  !>@{
+  INTEGER(INTG), PARAMETER :: CMISS_CONSTRAINT_CONDITION_STATIC = CONSTRAINT_CONDITION_STATIC !<The constraint conditions are static and have no time dependence. \see OPENCMISS_ConstraintConditionsTimeDependenceTypes,OPENCMISS
+  INTEGER(INTG), PARAMETER :: CMISS_CONSTRAINT_CONDITION_FIRST_ORDER_DYNAMIC = CONSTRAINT_CONDITION_FIRST_ORDER_DYNAMIC !<The constraint conditions are first order dynamic. \see OPENCMISS_ConstraintConditionsTimeDependenceTypes,OPENCMISS
+  INTEGER(INTG), PARAMETER :: CMISS_CONSTRAINT_CONDITION_SECOND_ORDER_DYNAMIC = CONSTRAINT_CONDITION_SECOND_ORDER_DYNAMIC !<The constraint conditions are a second order dynamic. \see OPENCMISS_ConstraintConditionsTimeDependenceTypes,OPENCMISS
+  INTEGER(INTG), PARAMETER :: CMISS_CONSTRAINT_CONDITION_TIME_STEPPING = CONSTRAINT_CONDITION_TIME_STEPPING !<The constraint conditions are for time stepping. \see OPENCMISS_ConstraintConditionsTimeDependenceTypes,OPENCMISS
+  !>@}
+  !>@}
+
+  !Module types
+
+  !Module variables
+
+  !Constraints
+
+  !>Finishes the creation of an constraint condition. \see OPENCMISS::CMISSConstraintCondition_CreateStart
+  INTERFACE CMISSConstraintCondition_CreateFinish
+    MODULE PROCEDURE CMISSConstraintCondition_CreateFinishNumber
+    MODULE PROCEDURE CMISSConstraintCondition_CreateFinishObj
+  END INTERFACE !CMISSConstraintCondition_CreateFinish
+
+  !>Starts the creation of an constraint condition. \see OPENCMISS::CMISSConstraintCondition_CreateFinish
+  INTERFACE CMISSConstraintCondition_CreateStart
+    MODULE PROCEDURE CMISSConstraintCondition_CreateStartNumber
+    MODULE PROCEDURE CMISSConstraintCondition_CreateStartObj
+  END INTERFACE !CMISSConstraintCondition_CreateStart
+
+  !>Destroys an constraint condition.
+  INTERFACE CMISSConstraintCondition_Destroy
+    MODULE PROCEDURE CMISSConstraintCondition_DestroyNumber
+    MODULE PROCEDURE CMISSConstraintCondition_DestroyObj
+  END INTERFACE !CMISSConstraintCondition_Destroy
+
+  !>Finishes the creation of equations for an constraint condition. \see OPENCMISS::CMISSConstraintCondition_EquationsCreateStart
+  INTERFACE CMISSConstraintCondition_EquationsCreateFinish
+    MODULE PROCEDURE CMISSConstraintCondition_EquationsCreateFinishNumber
+    MODULE PROCEDURE CMISSConstraintCondition_EquationsCreateFinishObj
+  END INTERFACE !CMISSConstraintCondition_EquationsCreateStart
+
+  !>Starts the creation of equations for an constraint condition. \see OPENCMISS::CMISSConstraintCondition_EquationsCreateFinish
+  INTERFACE CMISSConstraintCondition_EquationsCreateStart
+    MODULE PROCEDURE CMISSConstraintCondition_EquationsCreateStartNumber
+    MODULE PROCEDURE CMISSConstraintCondition_EquationsCreateStartObj
+  END INTERFACE !CMISSConstraintCondition_EquationsCreateStart
+
+  !>Destroys the constraint equations for an constraint condition.
+  INTERFACE CMISSConstraintCondition_EquationsDestroy
+    MODULE PROCEDURE CMISSConstraintCondition_EquationsDestroyNumber
+    MODULE PROCEDURE CMISSConstraintCondition_EquationsDestroyObj
+  END INTERFACE !CMISSConstraintCondition_EquationsDestroy
+  
+  !>Finishes the creation of a Lagrange multipliers field for an constraint condition. \see OPENCMISS::CMISSConstraintCondition_LagrangeFieldCreateStart
+  INTERFACE CMISSConstraintCondition_LagrangeFieldCreateFinish
+    MODULE PROCEDURE CMISSConstraintCondition_LagrangeFieldCreateFinishNumber
+    MODULE PROCEDURE CMISSConstraintCondition_LagrangeFieldCreateFinishObj
+  END INTERFACE !CMISSConstraintCondition_LagrangeFieldCreateFinish
+
+  !>Starts the creation of a Lagrange multipliers field for an constraint condition. \see OPENCMISS::CMISSConstraintCondition_LagrangeFieldCreateFinish
+  INTERFACE CMISSConstraintCondition_LagrangeFieldCreateStart
+    MODULE PROCEDURE CMISSConstraintCondition_LagrangeFieldCreateStartNumber
+    MODULE PROCEDURE CMISSConstraintCondition_LagrangeFieldCreateStartObj
+  END INTERFACE !CMISSConstraintCondition_LagrangeFieldCreateStart
+
+  !>Finishes the creation of a Penalty field for an constraint condition. \see OPENCMISS::CMISSConstraintCondition_PenaltyFieldCreateStart
+  INTERFACE CMISSConstraintCondition_PenaltyFieldCreateFinish
+    MODULE PROCEDURE CMISSConstraintCondition_PenaltyFieldCreateFinishNumber
+    MODULE PROCEDURE CMISSConstraintCondition_PenaltyFieldCreateFinishObj
+  END INTERFACE !CMISSConstraintCondition_PenaltyFieldCreateFinish
+
+  !>Starts the creation of a Penalty field for an constraint condition. \see OPENCMISS::CMISSConstraintCondition_PenaltyFieldCreateFinish
+  INTERFACE CMISSConstraintCondition_PenaltyFieldCreateStart
+    MODULE PROCEDURE CMISSConstraintCondition_PenaltyFieldCreateStartNumber
+    MODULE PROCEDURE CMISSConstraintCondition_PenaltyFieldCreateStartObj
+  END INTERFACE !CMISSConstraintCondition_PenaltyFieldCreateStart
+
+  !>Returns the method for an constraint condition.
+  INTERFACE CMISSConstraintCondition_MethodGet
+    MODULE PROCEDURE CMISSConstraintCondition_MethodGetNumber
+    MODULE PROCEDURE CMISSConstraintCondition_MethodGetObj
+  END INTERFACE !CMISSConstraintCondition_MethodGet
+
+  !>Sets/changes the method for an constraint condition.
+  INTERFACE CMISSConstraintCondition_MethodSet
+    MODULE PROCEDURE CMISSConstraintCondition_MethodSetNumber
+    MODULE PROCEDURE CMISSConstraintCondition_MethodSetObj
+  END INTERFACE !CMISSConstraintCondition_MethodSet
+
+  !>Returns the operator for an constraint condition.
+  INTERFACE CMISSConstraintCondition_OperatorGet
+    MODULE PROCEDURE CMISSConstraintCondition_OperatorGetNumber
+    MODULE PROCEDURE CMISSConstraintCondition_OperatorGetObj
+  END INTERFACE !CMISSConstraintCondition_OperatorGet
+
+  !>Sets/changes the operator for an constraint condition.
+  INTERFACE CMISSConstraintCondition_OperatorSet
+    MODULE PROCEDURE CMISSConstraintCondition_OperatorSetNumber
+    MODULE PROCEDURE CMISSConstraintCondition_OperatorSetObj
+  END INTERFACE !CMISSConstraintCondition_OperatorSet
+
+  !>Returns the sparsity for constraint equations.
+  INTERFACE CMISSConstraintEquations_SparsityGet
+    MODULE PROCEDURE CMISSConstraintEquations_SparsityGetNumber
+    MODULE PROCEDURE CMISSConstraintEquations_SparsityGetObj
+  END INTERFACE !CMISSConstraintEquations_SparsityGet
+
+  !>Sets/changes the sparsity for constraint equations.
+  INTERFACE CMISSConstraintEquations_SparsitySet
+    MODULE PROCEDURE CMISSConstraintEquations_SparsitySetNumber
+    MODULE PROCEDURE CMISSConstraintEquations_SparsitySetObj
+  END INTERFACE !CMISSConstraintEquations_SparsitySet
+
+  !>Returns the output type for constraint equations.
+  INTERFACE CMISSConstraintEquations_OutputTypeGet
+    MODULE PROCEDURE CMISSConstraintEquations_OutputTypeGetNumber
+    MODULE PROCEDURE CMISSConstraintEquations_OutputTypeGetObj
+  END INTERFACE !CMISSConstraintEquations_OutputTypeGet
+
+  !>Sets/changes the output type for constraint equations.
+  INTERFACE CMISSConstraintEquations_OutputTypeSet
+    MODULE PROCEDURE CMISSConstraintEquations_OutputTypeSetNumber
+    MODULE PROCEDURE CMISSConstraintEquations_OutputTypeSetObj
+  END INTERFACE !CMISSConstraintEquations_OutputTypeSet
+
+  PUBLIC CMISS_CONSTRAINT_CONDITION_LAGRANGE_MULTIPLIERS_METHOD,CMISS_CONSTRAINT_CONDITION_AUGMENTED_LAGRANGE_METHOD, &
+    & CMISS_CONSTRAINT_CONDITION_PENALTY_METHOD,CMISS_CONSTRAINT_CONDITION_POINT_TO_POINT_METHOD
+
+  PUBLIC CMISS_CONSTRAINT_CONDITION_FE_INCOMPRESSIBILITY_OPERATOR,CMISS_CONSTRAINT_CONDITION_DUMMY_OPERATOR
+    
+  PUBLIC CMISSConstraintCondition_CreateFinish,CMISSConstraintCondition_CreateStart
+
+  PUBLIC CMISSConstraintCondition_Destroy
+
+  PUBLIC CMISSConstraintCondition_EquationsCreateFinish,CMISSConstraintCondition_EquationsCreateStart
+
+  PUBLIC CMISSConstraintCondition_EquationsDestroy
+
+  PUBLIC CMISSConstraintCondition_LagrangeFieldCreateFinish,CMISSConstraintCondition_LagrangeFieldCreateStart
+
+  PUBLIC CMISSConstraintCondition_PenaltyFieldCreateFinish,CMISSConstraintCondition_PenaltyFieldCreateStart
+
+  PUBLIC CMISSConstraintCondition_MethodGet,CMISSConstraintCondition_MethodSet
+
+  PUBLIC CMISSConstraintCondition_OperatorGet,CMISSConstraintCondition_OperatorSet
+
+  PUBLIC CMISSConstraintEquations_SparsityGet,CMISSConstraintEquations_SparsitySet
+
+  PUBLIC CMISSConstraintEquations_OutputTypeGet,CMISSConstraintEquations_OutputTypeSet
+  
+!!==================================================================================================================================
+!!
+!! CONSTRAINT MATRICES ROUTINES
+!!
+!!==================================================================================================================================
+  
+  !Module parameters
+
+  !> \addtogroup CONSTRAINT_MATRICES_ROUTINES_ConstraintMatricesTimeDependenceTypes CONSTRAINT_MATRICES_ROUTINES::ConstraintMatricesTimeDependenceTypes
+  !> \brief Constraint matrices time dependency types
+  !> \see CONSTRAINT_MATRICES_ROUTINES
+  !>@{
+  INTEGER, PARAMETER :: CMISS_NUMBER_OF_CONSTRAINT_MATRIX_TYPES=NUMBER_OF_CONSTRAINT_MATRIX_TYPES
+  INTEGER, PARAMETER :: CMISS_CONSTRAINT_MATRIX_STATIC=CONSTRAINT_MATRIX_STATIC !<Constraint matrix is of static type \see CONSTRAINT_MATRICES_ROUTINES_ConstraintMatricesTimeDependenceTypes,CONSTRAINT_MATRICES_ROUTINES
+  INTEGER, PARAMETER :: CMISS_CONSTRAINT_MATRIX_FIRST_ORDER_DYNAMIC=CONSTRAINT_MATRIX_FIRST_ORDER_DYNAMIC !<Constraint matrix is of first order dynamic type \see CONSTRAINT_MATRICES_ROUTINES_ConstraintMatricesTimeDependenceTypes,CONSTRAINT_MATRICES_ROUTINES
+  INTEGER, PARAMETER :: CMISS_CONSTRAINT_MATRIX_SECOND_ORDER_DYNAMIC=CONSTRAINT_MATRIX_SECOND_ORDER_DYNAMIC !<Constraint matrix is of second order dynamic type \see CONSTRAINT_MATRICES_ROUTINES_ConstraintMatricesTimeDependenceTypes,CONSTRAINT_MATRICES_ROUTINES
+  !>@}
+
+  !Module types
+
+  !Module variables
+
+  !Constraints
+  PUBLIC CMISS_NUMBER_OF_CONSTRAINT_MATRIX_TYPES,CMISS_CONSTRAINT_MATRIX_STATIC, &
+    & CMISS_CONSTRAINT_MATRIX_FIRST_ORDER_DYNAMIC,CMISS_CONSTRAINT_MATRIX_SECOND_ORDER_DYNAMIC
 
 !!==================================================================================================================================
 !!
@@ -5318,6 +5676,38 @@ MODULE OPENCMISS
 
 !!==================================================================================================================================
 !!
+!! PRECONDITIONER_ROUTINES
+!!
+!!==================================================================================================================================
+
+  !Module parameters
+
+  !Module types
+
+  !Module variables
+
+  !Interfaces
+
+  !> Get the block preconditioner. \see OPENCMISS::CMISSPreconditioner_BlockPreconditionerGet
+  INTERFACE CMISSPreconditioner_BlockPreconditionerGet
+    MODULE PROCEDURE CMISSPreconditioner_BlockPreconditionerGetNumber0
+    MODULE PROCEDURE CMISSPreconditioner_BlockPreconditionerGetNumber1
+    MODULE PROCEDURE CMISSPreconditioner_BlockPreconditionerGetObj
+  END INTERFACE !CMISSPreconditioner_BlockPreconditionerGet
+
+  !>Set the type of preconditioner. \see OPENCMISS::CMISSPreconditioner_TypeSet
+  INTERFACE CMISSPreconditioner_TypeSet
+    MODULE PROCEDURE CMISSPreconditioner_TypeSetNumber0
+    MODULE PROCEDURE CMISSPreconditioner_TypeSetNumber1
+    MODULE PROCEDURE CMISSPreconditioner_TypeSetObj
+  END INTERFACE !CMISSPreconditioner_TypeSet
+
+  PUBLIC CMISSPreconditioner_BlockPreconditionerGet
+
+  PUBLIC CMISSPreconditioner_TypeSet
+
+!!==================================================================================================================================
+!!
 !! PROBLEM_CONSTANTS_ROUTINES
 !!
 !!==================================================================================================================================
@@ -5991,6 +6381,7 @@ MODULE OPENCMISS
   INTEGER(INTG), PARAMETER :: CMISS_SOLVER_ITERATIVE_CONJUGATE_GRADIENT = SOLVER_ITERATIVE_CONJUGATE_GRADIENT !<Conjugate gradient iterative solver type. \see OPENCMISS_IterativeLinearSolverTypes,OPENCMISS
   INTEGER(INTG), PARAMETER :: CMISS_SOLVER_ITERATIVE_BICONJUGATE_GRADIENT = SOLVER_ITERATIVE_BICONJUGATE_GRADIENT !<Bi-conjugate gradient iterative solver type. \see OPENCMISS_IterativeLinearSolverTypes,OPENCMISS
   INTEGER(INTG), PARAMETER :: CMISS_SOLVER_ITERATIVE_GMRES = SOLVER_ITERATIVE_GMRES !<Generalised minimum residual iterative solver type. \see OPENCMISS_IterativeLinearSolverTypes,OPENCMISS
+  INTEGER(INTG), PARAMETER :: CMISS_SOLVER_ITERATIVE_FGMRES = SOLVER_ITERATIVE_FGMRES !<Flexible generalised minimum residual iterative solver type. \see OPENCMISS_IterativeLinearSolverTypes,OPENCMISS
   INTEGER(INTG), PARAMETER :: CMISS_SOLVER_ITERATIVE_BiCGSTAB = SOLVER_ITERATIVE_BiCGSTAB !<Stabalised bi-conjugate gradient iterative solver type. \see OPENCMISS_IterativeLinearSolverTypes,OPENCMISS
   INTEGER(INTG), PARAMETER :: CMISS_SOLVER_ITERATIVE_CONJGRAD_SQUARED = SOLVER_ITERATIVE_CONJGRAD_SQUARED !<Conjugate gradient squared iterative solver type. \see OPENCMISS_IterativeLinearSolverTypes,OPENCMISS
   !>@}
@@ -6006,7 +6397,8 @@ MODULE OPENCMISS
     & SOLVER_ITERATIVE_INCOMPLETE_CHOLESKY_PRECONDITIONER !<Incomplete Cholesky preconditioner type. \see OPENCMISS_IterativePreconditionerTypes,OPENCMISS
   INTEGER(INTG), PARAMETER :: CMISS_SOLVER_ITERATIVE_INCOMPLETE_LU_PRECONDITIONER = SOLVER_ITERATIVE_INCOMPLETE_LU_PRECONDITIONER !<Incomplete LU preconditioner type. \see OPENCMISS_IterativePreconditionerTypes,OPENCMISS
   INTEGER(INTG), PARAMETER :: CMISS_SOLVER_ITERATIVE_ADDITIVE_SCHWARZ_PRECONDITIONER =  &
-    & SOLVER_ITERATIVE_ADDITIVE_SCHWARZ_PRECONDITIONER !<Additive Schwrz preconditioner type. \see OPENCMISS_IterativePreconditionerTypes,OPENCMISS
+    & SOLVER_ITERATIVE_ADDITIVE_SCHWARZ_PRECONDITIONER !<Additive Schwarz preconditioner type. \see OPENCMISS_IterativePreconditionerTypes,OPENCMISS
+  INTEGER(INTG), PARAMETER :: CMISS_SOLVER_ITERATIVE_BLOCK_PRECONDITIONER = SOLVER_ITERATIVE_BLOCK_PRECONDITIONER !<Block preconditioner type. \see OPENCMISS_IterativePreconditionerTypes,OPENCMISS
   !>@}
   !> \addtogroup OPENCMISS_NonlinearSolverTypes OPENCMISS::Solver::NonlinearSolverTypes
   !> \brief The types of nonlinear solvers.
@@ -6436,12 +6828,12 @@ MODULE OPENCMISS
     MODULE PROCEDURE CMISSSolver_LinearIterativeMaximumIterationsSetObj
   END INTERFACE !CMISSSolver_LinearIterativeMaximumIterationsSet
 
-  !>Sets/changes the type of preconditioner for an iterative linear solver.
-  INTERFACE CMISSSolver_LinearIterativePreconditionerTypeSet
-    MODULE PROCEDURE CMISSSolver_LinearIterativePreconditionerTypeSetNumber0
-    MODULE PROCEDURE CMISSSolver_LinearIterativePreconditionerTypeSetNumber1
-    MODULE PROCEDURE CMISSSolver_LinearIterativePreconditionerTypeSetObj
-  END INTERFACE !CMISSSolver_LinearIterativePreconditionerTypeSet
+  !>Get the preconditioner for an iterative linear solver.
+  INTERFACE CMISSSolver_LinearIterativePreconditionerGet
+    MODULE PROCEDURE CMISSSolver_LinearIterativePreconditionerGetNumber0
+    MODULE PROCEDURE CMISSSolver_LinearIterativePreconditionerGetNumber1
+    MODULE PROCEDURE CMISSSolver_LinearIterativePreconditionerGetObj
+  END INTERFACE !CMISSSolver_LinearIterativePreconditionerGet
 
   !>Sets/changes the relative tolerance for an iterative linear solver.
   INTERFACE CMISSSolver_LinearIterativeRelativeToleranceSet
@@ -6744,6 +7136,13 @@ MODULE OPENCMISS
     MODULE PROCEDURE CMISSSolver_SolverEquationsGetObj
   END INTERFACE !CMISSSolver_SolverEquationsGet
 
+  !>Adds constraint conditions to solver equations.
+  INTERFACE CMISSSolverEquations_ConstraintConditionAdd
+    MODULE PROCEDURE CMISSSolverEquations_ConstraintConditionAddNumber0
+    MODULE PROCEDURE CMISSSolverEquations_ConstraintConditionAddNumber1
+    MODULE PROCEDURE CMISSSolverEquations_ConstraintConditionAddObj
+  END INTERFACE !CMISSSolverEquations_ConstraintConditionAdd
+
   !>Adds equations sets to solver equations.
   INTERFACE CMISSSolverEquations_EquationsSetAdd
     MODULE PROCEDURE CMISSSolverEquations_EquationsSetAddNumber0
@@ -6802,13 +7201,13 @@ MODULE OPENCMISS
   !PUBLIC CMISS_SOLVER_ITERATIVE_RICHARDSON,CMISS_SOLVER_ITERATIVE_CHEBYCHEV,CMISS_SOLVER_ITERATIVE_CONJUGATE_GRADIENT, &
   !################################
   PUBLIC CMISS_SOLVER_ITERATIVE_RICHARDSON,CMISS_SOLVER_ITERATIVE_CONJUGATE_GRADIENT,CMISS_SOLVER_ITERATIVE_CHEBYSHEV, &
-    & CMISS_SOLVER_ITERATIVE_BICONJUGATE_GRADIENT,CMISS_SOLVER_ITERATIVE_GMRES,CMISS_SOLVER_ITERATIVE_BiCGSTAB, &
-    & CMISS_SOLVER_ITERATIVE_CONJGRAD_SQUARED
+    & CMISS_SOLVER_ITERATIVE_BICONJUGATE_GRADIENT,CMISS_SOLVER_ITERATIVE_GMRES,CMISS_SOLVER_ITERATIVE_FGMRES, &
+    & CMISS_SOLVER_ITERATIVE_BiCGSTAB,CMISS_SOLVER_ITERATIVE_CONJGRAD_SQUARED
 
   PUBLIC CMISS_SOLVER_ITERATIVE_NO_PRECONDITIONER,CMISS_SOLVER_ITERATIVE_JACOBI_PRECONDITIONER, &
     & CMISS_SOLVER_ITERATIVE_BLOCK_JACOBI_PRECONDITIONER,CMISS_SOLVER_ITERATIVE_SOR_PRECONDITIONER, &
     & CMISS_SOLVER_ITERATIVE_INCOMPLETE_CHOLESKY_PRECONDITIONER,CMISS_SOLVER_ITERATIVE_INCOMPLETE_LU_PRECONDITIONER, &
-    & CMISS_SOLVER_ITERATIVE_ADDITIVE_SCHWARZ_PRECONDITIONER
+    & CMISS_SOLVER_ITERATIVE_ADDITIVE_SCHWARZ_PRECONDITIONER,CMISS_SOLVER_ITERATIVE_BLOCK_PRECONDITIONER
 
   PUBLIC CMISS_SOLVER_NONLINEAR_NEWTON,CMISS_SOLVER_NONLINEAR_BFGS_INVERSE,CMISS_SOLVER_NONLINEAR_SQP
   
@@ -6919,7 +7318,7 @@ MODULE OPENCMISS
 
   PUBLIC CMISSSolver_LinearIterativeMaximumIterationsSet
 
-  PUBLIC CMISSSolver_LinearIterativePreconditionerTypeSet
+  PUBLIC CMISSSolver_LinearIterativePreconditionerGet
 
   PUBLIC CMISSSolver_LinearIterativeRelativeToleranceSet
 
@@ -6961,7 +7360,6 @@ MODULE OPENCMISS
 
   PUBLIC CMISSSolver_NewtonTypeSet
 
-  !Following QuasiNewton routines could give problems for the Python interface if you don't have PETSC 3.5. If so, just comment them.
   PUBLIC CMISSSolver_QuasiNewtonAbsoluteToleranceSet
   
   PUBLIC CMISSSolver_QuasiNewtonLineSearchMonitorOutputSet
@@ -7007,6 +7405,8 @@ MODULE OPENCMISS
   PUBLIC CMISSSolver_OutputTypeSet
 
   PUBLIC CMISSSolver_SolverEquationsGet
+  
+  PUBLIC CMISSSolverEquations_ConstraintConditionAdd
 
   PUBLIC CMISSSolverEquations_EquationsSetAdd
 
@@ -7354,6 +7754,55 @@ CONTAINS
   !================================================================================================================================
   !
 
+  !>Finalises a CMISSBlockPreconditionerType object.
+  SUBROUTINE CMISSBlockPreconditioner_Finalise(CMISSBlockPreconditioner,err)
+
+    !Argument variables
+    TYPE(CMISSBlockPreconditionerType), INTENT(OUT) :: CMISSBlockPreconditioner !<The CMISSBlockPreconditionerType object to finalise.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    ENTERS("CMISSBlockPreconditioner_Finalise",err,error,*999)
+
+    IF(ASSOCIATED(CMISSBlockPreconditioner%blockPreconditioner))  &
+      & CALL BlockPreconditionerDestroy(CMISSBlockPreconditioner%blockPreconditioner,err,error,*999)
+
+    EXITS("CMISSBlockPreconditioner_Finalise")
+    RETURN
+999 ERRORSEXITS("CMISSBlockPreconditioner_Finalise",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSBlockPreconditioner_Finalise
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Initialises a CMISSBlockPreconditionerType object.
+  SUBROUTINE CMISSBlockPreconditioner_Initialise(CMISSBlockPreconditioner,err)
+
+    !Argument variables
+    TYPE(CMISSBlockPreconditionerType), INTENT(OUT) :: CMISSBlockPreconditioner !<The CMISSBlockPreconditionerType object to initialise.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    ENTERS("CMISSBlockPreconditioner_Initialise",err,error,*999)
+
+    NULLIFY(CMISSBlockPreconditioner%blockPreconditioner)
+
+    EXITS("CMISSBlockPreconditioner_Initialise")
+    RETURN
+999 ERRORSEXITS("CMISSBlockPreconditioner_Initialise",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSBlockPreconditioner_Initialise
+
+  !
+  !================================================================================================================================
+  !
+
   !>Finalises a CMISSBoundaryConditionsType object.
   SUBROUTINE CMISSBoundaryConditions_Finalise(CMISSBoundaryConditions,err)
 
@@ -7518,6 +7967,104 @@ CONTAINS
     RETURN
 
   END SUBROUTINE CMISSCellMLEquations_Initialise
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Finalises a CMISSConstraintConditionType object.
+  SUBROUTINE CMISSConstraintCondition_Finalise(CMISSConstraintCondition,err)
+
+    !Argument variables
+    TYPE(CMISSConstraintConditionType), INTENT(OUT) :: CMISSConstraintCondition !<The CMISSConstraintConditionType object to finalise.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    ENTERS("CMISSConstraintCondition_Finalise",err,error,*999)
+
+    IF(ASSOCIATED(CMISSConstraintCondition%CONSTRAINT_CONDITION))  &
+      & CALL CONSTRAINT_CONDITION_DESTROY(CMISSConstraintCondition%CONSTRAINT_CONDITION,err,error,*999)
+
+    EXITS("CMISSConstraintCondition_Finalise")
+    RETURN
+999 ERRORSEXITS("CMISSConstraintTypeConditionFinalise",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintCondition_Finalise
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Initialises a CMISSConstraintConditionType object.
+  SUBROUTINE CMISSConstraintCondition_Initialise(CMISSConstraintCondition,err)
+
+    !Argument variables
+    TYPE(CMISSConstraintConditionType), INTENT(OUT) :: CMISSConstraintCondition !<The CMISSConstraintConditionType object to initialise.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    ENTERS("CMISSConstraintCondition_Initialise",err,error,*999)
+
+    NULLIFY(CMISSConstraintCondition%CONSTRAINT_CONDITION)
+
+    EXITS("CMISSConstraintCondition_Initialise")
+    RETURN
+999 ERRORSEXITS("CMISSConstraintCondition_Initialise",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintCondition_Initialise
+
+   !
+  !================================================================================================================================
+  !
+
+  !>Finalises a CMISSConstraintEquationsType object.
+  SUBROUTINE CMISSConstraintEquations_Finalise(CMISSConstraintEquations,err)
+
+    !Argument variables
+    TYPE(CMISSConstraintEquationsType), INTENT(OUT) :: CMISSConstraintEquations !<The CMISSConstraintEquationsType object to finalise.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    ENTERS("CMISSConstraintEquations_Finalise",err,error,*999)
+
+    IF(ASSOCIATED(CMISSConstraintEquations%CONSTRAINT_EQUATIONS))  &
+      & CALL CONSTRAINT_EQUATIONS_DESTROY(CMISSConstraintEquations%CONSTRAINT_EQUATIONS,err,error,*999)
+
+    EXITS("CMISSConstraintEquations_Finalise")
+    RETURN
+999 ERRORSEXITS("CMISSConstraintEquations_Finalise",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintEquations_Finalise
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Initialises a CMISSConstraintEquationsType object.
+  SUBROUTINE CMISSConstraintEquations_Initialise(CMISSConstraintEquations,err)
+
+    !Argument variables
+    TYPE(CMISSConstraintEquationsType), INTENT(OUT) :: CMISSConstraintEquations !<The CMISSConstraintEquationsType object to initialise.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    ENTERS("CMISSConstraintEquations_Initialise",err,error,*999)
+
+    NULLIFY(CMISSConstraintEquations%CONSTRAINT_EQUATIONS)
+
+    EXITS("CMISSConstraintEquations_Initialise")
+    RETURN
+999 ERRORSEXITS("CMISSConstraintEquations_Initialise",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintEquations_Initialise
 
   !
   !================================================================================================================================
@@ -8624,6 +9171,55 @@ CONTAINS
   !================================================================================================================================
   !
 
+  !>Finalises a CMISSPreconditionerType object.
+  SUBROUTINE CMISSPreconditioner_Finalise(CMISSPreconditioner,err)
+
+    !Argument variables
+    TYPE(CMISSPreconditionerType), INTENT(OUT) :: CMISSPreconditioner !<The CMISSPreconditionerType object to finalise.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    ENTERS("CMISSPreconditioner_Finalise",err,error,*999)
+
+    IF(ASSOCIATED(CMISSPreconditioner%preconditioner))  &
+      & CALL PreconditionerDestroy(CMISSPreconditioner%preconditioner,err,error,*999)
+
+    EXITS("CMISSPreconditioner_Finalise")
+    RETURN
+999 ERRORSEXITS("CMISSPreconditioner_Finalise",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSPreconditioner_Finalise
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Initialises a CMISSPreconditionerType object.
+  SUBROUTINE CMISSPreconditioner_Initialise(CMISSPreconditioner,err)
+
+    !Argument variables
+    TYPE(CMISSPreconditionerType), INTENT(OUT) :: CMISSPreconditioner !<The CMISSPreconditionerType object to initialise.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    ENTERS("CMISSPreconditioner_Initialise",err,error,*999)
+
+    NULLIFY(CMISSPreconditioner%preconditioner)
+
+    EXITS("CMISSPreconditioner_Initialise")
+    RETURN
+999 ERRORSEXITS("CMISSPreconditioner_Initialise",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSPreconditioner_Initialise
+
+  !
+  !================================================================================================================================
+  !
+
   !>Finalises a CMISSProblemType object.
   SUBROUTINE CMISSProblem_Finalise(CMISSProblem,err)
 
@@ -8882,7 +9478,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSAnalyticAnalysisOutputNumber",err,error,*999)
 
@@ -8894,13 +9490,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL ANALYTIC_ANALYSIS_OUTPUT(FIELD,fileName,err,error,*999)
       ELSE
-        LOCAL_ERROR="An field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="An field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSAnalyticAnalysisOutputNumber")
@@ -8957,7 +9553,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSAnalyticAnalysisAbsoluteErrorGetNodeNumber",err,error,*999)
 
@@ -8970,13 +9566,13 @@ CONTAINS
         CALL ANALYTIC_ANALYSIS_ABSOLUTE_ERROR_GET_NODE(FIELD,variableType,versionNumber,derivativeNumber,nodeNumber, &
           & componentNumber,value,ERR, error,*999)
       ELSE
-        LOCAL_ERROR="An field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="An field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSAnalyticAnalysisAbsoluteErrorGetNodeNumber")
@@ -9042,7 +9638,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSAnalyticAnalysisPercentageErrorGetNodeNumber",err,error,*999)
 
@@ -9055,13 +9651,13 @@ CONTAINS
         CALL ANALYTIC_ANALYSIS_PERCENTAGE_ERROR_GET_NODE(FIELD,variableType,versionNumber,derivativeNumber,nodeNumber, &
           & componentNumber,value,ERR,error,*999)
       ELSE
-        LOCAL_ERROR="An field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="An field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSAnalyticAnalysisPercentageErrorGetNodeNumber")
@@ -9129,7 +9725,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSAnalyticAnalysisRelativeErrorGetNodeNumber",err,error,*999)
 
@@ -9142,13 +9738,13 @@ CONTAINS
         CALL ANALYTIC_ANALYSIS_RELATIVE_ERROR_GET_NODE(FIELD,variableType,versionNumber,derivativeNumber,nodeNumber, &
           & componentNumber,value,ERR,error,*999)
       ELSE
-        LOCAL_ERROR="An field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="An field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSAnalyticAnalysisRelativeErrorGetNodeNumber")
@@ -9212,7 +9808,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSAnalyticAnalysisAbsoluteErrorGetElementNumber",err,error,*999)
 
@@ -9224,13 +9820,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL AnalyticAnalysis_AbsoluteErrorGetElement(FIELD,variableType,elementNumber,componentNumber,value,ERR,error,*999)
       ELSE
-        LOCAL_ERROR="An field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="An field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSAnalyticAnalysisAbsoluteErrorGetElementNumber")
@@ -9290,7 +9886,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSAnalyticAnalysisPercentageErrorGetElementNumber",err,error,*999)
 
@@ -9302,13 +9898,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL AnalyticAnalysis_PercentageErrorGetElement(FIELD,variableType,elementNumber,componentNumber,value,ERR,error,*999)
       ELSE
-        LOCAL_ERROR="An field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="An field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSAnalyticAnalysisPercentageErrorGetElementNumber")
@@ -9369,7 +9965,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSAnalyticAnalysisRelativeErrorGetElementNumber",err,error,*999)
 
@@ -9381,13 +9977,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL AnalyticAnalysis_RelativeErrorGetElement(FIELD,variableType,elementNumber,componentNumber,value,ERR,error,*999)
       ELSE
-        LOCAL_ERROR="An field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="An field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSAnalyticAnalysisRelativeErrorGetElementNumber")
@@ -9446,7 +10042,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSAnalyticAnalysisAbsoluteErrorGetConstantNumber",err,error,*999)
 
@@ -9458,13 +10054,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL AnalyticAnalysis_AbsoluteErrorGetConstant(FIELD,variableType,componentNumber,value,ERR,error,*999)
       ELSE
-        LOCAL_ERROR="An field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="An field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSAnalyticAnalysisAbsoluteErrorGetConstantNumber")
@@ -9522,7 +10118,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSAnalyticAnalysisPercentageErrorGetConstantNumber",err,error,*999)
 
@@ -9534,13 +10130,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL AnalyticAnalysis_PercentageErrorGetConstant(FIELD,variableType,componentNumber,value,ERR,error,*999)
       ELSE
-        LOCAL_ERROR="An field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="An field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSAnalyticAnalysisPercentageErrorGetConstantNumber")
@@ -9600,7 +10196,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSAnalyticAnalysisRelativeErrorGetConstantNumber",err,error,*999)
 
@@ -9612,13 +10208,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL AnalyticAnalysis_RelativeErrorGetConstant(FIELD,variableType,componentNumber,value,ERR,error,*999)
       ELSE
-        LOCAL_ERROR="An field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="An field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSAnalyticAnalysisRelativeErrorGetConstantNumber")
@@ -9680,7 +10276,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSAnalyticAnalysisRmsErrorGetNodeNumber",err,error,*999)
 
@@ -9693,13 +10289,13 @@ CONTAINS
         CALL ANALYTIC_ANALYSIS_RMS_ERROR_GET_NODE(FIELD,variableType,componentNumber,errorType,localValue,localGhostValue, &
           & globalValue,ERR,error,*999)
       ELSE
-        LOCAL_ERROR="An field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="An field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSAnalyticAnalysisRmsErrorGetNodeNumber")
@@ -9764,7 +10360,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSAnalyticAnalysisRmsErrorGetElementNumber",err,error,*999)
 
@@ -9777,13 +10373,13 @@ CONTAINS
         CALL ANALYTIC_ANALYSIS_RMS_ERROR_GET_ELEMENT(FIELD,variableType,componentNumber,errorType,localValue,localGhostValue, &
           & globalValue,ERR,error,*999)
       ELSE
-        LOCAL_ERROR="An field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="An field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSAnalyticAnalysisRmsErrorGetElementNumber")
@@ -9847,7 +10443,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSAnalyticAnalysisIntegralNumericalValueGetNumber",err,error,*999)
 
@@ -9860,13 +10456,13 @@ CONTAINS
         CALL AnalyticAnalysis_IntegralNumericalValueGet(FIELD,variableType,componentNumber,integralValue,ghostIntegralValue, &
           & ERR,error,*999)
       ELSE
-        LOCAL_ERROR="An field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="An field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSAnalyticAnalysisIntegralNumericalValueGetNumber")
@@ -9929,7 +10525,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSAnalyticAnalysisIntegralAnalyticValueGetNumber",err,error,*999)
 
@@ -9942,13 +10538,13 @@ CONTAINS
         CALL AnalyticAnalysis_IntegralAnalyticValueGet(FIELD,variableType,componentNumber,integralValue,ghostIntegralValue, &
           & ERR,error,*999)
       ELSE
-        LOCAL_ERROR="An field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="An field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSAnalyticAnalysisIntegralAnalyticValueGetNumber")
@@ -10011,7 +10607,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSAnalyticAnalysisIntegralPercentageErrorGetNumber",err,error,*999)
 
@@ -10024,13 +10620,13 @@ CONTAINS
         CALL AnalyticAnalysis_IntegralPercentageErrorGet(FIELD,variableType,componentNumber,integralValue,ghostIntegralValue, &
           & ERR,error,*999)
       ELSE
-        LOCAL_ERROR="An field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="An field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSAnalyticAnalysisIntegralPercentageErrorGetNumber")
@@ -10093,7 +10689,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSAnalyticAnalysisIntegralAbsoluteErrorGetNumber",err,error,*999)
 
@@ -10106,13 +10702,13 @@ CONTAINS
         CALL AnalyticAnalysis_IntegralAbsoluteErrorGet(FIELD,variableType,componentNumber,integralValue,ghostIntegralValue, &
           & ERR,error,*999)
       ELSE
-        LOCAL_ERROR="An field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="An field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSAnalyticAnalysisIntegralAbsoluteErrorGetNumber")
@@ -10174,7 +10770,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSAnalyticAnalysisIntegralRelativeErrorGetNumber",err,error,*999)
 
@@ -10187,13 +10783,13 @@ CONTAINS
         CALL AnalyticAnalysis_IntegralRelativeErrorGet(FIELD,variableType,componentNumber,integralValue,ghostIntegralValue, &
           & ERR,error,*999)
       ELSE
-        LOCAL_ERROR="An field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="An field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSAnalyticAnalysisIntegralRelativeErrorGetNumber")
@@ -10255,7 +10851,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSAnalyticAnalysisIntegralNidNumericalValueGetNumber",err,error,*999)
 
@@ -10268,13 +10864,13 @@ CONTAINS
         CALL AnalyticAnalysis_IntegralNIDNumericalValueGet(FIELD,variableType,componentNumber,integralValue, &
           & ghostIntegralValue,ERR,error,*999)
       ELSE
-        LOCAL_ERROR="An field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="An field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSAnalyticAnalysisIntegralNidNumericalValueGetNumber")
@@ -10336,7 +10932,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSAnalyticAnalysisIntegralNidErrorGetNumber",err,error,*999)
 
@@ -10349,13 +10945,13 @@ CONTAINS
         CALL ANALYTIC_ANALYSIS_INTEGRAL_NID_ERROR_GET(FIELD,variableType,componentNumber,integralValue,ghostIntegralValue,ERR, &
           & error,*999)
       ELSE
-        LOCAL_ERROR="An field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="An field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSAnalyticAnalysisIntegralNidErrorGetNumber")
@@ -10586,7 +11182,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(BASIS_TYPE), POINTER :: BASIS
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSBasis_CollapsedXiGetNumber",err,error,*999)
 
@@ -10595,8 +11191,8 @@ CONTAINS
     IF(ASSOCIATED(BASIS)) THEN
       CALL BASIS_COLLAPSED_XI_GET(BASIS,collapsedXi,err,error,*999)
     ELSE
-      LOCAL_ERROR="A basis with an user number of "//TRIM(NumberToVString(userNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A basis with an user number of "//TRIM(NumberToVString(userNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSBasis_CollapsedXiGetNumber")
@@ -10645,7 +11241,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(BASIS_TYPE), POINTER :: BASIS
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSBasis_CollapsedXiSetNumber",ERR,error,*999)
 
@@ -10654,8 +11250,8 @@ CONTAINS
     IF(ASSOCIATED(BASIS)) THEN
       CALL BASIS_COLLAPSED_XI_SET(BASIS,collapsedXi,err,error,*999)
     ELSE
-      LOCAL_ERROR="A basis with an user number of "//TRIM(NumberToVString(userNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A basis with an user number of "//TRIM(NumberToVString(userNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSBasis_CollapsedXiSetNumber")
@@ -10703,7 +11299,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code
     !Local variables
     TYPE(BASIS_TYPE), POINTER :: BASIS
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSBasis_CreateFinishNumber",ERR,error,*999)
 
@@ -10712,8 +11308,8 @@ CONTAINS
     IF(ASSOCIATED(BASIS)) THEN
       CALL BASIS_CREATE_FINISH(Basis,err,error,*999)
     ELSE
-      LOCAL_ERROR="A basis with an user number of "//TRIM(NumberToVString(userNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A basis with an user number of "//TRIM(NumberToVString(userNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
 #ifdef TAUPROF
@@ -10827,7 +11423,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(BASIS_TYPE), POINTER :: BASIS
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSBasis_DestroyNumber",err,error,*999)
 
@@ -10836,8 +11432,8 @@ CONTAINS
     IF(ASSOCIATED(BASIS)) THEN
       CALL BASIS_DESTROY(BASIS,err,error,*999)
     ELSE
-      LOCAL_ERROR="A basis with an user number of "//TRIM(NumberToVString(userNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A basis with an user number of "//TRIM(NumberToVString(userNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSBasis_DestroyNumber")
@@ -10885,7 +11481,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(BASIS_TYPE), POINTER :: BASIS
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSBasis_InterpolationXiGetNumber",err,error,*999)
 
@@ -10894,8 +11490,8 @@ CONTAINS
     IF(ASSOCIATED(BASIS)) THEN
       CALL BASIS_INTERPOLATION_XI_GET(BASIS,interpolationXi,err,error,*999)
     ELSE
-      LOCAL_ERROR="A basis with an user number of "//TRIM(NumberToVString(userNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A basis with an user number of "//TRIM(NumberToVString(userNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSBasis_InterpolationXiGetNumber")
@@ -10945,7 +11541,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(BASIS_TYPE), POINTER :: BASIS
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSBasis_InterpolationXiSetNumber",ERR,error,*999)
 
@@ -10954,8 +11550,8 @@ CONTAINS
     IF(ASSOCIATED(BASIS)) THEN
       CALL BASIS_INTERPOLATION_XI_SET(BASIS,interpolationXi,err,error,*999)
     ELSE
-      LOCAL_ERROR="A basis with an user number of "//TRIM(NumberToVString(userNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A basis with an user number of "//TRIM(NumberToVString(userNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSBasis_InterpolationXiSetNumber")
@@ -11004,7 +11600,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(BASIS_TYPE), POINTER :: BASIS
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSBasis_NumberOfLocalNodesGetNumber",err,error,*999)
 
@@ -11013,8 +11609,8 @@ CONTAINS
     IF(ASSOCIATED(BASIS)) THEN
       CALL BASIS_NUMBER_OF_LOCAL_NODES_GET(BASIS,numberOfLocalNodes,err,error,*999)
     ELSE
-      LOCAL_ERROR="A basis with an user number of "//TRIM(NumberToVString(userNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A basis with an user number of "//TRIM(NumberToVString(userNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSBasis_NumberOfLocalNodesGetNumber")
@@ -11063,7 +11659,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(BASIS_TYPE), POINTER :: BASIS
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSBasis_NumberOfXiGetNumber",err,error,*999)
 
@@ -11072,8 +11668,8 @@ CONTAINS
     IF(ASSOCIATED(BASIS)) THEN
       CALL BASIS_NUMBER_OF_XI_GET(BASIS,numberOfXi,err,error,*999)
     ELSE
-      LOCAL_ERROR="A basis with an user number of "//TRIM(NumberToVString(userNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A basis with an user number of "//TRIM(NumberToVString(userNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSBasis_NumberOfXiGetNumber")
@@ -11122,7 +11718,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(BASIS_TYPE), POINTER :: BASIS
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSBasis_NumberOfXiSetNumber",err,error,*999)
 
@@ -11131,8 +11727,8 @@ CONTAINS
     IF(ASSOCIATED(BASIS)) THEN
       CALL BASIS_NUMBER_OF_XI_SET(BASIS,numberOfXi,err,error,*999)
     ELSE
-      LOCAL_ERROR="A basis with an user number of "//TRIM(NumberToVString(userNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A basis with an user number of "//TRIM(NumberToVString(userNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSBasis_NumberOfXiSetNumber")
@@ -11181,7 +11777,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(BASIS_TYPE), POINTER :: BASIS
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSBasis_QuadratureNumberOfGaussXiGetNumber",err,error,*999)
 
@@ -11190,8 +11786,8 @@ CONTAINS
     IF(ASSOCIATED(BASIS)) THEN
       CALL BASIS_QUADRATURE_NUMBER_OF_GAUSS_XI_GET(BASIS,numberOfGaussXi,err,error,*999)
     ELSE
-      LOCAL_ERROR="A basis with an user number of "//TRIM(NumberToVString(userNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A basis with an user number of "//TRIM(NumberToVString(userNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSBasis_QuadratureNumberOfGaussXiGetNumber")
@@ -11241,7 +11837,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(BASIS_TYPE), POINTER :: BASIS
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSBasis_QuadratureNumberOfGaussXiSetNumber",err,error,*999)
 
@@ -11250,8 +11846,8 @@ CONTAINS
     IF(ASSOCIATED(BASIS)) THEN
       CALL BASIS_QUADRATURE_NUMBER_OF_GAUSS_XI_SET(BASIS,numberOfGaussXi,err,error,*999)
     ELSE
-      LOCAL_ERROR="A basis with an user number of "//TRIM(NumberToVString(userNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A basis with an user number of "//TRIM(NumberToVString(userNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSBasis_QuadratureNumberOfGaussXiSetNumber")
@@ -11302,7 +11898,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(BASIS_TYPE), POINTER :: BASIS
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSBasis_QuadratureSingleGaussXiGetNumber",err,error,*999)
 
@@ -11311,8 +11907,8 @@ CONTAINS
     IF(ASSOCIATED(BASIS)) THEN
       CALL BASIS_QUADRATURE_SINGLE_GAUSS_XI_GET(BASIS,quadratureScheme,GaussPoint,GaussXi,err,error,*999)
     ELSE
-      LOCAL_ERROR="A basis with an user number of "//TRIM(NumberToVString(userNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A basis with an user number of "//TRIM(NumberToVString(userNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSBasis_QuadratureSingleGaussXiGetNumber")
@@ -11365,7 +11961,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(BASIS_TYPE), POINTER :: BASIS
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSBasis_QuadratureMultipleGaussXiGetNumber",err,error,*999)
 
@@ -11374,8 +11970,8 @@ CONTAINS
     IF(ASSOCIATED(BASIS)) THEN
       CALL BASIS_QUADRATURE_MULTIPLE_GAUSS_XI_GET(BASIS,quadratureScheme,GaussPoints,GaussXi,err,error,*999)
     ELSE
-      LOCAL_ERROR="A basis with an user number of "//TRIM(NumberToVString(userNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A basis with an user number of "//TRIM(NumberToVString(userNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSBasis_QuadratureMultipleGaussXiGetNumber")
@@ -11427,7 +12023,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(BASIS_TYPE), POINTER :: BASIS
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSBasis_QuadratureOrderGetNumber",err,error,*999)
 
@@ -11436,8 +12032,8 @@ CONTAINS
     IF(ASSOCIATED(BASIS)) THEN
       CALL BASIS_QUADRATURE_ORDER_GET(BASIS,quadratureOrder,err,error,*999)
     ELSE
-      LOCAL_ERROR="A basis with an user number of "//TRIM(NumberToVString(userNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A basis with an user number of "//TRIM(NumberToVString(userNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSBasis_QuadratureOrderGetNumber")
@@ -11487,7 +12083,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(BASIS_TYPE), POINTER :: BASIS
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSBasis_QuadratureOrderSetNumber",err,error,*999)
 
@@ -11496,8 +12092,8 @@ CONTAINS
     IF(ASSOCIATED(BASIS)) THEN
       CALL BASIS_QUADRATURE_ORDER_SET(BASIS,quadratureOrder,err,error,*999)
     ELSE
-      LOCAL_ERROR="A basis with an user number of "//TRIM(NumberToVString(userNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A basis with an user number of "//TRIM(NumberToVString(userNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSBasis_QuadratureOrderSetNumber")
@@ -11546,7 +12142,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(BASIS_TYPE), POINTER :: BASIS
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSBasis_QuadratureTypeGetNumber",err,error,*999)
 
@@ -11555,8 +12151,8 @@ CONTAINS
     IF(ASSOCIATED(BASIS)) THEN
       CALL BASIS_QUADRATURE_TYPE_GET(BASIS,quadratureType,err,error,*999)
     ELSE
-      LOCAL_ERROR="A basis with an user number of "//TRIM(NumberToVString(userNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A basis with an user number of "//TRIM(NumberToVString(userNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSBasis_QuadratureTypeGetNumber")
@@ -11605,7 +12201,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(BASIS_TYPE), POINTER :: BASIS
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSBasis_QuadratureTypeSetNumber",err,error,*999)
 
@@ -11614,8 +12210,8 @@ CONTAINS
     IF(ASSOCIATED(BASIS)) THEN
       CALL BASIS_QUADRATURE_TYPE_SET(BASIS,quadratureType,err,error,*999)
     ELSE
-      LOCAL_ERROR="A basis with an user number of "//TRIM(NumberToVString(userNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A basis with an user number of "//TRIM(NumberToVString(userNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSBasis_QuadratureTypeSetNumber")
@@ -11664,7 +12260,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code
     !Local variables
     TYPE(BASIS_TYPE), POINTER :: BASIS
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSBasis_QuadratureLocalFaceGaussEvaluateSetNumber",err,error,*999)
 
@@ -11673,8 +12269,8 @@ CONTAINS
     IF(ASSOCIATED(BASIS)) THEN
       CALL Basis_QuadratureLocalFaceGaussEvaluateSet(BASIS,faceGaussEvaluate,err,error,*999)
     ELSE
-      LOCAL_ERROR="A basis with an user number of "//TRIM(NumberToVString(userNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A basis with an user number of "//TRIM(NumberToVString(userNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSBasis_QuadratureLocalFaceGaussEvaluateSetNumber")
@@ -11724,7 +12320,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(BASIS_TYPE), POINTER :: BASIS
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSBasis_TypeGetNumber",err,error,*999)
 
@@ -11733,8 +12329,8 @@ CONTAINS
     IF(ASSOCIATED(BASIS)) THEN
       CALL BASIS_TYPE_GET(BASIS,basisType,err,error,*999)
     ELSE
-      LOCAL_ERROR="A basis with an user number of "//TRIM(NumberToVString(userNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A basis with an user number of "//TRIM(NumberToVString(userNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSBasis_TypeGetNumber")
@@ -11783,7 +12379,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(BASIS_TYPE), POINTER :: BASIS
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSBasis_TypeSetNumber",ERR,error,*999)
 
@@ -11792,8 +12388,8 @@ CONTAINS
     IF(ASSOCIATED(BASIS)) THEN
       CALL BASIS_TYPE_SET(BASIS,basisType,err,error,*999)
     ELSE
-      LOCAL_ERROR="A basis with an user number of "//TRIM(NumberToVString(userNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A basis with an user number of "//TRIM(NumberToVString(userNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSBasis_TypeSetNumber")
@@ -11829,6 +12425,871 @@ CONTAINS
 
   END SUBROUTINE CMISSBasis_TypeSetObj
 
+!!==================================================================================================================================
+!!
+!! BLOCK_PRECONDITIONER_ROUTINES
+!!
+!!==================================================================================================================================
+  
+  !>Add a field variable to the splitIndex'th split of the block preconditioner identified by a user number.
+  SUBROUTINE CMISSBlockPreconditioner_SplitFieldVariableAddNumber0(problemUserNumber,controlLoopIdentifier,solverIndex, &
+      & regionUserNumber,splitIndex,fieldUserNumber,variableType,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: problemUserNumber !<The user number of the problem number with the iterative linear solver to add the block preconditioner's field variable to.
+    INTEGER(INTG), INTENT(IN) :: controlLoopIdentifier !<The control loop identifier with the iterative linear solver to add the block preconditioner's field variable to.
+    INTEGER(INTG), INTENT(IN) :: solverIndex !<The solver index to get the block preconditioner from.
+    INTEGER(INTG), INTENT(IN) :: splitIndex !<The split to add the variable to. 
+    INTEGER(INTG), INTENT(IN) :: regionUserNumber !<The region user number.
+    INTEGER(INTG), INTENT(IN) :: fieldUserNumber !<The user number of the variable's field.
+    INTEGER(INTG), INTENT(IN) :: variableType !<The type of the variable to add to the block preconditioner split.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(BlockPreconditionerType), POINTER :: blockPreconditioner
+    TYPE(PreconditionerType), POINTER :: preconditioner
+    TYPE(FIELD_TYPE), POINTER :: field
+    TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
+    TYPE(REGION_TYPE), POINTER :: REGION
+    TYPE(SOLVER_TYPE), POINTER :: SOLVER
+    TYPE(VARYING_STRING) :: localError
+
+    ENTERS("CMISSBlockPreconditioner_SplitFieldVariableAddNumber0",err,error,*999)
+
+    NULLIFY(blockPreconditioner)
+    NULLIFY(preconditioner)
+    NULLIFY(field)
+    NULLIFY(PROBLEM)
+    NULLIFY(REGION)
+    NULLIFY(SOLVER)
+    CALL PROBLEM_USER_NUMBER_FIND(problemUserNumber,PROBLEM,err,error,*999)
+    IF(ASSOCIATED(PROBLEM)) THEN
+      CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
+      IF(ASSOCIATED(SOLVER)) THEN
+        CALL REGION_USER_NUMBER_FIND(regionUserNumber,REGION,err,error,*999)
+        IF(ASSOCIATED(REGION)) THEN
+          CALL FIELD_USER_NUMBER_FIND(fieldUserNumber,REGION,field,err,error,*999)
+          IF(ASSOCIATED(field)) THEN
+            CALL SolverLinearIterativePreconditionerGet(SOLVER,preconditioner,err,error,*999)
+            CALL PreconditionerBlockPreconditionerGet(preconditioner,blockPreconditioner,err,error,*999)
+            CALL BlockPreconditionerSplitFieldVariableAdd(blockPreconditioner,splitIndex,field,variableType, &
+              & err,error,*999)
+          ELSE
+            localError="A field with a user number of "//TRIM(NUMBER_TO_VSTRING(fieldUserNumber,"*",err,error))// &
+              & " does not exist."
+            CALL FlagError(localError,err,error,*999)
+          END IF 
+        ELSE
+          localError="A region with a user number of "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))// &
+            & " does not exist."
+          CALL FlagError(localError,err,error,*999)
+        END IF 
+      ELSE
+        localError="A solver with a solver index of "//TRIM(NUMBER_TO_VSTRING(solverIndex,"*",err,error))// &
+          & " does not exist."
+        CALL FlagError(localError,err,error,*999)
+      END IF 
+    ELSE
+      localError="A problem with an user number of "//TRIM(NUMBER_TO_VSTRING(problemUserNumber,"*",err,error))// &
+        & " does not exist."
+      CALL FlagError(localError,err,error,*999)
+    END IF
+
+    EXITS("CMISSBlockPreconditioner_SplitFieldVariableAddNumber0")
+    RETURN
+999 ERRORSEXITS("CMISSBlockPreconditioner_SplitFieldVariableAddNumber0",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSBlockPreconditioner_SplitFieldVariableAddNumber0
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Add a field variable to the splitIndex'th split of the block preconditioner identified by a user number.
+  SUBROUTINE CMISSBlockPreconditioner_SplitFieldVariableAddNumber1(problemUserNumber,controlLoopIdentifiers,solverIndex, &
+      & splitIndex,regionUserNumber,fieldUserNumber,variableType,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: problemUserNumber !<The user number of the problem number with the iterative linear solver to add the block preconditioner's field variable to.
+    INTEGER(INTG), INTENT(IN) :: controlLoopIdentifiers(:) !<The control loop identifier with the iterative linear solver to add the block preconditioner's field variable to.
+    INTEGER(INTG), INTENT(IN) :: solverIndex !<The solver index to get the block preconditioner from.
+    INTEGER(INTG), INTENT(IN) :: splitIndex !<The split to add the variable to. 
+    INTEGER(INTG), INTENT(IN) :: regionUserNumber !<The region user number.
+    INTEGER(INTG), INTENT(IN) :: fieldUserNumber !<The user number of the variable's field.
+    INTEGER(INTG), INTENT(IN) :: variableType !<The type of the variable to add to the block preconditioner split.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(BlockPreconditionerType), POINTER :: blockPreconditioner
+    TYPE(PreconditionerType), POINTER :: preconditioner
+    TYPE(FIELD_TYPE), POINTER :: field
+    TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
+    TYPE(REGION_TYPE), POINTER :: REGION
+    TYPE(SOLVER_TYPE), POINTER :: SOLVER
+    TYPE(VARYING_STRING) :: localError
+
+    ENTERS("CMISSBlockPreconditioner_SplitFieldVariableAddNumber1",err,error,*999)
+
+    NULLIFY(blockPreconditioner)
+    NULLIFY(preconditioner)
+    NULLIFY(field)
+    NULLIFY(PROBLEM)
+    NULLIFY(REGION)
+    NULLIFY(SOLVER)
+    CALL PROBLEM_USER_NUMBER_FIND(problemUserNumber,PROBLEM,err,error,*999)
+    IF(ASSOCIATED(PROBLEM)) THEN
+      CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers(:),solverIndex,SOLVER,err,error,*999)
+      IF(ASSOCIATED(SOLVER)) THEN
+        CALL REGION_USER_NUMBER_FIND(regionUserNumber,REGION,err,error,*999)
+        IF(ASSOCIATED(REGION)) THEN
+          CALL FIELD_USER_NUMBER_FIND(fieldUserNumber,REGION,field,err,error,*999)
+          IF(ASSOCIATED(field)) THEN
+            CALL SolverLinearIterativePreconditionerGet(SOLVER,preconditioner,err,error,*999)
+            CALL PreconditionerBlockPreconditionerGet(preconditioner,blockPreconditioner,err,error,*999)
+            CALL BlockPreconditionerSplitFieldVariableAdd(blockPreconditioner,splitIndex,field,variableType, &
+              & err,error,*999)
+          ELSE
+            localError="A field with a user number of "//TRIM(NUMBER_TO_VSTRING(fieldUserNumber,"*",err,error))// &
+              & " does not exist."
+            CALL FlagError(localError,err,error,*999)
+          END IF 
+        ELSE
+          localError="A region with a user number of "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))// &
+            & " does not exist."
+          CALL FlagError(localError,err,error,*999)
+        END IF 
+      ELSE
+        localError="A solver with a solver index of "//TRIM(NUMBER_TO_VSTRING(solverIndex,"*",err,error))// &
+          & " does not exist."
+        CALL FlagError(localError,err,error,*999)
+      END IF 
+    ELSE
+      localError="A problem with an user number of "//TRIM(NUMBER_TO_VSTRING(problemUserNumber,"*",err,error))// &
+        & " does not exist."
+      CALL FlagError(localError,err,error,*999)
+    END IF
+
+    EXITS("CMISSBlockPreconditioner_SplitFieldVariableAddNumber1")
+    RETURN
+999 ERRORSEXITS("CMISSBlockPreconditioner_SplitFieldVariableAddNumber1",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSBlockPreconditioner_SplitFieldVariableAddNumber1
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Add a field variable to the splitIndex'th split of the block preconditioner identified by an object.
+  SUBROUTINE CMISSBlockPreconditioner_SplitFieldVariableAddObj(blockPreconditioner,splitIndex,field,variableType,err)
+
+    !Argument variables
+    TYPE(CMISSBlockPreconditionerType), INTENT(IN) :: blockPreconditioner !<The block preconditioner to add the variable for.
+    INTEGER(INTG), INTENT(IN) :: splitIndex !<The split to add the variable to. 
+    TYPE(CMISSFieldType), INTENT(IN) :: field !<The field to which the variable belongs to.
+    INTEGER(INTG), INTENT(IN) :: variableType !<The type of the field variable. 
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    ENTERS("CMISSBlockPreconditioner_SplitFieldVariableAddObj",err,error,*999)
+
+    CALL BlockPreconditionerSplitFieldVariableAdd(blockPreconditioner%blockPreconditioner,splitIndex,field%FIELD, &
+      & variableType,err,error,*999)
+
+    EXITS("CMISSBlockPreconditioner_SplitFieldVariableAddObj")
+    RETURN
+999 ERRORSEXITS("CMISSBlockPreconditioner_SplitFieldVariableAddObj",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSBlockPreconditioner_SplitFieldVariableAddObj
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Get the linear solver for the splitIdx'th split of the block preconditioner identified by an user number.
+  SUBROUTINE CMISSBlockPreconditioner_SplitLinearSolverGetNumber0(problemUserNumber,controlLoopIdentifier,solverIndex, &
+      & splitIndex,regionUserNumber,linearSolver,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: problemUserNumber !<The user number of the problem number with the iterative linear solver to get the splitIdx'th split linear solver for.
+    INTEGER(INTG), INTENT(IN) :: controlLoopIdentifier !<The control loop identifier with the iterative linear solver to get the splitIdx'th split linear solver for.
+    INTEGER(INTG), INTENT(IN) :: solverIndex !<The solver index to get the block preconditioner from.
+    INTEGER(INTG), INTENT(IN) :: splitIndex !<The split to get the linear solver for. 
+    INTEGER(INTG), INTENT(IN) :: regionUserNumber !<The region user number.
+    TYPE(CMISSSolverType), INTENT(INOUT) :: linearSolver !<The linear solver to get.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(BlockPreconditionerType), POINTER :: blockPreconditioner
+    TYPE(PreconditionerType), POINTER :: preconditioner
+    TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
+    TYPE(REGION_TYPE), POINTER :: REGION
+    TYPE(SOLVER_TYPE), POINTER :: SOLVER
+    TYPE(VARYING_STRING) :: localError
+
+    ENTERS("CMISSBlockPreconditioner_SplitLinearSolverGetNumber0",err,error,*999)
+
+    NULLIFY(blockPreconditioner)
+    NULLIFY(preconditioner)
+    NULLIFY(PROBLEM)
+    NULLIFY(REGION)
+    NULLIFY(SOLVER)
+    CALL PROBLEM_USER_NUMBER_FIND(problemUserNumber,PROBLEM,err,error,*999)
+    IF(ASSOCIATED(PROBLEM)) THEN
+      CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
+      IF(ASSOCIATED(SOLVER)) THEN
+        CALL REGION_USER_NUMBER_FIND(regionUserNumber,REGION,err,error,*999)
+        IF(ASSOCIATED(REGION)) THEN
+          CALL SolverLinearIterativePreconditionerGet(SOLVER,preconditioner,err,error,*999)
+          CALL PreconditionerBlockPreconditionerGet(preconditioner,blockPreconditioner,err,error,*999)
+          CALL BlockPreconditionerSplitLinearSolverGet(blockPreconditioner,splitIndex, &
+            & linearSolver%SOLVER,err,error,*999)
+        ELSE
+          localError="A region with a user number of "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))// &
+            & " does not exist."
+          CALL FlagError(localError,err,error,*999)
+        END IF 
+      ELSE
+        localError="A solver with a solver index of "//TRIM(NUMBER_TO_VSTRING(solverIndex,"*",err,error))// &
+          & " does not exist."
+        CALL FlagError(localError,err,error,*999)
+      END IF 
+    ELSE
+      localError="A problem with an user number of "//TRIM(NUMBER_TO_VSTRING(problemUserNumber,"*",err,error))// &
+        & " does not exist."
+      CALL FlagError(localError,err,error,*999)
+    END IF
+
+    EXITS("CMISSBlockPreconditioner_SplitLinearSolverGetNumber0")
+    RETURN
+999 ERRORSEXITS("CMISSBlockPreconditioner_SplitLinearSolverGetNumber0",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSBlockPreconditioner_SplitLinearSolverGetNumber0
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Get the linear solver for the splitIdx'th split of the block preconditioner identified by an user number.
+  SUBROUTINE CMISSBlockPreconditioner_SplitLinearSolverGetNumber1(problemUserNumber,controlLoopIdentifiers,solverIndex, &
+      & splitIndex,regionUserNumber,linearSolver,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: problemUserNumber !<The user number of the problem number with the iterative linear solver to get the splitIdx'th split linear solver for.
+    INTEGER(INTG), INTENT(IN) :: controlLoopIdentifiers(:) !<The control loop identifier with the iterative linear solver to get the splitIdx'th split linear solver for.
+    INTEGER(INTG), INTENT(IN) :: solverIndex !<The solver index to get the block preconditioner from.
+    INTEGER(INTG), INTENT(IN) :: splitIndex !<The split to get the linear solver for. 
+    INTEGER(INTG), INTENT(IN) :: regionUserNumber !<The region user number.
+    TYPE(CMISSSolverType), INTENT(INOUT) :: linearSolver !<The linear solver to get.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(BlockPreconditionerType), POINTER :: blockPreconditioner
+    TYPE(PreconditionerType), POINTER :: preconditioner
+    TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
+    TYPE(REGION_TYPE), POINTER :: REGION
+    TYPE(SOLVER_TYPE), POINTER :: SOLVER
+    TYPE(VARYING_STRING) :: localError
+
+    ENTERS("CMISSBlockPreconditioner_SplitLinearSolverGetNumber1",err,error,*999)
+
+    NULLIFY(blockPreconditioner)
+    NULLIFY(preconditioner)
+    NULLIFY(PROBLEM)
+    NULLIFY(REGION)
+    NULLIFY(SOLVER)
+    CALL PROBLEM_USER_NUMBER_FIND(problemUserNumber,PROBLEM,err,error,*999)
+    IF(ASSOCIATED(PROBLEM)) THEN
+      CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers(:),solverIndex,SOLVER,err,error,*999)
+      IF(ASSOCIATED(SOLVER)) THEN
+        CALL REGION_USER_NUMBER_FIND(regionUserNumber,REGION,err,error,*999)
+        IF(ASSOCIATED(REGION)) THEN
+          CALL SolverLinearIterativePreconditionerGet(SOLVER,preconditioner,err,error,*999)
+          CALL PreconditionerBlockPreconditionerGet(preconditioner,blockPreconditioner,err,error,*999)
+          CALL BlockPreconditionerSplitLinearSolverGet(blockPreconditioner,splitIndex, &
+            & linearSolver%SOLVER,err,error,*999)
+        ELSE
+          localError="A region with a user number of "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))// &
+            & " does not exist."
+          CALL FlagError(localError,err,error,*999)
+        END IF 
+      ELSE
+        localError="A solver with a solver index of "//TRIM(NUMBER_TO_VSTRING(solverIndex,"*",err,error))// &
+          & " does not exist."
+        CALL FlagError(localError,err,error,*999)
+      END IF 
+    ELSE
+      localError="A problem with an user number of "//TRIM(NUMBER_TO_VSTRING(problemUserNumber,"*",err,error))// &
+        & " does not exist."
+      CALL FlagError(localError,err,error,*999)
+    END IF
+
+    EXITS("CMISSBlockPreconditioner_SplitLinearSolverGetNumber1")
+    RETURN
+999 ERRORSEXITS("CMISSBlockPreconditioner_SplitLinearSolverGetNumber1",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSBlockPreconditioner_SplitLinearSolverGetNumber1
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Get the linear solver for the splitIdx'th split of the block preconditioner identified by an object.
+  SUBROUTINE CMISSBlockPreconditioner_SplitLinearSolverGetObj(blockPreconditioner,splitIndex,linearSolver,err)
+
+    !Argument variables
+    TYPE(CMISSBlockPreconditionerType), INTENT(IN) :: blockPreconditioner !<The block preconditioner to get the splitIdx'th split linear solver for
+    INTEGER(INTG), INTENT(IN) :: splitIndex !<The splitIdx for which to get the linear solver for. 
+    TYPE(CMISSSolverType), INTENT(IN) :: linearSolver !<The linear solver to get.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    ENTERS("CMISSBlockPreconditioner_SplitLinearSolverGetObj",err,error,*999)
+
+    CALL BlockPreconditionerSplitLinearSolverGet(blockPreconditioner%blockPreconditioner,splitIndex, &
+      & linearSolver%SOLVER,err,error,*999)
+
+    EXITS("CMISSBlockPreconditioner_SplitLinearSolverGetObj")
+    RETURN
+999 ERRORSEXITS("CMISSBlockPreconditioner_SplitLinearSolverGetObj",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSBlockPreconditioner_SplitLinearSolverGetObj
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Sets the number of splits for the block preconditioner identified by an user number.
+  SUBROUTINE CMISSBlockPreconditioner_NumberOfSplitsSetNumber0(problemUserNumber,controlLoopIdentifier,solverIndex, &
+      & numberOfSplits,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: problemUserNumber !<The user number of the problem number with the iterative linear solver to set the block preconditioner's number of splits for.
+    INTEGER(INTG), INTENT(IN) :: controlLoopIdentifier !<The control loop identifier with the iterative linear solver to set the block preconditioner's number of splits for.
+    INTEGER(INTG), INTENT(IN) :: solverIndex !<The solver index to set the block preconditioner type for.
+    INTEGER(INTG), INTENT(IN) :: numberOfSplits !<The number of splits to set the block preconditioner for.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(BlockPreconditionerType), POINTER :: blockPreconditioner
+    TYPE(PreconditionerType), POINTER :: preconditioner
+    TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
+    TYPE(SOLVER_TYPE), POINTER :: SOLVER
+    TYPE(VARYING_STRING) :: localError
+
+    ENTERS("CMISSBlockPreconditioner_NumberOfSplitsSetNumber0",err,error,*999)
+
+    NULLIFY(blockPreconditioner)
+    NULLIFY(preconditioner)
+    NULLIFY(PROBLEM)
+    NULLIFY(SOLVER)
+    CALL PROBLEM_USER_NUMBER_FIND(problemUserNumber,PROBLEM,err,error,*999)
+    IF(ASSOCIATED(PROBLEM)) THEN
+      CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
+      IF(ASSOCIATED(SOLVER)) THEN
+        CALL SolverLinearIterativePreconditionerGet(SOLVER,preconditioner,err,error,*999)
+        CALL PreconditionerBlockPreconditionerGet(preconditioner,blockPreconditioner,err,error,*999)
+        CALL BlockPreconditionerNumberOfSplitsSet(blockPreconditioner,numberOfSplits,err,error,*999)
+      ELSE
+        localError="A solver with a solver index of "//TRIM(NUMBER_TO_VSTRING(solverIndex,"*",err,error))// &
+          & " does not exist."
+        CALL FlagError(localError,err,error,*999)
+      END IF 
+    ELSE
+      localError="A problem with an user number of "//TRIM(NUMBER_TO_VSTRING(problemUserNumber,"*",err,error))// &
+        & " does not exist."
+      CALL FlagError(localError,err,error,*999)
+    END IF
+
+    EXITS("CMISSBlockPreconditioner_NumberOfSplitsSetNumber0")
+    RETURN
+999 ERRORSEXITS("CMISSBlockPreconditioner_NumberOfSplitsSetNumber0",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSBlockPreconditioner_NumberOfSplitsSetNumber0
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Sets the number of splits for the block preconditioner identified by an user number.
+  SUBROUTINE CMISSBlockPreconditioner_NumberOfSplitsSetNumber1(problemUserNumber,controlLoopIdentifiers,solverIndex, &
+      & numberOfSplits,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: problemUserNumber !<The user number of the problem number with the iterative linear solver to set the block preconditioner's number of splits for.
+    INTEGER(INTG), INTENT(IN) :: controlLoopIdentifiers(:) !<The control loop identifier with the iterative linear solver to set the block preconditioner's block preconditioner number of splits for.
+    INTEGER(INTG), INTENT(IN) :: solverIndex !<The solver index to set the block preconditioner type for.
+    INTEGER(INTG), INTENT(IN) :: numberOfSplits !<The number of splits to set the block preconditioner for.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(BlockPreconditionerType), POINTER :: blockPreconditioner
+    TYPE(PreconditionerType), POINTER :: preconditioner
+    TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
+    TYPE(SOLVER_TYPE), POINTER :: SOLVER
+    TYPE(VARYING_STRING) :: localError
+
+    ENTERS("CMISSBlockPreconditioner_NumberOfSplitsSetNumber1",err,error,*999)
+
+    NULLIFY(blockPreconditioner)
+    NULLIFY(preconditioner)
+    NULLIFY(PROBLEM)
+    NULLIFY(SOLVER)
+    CALL PROBLEM_USER_NUMBER_FIND(problemUserNumber,PROBLEM,err,error,*999)
+    IF(ASSOCIATED(PROBLEM)) THEN
+      CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers(:),solverIndex,SOLVER,err,error,*999)
+      IF(ASSOCIATED(SOLVER)) THEN
+        CALL SolverLinearIterativePreconditionerGet(SOLVER,preconditioner,err,error,*999)
+        CALL PreconditionerBlockPreconditionerGet(preconditioner,blockPreconditioner,err,error,*999)
+        CALL BlockPreconditionerNumberOfSplitsSet(blockPreconditioner,numberOfSplits,err,error,*999)
+      ELSE
+        localError="A solver with a solver index of "//TRIM(NUMBER_TO_VSTRING(solverIndex,"*",err,error))// &
+          & " does not exist."
+        CALL FlagError(localError,err,error,*999)
+      END IF 
+    ELSE
+      localError="A problem with an user number of "//TRIM(NUMBER_TO_VSTRING(problemUserNumber,"*",err,error))// &
+        & " does not exist."
+      CALL FlagError(localError,err,error,*999)
+    END IF
+
+    EXITS("CMISSBlockPreconditioner_NumberOfSplitsSetNumber1")
+    RETURN
+999 ERRORSEXITS("CMISSBlockPreconditioner_NumberOfSplitsSetNumber1",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSBlockPreconditioner_NumberOfSplitsSetNumber1
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Sets the number of splits for the block preconditioner identified by an object.
+  SUBROUTINE CMISSBlockPreconditioner_NumberOfSplitsSetObj(blockPreconditioner,numberOfSplits,err)
+
+    !Argument variables
+    TYPE(CMISSBlockPreconditionerType), INTENT(IN) :: blockPreconditioner !<The block preconditioner to set the number of splits for.
+    INTEGER(INTG), INTENT(IN) :: numberOfSplits !<The number of splits to set for the block preconditioner
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    ENTERS("CMISSBlockPreconditioner_NumberOfSplitsSetObj",err,error,*999)
+
+    CALL BlockPreconditionerNumberOfSplitsSet(blockPreconditioner%blockPreconditioner,numberOfSplits,err,error,*999)
+
+    EXITS("CMISSBlockPreconditioner_NumberOfSplitsSetObj")
+    RETURN
+999 ERRORSEXITS("CMISSBlockPreconditioner_NumberOfSplitsSetObj",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSBlockPreconditioner_NumberOfSplitsSetObj
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Sets/changes the block preconditioner Schur complement preconditioner type for a block preconditioner identified by an user number.
+  SUBROUTINE CMISSBlockPreconditioner_SchurPreTypeSetNumber0(problemUserNumber,controlLoopIdentifier, &
+      & solverIndex,schurPreconditionerType,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: problemUserNumber !<The user number of the problem number with the iterative linear solver to set the block preconditioner's block preconditioner Schur complement preconditioner type for.
+    INTEGER(INTG), INTENT(IN) :: controlLoopIdentifier !<The control loop identifier with the iterative linear solver to set the block preconditioner's block preconditioner Schur complement preconditioner type for.
+    INTEGER(INTG), INTENT(IN) :: solverIndex !<The solver index to set the block preconditioner Schur complement preconditioner type for.
+    INTEGER(INTG), INTENT(IN) :: schurPreconditionerType !<The block preconditioner Schur complement preconditioner type to set. \see OPENCMISS_BlockPreconditionerSchurPreconditionerTypes
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(BlockPreconditionerType), POINTER :: blockPreconditioner
+    TYPE(PreconditionerType), POINTER :: preconditioner
+    TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
+    TYPE(SOLVER_TYPE), POINTER :: SOLVER
+    TYPE(VARYING_STRING) :: localError
+
+    ENTERS("CMISSBlockPreconditioner_SchurPreTypeSetNumber0",err,error,*999)
+
+    NULLIFY(blockPreconditioner)
+    NULLIFY(preconditioner)
+    NULLIFY(PROBLEM)
+    NULLIFY(SOLVER)
+    CALL PROBLEM_USER_NUMBER_FIND(problemUserNumber,PROBLEM,err,error,*999)
+    IF(ASSOCIATED(PROBLEM)) THEN
+      CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
+      IF(ASSOCIATED(SOLVER)) THEN
+        CALL SolverLinearIterativePreconditionerGet(SOLVER,preconditioner,err,error,*999)
+        CALL PreconditionerBlockPreconditionerGet(preconditioner,blockPreconditioner,err,error,*999)
+        CALL BlockPreconditionerSchurPreTypeSet(blockPreconditioner, &
+          & schurPreconditionerType,err,error,*999)
+      ELSE
+        localError="A solver with a solver index of "//TRIM(NUMBER_TO_VSTRING(solverIndex,"*",err,error))// &
+          & " does not exist."
+        CALL FlagError(localError,err,error,*999)
+      END IF 
+    ELSE
+      localError="A problem with an user number of "//TRIM(NUMBER_TO_VSTRING(problemUserNumber,"*",err,error))// &
+        & " does not exist."
+      CALL FlagError(localError,err,error,*999)
+    END IF
+
+    EXITS("CMISSBlockPreconditioner_SchurPreTypeSetNumber0")
+    RETURN
+999 ERRORSEXITS("CMISSBlockPreconditioner_SchurPreTypeSetNumber0",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSBlockPreconditioner_SchurPreTypeSetNumber0
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Sets/changes the block preconditioner Schur complement preconditioner type for a block preconditioner identified by an user number.
+  SUBROUTINE CMISSBlockPreconditioner_SchurPreTypeSetNumber1(problemUserNumber, &
+      & controlLoopIdentifiers,solverIndex,schurPreconditionerType,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: problemUserNumber !<The user number of the problem number with the iterative linear solver to set the block preconditioner's block preconditioner Schur complement preconditioner type for.
+    INTEGER(INTG), INTENT(IN) :: controlLoopIdentifiers(:) !<The control loop identifier with the iterative linear solver to set the block preconditioner's block preconditioner Schur complement preconditioner type for.
+    INTEGER(INTG), INTENT(IN) :: solverIndex !<The solver index to set the block preconditioner Schur complement preconditioner type for.
+    INTEGER(INTG), INTENT(IN) :: schurPreconditionerType !<The block preconditioner Schur complement preconditioner type to set. \see OPENCMISS_BlockPreconditionerSchurPreconditionerTypes
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(BlockPreconditionerType), POINTER :: blockPreconditioner
+    TYPE(PreconditionerType), POINTER :: preconditioner
+    TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
+    TYPE(SOLVER_TYPE), POINTER :: SOLVER
+    TYPE(VARYING_STRING) :: localError
+
+    ENTERS("CMISSBlockPreconditioner_SchurPreTypeSetNumber1",err,error,*999)
+
+    NULLIFY(blockPreconditioner)
+    NULLIFY(preconditioner)
+    NULLIFY(PROBLEM)
+    NULLIFY(SOLVER)
+    CALL PROBLEM_USER_NUMBER_FIND(problemUserNumber,PROBLEM,err,error,*999)
+    IF(ASSOCIATED(PROBLEM)) THEN
+      CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers(:),solverIndex,SOLVER,err,error,*999)
+      IF(ASSOCIATED(SOLVER)) THEN
+        CALL SolverLinearIterativePreconditionerGet(SOLVER,preconditioner,err,error,*999)
+        CALL PreconditionerBlockPreconditionerGet(preconditioner,blockPreconditioner,err,error,*999)
+        CALL BlockPreconditionerSchurPreTypeSet(blockPreconditioner, &
+          & schurPreconditionerType,err,error,*999)
+      ELSE
+        localError="A solver with a solver index of "//TRIM(NUMBER_TO_VSTRING(solverIndex,"*",err,error))// &
+          & " does not exist."
+        CALL FlagError(localError,err,error,*999)
+      END IF 
+    ELSE
+      localError="A problem with an user number of "//TRIM(NUMBER_TO_VSTRING(problemUserNumber,"*",err,error))// &
+        & " does not exist."
+      CALL FlagError(localError,err,error,*999)
+    END IF
+
+    EXITS("CMISSBlockPreconditioner_SchurPreTypeSetNumber1")
+    RETURN
+999 ERRORSEXITS("CMISSBlockPreconditioner_SchurPreTypeSetNumber1",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSBlockPreconditioner_SchurPreTypeSetNumber1
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Sets/changes the block preconditioner Schur complement preconditioner type identified by an object.
+  SUBROUTINE CMISSBlockPreconditioner_SchurPreTypeSetObj(blockPreconditioner, &
+      & schurPreconditionerType,err)
+
+    !Argument variables
+    TYPE(CMISSBlockPreconditionerType), INTENT(IN) :: blockPreconditioner !<The block preconditioner to set the block preconditioner Schur complement preconditioner type for.
+    INTEGER(INTG), INTENT(IN) :: schurPreconditionerType !<The block preconditioner Schur complement preconditioner type to set. \see OPENCMISS_BlockPreconditionerSchurPreconditionerTypes
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    ENTERS("CMISSBlockPreconditioner_SchurPreTypeSetObj",err,error,*999)
+
+    CALL BlockPreconditionerSchurPreTypeSet(blockPreconditioner%blockPreconditioner, &
+      & schurPreconditionerType,err,error,*999)
+
+    EXITS("CMISSBlockPreconditioner_SchurPreTypeSetObj")
+    RETURN
+999 ERRORSEXITS("CMISSBlockPreconditioner_SchurPreTypeSetObj",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSBlockPreconditioner_SchurPreTypeSetObj
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Sets/changes the block preconditioner Schur factorisation type for a block preconditioner identified by an user number.
+  SUBROUTINE CMISSBlockPreconditioner_SchurFactorisationTypeSetNumber0(problemUserNumber,controlLoopIdentifier,solverIndex, &
+      & schurFactorisationType,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: problemUserNumber !<The user number of the problem number with the iterative linear solver to set the block preconditioner's block preconditioner Schur factorisation type for.
+    INTEGER(INTG), INTENT(IN) :: controlLoopIdentifier !<The control loop identifier with the iterative linear solver to set the block preconditioner's block preconditioner Schur factorisation type for.
+    INTEGER(INTG), INTENT(IN) :: solverIndex !<The solver index to set the block preconditioner Schur factorisation type for.
+    INTEGER(INTG), INTENT(IN) :: schurFactorisationType !<The block preconditioner Schur factorisation type to set. \see OPENCMISS_BlockPreconditionerSchurFactorisationTypes
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(BlockPreconditionerType), POINTER :: blockPreconditioner
+    TYPE(PreconditionerType), POINTER :: preconditioner
+    TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
+    TYPE(SOLVER_TYPE), POINTER :: SOLVER
+    TYPE(VARYING_STRING) :: localError
+
+    ENTERS("CMISSBlockPreconditioner_SchurFactorisationTypeSetNumber0",err,error,*999)
+
+    NULLIFY(blockPreconditioner)
+    NULLIFY(preconditioner)
+    NULLIFY(PROBLEM)
+    NULLIFY(SOLVER)
+    CALL PROBLEM_USER_NUMBER_FIND(problemUserNumber,PROBLEM,err,error,*999)
+    IF(ASSOCIATED(PROBLEM)) THEN
+      CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
+      IF(ASSOCIATED(SOLVER)) THEN
+        CALL SolverLinearIterativePreconditionerGet(SOLVER,preconditioner,err,error,*999)
+        CALL PreconditionerBlockPreconditionerGet(preconditioner,blockPreconditioner,err,error,*999)
+        CALL BlockPreconditionerSchurFactorisationTypeSet(blockPreconditioner,schurFactorisationType,err,error,*999)
+      ELSE
+        localError="A solver with a solver index of "//TRIM(NUMBER_TO_VSTRING(solverIndex,"*",err,error))// &
+          & " does not exist."
+        CALL FlagError(localError,err,error,*999)
+      END IF 
+    ELSE
+      localError="A problem with an user number of "//TRIM(NUMBER_TO_VSTRING(problemUserNumber,"*",err,error))// &
+        & " does not exist."
+      CALL FlagError(localError,err,error,*999)
+    END IF
+
+    EXITS("CMISSBlockPreconditioner_SchurFactorisationTypeSetNumber0")
+    RETURN
+999 ERRORSEXITS("CMISSBlockPreconditioner_SchurFactorisationTypeSetNumber0",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSBlockPreconditioner_SchurFactorisationTypeSetNumber0
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Sets/changes the block preconditioner Schur factorisation type for a block preconditioner identified by an user number.
+  SUBROUTINE CMISSBlockPreconditioner_SchurFactorisationTypeSetNumber1(problemUserNumber,controlLoopIdentifiers,solverIndex, &
+      & schurFactorisationType,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: problemUserNumber !<The user number of the problem number with the iterative linear solver to set the block preconditioner's block preconditioner Schur factorisation type for.
+    INTEGER(INTG), INTENT(IN) :: controlLoopIdentifiers(:) !<The control loop identifier with the iterative linear solver to set the block preconditioner's block preconditioner Schur factorisation type for.
+    INTEGER(INTG), INTENT(IN) :: solverIndex !<The solver index to set the block preconditioner Schur factorisation type for.
+    INTEGER(INTG), INTENT(IN) :: schurFactorisationType !<The block preconditioner Schur factorisation type to set. \see OPENCMISS_BlockPreconditionerSchurFactorisationTypes
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(BlockPreconditionerType), POINTER :: blockPreconditioner
+    TYPE(PreconditionerType), POINTER :: preconditioner
+    TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
+    TYPE(SOLVER_TYPE), POINTER :: SOLVER
+    TYPE(VARYING_STRING) :: localError
+
+    ENTERS("CMISSBlockPreconditioner_SchurFactorisationTypeSetNumber1",err,error,*999)
+
+    NULLIFY(blockPreconditioner)
+    NULLIFY(preconditioner)
+    NULLIFY(PROBLEM)
+    NULLIFY(SOLVER)
+    CALL PROBLEM_USER_NUMBER_FIND(problemUserNumber,PROBLEM,err,error,*999)
+    IF(ASSOCIATED(PROBLEM)) THEN
+      CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers(:),solverIndex,SOLVER,err,error,*999)
+      IF(ASSOCIATED(SOLVER)) THEN
+        CALL SolverLinearIterativePreconditionerGet(SOLVER,preconditioner,err,error,*999)
+        CALL PreconditionerBlockPreconditionerGet(preconditioner,blockPreconditioner,err,error,*999)
+        CALL BlockPreconditionerSchurFactorisationTypeSet(blockPreconditioner,schurFactorisationType,err,error,*999)
+      ELSE
+        localError="A solver with a solver index of "//TRIM(NUMBER_TO_VSTRING(solverIndex,"*",err,error))// &
+          & " does not exist."
+        CALL FlagError(localError,err,error,*999)
+      END IF 
+    ELSE
+      localError="A problem with an user number of "//TRIM(NUMBER_TO_VSTRING(problemUserNumber,"*",err,error))// &
+        & " does not exist."
+      CALL FlagError(localError,err,error,*999)
+    END IF
+
+    EXITS("CMISSBlockPreconditioner_SchurFactorisationTypeSetNumber1")
+    RETURN
+999 ERRORSEXITS("CMISSBlockPreconditioner_SchurFactorisationTypeSetNumber1",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSBlockPreconditioner_SchurFactorisationTypeSetNumber1
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Sets/changes the block preconditioner Schur factorisation type identified by an object.
+  SUBROUTINE CMISSBlockPreconditioner_SchurFactorisationTypeSetObj(blockPreconditioner,schurFactorisationType,err)
+
+    !Argument variables
+    TYPE(CMISSBlockPreconditionerType), INTENT(IN) :: blockPreconditioner !<The block preconditioner to set the block preconditioner Schur factorisation type for.
+    INTEGER(INTG), INTENT(IN) :: schurFactorisationType !<The block preconditioner Schur factorisation type to set. \see OPENCMISS_BlockPreconditionerSchurFactorisationTypes
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    ENTERS("CMISSBlockPreconditioner_SchurFactorisationTypeSetObj",err,error,*999)
+
+    CALL BlockPreconditionerSchurFactorisationTypeSet(blockPreconditioner%blockPreconditioner,schurFactorisationType, &
+      & err,error,*999)
+
+    EXITS("CMISSBlockPreconditioner_SchurFactorisationTypeSetObj")
+    RETURN
+999 ERRORSEXITS("CMISSBlockPreconditioner_SchurFactorisationTypeSetObj",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSBlockPreconditioner_SchurFactorisationTypeSetObj
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Sets/changes the block preconditioner type for a block preconditioner identified by an user number.
+  SUBROUTINE CMISSBlockPreconditioner_TypeSetNumber0(problemUserNumber,controlLoopIdentifier,solverIndex, &
+      & iterativeBlockPreconditionerType,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: problemUserNumber !<The user number of the problem number with the iterative linear solver to set the block preconditioner's block preconditioner type for.
+    INTEGER(INTG), INTENT(IN) :: controlLoopIdentifier !<The control loop identifier with the iterative linear solver to set the block preconditioner's block preconditioner type for.
+    INTEGER(INTG), INTENT(IN) :: solverIndex !<The solver index to set the block preconditioner type for.
+    INTEGER(INTG), INTENT(IN) :: iterativeBlockPreconditionerType !<The block preconditioner type to set. \see OPENCMISS_BlockPreconditionerTypes
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(BlockPreconditionerType), POINTER :: blockPreconditioner
+    TYPE(PreconditionerType), POINTER :: preconditioner
+    TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
+    TYPE(SOLVER_TYPE), POINTER :: SOLVER
+    TYPE(VARYING_STRING) :: localError
+
+    ENTERS("CMISSBlockPreconditioner_TypeSetNumber0",err,error,*999)
+
+    NULLIFY(blockPreconditioner)
+    NULLIFY(preconditioner)
+    NULLIFY(PROBLEM)
+    NULLIFY(SOLVER)
+    CALL PROBLEM_USER_NUMBER_FIND(problemUserNumber,PROBLEM,err,error,*999)
+    IF(ASSOCIATED(PROBLEM)) THEN
+      CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
+      IF(ASSOCIATED(SOLVER)) THEN
+        CALL SolverLinearIterativePreconditionerGet(SOLVER,preconditioner,err,error,*999)
+        CALL PreconditionerBlockPreconditionerGet(preconditioner,blockPreconditioner,err,error,*999)
+        CALL BlockPreconditionerTypeSet(blockPreconditioner,iterativeBlockPreconditionerType,err,error,*999)
+      ELSE
+        localError="A solver with a solver index of "//TRIM(NUMBER_TO_VSTRING(solverIndex,"*",err,error))// &
+          & " does not exist."
+        CALL FlagError(localError,err,error,*999)
+      END IF 
+    ELSE
+      localError="A problem with an user number of "//TRIM(NUMBER_TO_VSTRING(problemUserNumber,"*",err,error))// &
+        & " does not exist."
+      CALL FlagError(localError,err,error,*999)
+    END IF
+
+    EXITS("CMISSBlockPreconditioner_TypeSetNumber0")
+    RETURN
+999 ERRORSEXITS("CMISSBlockPreconditioner_TypeSetNumber0",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSBlockPreconditioner_TypeSetNumber0
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Sets/changes the block preconditioner type for a block preconditioner identified by an user number.
+  SUBROUTINE CMISSBlockPreconditioner_TypeSetNumber1(problemUserNumber,controlLoopIdentifiers,solverIndex, &
+      & iterativeBlockPreconditionerType,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: problemUserNumber !<The user number of the problem number with the iterative linear solver to set the block preconditioner's block preconditioner type for.
+    INTEGER(INTG), INTENT(IN) :: controlLoopIdentifiers(:) !<The control loop identifier with the iterative linear solver to set the block preconditioner's block preconditioner type for.
+    INTEGER(INTG), INTENT(IN) :: solverIndex !<The solver index to set the block preconditioner type for.
+    INTEGER(INTG), INTENT(IN) :: iterativeBlockPreconditionerType !<The block preconditioner type to set. \see OPENCMISS_BlockPreconditionerTypes
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(BlockPreconditionerType), POINTER :: blockPreconditioner
+    TYPE(PreconditionerType), POINTER :: preconditioner
+    TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
+    TYPE(SOLVER_TYPE), POINTER :: SOLVER
+    TYPE(VARYING_STRING) :: localError
+
+    ENTERS("CMISSBlockPreconditioner_TypeSetNumber1",err,error,*999)
+
+    NULLIFY(blockPreconditioner)
+    NULLIFY(preconditioner)
+    NULLIFY(PROBLEM)
+    NULLIFY(SOLVER)
+    CALL PROBLEM_USER_NUMBER_FIND(problemUserNumber,PROBLEM,err,error,*999)
+    IF(ASSOCIATED(PROBLEM)) THEN
+      CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers(:),solverIndex,SOLVER,err,error,*999)
+      IF(ASSOCIATED(SOLVER)) THEN
+        CALL SolverLinearIterativePreconditionerGet(SOLVER,preconditioner,err,error,*999)
+        CALL PreconditionerBlockPreconditionerGet(preconditioner,blockPreconditioner,err,error,*999)
+        CALL BlockPreconditionerTypeSet(blockPreconditioner,iterativeBlockPreconditionerType,err,error,*999)
+      ELSE
+        localError="A solver with a solver index of "//TRIM(NUMBER_TO_VSTRING(solverIndex,"*",err,error))// &
+          & " does not exist."
+        CALL FlagError(localError,err,error,*999)
+      END IF 
+    ELSE
+      localError="A problem with an user number of "//TRIM(NUMBER_TO_VSTRING(problemUserNumber,"*",err,error))// &
+        & " does not exist."
+      CALL FlagError(localError,err,error,*999)
+    END IF
+
+    EXITS("CMISSBlockPreconditioner_TypeSetNumber1")
+    RETURN
+999 ERRORSEXITS("CMISSBlockPreconditioner_TypeSetNumber1",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSBlockPreconditioner_TypeSetNumber1
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Sets/changes the block preconditioner type identified by an object.
+  SUBROUTINE CMISSBlockPreconditioner_TypeSetObj(blockPreconditioner,iterativeBlockPreconditionerType,err)
+
+    !Argument variables
+    TYPE(CMISSBlockPreconditionerType), INTENT(IN) :: blockPreconditioner !<The block preconditioner to set the block preconditioner type for.
+    INTEGER(INTG), INTENT(IN) :: iterativeBlockPreconditionerType !<The block preconditioner type to set. \see OPENCMISS_BlockPreconditionerTypes
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    ENTERS("CMISSBlockPreconditioner_TypeSetObj",err,error,*999)
+
+    CALL BlockPreconditionerTypeSet(blockPreconditioner%blockPreconditioner,iterativeBlockPreconditionerType,err,error,*999)
+
+    EXITS("CMISSBlockPreconditioner_TypeSetObj")
+    RETURN
+999 ERRORSEXITS("CMISSBlockPreconditioner_TypeSetObj",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSBlockPreconditioner_TypeSetObj
 
 !!==================================================================================================================================
 !!
@@ -11848,7 +13309,7 @@ CONTAINS
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_EQUATIONS_TYPE), POINTER :: SOLVER_EQUATIONS
     TYPE(BOUNDARY_CONDITIONS_TYPE), POINTER :: BOUNDARY_CONDITIONS
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSBoundaryConditions_DestroyNumber0",err,error,*999)
 
@@ -11863,16 +13324,16 @@ CONTAINS
         IF(ASSOCIATED(BOUNDARY_CONDITIONS)) THEN
           CALL BOUNDARY_CONDITIONS_DESTROY(BOUNDARY_CONDITIONS,err,error,*999)
         ELSE
-          LOCAL_ERROR="Solver equations boundary conditions is not associated."
-          CALL FlagError(LOCAL_ERROR,err,error,*999)
+          localError="Solver equations boundary conditions is not associated."
+          CALL FlagError(localError,err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="Solver equations with the given solver index and control loop identifier do not exist."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        localError="Solver equations with the given solver index and control loop identifier do not exist."
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSBoundaryConditions_DestroyNumber0")
@@ -11899,7 +13360,7 @@ CONTAINS
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_EQUATIONS_TYPE), POINTER :: SOLVER_EQUATIONS
     TYPE(BOUNDARY_CONDITIONS_TYPE), POINTER :: BOUNDARY_CONDITIONS
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSBoundaryConditions_DestroyNumber1",err,error,*999)
 
@@ -11914,16 +13375,16 @@ CONTAINS
         IF(ASSOCIATED(BOUNDARY_CONDITIONS)) THEN
           CALL BOUNDARY_CONDITIONS_DESTROY(BOUNDARY_CONDITIONS,err,error,*999)
         ELSE
-          LOCAL_ERROR="Solver equations boundary conditions is not associated."
-          CALL FlagError(LOCAL_ERROR,err,error,*999)
+          localError="Solver equations boundary conditions is not associated."
+          CALL FlagError(localError,err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="Solver equations with the given solver index and control loop identifier do not exist."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        localError="Solver equations with the given solver index and control loop identifier do not exist."
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSBoundaryConditions_DestroyNumber1")
@@ -11983,7 +13444,7 @@ CONTAINS
     TYPE(SOLVER_EQUATIONS_TYPE), POINTER :: SOLVER_EQUATIONS
     TYPE(BOUNDARY_CONDITIONS_TYPE), POINTER :: BOUNDARY_CONDITIONS
     TYPE(FIELD_TYPE), POINTER :: DEPENDENT_FIELD
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSBoundaryConditions_AddConstantNumber",err,error,*999)
 
@@ -12005,9 +13466,9 @@ CONTAINS
               CALL BOUNDARY_CONDITIONS_ADD_CONSTANT(BOUNDARY_CONDITIONS,DEPENDENT_FIELD,variableType,componentNumber, &
                 & condition,value,err,error,*999)
             ELSE
-              LOCAL_ERROR="A field with a user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+              localError="A field with a user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
                 & " does not exist."
-              CALL FlagError(LOCAL_ERROR,err,error,*999)
+              CALL FlagError(localError,err,error,*999)
             END IF
           ELSE
             CALL FlagError("The solver equations boundary conditions are not associated.",err,error,*999)
@@ -12016,12 +13477,12 @@ CONTAINS
           CALL FlagError("The solver equations are not associated.",err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="A problem with a user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        localError="A problem with a user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with a user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with a user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSBoundaryConditions_AddConstantNumber")
@@ -12088,7 +13549,7 @@ CONTAINS
     TYPE(SOLVER_EQUATIONS_TYPE), POINTER :: SOLVER_EQUATIONS
     TYPE(BOUNDARY_CONDITIONS_TYPE), POINTER :: BOUNDARY_CONDITIONS
     TYPE(FIELD_TYPE), POINTER :: DEPENDENT_FIELD
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSBoundaryConditions_SetConstantNumber",err,error,*999)
 
@@ -12110,9 +13571,9 @@ CONTAINS
               CALL BOUNDARY_CONDITIONS_SET_CONSTANT(BOUNDARY_CONDITIONS,DEPENDENT_FIELD,variableType,componentNumber, &
                 & condition,value,err,error,*999)
             ELSE
-              LOCAL_ERROR="A field with a user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+              localError="A field with a user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
                 & " does not exist."
-              CALL FlagError(LOCAL_ERROR,err,error,*999)
+              CALL FlagError(localError,err,error,*999)
             END IF
           ELSE
             CALL FlagError("The solver equations boundary conditions are not associated.",err,error,*999)
@@ -12121,12 +13582,12 @@ CONTAINS
           CALL FlagError("The solver equations are not associated.",err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="A problem with a user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        localError="A problem with a user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with a user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with a user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSBoundaryConditions_SetConstantNumber")
@@ -12193,7 +13654,7 @@ CONTAINS
     TYPE(SOLVER_EQUATIONS_TYPE), POINTER :: SOLVER_EQUATIONS
     TYPE(BOUNDARY_CONDITIONS_TYPE), POINTER :: BOUNDARY_CONDITIONS
     TYPE(FIELD_TYPE), POINTER :: DEPENDENT_FIELD
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSBoundaryConditions_AddElementNumber",err,error,*999)
 
@@ -12215,9 +13676,9 @@ CONTAINS
               CALL BOUNDARY_CONDITIONS_ADD_ELEMENT(BOUNDARY_CONDITIONS,DEPENDENT_FIELD,variableType,elementUserNumber, &
                 & componentNumber,condition,value,err,error,*999)
             ELSE
-              LOCAL_ERROR="A field with a user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+              localError="A field with a user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
                 & " does not exist."
-              CALL FlagError(LOCAL_ERROR,err,error,*999)
+              CALL FlagError(localError,err,error,*999)
             END IF
           ELSE
             CALL FlagError("The solver equations boundary conditions are not associated.",err,error,*999)
@@ -12226,12 +13687,12 @@ CONTAINS
           CALL FlagError("The solver equations are not associated.",err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="A problem with a user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        localError="A problem with a user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with a user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with a user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSBoundaryConditions_AddElementNumber")
@@ -12300,7 +13761,7 @@ CONTAINS
     TYPE(SOLVER_EQUATIONS_TYPE), POINTER :: SOLVER_EQUATIONS
     TYPE(BOUNDARY_CONDITIONS_TYPE), POINTER :: BOUNDARY_CONDITIONS
     TYPE(FIELD_TYPE), POINTER :: DEPENDENT_FIELD
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSBoundaryConditions_SetElementNumber",err,error,*999)
 
@@ -12322,9 +13783,9 @@ CONTAINS
               CALL BOUNDARY_CONDITIONS_SET_ELEMENT(BOUNDARY_CONDITIONS,DEPENDENT_FIELD,variableType,elementUserNumber, &
                 & componentNumber,condition,value,err,error,*999)
             ELSE
-              LOCAL_ERROR="A field with a user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+              localError="A field with a user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
                 & " does not exist."
-              CALL FlagError(LOCAL_ERROR,err,error,*999)
+              CALL FlagError(localError,err,error,*999)
             END IF
           ELSE
             CALL FlagError("The solver equations boundary conditions are not associated.",err,error,*999)
@@ -12333,12 +13794,12 @@ CONTAINS
           CALL FlagError("The solver equations are not associated.",err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="A problem with a user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        localError="A problem with a user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with a user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with a user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSBoundaryConditions_SetElementNumber")
@@ -12409,7 +13870,7 @@ CONTAINS
     TYPE(SOLVER_EQUATIONS_TYPE), POINTER :: SOLVER_EQUATIONS
     TYPE(BOUNDARY_CONDITIONS_TYPE), POINTER :: BOUNDARY_CONDITIONS
     TYPE(FIELD_TYPE), POINTER :: DEPENDENT_FIELD
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSBoundaryConditions_AddNodeNumber",err,error,*999)
 
@@ -12431,9 +13892,9 @@ CONTAINS
               CALL BOUNDARY_CONDITIONS_ADD_NODE(BOUNDARY_CONDITIONS,DEPENDENT_FIELD,variableType,versionNumber,derivativeNumber, &
                 & nodeUserNumber,componentNumber,condition,value,err,error,*999)
             ELSE
-              LOCAL_ERROR="A field with a user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+              localError="A field with a user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
                 & " does not exist."
-              CALL FlagError(LOCAL_ERROR,err,error,*999)
+              CALL FlagError(localError,err,error,*999)
             END IF
           ELSE
             CALL FlagError("The solver equations boundary conditions are not associated.",err,error,*999)
@@ -12442,12 +13903,12 @@ CONTAINS
           CALL FlagError("The solver equations are not associated.",err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="A problem with a user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        localError="A problem with a user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with a user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with a user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSBoundaryConditions_AddNodeNumber")
@@ -12520,7 +13981,7 @@ CONTAINS
     TYPE(SOLVER_EQUATIONS_TYPE), POINTER :: SOLVER_EQUATIONS
     TYPE(BOUNDARY_CONDITIONS_TYPE), POINTER :: BOUNDARY_CONDITIONS
     TYPE(FIELD_TYPE), POINTER :: DEPENDENT_FIELD
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSBoundaryConditions_SetNodeNumber0",err,error,*999)
 
@@ -12542,9 +14003,9 @@ CONTAINS
               CALL BOUNDARY_CONDITIONS_SET_NODE(BOUNDARY_CONDITIONS,DEPENDENT_FIELD,variableType,versionNumber,derivativeNumber, &
                 & nodeUserNumber,componentNumber,condition,value,err,error,*999)
             ELSE
-              LOCAL_ERROR="A field with a user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+              localError="A field with a user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
                 & " does not exist."
-              CALL FlagError(LOCAL_ERROR,err,error,*999)
+              CALL FlagError(localError,err,error,*999)
             END IF
           ELSE
             CALL FlagError("The solver equations boundary conditions are not associated.",err,error,*999)
@@ -12553,12 +14014,12 @@ CONTAINS
           CALL FlagError("The solver equations are not associated.",err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="A problem with a user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        localError="A problem with a user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with a user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with a user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSBoundaryConditions_SetNodeNumber0")
@@ -12597,7 +14058,7 @@ CONTAINS
     TYPE(SOLVER_EQUATIONS_TYPE), POINTER :: SOLVER_EQUATIONS
     TYPE(BOUNDARY_CONDITIONS_TYPE), POINTER :: BOUNDARY_CONDITIONS
     TYPE(FIELD_TYPE), POINTER :: DEPENDENT_FIELD
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSBoundaryConditions_SetNodeNumber1",err,error,*999)
 
@@ -12619,9 +14080,9 @@ CONTAINS
               CALL BOUNDARY_CONDITIONS_SET_NODE(BOUNDARY_CONDITIONS,DEPENDENT_FIELD,variableType,versionNumber,derivativeNumber, &
                 & nodeUserNumber,componentNumber,condition,value,err,error,*999)
             ELSE
-              LOCAL_ERROR="A field with a user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+              localError="A field with a user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
                 & " does not exist."
-              CALL FlagError(LOCAL_ERROR,err,error,*999)
+              CALL FlagError(localError,err,error,*999)
             END IF
           ELSE
             CALL FlagError("The solver equations boundary conditions are not associated.",err,error,*999)
@@ -12630,12 +14091,12 @@ CONTAINS
           CALL FlagError("The solver equations are not associated.",err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="A problem with a user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        localError="A problem with a user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with a user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with a user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSBoundaryConditions_SetNodeNumber1")
@@ -13151,7 +14612,7 @@ CONTAINS
     !Local variables
     TYPE(CELLML_TYPE), POINTER :: CELLML
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSCellML_VariableSetAsKnownNumberC",err,error,*999)
 
@@ -13163,14 +14624,14 @@ CONTAINS
       IF(ASSOCIATED(CELLML)) THEN
         CALL CELLML_VARIABLE_SET_AS_KNOWN(CELLML,CellMLModelUserNumber,variableID,err,error,*999)
       ELSE
-        LOCAL_ERROR="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
+        localError="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
           & " does not exist in region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSCellML_VariableSetAsKnownNumberC")
@@ -13223,7 +14684,7 @@ CONTAINS
     !Local variables
     TYPE(CELLML_TYPE), POINTER :: CELLML
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSCellML_VariableSetAsKnownNumberVS",err,error,*999)
 
@@ -13235,14 +14696,14 @@ CONTAINS
       IF(ASSOCIATED(CELLML)) THEN
         CALL CELLML_VARIABLE_SET_AS_KNOWN(CELLML,CellMLModelUserNumber,variableID,err,error,*999)
       ELSE
-        LOCAL_ERROR="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
+        localError="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
           & " does not exist in region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSCellML_VariableSetAsKnownNumberVS")
@@ -13295,7 +14756,7 @@ CONTAINS
     !Local variables
     TYPE(CELLML_TYPE), POINTER :: CELLML
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSCellML_VariableSetAsWantedNumberC",err,error,*999)
 
@@ -13307,14 +14768,14 @@ CONTAINS
       IF(ASSOCIATED(CELLML)) THEN
         CALL CELLML_VARIABLE_SET_AS_WANTED(CELLML,CellMLModelUserNumber,variableID,err,error,*999)
       ELSE
-        LOCAL_ERROR="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
+        localError="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
           & " does not exist in region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSCellML_VariableSetAsWantedNumberC")
@@ -13367,7 +14828,7 @@ CONTAINS
     !Local variables
     TYPE(CELLML_TYPE), POINTER :: CELLML
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSCellML_VariableSetAsWantedNumberVS",err,error,*999)
 
@@ -13379,14 +14840,14 @@ CONTAINS
       IF(ASSOCIATED(CELLML)) THEN
         CALL CELLML_VARIABLE_SET_AS_WANTED(CELLML,CellMLModelUserNumber,variableID,err,error,*999)
       ELSE
-        LOCAL_ERROR="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
+        localError="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
           & " does not exist in region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSCellML_VariableSetAsWantedNumberVS")
@@ -13446,7 +14907,7 @@ CONTAINS
     TYPE(CELLML_TYPE), POINTER :: CELLML
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSCellML_CreateCellMLToFieldMapNumberC",err,error,*999)
 
@@ -13462,19 +14923,19 @@ CONTAINS
           CALL CELLML_CREATE_CELLML_TO_FIELD_MAP(CELLML,CellMLModelUserNumber,variableID,CellMLParameterSet, &
             & FIELD,variableType,componentNumber,fieldParameterSet,err,error,*999)
         ELSE
-          LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+          localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
             & " does not exist in region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-          CALL FlagError(LOCAL_ERROR,err,error,*999)
+          CALL FlagError(localError,err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
+        localError="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
           & " does not exist in region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSCellML_CreateCellMLToFieldMapNumberC")
@@ -13541,7 +15002,7 @@ CONTAINS
     TYPE(CELLML_TYPE), POINTER :: CELLML
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSCellML_CreateCellMLToFieldMapNumberVS",err,error,*999)
 
@@ -13557,19 +15018,19 @@ CONTAINS
           CALL CELLML_CREATE_CELLML_TO_FIELD_MAP(CELLML,CellMLModelUserNumber,variableID,CellMLParameterSet, &
             & FIELD,variableType,componentNumber,fieldParameterSet,err,error,*999)
         ELSE
-          LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+          localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
             & " does not exist in region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-          CALL FlagError(LOCAL_ERROR,err,error,*999)
+          CALL FlagError(localError,err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
+        localError="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
           & " does not exist in region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSCellML_CreateCellMLToFieldMapNumberVS")
@@ -13636,7 +15097,7 @@ CONTAINS
     TYPE(CELLML_TYPE), POINTER :: CELLML
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSCellML_CreateFieldToCellMLMapNumberC",err,error,*999)
 
@@ -13652,19 +15113,19 @@ CONTAINS
           CALL CELLML_CREATE_FIELD_TO_CELLML_MAP(CELLML,FIELD,variableType,componentNumber,fieldParameterSet, &
             & CellMLModelUserNumber,variableID,CellMLParameterSet,err,error,*999)
         ELSE
-          LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+          localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
             & " does not exist in region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-          CALL FlagError(LOCAL_ERROR,err,error,*999)
+          CALL FlagError(localError,err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
+        localError="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
           & " does not exist in region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSCellML_CreateFieldToCellMLMapNumberC")
@@ -13731,7 +15192,7 @@ CONTAINS
     TYPE(CELLML_TYPE), POINTER :: CELLML
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSCellML_CreateFieldToCellMLMapNumberVS",err,error,*999)
 
@@ -13747,19 +15208,19 @@ CONTAINS
           CALL CELLML_CREATE_FIELD_TO_CELLML_MAP(CELLML,FIELD,variableType,componentNumber,fieldParameterSet, &
             & CellMLModelUserNumber,variableID,CellMLParameterSet,err,error,*999)
         ELSE
-          LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+          localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
             & " does not exist in region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-          CALL FlagError(LOCAL_ERROR,err,error,*999)
+          CALL FlagError(localError,err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
+        localError="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
           & " does not exist in region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSCellML_CreateFieldToCellMLMapNumberVS")
@@ -13817,7 +15278,7 @@ CONTAINS
     !Local variables
     TYPE(CELLML_TYPE), POINTER :: CELLML
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSCellML_CreateFinishNumber",err,error,*999)
 
@@ -13829,14 +15290,14 @@ CONTAINS
       IF(ASSOCIATED(CELLML)) THEN
         CALL CELLML_CREATE_FINISH(CELLML,err,error,*999)
       ELSE
-        LOCAL_ERROR="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
+        localError="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
           & " does not exist in region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
 #ifdef TAUPROF
@@ -13893,7 +15354,7 @@ CONTAINS
     !Local variables
     TYPE(CELLML_TYPE), POINTER :: CELLML
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSCellML_CreateStartNumber",err,error,*999)
 
@@ -13907,9 +15368,9 @@ CONTAINS
     IF(ASSOCIATED(REGION)) THEN
       CALL CELLML_CREATE_START(CellMLUserNumber,REGION,CELLML,err,error,*999)
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSCellML_CreateStartNumber")
@@ -13964,7 +15425,7 @@ CONTAINS
     !Local variables
     TYPE(CELLML_TYPE), POINTER :: CELLML
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSCellML_DestroyNumber",err,error,*999)
 
@@ -13976,14 +15437,14 @@ CONTAINS
       IF(ASSOCIATED(CELLML)) THEN
         CALL CELLML_DESTROY(CELLML,err,error,*999)
       ELSE
-        LOCAL_ERROR="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
+        localError="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSCellML_DestroyNumber")
@@ -14032,7 +15493,7 @@ CONTAINS
     !Local variables
     TYPE(CELLML_TYPE), POINTER :: CELLML
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSCellML_FieldMapsCreateFinishNumber",err,error,*999)
 
@@ -14044,14 +15505,14 @@ CONTAINS
       IF(ASSOCIATED(CELLML)) THEN
         CALL CELLML_FIELD_MAPS_CREATE_FINISH(CELLML,err,error,*999)
       ELSE
-        LOCAL_ERROR="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
+        localError="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
           & " does not exist in region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
 #ifdef TAUPROF
@@ -14104,7 +15565,7 @@ CONTAINS
     !Local variables
     TYPE(CELLML_TYPE), POINTER :: CELLML
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSCellML_FieldMapsCreateStartNumber",err,error,*999)
 
@@ -14116,14 +15577,14 @@ CONTAINS
       IF(ASSOCIATED(CELLML)) THEN
         CALL CELLML_FIELD_MAPS_CREATE_START(CELLML,err,error,*999)
       ELSE
-        LOCAL_ERROR="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
+        localError="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSCellMLFieldCreateStartNumber")
@@ -14174,7 +15635,7 @@ CONTAINS
     !Local variables
     TYPE(CELLML_TYPE), POINTER :: CELLML
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSCellML_ModelImportNumberC",err,error,*999)
 
@@ -14186,14 +15647,14 @@ CONTAINS
       IF(ASSOCIATED(CELLML)) THEN
         CALL CELLML_MODEL_IMPORT(CELLML,URI,modelIndex,err,error,*999)
       ELSE
-        LOCAL_ERROR="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
+        localError="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSCellML_ModelImportNumberC")
@@ -14246,7 +15707,7 @@ CONTAINS
     !Local variables
     TYPE(CELLML_TYPE), POINTER :: CELLML
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSCellML_ModelImportNumberVS",err,error,*999)
 
@@ -14258,14 +15719,14 @@ CONTAINS
       IF(ASSOCIATED(CELLML)) THEN
         CALL CELLML_MODEL_IMPORT(CELLML,URI,modelIndex,err,error,*999)
       ELSE
-        LOCAL_ERROR="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
+        localError="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSCellML_ModelImportNumberVS")
@@ -14316,7 +15777,7 @@ CONTAINS
     !Local variables
     TYPE(CELLML_TYPE), POINTER :: CELLML
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSCellML_ModelsFieldCreateFinishNumber",err,error,*999)
 
@@ -14328,14 +15789,14 @@ CONTAINS
       IF(ASSOCIATED(CELLML)) THEN
         CALL CELLML_MODELS_FIELD_CREATE_FINISH(CELLML,err,error,*999)
       ELSE
-        LOCAL_ERROR="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
+        localError="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
           & " does not exist in region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSCellML_ModelsFieldCreateFinishNumber")
@@ -14386,7 +15847,7 @@ CONTAINS
     TYPE(CELLML_TYPE), POINTER :: CELLML
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSCellML_ModelsFieldCreateStartNumber",err,error,*999)
 
@@ -14399,14 +15860,14 @@ CONTAINS
       IF(ASSOCIATED(CELLML)) THEN
         CALL CELLML_MODELS_FIELD_CREATE_START(CellMLModelsFieldUserNumber,CELLML,FIELD,err,error,*999)
       ELSE
-        LOCAL_ERROR="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
+        localError="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
           & " does not exist in region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSCellML_ModelsFieldCreateStartNumber")
@@ -14459,7 +15920,7 @@ CONTAINS
     TYPE(CELLML_TYPE), POINTER :: CELLML
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSCellML_ModelsFieldGetNumber",err,error,*999)
 
@@ -14473,14 +15934,14 @@ CONTAINS
         CALL CELLML_MODELS_FIELD_GET(CELLML,FIELD,err,error,*999)
         CellMLModelsFieldUserNumber = FIELD%USER_NUMBER
       ELSE
-        LOCAL_ERROR="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
+        localError="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
           & " does not exist in region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSCellML_ModelsFieldGetNumber")
@@ -14530,7 +15991,7 @@ CONTAINS
     !Local variables
     TYPE(CELLML_TYPE), POINTER :: CELLML
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSCellML_StateFieldCreateFinishNumber",err,error,*999)
 
@@ -14542,14 +16003,14 @@ CONTAINS
       IF(ASSOCIATED(CELLML)) THEN
         CALL CELLML_STATE_FIELD_CREATE_FINISH(CELLML,err,error,*999)
       ELSE
-        LOCAL_ERROR="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
+        localError="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
           & " does not exist in region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSCellML_StateFieldCreateFinishNumber")
@@ -14600,7 +16061,7 @@ CONTAINS
     TYPE(CELLML_TYPE), POINTER :: CELLML
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSCellML_StateFieldCreateStartNumber",err,error,*999)
 
@@ -14613,14 +16074,14 @@ CONTAINS
       IF(ASSOCIATED(CELLML)) THEN
         CALL CELLML_STATE_FIELD_CREATE_START(CellMLStateFieldUserNumber,CELLML,FIELD,err,error,*999)
       ELSE
-        LOCAL_ERROR="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
+        localError="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
           & " does not exist in region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSCellML_StateFieldCreateStartNumber")
@@ -14673,7 +16134,7 @@ CONTAINS
     TYPE(CELLML_TYPE), POINTER :: CELLML
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSCellML_StateFieldGetNumber",err,error,*999)
 
@@ -14687,14 +16148,14 @@ CONTAINS
         CALL CELLML_STATE_FIELD_GET(CELLML,FIELD,err,error,*999)
         CellMLStateFieldUserNumber = FIELD%USER_NUMBER
       ELSE
-        LOCAL_ERROR="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
+        localError="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
           & " does not exist in region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSCellML_StateFieldGetNumber")
@@ -14749,7 +16210,7 @@ CONTAINS
     !Local variables
     TYPE(CELLML_TYPE), POINTER :: CELLML
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSCellML_FieldComponentGetNumberC",err,error,*999)
 
@@ -14761,14 +16222,14 @@ CONTAINS
       IF(ASSOCIATED(CELLML)) THEN
         CALL CELLML_FIELD_COMPONENT_GET(CELLML,CellMLModelUserNumber,CellMLFieldType,variableID,fieldComponent,err,error,*999)
       ELSE
-        LOCAL_ERROR="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
+        localError="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
           & " does not exist in region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSCellML_FieldComponentGetNumberC")
@@ -14827,7 +16288,7 @@ CONTAINS
     !Local variables
     TYPE(CELLML_TYPE), POINTER :: CELLML
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSCellML_FieldComponentGetNumberVS",err,error,*999)
 
@@ -14839,14 +16300,14 @@ CONTAINS
       IF(ASSOCIATED(CELLML)) THEN
         CALL CELLML_FIELD_COMPONENT_GET(CELLML,CellMLModelUserNumber,CellMLFieldType,variableID,fieldComponent,err,error,*999)
       ELSE
-        LOCAL_ERROR="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
+        localError="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
           & " does not exist in region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSCellML_FieldComponentGetNumberVS")
@@ -14899,7 +16360,7 @@ CONTAINS
     !Local variables
     TYPE(CELLML_TYPE), POINTER :: CELLML
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSCellML_IntermediateFieldCreateFinishNumber",err,error,*999)
 
@@ -14911,14 +16372,14 @@ CONTAINS
       IF(ASSOCIATED(CELLML)) THEN
         CALL CELLML_INTERMEDIATE_FIELD_CREATE_FINISH(CELLML,err,error,*999)
       ELSE
-        LOCAL_ERROR="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
+        localError="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
           & " does not exist in region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSCellML_IntermediateFieldCreateFinishNumber")
@@ -14971,7 +16432,7 @@ CONTAINS
     TYPE(CELLML_TYPE), POINTER :: CELLML
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSCellML_IntermediateFieldCreateStartNumber",err,error,*999)
 
@@ -14984,14 +16445,14 @@ CONTAINS
       IF(ASSOCIATED(CELLML)) THEN
         CALL CELLML_INTERMEDIATE_FIELD_CREATE_START(CellMLIntermediateFieldUserNumber,CELLML,FIELD,err,error,*999)
       ELSE
-        LOCAL_ERROR="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
+        localError="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
           & " does not exist in region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSCellML_IntermediateFieldCreateStartNumber")
@@ -15045,7 +16506,7 @@ CONTAINS
     TYPE(CELLML_TYPE), POINTER :: CELLML
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSCellML_IntermediateFieldGetNumber",err,error,*999)
 
@@ -15059,14 +16520,14 @@ CONTAINS
         CALL CELLML_INTERMEDIATE_FIELD_GET(CELLML,FIELD,err,error,*999)
         CellMLIntermediateFieldUserNumber = FIELD%USER_NUMBER
       ELSE
-        LOCAL_ERROR="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
+        localError="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
           & " does not exist in region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSCellML_IntermediateFieldGetNumber")
@@ -15116,7 +16577,7 @@ CONTAINS
     !Local variables
     TYPE(CELLML_TYPE), POINTER :: CELLML
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSCellML_ParametersFieldCreateFinishNumber",err,error,*999)
 
@@ -15128,14 +16589,14 @@ CONTAINS
       IF(ASSOCIATED(CELLML)) THEN
         CALL CELLML_PARAMETERS_FIELD_CREATE_FINISH(CELLML,err,error,*999)
       ELSE
-        LOCAL_ERROR="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
+        localError="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
           & " does not exist in region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSCellML_ParametersFieldCreateFinishNumber")
@@ -15187,7 +16648,7 @@ CONTAINS
     TYPE(CELLML_TYPE), POINTER :: CELLML
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSCellML_ParametersFieldCreateStartNumber",err,error,*999)
 
@@ -15200,14 +16661,14 @@ CONTAINS
       IF(ASSOCIATED(CELLML)) THEN
         CALL CELLML_PARAMETERS_FIELD_CREATE_START(CellMLParametersFieldUserNumber,CELLML,FIELD,err,error,*999)
       ELSE
-        LOCAL_ERROR="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
+        localError="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
           & " does not exist in region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSCellML_ParametersFieldCreateStartNumber")
@@ -15261,7 +16722,7 @@ CONTAINS
     TYPE(CELLML_TYPE), POINTER :: CELLML
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSCellML_ParametersFieldGetNumber",err,error,*999)
 
@@ -15275,14 +16736,14 @@ CONTAINS
         CALL CELLML_PARAMETERS_FIELD_GET(CELLML,FIELD,err,error,*999)
         CellMLParametersFieldUserNumber = FIELD%USER_NUMBER
       ELSE
-        LOCAL_ERROR="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
+        localError="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
           & " does not exist in region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSCellML_ParametersFieldGetNumber")
@@ -15332,7 +16793,7 @@ CONTAINS
     !Local variables
     TYPE(CELLML_TYPE), POINTER :: CELLML
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSCellML_GenerateNumber",err,error,*999)
 
@@ -15344,14 +16805,14 @@ CONTAINS
       IF(ASSOCIATED(CELLML)) THEN
         CALL CELLML_GENERATE(CELLML,err,error,*999)
       ELSE
-        LOCAL_ERROR="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
+        localError="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
           & " does not exist in region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSCellML_GenerateNumber")
@@ -15532,6 +16993,1325 @@ CONTAINS
 
 !!==================================================================================================================================
 !!
+!! CONSTRAINT_CONDITIONS_ROUTINES
+!!
+!!==================================================================================================================================
+
+  !>Finishes the creation of an constraint condition identified by an user number.
+  SUBROUTINE CMISSConstraintCondition_CreateFinishNumber(regionUserNumber,constraintConditionUserNumber,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: regionUserNumber !<The user number of the region containing the constraint to finish the constraint condition for.
+    INTEGER(INTG), INTENT(IN) :: constraintConditionUserNumber !<The user number of the constraint condition to finish creating.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION
+    TYPE(REGION_TYPE), POINTER :: REGION
+    TYPE(VARYING_STRING) :: localError
+
+    ENTERS("CMISSConstraintCondition_CreateFinishNumber",err,error,*999)
+
+    NULLIFY(REGION)
+    NULLIFY(CONSTRAINT_CONDITION)
+    CALL REGION_USER_NUMBER_FIND(regionUserNumber,REGION,err,error,*999)
+    IF(ASSOCIATED(REGION)) THEN
+      CALL CONSTRAINT_CONDITION_USER_NUMBER_FIND(constraintConditionUserNumber,REGION,CONSTRAINT_CONDITION,err,error,*999)
+      IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
+        CALL CONSTRAINT_CONDITION_CREATE_FINISH(CONSTRAINT_CONDITION,err,error,*999)
+      ELSE
+        localError="An constraint condition with an user number of "// &
+          & TRIM(NUMBER_TO_VSTRING(constraintConditionUserNumber,"*",err,error))// &
+          & " does not exist on the region with a user number of "// &
+          & TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//"."
+        CALL FlagError(localError,err,error,*999)
+      END IF
+    ELSE
+      localError="A region with an user number of "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))// &
+        & " does not exist."
+      CALL FlagError(localError,err,error,*999)
+    END IF
+
+    EXITS("CMISSConstraintCondition_CreateFinishNumber")
+    RETURN
+999 ERRORSEXITS("CMISSConstraintCondition_CreateFinishNumber",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintCondition_CreateFinishNumber
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Finishes the creation of an constraint condition identified by an object.
+  SUBROUTINE CMISSConstraintCondition_CreateFinishObj(constraintCondition,err)
+
+    !Argument variables
+    TYPE(CMISSConstraintConditionType), INTENT(IN) :: constraintCondition !<The constraint condition to finish creating.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    ENTERS("CMISSConstraintCondition_CreateFinishObj",err,error,*999)
+
+    CALL CONSTRAINT_CONDITION_CREATE_FINISH(constraintCondition%CONSTRAINT_CONDITION,err,error,*999)
+
+    EXITS("CMISSConstraintCondition_CreateFinishObj")
+    RETURN
+999 ERRORSEXITS("CMISSConstraintCondition_CreateFinishObj",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintCondition_CreateFinishObj
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Starts the creation of an constraint condition identified by a user number.
+  SUBROUTINE CMISSConstraintCondition_CreateStartNumber(constraintConditionUserNumber,regionUserNumber, &
+    & equationsSetUserNumber,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: constraintConditionUserNumber !<The user number of the constraint condition to start the creation of.
+    INTEGER(INTG), INTENT(IN) :: regionUserNumber !<The user number of the region containing the constraint to start the creation of the constraint condition for.
+    INTEGER(INTG), INTENT(IN) :: equationsSetUserNumber !<The user number of the equations set to impose the constraint condition on.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION
+    TYPE(REGION_TYPE), POINTER :: REGION
+    TYPE(VARYING_STRING) :: localError
+
+    ENTERS("CMISSConstraintCondition_CreateStartNumber",err,error,*999)
+
+    NULLIFY(REGION)
+    NULLIFY(EQUATIONS_SET)
+    NULLIFY(CONSTRAINT_CONDITION)
+    CALL REGION_USER_NUMBER_FIND(regionUserNumber,REGION,err,error,*999)
+    IF(ASSOCIATED(REGION)) THEN
+      CALL EQUATIONS_SET_USER_NUMBER_FIND(equationsSetUserNumber,REGION,EQUATIONS_SET,err,error,*999)
+      IF(ASSOCIATED(EQUATIONS_SET)) THEN
+        CALL CONSTRAINT_CONDITION_CREATE_START(constraintConditionUserNumber,EQUATIONS_SET,CONSTRAINT_CONDITION, &
+          & err,error,*999)
+      ELSE
+        localError="An equations set with a user number of "//TRIM(NUMBER_TO_VSTRING(equationsSetUserNumber,"*",err,error))// &
+          & " does not exist on the region with a user number of "// &
+          & TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//"."
+        CALL FlagError(localError,err,error,*999)
+      END IF
+    ELSE
+      localError="A region with an user number of "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))// &
+        & " does not exist."
+      CALL FlagError(localError,err,error,*999)
+    END IF
+
+    EXITS("CMISSConstraintCondition_CreateStartNumber")
+    RETURN
+999 ERRORSEXITS("CMISSConstraintCondition_CreateStartNumber",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintCondition_CreateStartNumber
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Starts the creation of an constraint condition identified by an object.
+  SUBROUTINE CMISSConstraintCondition_CreateStartObj(constraintConditionUserNumber,equationsSet,constraintCondition,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: constraintConditionUserNumber !<The user number of the constraint conditon to start the creation of.
+    TYPE(CMISSEquationsSetType), INTENT(IN) :: equationsSet !<The equations set to create the constraint on.
+    TYPE(CMISSConstraintConditionType), INTENT(IN) :: constraintCondition !<On return, the created constraint condition.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    ENTERS("CMISSConstraintCondition_CreateStartObj",err,error,*999)
+
+    CALL CONSTRAINT_CONDITION_CREATE_START(constraintConditionUserNumber,equationsSet%EQUATIONS_SET, &
+      & constraintCondition%CONSTRAINT_CONDITION,err,error,*999)
+
+    EXITS("CMISSConstraintCondition_CreateStartObj")
+    RETURN
+999 ERRORSEXITS("CMISSConstraintCondition_CreateStartObj",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintCondition_CreateStartObj
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Destroys an constraint condition identified by a user number.
+  SUBROUTINE CMISSConstraintCondition_DestroyNumber(regionUserNumber,constraintConditionUserNumber,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: regionUserNumber !<The user number of the region containing the constraint containing the constraint condition to destroy.
+    INTEGER(INTG), INTENT(IN) :: constraintConditionUserNumber !<The user number of the constraint condition to destroy.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION
+    TYPE(REGION_TYPE), POINTER :: REGION
+    TYPE(VARYING_STRING) :: localError
+
+    ENTERS("CMISSFConstraintConditionDestroyNumber",err,error,*999)
+
+    NULLIFY(REGION)
+    NULLIFY(CONSTRAINT_CONDITION)
+    CALL REGION_USER_NUMBER_FIND(regionUserNumber,REGION,err,error,*999)
+    IF(ASSOCIATED(REGION)) THEN
+      CALL CONSTRAINT_CONDITION_USER_NUMBER_FIND(constraintConditionUserNumber,REGION,CONSTRAINT_CONDITION,err,error,*999)
+      IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
+        CALL CONSTRAINT_CONDITION_DESTROY(CONSTRAINT_CONDITION,err,error,*999)
+      ELSE
+        localError="An constraint condition with an user number of "// &
+          & TRIM(NUMBER_TO_VSTRING(constraintConditionUserNumber,"*",err,error))// &
+          & " does not exist on the region with a user number of "// &
+          & TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//"."
+        CALL FlagError(localError,err,error,*999)
+      END IF
+    ELSE
+      localError="A region with an user number of "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
+    END IF
+
+    EXITS("CMISSConstraintCondition_DestroyNumber")
+    RETURN
+999 ERRORSEXITS("CMISSConstraintCondition_DestroyNumber",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintCondition_DestroyNumber
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Destroys an constraint condition identified by an object.
+  SUBROUTINE CMISSConstraintCondition_DestroyObj(constraintCondition,err)
+
+    !Argument variables
+    TYPE(CMISSConstraintConditionType), INTENT(IN) :: constraintCondition !<The constraint condition to destroy.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    ENTERS("CMISSConstraintCondition_DestroyObj",err,error,*999)
+
+    CALL CONSTRAINT_CONDITION_DESTROY(constraintCondition%CONSTRAINT_CONDITION,err,error,*999)
+
+    EXITS("CMISSConstraintCondition_DestroyObj")
+    RETURN
+999 ERRORSEXITS("CMISSConstraintCondition_DestroyObj",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintCondition_DestroyObj
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Finishes the creation of equations for an constraint condition identified by an user number.
+  SUBROUTINE CMISSConstraintCondition_EquationsCreateFinishNumber(regionUserNumber,constraintConditionUserNumber,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: regionUserNumber !<The user number of the region containing the constraint to finish the constraint equations for.
+    INTEGER(INTG), INTENT(IN) :: constraintConditionUserNumber !<The user number of the constraint condition to finish creating the constraint equations for.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION
+    TYPE(REGION_TYPE), POINTER :: REGION
+    TYPE(VARYING_STRING) :: localError
+
+    ENTERS("CMISSConstraintCondition_EquationsCreateFinishNumber",err,error,*999)
+
+    NULLIFY(REGION)
+    NULLIFY(CONSTRAINT_CONDITION)
+    CALL REGION_USER_NUMBER_FIND(regionUserNumber,REGION,err,error,*999)
+    IF(ASSOCIATED(REGION)) THEN
+      CALL CONSTRAINT_CONDITION_USER_NUMBER_FIND(constraintConditionUserNumber,REGION,CONSTRAINT_CONDITION,err,error,*999)
+      IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
+        CALL CONSTRAINT_CONDITION_EQUATIONS_CREATE_FINISH(CONSTRAINT_CONDITION,err,error,*999)
+      ELSE
+        localError="An constraint condition with an user number of "// &
+          & TRIM(NUMBER_TO_VSTRING(constraintConditionUserNumber,"*",err,error))// &
+          & " does not exist on the region with a user number of "// &
+          & TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//"."
+        CALL FlagError(localError,err,error,*999)
+      END IF
+    ELSE
+      localError="A region with an user number of "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))// &
+        & " does not exist."
+      CALL FlagError(localError,err,error,*999)
+    END IF
+
+    EXITS("CMISSConstraintCondition_EquationsCreateFinishNumber")
+    RETURN
+999 ERRORSEXITS("CMISSConstraintCondition_EquationsCreateFinishNumber",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintCondition_EquationsCreateFinishNumber
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Finishes the creation of constraint equations for an constraint condition identified by an object.
+  SUBROUTINE CMISSConstraintCondition_EquationsCreateFinishObj(constraintCondition,err)
+
+    !Argument variables
+    TYPE(CMISSConstraintConditionType), INTENT(IN) :: constraintCondition !<The constraint condition to finish creating the constraint equations for.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    ENTERS("CMISSConstraintCondition_EquationsCreateFinishObj",err,error,*999)
+
+    CALL CONSTRAINT_CONDITION_EQUATIONS_CREATE_FINISH(constraintCondition%CONSTRAINT_CONDITION,err,error,*999)
+
+    EXITS("CMISSConstraintCondition_EquationsCreateFinishObj")
+    RETURN
+999 ERRORSEXITS("CMISSConstraintCondition_EquationsCreateFinishObj",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintCondition_EquationsCreateFinishObj
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Starts the creation of constraint equations for an constraint condition identified by a user number.
+  SUBROUTINE CMISSConstraintCondition_EquationsCreateStartNumber(regionUserNumber,constraintConditionUserNumber,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: regionUserNumber !<The user number of the region containing the constraint and constraint condition to start the creation of the constraint equations for.
+    INTEGER(INTG), INTENT(IN) :: constraintConditionUserNumber !<The user number of the constraint condition to start the creation of the constraint equations for.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION
+    TYPE(CONSTRAINT_EQUATIONS_TYPE), POINTER :: CONSTRAINT_EQUATIONS
+    TYPE(REGION_TYPE), POINTER :: REGION
+    TYPE(VARYING_STRING) :: localError
+
+    ENTERS("CMISSConstraintCondition_EquationsCreateStartNumber",err,error,*999)
+
+    NULLIFY(REGION)
+    NULLIFY(CONSTRAINT_CONDITION)
+    NULLIFY(CONSTRAINT_EQUATIONS)
+    CALL REGION_USER_NUMBER_FIND(regionUserNumber,REGION,err,error,*999)
+    IF(ASSOCIATED(REGION)) THEN
+      CALL CONSTRAINT_CONDITION_USER_NUMBER_FIND(constraintConditionUserNumber,REGION,CONSTRAINT_CONDITION,err,error,*999)
+      IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
+        CALL CONSTRAINT_CONDITION_EQUATIONS_CREATE_START(CONSTRAINT_CONDITION,CONSTRAINT_EQUATIONS,err,error,*999)
+      ELSE
+        localError="An constraint condition with an user number of "// &
+          & TRIM(NUMBER_TO_VSTRING(constraintConditionUserNumber,"*",err,error))// &
+          & " does not exist on the region with a user number of "// &
+          & TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//"."
+        CALL FlagError(localError,err,error,*999)
+      END IF
+    ELSE
+      localError="A region with an user number of "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))// &
+        & " does not exist."
+      CALL FlagError(localError,err,error,*999)
+    END IF
+
+    EXITS("CMISSConstraintCondition_EquationsCreateStartNumber")
+    RETURN
+999 ERRORSEXITS("CMISSConstraintCondition_EquationsCreateStartNumber",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintCondition_EquationsCreateStartNumber
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Starts the creation of constraint equations for an constraint condition identified by an object.
+  SUBROUTINE CMISSConstraintCondition_EquationsCreateStartObj(constraintCondition,constraintEquations,err)
+
+    !Argument variables
+    TYPE(CMISSConstraintConditionType), INTENT(IN) :: constraintCondition !<The constraint condition to start the creation of constraint equations for
+    TYPE(CMISSConstraintEquationsType), INTENT(IN) :: constraintEquations !<On return, the created constraint equations.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    ENTERS("CMISSConstraintCondition_EquationsCreateStartObj",err,error,*999)
+
+    CALL CONSTRAINT_CONDITION_EQUATIONS_CREATE_START(constraintCondition%CONSTRAINT_CONDITION,constraintEquations% &
+      & CONSTRAINT_EQUATIONS,err,error,*999)
+
+    EXITS("CMISSConstraintCondition_EquationsCreateStartObj")
+    RETURN
+999 ERRORSEXITS("CMISSConstraintCondition_EquationsCreateStartObj",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintCondition_EquationsCreateStartObj
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Destroys constraint equations for an constraint condition identified by a user number.
+  SUBROUTINE CMISSConstraintCondition_EquationsDestroyNumber(regionUserNumber,constraintConditionUserNumber,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: regionUserNumber !<The user number of the region containing the constraint and constraint condition to destroy the constraint equations for.
+    INTEGER(INTG), INTENT(IN) :: constraintConditionUserNumber !<The user number of the constraint condition to destroy the constraint equations for.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION
+    TYPE(REGION_TYPE), POINTER :: REGION
+    TYPE(VARYING_STRING) :: localError
+
+    ENTERS("CMISSFConstraintConditionEquationsDestroyNumber",err,error,*999)
+
+    NULLIFY(REGION)
+    NULLIFY(CONSTRAINT_CONDITION)
+    CALL REGION_USER_NUMBER_FIND(regionUserNumber,REGION,err,error,*999)
+    IF(ASSOCIATED(REGION)) THEN
+      CALL CONSTRAINT_CONDITION_USER_NUMBER_FIND(constraintConditionUserNumber,REGION,CONSTRAINT_CONDITION,err,error,*999)
+      IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
+        CALL CONSTRAINT_CONDITION_EQUATIONS_DESTROY(CONSTRAINT_CONDITION,err,error,*999)
+      ELSE
+        localError="An constraint condition with an user number of "// &
+          & TRIM(NUMBER_TO_VSTRING(constraintConditionUserNumber,"*",err,error))// &
+          & " does not exist on the region with a user number of "// &
+          & TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//"."
+        CALL FlagError(localError,err,error,*999)
+      END IF
+    ELSE
+      localError="A region with an user number of "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
+    END IF
+
+    EXITS("CMISSConstraintCondition_EquationsDestroyNumber")
+    RETURN
+999 ERRORSEXITS("CMISSConstraintCondition_EquationsDestroyNumber",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintCondition_EquationsDestroyNumber
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Destroys the constraint equations for an constraint condition identified by an object.
+  SUBROUTINE CMISSConstraintCondition_EquationsDestroyObj(constraintCondition,err)
+
+    !Argument variables
+    TYPE(CMISSConstraintConditionType), INTENT(IN) :: constraintCondition !<The constraint condition to destroy the constraint equations for.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    ENTERS("CMISSConstraintCondition_EquationsDestroyObj",err,error,*999)
+
+    CALL CONSTRAINT_CONDITION_EQUATIONS_DESTROY(constraintCondition%CONSTRAINT_CONDITION,err,error,*999)
+
+    EXITS("CMISSConstraintCondition_EquationsDestroyObj")
+    RETURN
+999 ERRORSEXITS("CMISSConstraintCondition_EquationsDestroyObj",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintCondition_EquationsDestroyObj
+  
+  !
+  !================================================================================================================================
+  !
+
+  !>Finishes the creation of a Lagrange Multiplier Field for an constraint condition identified by an user number.
+  SUBROUTINE CMISSConstraintCondition_LagrangeFieldCreateFinishNumber(regionUserNumber,constraintConditionUserNumber,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: regionUserNumber !<The user number of the region containing the constraint and constraint condition to finish the Lagrange multiplier field for.
+    INTEGER(INTG), INTENT(IN) :: constraintConditionUserNumber !<The user number of the constraint condition to finish creating the Lagrange multiplier field for.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION
+    TYPE(REGION_TYPE), POINTER :: REGION
+    TYPE(VARYING_STRING) :: localError
+
+    ENTERS("CMISSConstraintCondition_LagrangeFieldCreateFinishNumber",err,error,*999)
+
+    NULLIFY(REGION)
+    NULLIFY(CONSTRAINT_CONDITION)
+    CALL REGION_USER_NUMBER_FIND(regionUserNumber,REGION,err,error,*999)
+    IF(ASSOCIATED(REGION)) THEN
+      CALL CONSTRAINT_CONDITION_USER_NUMBER_FIND(constraintConditionUserNumber,REGION,CONSTRAINT_CONDITION,err,error,*999)
+      IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
+        CALL CONSTRAINT_CONDITION_LAGRANGE_FIELD_CREATE_FINISH(CONSTRAINT_CONDITION,err,error,*999)
+      ELSE
+        localError="An constraint condition with an user number of "// &
+          & TRIM(NUMBER_TO_VSTRING(constraintConditionUserNumber,"*",err,error))// &
+          & " does not exist on the region with a user number of "// &
+          & TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//"."
+        CALL FlagError(localError,err,error,*999)
+      END IF
+    ELSE
+      localError="A region with an user number of "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))// &
+        & " does not exist."
+      CALL FlagError(localError,err,error,*999)
+    END IF
+
+    EXITS("CMISSConstraintCondition_LagrangeFieldCreateFinishNumber")
+    RETURN
+999 ERRORSEXITS("CMISSConstraintCondition_LagrangeFieldCreateFinishNumber",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintCondition_LagrangeFieldCreateFinishNumber
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Finishes the creation of a Lagrange multiplier field for an constraint condition identified by an object.
+  SUBROUTINE CMISSConstraintCondition_LagrangeFieldCreateFinishObj(constraintCondition,err)
+
+    !Argument variables
+    TYPE(CMISSConstraintConditionType), INTENT(IN) :: constraintCondition !<The constraint condition to finish creating the Lagrange multiplier field for.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    ENTERS("CMISSConstraintCondition_LagrangeFieldCreateFinishObj",err,error,*999)
+
+    CALL CONSTRAINT_CONDITION_LAGRANGE_FIELD_CREATE_FINISH(constraintCondition%CONSTRAINT_CONDITION,err,error,*999)
+
+    EXITS("CMISSConstraintCondition_LagrangeFieldCreateFinishObj")
+    RETURN
+999 ERRORSEXITS("CMISSConstraintCondition_LagrangeFieldCreateFinishObj",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintCondition_LagrangeFieldCreateFinishObj
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Starts the creation of a Lagrange multiplier field for an constraint condition identified by a user number.
+  SUBROUTINE CMISSConstraintCondition_LagrangeFieldCreateStartNumber(regionUserNumber, &
+    & constraintConditionUserNumber,lagrangeFieldUserNumber,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: regionUserNumber !<The user number of the region containing the constraint and constraint condition to start the creation of the Lagrange multiplier field for.
+    INTEGER(INTG), INTENT(IN) :: constraintConditionUserNumber !<The user number of the constraint condition to start the creation of the Lagrange multiplier field for.
+    INTEGER(INTG), INTENT(IN) :: lagrangeFieldUserNumber !<The user number of the Lagrange field.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(FIELD_TYPE), POINTER :: LAGRANGE_FIELD
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION
+    TYPE(REGION_TYPE), POINTER :: REGION
+    TYPE(VARYING_STRING) :: localError
+
+    ENTERS("CMISSConstraintCondition_LagrangeFieldCreateStartNumber",err,error,*999)
+
+    NULLIFY(REGION)
+    NULLIFY(CONSTRAINT_CONDITION)
+    NULLIFY(LAGRANGE_FIELD)
+    CALL REGION_USER_NUMBER_FIND(regionUserNumber,REGION,err,error,*999)
+    IF(ASSOCIATED(REGION)) THEN
+      CALL CONSTRAINT_CONDITION_USER_NUMBER_FIND(regionUserNumber,REGION,CONSTRAINT_CONDITION,err,error,*999)
+      IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
+        CALL CONSTRAINT_CONDITION_LAGRANGE_FIELD_CREATE_START(CONSTRAINT_CONDITION,lagrangeFieldUserNumber,LAGRANGE_FIELD, &
+          & err,error,*999)
+      ELSE
+        localError="An constraint condition with an user number of "// &
+          & TRIM(NUMBER_TO_VSTRING(constraintConditionUserNumber,"*",err,error))// &
+          & " does not exist on the region with a user number of "// &
+          & TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//"."
+        CALL FlagError(localError,err,error,*999)
+      END IF
+    ELSE
+      localError="A region with an user number of "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))// &
+        & " does not exist."
+      CALL FlagError(localError,err,error,*999)
+    END IF
+
+    EXITS("CMISSConstraintCondition_LagrangeFieldCreateStartNumber")
+    RETURN
+999 ERRORSEXITS("CMISSConstraintCondition_LagrangeFieldCreateStartNumber",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintCondition_LagrangeFieldCreateStartNumber
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Starts the creation of a Lagrange multiplier field for an constraint condition identified by an object.
+  SUBROUTINE CMISSConstraintCondition_LagrangeFieldCreateStartObj(constraintCondition,lagrangeFieldUserNumber,lagrangeField,err)
+
+    !Argument variables
+    TYPE(CMISSConstraintConditionType), INTENT(IN) :: constraintCondition !<The constraint condition to start the creation of the Lagrange multiplier field for.
+    INTEGER(INTG), INTENT(IN) :: lagrangeFieldUserNumber !<The user number of the Lagrange field.
+    TYPE(CMISSFieldType), INTENT(INOUT) :: lagrangeField !<If associated on entry, the user created Lagrange field which has the same user number as the specified Lagrange field user number. If not associated on entry, on return, the created Lagrange field for the constraint condition.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    ENTERS("CMISSConstraintCondition_LagrangeFieldCreateStartObj",err,error,*999)
+
+    CALL CONSTRAINT_CONDITION_LAGRANGE_FIELD_CREATE_START(constraintCondition%CONSTRAINT_CONDITION,lagrangeFieldUserNumber, &
+      & lagrangeField%FIELD,err,error,*999)
+
+    EXITS("CMISSConstraintCondition_LagrangeFieldCreateStartObj")
+    RETURN
+999 ERRORSEXITS("CMISSConstraintCondition_LagrangeFieldCreateStartObj",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintCondition_LagrangeFieldCreateStartObj
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Finishes the creation of a penalty Field for an constraint condition identified by an user number.
+  SUBROUTINE CMISSConstraintCondition_PenaltyFieldCreateFinishNumber(RegionUserNumber,ConstraintConditionUserNumber,Err)
+  
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: RegionUserNumber !<The user number of the region containing the constraint and constraint condition to finish the penalty field for.
+    INTEGER(INTG), INTENT(IN) :: ConstraintConditionUserNumber !<The user number of the constraint condition to finish creating the penalty field for.
+    INTEGER(INTG), INTENT(OUT) :: Err !<The error code.
+    !Local variables
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION
+    TYPE(REGION_TYPE), POINTER :: REGION
+    TYPE(VARYING_STRING) :: localError
+    
+    ENTERS("CMISSConstraintCondition_PenaltyFieldCreateFinishNumber",Err,ERROR,*999)
+ 
+    NULLIFY(REGION)
+    NULLIFY(CONSTRAINT_CONDITION)
+    CALL REGION_USER_NUMBER_FIND(RegionUserNumber,REGION,Err,ERROR,*999)
+    IF(ASSOCIATED(REGION)) THEN
+      CALL CONSTRAINT_CONDITION_USER_NUMBER_FIND(ConstraintConditionUserNumber,REGION,CONSTRAINT_CONDITION,Err,ERROR,*999)
+      IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
+        CALL CONSTRAINT_CONDITION_PENALTY_FIELD_CREATE_FINISH(CONSTRAINT_CONDITION,Err,ERROR,*999)
+      ELSE
+        localError="An constraint condition with an user number of "// &
+          & TRIM(NUMBER_TO_VSTRING(ConstraintConditionUserNumber,"*",Err,ERROR))// &
+          & " does not exist on the region with a user number of "// &
+          & TRIM(NUMBER_TO_VSTRING(RegionUserNumber,"*",Err,ERROR))//"."
+        CALL FlagError(localError,Err,ERROR,*999)
+      ENDIF
+    ELSE
+      localError="A region with an user number of "//TRIM(NUMBER_TO_VSTRING(RegionUserNumber,"*",Err,ERROR))// &
+        & " does not exist."
+      CALL FlagError(localError,Err,ERROR,*999)
+    ENDIF
+
+    EXITS("CMISSConstraintCondition_PenaltyFieldCreateFinishNumber")
+    RETURN
+999 ERRORSEXITS("CMISSConstraintCondition_PenaltyFieldCreateFinishNumber",Err,ERROR)
+    CALL CmissHandleError(Err,ERROR)
+    RETURN
+    
+  END SUBROUTINE CMISSConstraintCondition_PenaltyFieldCreateFinishNumber
+
+  !  
+  !================================================================================================================================
+  !  
+ 
+  !>Finishes the creation of a penalty field for an constraint condition identified by an object.
+  SUBROUTINE CMISSConstraintCondition_PenaltyFieldCreateFinishObj(ConstraintCondition,Err)
+  
+    !Argument variables
+    TYPE(CMISSConstraintConditionType), INTENT(IN) :: ConstraintCondition !<The constraint condition to finish creating the penalty field for.
+    INTEGER(INTG), INTENT(OUT) :: Err !<The error code.
+    !Local variables
+  
+    ENTERS("CMISSConstraintCondition_PenaltyFieldCreateFinishObj",Err,ERROR,*999)
+ 
+    CALL CONSTRAINT_CONDITION_PENALTY_FIELD_CREATE_FINISH(ConstraintCondition%CONSTRAINT_CONDITION,Err,ERROR,*999)
+
+    EXITS("CMISSConstraintCondition_PenaltyFieldCreateFinishObj")
+    RETURN
+999 ERRORSEXITS("CMISSConstraintCondition_PenaltyFieldCreateFinishObj",Err,ERROR)
+    CALL CmissHandleError(Err,ERROR)
+    RETURN
+    
+  END SUBROUTINE CMISSConstraintCondition_PenaltyFieldCreateFinishObj
+
+  !  
+  !================================================================================================================================
+  !  
+ 
+  !>Starts the creation of a penalty field for an constraint condition identified by a user number.
+  SUBROUTINE CMISSConstraintCondition_PenaltyFieldCreateStartNumber(RegionUserNumber,ConstraintConditionUserNumber, &
+      & PenaltyFieldUserNumber,Err)
+  
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: RegionUserNumber !<The user number of the region containing the constraint and constraint condition to start the creation of the penalty field for.
+    INTEGER(INTG), INTENT(IN) :: ConstraintConditionUserNumber !<The user number of the constraint condition to start the creation of the penalty field for.
+    INTEGER(INTG), INTENT(IN) :: PenaltyFieldUserNumber !<The user number of the penalty field.
+    INTEGER(INTG), INTENT(OUT) :: Err !<The error code.
+    !Local variables
+    TYPE(FIELD_TYPE), POINTER :: PENALTY_FIELD
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION
+    TYPE(REGION_TYPE), POINTER :: REGION
+    TYPE(VARYING_STRING) :: localError
+    
+    ENTERS("CMISSConstraintCondition_PenaltyFieldCreateStartNumber",Err,ERROR,*999)
+ 
+    NULLIFY(REGION)
+    NULLIFY(CONSTRAINT_CONDITION)
+    NULLIFY(PENALTY_FIELD)
+    CALL REGION_USER_NUMBER_FIND(RegionUserNumber,REGION,Err,ERROR,*999)
+    IF(ASSOCIATED(REGION)) THEN
+      CALL CONSTRAINT_CONDITION_USER_NUMBER_FIND(RegionUserNumber,REGION,CONSTRAINT_CONDITION,Err,ERROR,*999)
+      IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
+        CALL CONSTRAINT_CONDITION_PENALTY_FIELD_CREATE_START(CONSTRAINT_CONDITION,PenaltyFieldUserNumber,PENALTY_FIELD, &
+          & Err,ERROR,*999)
+      ELSE
+        localError="An constraint condition with an user number of "// &
+          & TRIM(NUMBER_TO_VSTRING(ConstraintConditionUserNumber,"*",Err,ERROR))// &
+          & " does not exist on the region with a user number of "// &
+          & TRIM(NUMBER_TO_VSTRING(RegionUserNumber,"*",Err,ERROR))//"."
+        CALL FlagError(localError,Err,ERROR,*999)
+      ENDIF
+    ELSE
+      localError="A region with an user number of "//TRIM(NUMBER_TO_VSTRING(RegionUserNumber,"*",Err,ERROR))// &
+        & " does not exist."
+      CALL FlagError(localError,Err,ERROR,*999)
+    ENDIF
+
+    EXITS("CMISSConstraintCondition_PenaltyFieldCreateStartNumber")
+    RETURN
+999 ERRORSEXITS("CMISSConstraintCondition_PenaltyFieldCreateStartNumber",Err,ERROR)
+    CALL CmissHandleError(Err,ERROR)
+    RETURN
+    
+  END SUBROUTINE CMISSConstraintCondition_PenaltyFieldCreateStartNumber
+
+  !  
+  !================================================================================================================================
+  !  
+ 
+  !>Starts the creation of a penalty field for an constraint condition identified by an object.
+  SUBROUTINE CMISSConstraintCondition_PenaltyFieldCreateStartObj(ConstraintCondition,PenaltyFieldUserNumber,PenaltyField,Err)
+  
+    !Argument variables
+    TYPE(CMISSConstraintConditionType), INTENT(IN) :: ConstraintCondition !<The constraint condition to start the creation of the penalty field for.
+    INTEGER(INTG), INTENT(IN) :: PenaltyFieldUserNumber !<The user number of the penalty field.
+    TYPE(CMISSFieldType), INTENT(INOUT) :: PenaltyField !<If associated on entry, the user created penalty field which has the same user number as the specified penalty field user number. If not associated on entry, on return, the created penalty field for the constraint condition.
+    INTEGER(INTG), INTENT(OUT) :: Err !<The error code.
+    !Local variables
+  
+    ENTERS("CMISSConstraintCondition_PenaltyFieldCreateStartObj",Err,ERROR,*999)
+ 
+    CALL CONSTRAINT_CONDITION_PENALTY_FIELD_CREATE_START(ConstraintCondition%CONSTRAINT_CONDITION,PenaltyFieldUserNumber, &
+      & PenaltyField%FIELD,Err,ERROR,*999)
+
+    EXITS("CMISSConstraintCondition_PenaltyFieldCreateStartObj")
+    RETURN
+999 ERRORSEXITS("CMISSConstraintCondition_PenaltyFieldCreateStartObj",Err,ERROR)
+    CALL CmissHandleError(Err,ERROR)
+    RETURN
+    
+  END SUBROUTINE CMISSConstraintCondition_PenaltyFieldCreateStartObj
+
+  !  
+  !================================================================================================================================
+  !   
+
+  !>Returns the method for an constraint condition identified by a user number.
+  SUBROUTINE CMISSConstraintCondition_MethodGetNumber(regionUserNumber,constraintConditionUserNumber, &
+    & constraintConditionMethod,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: regionUserNumber !<The user number of the region containing the constraint containing the constraint condition to get the method for.
+    INTEGER(INTG), INTENT(IN) :: constraintConditionUserNumber !<The user number of the constraint condition to get the method for.
+    INTEGER(INTG), INTENT(OUT) :: constraintConditionMethod !<On return, the constraint condition method. \see OPENCMISS_ConstraintConditionMethods,OPENCMISS
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION
+    TYPE(REGION_TYPE), POINTER :: REGION
+    TYPE(VARYING_STRING) :: localError
+
+    ENTERS("CMISSConstraintCondition_MethodGetNumber",err,error,*999)
+
+    NULLIFY(REGION)
+    NULLIFY(CONSTRAINT_CONDITION)
+    CALL REGION_USER_NUMBER_FIND(regionUserNumber,REGION,err,error,*999)
+    IF(ASSOCIATED(REGION)) THEN
+        CALL CONSTRAINT_CONDITION_USER_NUMBER_FIND(constraintConditionUserNumber,REGION,CONSTRAINT_CONDITION,err,error,*999)
+        IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
+          CALL CONSTRAINT_CONDITION_METHOD_GET(CONSTRAINT_CONDITION,constraintConditionMethod,err,error,*999)
+        ELSE
+          localError="A constraint condition with an user number of "// &
+            & TRIM(NUMBER_TO_VSTRING(constraintConditionUserNumber,"*",err,error))// &
+            & " does not exist on the region with a user number of "// &
+            & TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//"."
+          CALL FlagError(localError,err,error,*999)
+        END IF
+    ELSE
+      localError="A region with an user number of "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
+    END IF
+
+    EXITS("CMISSConstraintCondition_MethodGetNumber")
+    RETURN
+999 ERRORSEXITS("CMISSConstraintCondition_MethodGetNumber",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintCondition_MethodGetNumber
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Gets the method for an constraint condition identified by an object.
+  SUBROUTINE CMISSConstraintCondition_MethodGetObj(constraintCondition,constraintConditionMethod,err)
+
+    !Argument variables
+    TYPE(CMISSConstraintConditionType), INTENT(IN) :: constraintCondition !<The constraint condition to get the method for.
+    INTEGER(INTG), INTENT(OUT) :: constraintConditionMethod !<On return, the constraint condition method. \see OPENCMISS_ConstraintConditionMethods,OPENCMISS
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    ENTERS("CMISSConstraintCondition_MethodGetObj",err,error,*999)
+
+    CALL CONSTRAINT_CONDITION_METHOD_GET(constraintCondition%CONSTRAINT_CONDITION,constraintConditionMethod,err,error,*999)
+
+    EXITS("CMISSConstraintCondition_MethodGetObj")
+    RETURN
+999 ERRORSEXITS("CMISSConstraintCondition_MethodGetObj",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintCondition_MethodGetObj
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Sets/changes the method for an constraint condition identified by a user number.
+  SUBROUTINE CMISSConstraintCondition_MethodSetNumber(regionUserNumber,constraintConditionUserNumber, &
+    & constraintConditionMethod,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: regionUserNumber !<The user number of the region containing the constraint containing the constraint condition to set the method for.
+    INTEGER(INTG), INTENT(IN) :: constraintConditionUserNumber !<The user number of the constraint condition to set the method for.
+    INTEGER(INTG), INTENT(IN) :: constraintConditionMethod !<The constraint condition method to set. \see OPENCMISS_ConstraintConditionMethods,OPENCMISS
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION
+    TYPE(REGION_TYPE), POINTER :: REGION
+    TYPE(VARYING_STRING) :: localError
+
+    ENTERS("CMISSConstraintCondition_MethodSetNumber",err,error,*999)
+
+    NULLIFY(REGION)
+    NULLIFY(CONSTRAINT_CONDITION)
+    CALL REGION_USER_NUMBER_FIND(regionUserNumber,REGION,err,error,*999)
+    IF(ASSOCIATED(REGION)) THEN
+        CALL CONSTRAINT_CONDITION_USER_NUMBER_FIND(constraintConditionUserNumber,REGION,CONSTRAINT_CONDITION,err,error,*999)
+        IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
+          CALL CONSTRAINT_CONDITION_METHOD_SET(CONSTRAINT_CONDITION,constraintConditionMethod,err,error,*999)
+        ELSE
+          localError="An constraint condition with an user number of "// &
+            & TRIM(NUMBER_TO_VSTRING(constraintConditionUserNumber,"*",err,error))// &
+            & " does not exist on the region with a user number of "// &
+            & TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//"."
+          CALL FlagError(localError,err,error,*999)
+        END IF
+    ELSE
+      localError="A region with an user number of "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
+    END IF
+
+    EXITS("CMISSConstraintCondition_MethodSetNumber")
+    RETURN
+999 ERRORSEXITS("CMISSConstraintCondition_MethodSetNumber",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintCondition_MethodSetNumber
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Sets/changes the method for an constraint condition identified by an object.
+  SUBROUTINE CMISSConstraintCondition_MethodSetObj(constraintCondition,constraintConditionMethod,err)
+
+    !Argument variables
+    TYPE(CMISSConstraintConditionType), INTENT(IN) :: constraintCondition !<The constraint condition to set the method for.
+    INTEGER(INTG), INTENT(IN) :: constraintConditionMethod !<The constraint condition method to set. \see OPENCMISS_ConstraintConditionMethods,OPENCMISS
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    ENTERS("CMISSConstraintCondition_MethodSetObj",err,error,*999)
+
+    CALL CONSTRAINT_CONDITION_METHOD_SET(constraintCondition%CONSTRAINT_CONDITION,constraintConditionMethod,err,error,*999)
+
+    EXITS("CMISSConstraintCondition_MethodSetObj")
+    RETURN
+999 ERRORSEXITS("CMISSConstraintCondition_MethodSetObj",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintCondition_MethodSetObj
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Returns the operator for an constraint condition identified by a user number.
+  SUBROUTINE CMISSConstraintCondition_OperatorGetNumber(regionUserNumber,constraintConditionUserNumber, &
+    & constraintConditionOperator,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: regionUserNumber !<The user number of the region containing the constraint containing the constraint condition to get the operator for.
+    INTEGER(INTG), INTENT(IN) :: constraintConditionUserNumber !<The user number of the constraint condition to get the operator for.
+    INTEGER(INTG), INTENT(OUT) :: constraintConditionOperator !<On return, the constraint condition operator. \see OPENCMISS_ConstraintConditionOperators,OPENCMISS
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION
+    TYPE(REGION_TYPE), POINTER :: REGION
+    TYPE(VARYING_STRING) :: localError
+
+    ENTERS("CMISSConstraintCondition_OperatorGetNumber",err,error,*999)
+
+    NULLIFY(REGION)
+    NULLIFY(CONSTRAINT_CONDITION)
+    CALL REGION_USER_NUMBER_FIND(regionUserNumber,REGION,err,error,*999)
+    IF(ASSOCIATED(REGION)) THEN
+        CALL CONSTRAINT_CONDITION_USER_NUMBER_FIND(constraintConditionUserNumber,REGION,CONSTRAINT_CONDITION,err,error,*999)
+        IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
+          CALL CONSTRAINT_CONDITION_OPERATOR_GET(CONSTRAINT_CONDITION,constraintConditionOperator,err,error,*999)
+        ELSE
+          localError="An constraint condition with an user number of "// &
+            & TRIM(NUMBER_TO_VSTRING(constraintConditionUserNumber,"*",err,error))// &
+            & " does not exist on the region with a user number of "// &
+            & TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//"."
+          CALL FlagError(localError,err,error,*999)
+        END IF
+    ELSE
+      localError="A region with an user number of "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
+    END IF
+
+    EXITS("CMISSConstraintCondition_OperatorGetNumber")
+    RETURN
+999 ERRORSEXITS("CMISSConstraintCondition_OperatorGetNumber",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintCondition_OperatorGetNumber
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Gets the operator for an constraint condition identified by an object.
+  SUBROUTINE CMISSConstraintCondition_OperatorGetObj(constraintCondition,constraintConditionOperator,err)
+
+    !Argument variables
+    TYPE(CMISSConstraintConditionType), INTENT(IN) :: constraintCondition !<The constraint condition to get the operator for.
+    INTEGER(INTG), INTENT(OUT) :: constraintConditionOperator !<On return, the constraint condition operator. \see OPENCMISS_ConstraintConditionOperator,OPENCMISS
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    ENTERS("CMISSConstraintCondition_OperatorGetObj",err,error,*999)
+
+    CALL CONSTRAINT_CONDITION_OPERATOR_GET(constraintCondition%CONSTRAINT_CONDITION,constraintConditionOperator, &
+      & err,error,*999)
+
+    EXITS("CMISSConstraintCondition_OperatorGetObj")
+    RETURN
+999 ERRORSEXITS("CMISSConstraintCondition_OperatorGetObj",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintCondition_OperatorGetObj
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Sets/changes the operator for an constraint condition identified by a user number.
+  SUBROUTINE CMISSConstraintCondition_OperatorSetNumber(regionUserNumber,constraintConditionUserNumber, &
+    & constraintConditionOperator,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: regionUserNumber !<The user number of the region containing the constraint containing the constraint condition to set the operator for.
+    INTEGER(INTG), INTENT(IN) :: constraintConditionUserNumber !<The user number of the constraint condition to set the operator for.
+    INTEGER(INTG), INTENT(IN) :: constraintConditionOperator !<The constraint condition operator to set. \see OPENCMISS_ConstraintConditionOperators,OPENCMISS
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION
+    TYPE(REGION_TYPE), POINTER :: REGION
+    TYPE(VARYING_STRING) :: localError
+
+    ENTERS("CMISSConstraintCondition_OperatorSetNumber",err,error,*999)
+
+    NULLIFY(REGION)
+    NULLIFY(CONSTRAINT_CONDITION)
+    CALL REGION_USER_NUMBER_FIND(regionUserNumber,REGION,err,error,*999)
+    IF(ASSOCIATED(REGION)) THEN
+      CALL CONSTRAINT_CONDITION_USER_NUMBER_FIND(constraintConditionUserNumber,REGION,CONSTRAINT_CONDITION,err,error,*999)
+      IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
+        CALL CONSTRAINT_CONDITION_OPERATOR_SET(CONSTRAINT_CONDITION,constraintConditionOperator,err,error,*999)
+      ELSE
+        localError="An constraint condition with an user number of "// &
+          & TRIM(NUMBER_TO_VSTRING(constraintConditionUserNumber,"*",err,error))// &
+          & " does not exist on the region with a user number of "// &
+          & TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//"."
+          CALL FlagError(localError,err,error,*999)
+      END IF
+    ELSE
+      localError="A region with an user number of "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
+    END IF
+
+    EXITS("CMISSConstraintCondition_OperatorSetNumber")
+    RETURN
+999 ERRORSEXITS("CMISSConstraintCondition_OperatorSetNumber",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintCondition_OperatorSetNumber
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Sets/changes the operator for an constraint condition identified by an object.
+  SUBROUTINE CMISSConstraintCondition_OperatorSetObj(constraintCondition,constraintConditionOperator,err)
+
+    !Argument variables
+    TYPE(CMISSConstraintConditionType), INTENT(IN) :: constraintCondition !<The constraint condition to set the operator for.
+    INTEGER(INTG), INTENT(IN) :: constraintConditionOperator !<The constraint condition operator to set. \see OPENCMISS_ConstraintConditionOperator,OPENCMISS
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    ENTERS("CMISSConstraintCondition_OperatorSetObj",err,error,*999)
+
+    CALL CONSTRAINT_CONDITION_OPERATOR_SET(constraintCondition%CONSTRAINT_CONDITION,constraintConditionOperator, &
+      & err,error,*999)
+
+    EXITS("CMISSConstraintCondition_OperatorSetObj")
+    RETURN
+999 ERRORSEXITS("CMISSConstraintCondition_OperatorSetObj",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintCondition_OperatorSetObj
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Returns the output type for an constraint equations identified by a user number.
+  SUBROUTINE CMISSConstraintEquations_OutputTypeGetNumber(regionUserNumber,constraintConditionUserNumber, &
+    & outputType,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: regionUserNumber !<The user number of the region containing the constraint, constraint condition and constraint equations to get the output type for.
+    INTEGER(INTG), INTENT(IN) :: constraintConditionUserNumber !<The user number of the constraint condition and constraint equation to get the output type for.
+    INTEGER(INTG), INTENT(OUT) :: outputType !<On return, the constraint equations output type. \see OPENCMISS_EquationsOutputType,OPENCMISS
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION
+    TYPE(CONSTRAINT_EQUATIONS_TYPE), POINTER :: CONSTRAINT_EQUATIONS
+    TYPE(REGION_TYPE), POINTER :: REGION
+    TYPE(VARYING_STRING) :: localError
+
+    ENTERS("CMISSConstraintEquations_OutputTypeGetNumber",err,error,*999)
+
+    NULLIFY(REGION)
+    NULLIFY(CONSTRAINT_CONDITION)
+    NULLIFY(CONSTRAINT_EQUATIONS)
+    CALL REGION_USER_NUMBER_FIND(regionUserNumber,REGION,err,error,*999)
+    IF(ASSOCIATED(REGION)) THEN
+      CALL CONSTRAINT_CONDITION_USER_NUMBER_FIND(constraintConditionUserNumber,REGION,CONSTRAINT_CONDITION,err,error,*999)
+      IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
+        CALL CONSTRAINT_CONDITION_EQUATIONS_GET(CONSTRAINT_CONDITION,CONSTRAINT_EQUATIONS,err,error,*999)
+        CALL CONSTRAINT_EQUATIONS_OUTPUT_TYPE_GET(CONSTRAINT_EQUATIONS,outputType,err,error,*999)
+      ELSE
+        localError="An constraint condition with an user number of "// &
+          & TRIM(NUMBER_TO_VSTRING(constraintConditionUserNumber,"*",err,error))// &
+          & " does not exist on the region with a user number of "// &
+          & TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))// &
+          & " defined on a region with a user number of "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//"."
+        CALL FlagError(localError,err,error,*999)
+      END IF
+    ELSE
+      localError="A region with an user number of "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
+    END IF
+
+    EXITS("CMISSConstraintEquations_OutputTypeGetNumber")
+    RETURN
+999 ERRORSEXITS("CMISSConstraintEquations_OutputTypeGetNumber",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintEquations_OutputTypeGetNumber
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Gets the output type for an constraint equations identified by an object.
+  SUBROUTINE CMISSConstraintEquations_OutputTypeGetObj(constraintEquations,outputType,err)
+
+    !Argument variables
+    TYPE(CMISSConstraintEquationsType), INTENT(IN) :: constraintEquations !<The constraint equations to get the output type for.
+    INTEGER(INTG), INTENT(OUT) :: outputType !<On return, the constraint equations output type. \see OPENCMISS_EquationsOutputType,OPENCMISS
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    ENTERS("CMISSConstraintEquations_OutputTypeGetObj",err,error,*999)
+
+    CALL CONSTRAINT_EQUATIONS_OUTPUT_TYPE_GET(constraintEquations%CONSTRAINT_EQUATIONS,outputType,err,error,*999)
+
+    EXITS("CMISSConstraintEquations_OutputTypeGetObj")
+    RETURN
+999 ERRORSEXITS("CMISSConstraintEquations_OutputTypeGetObj",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintEquations_OutputTypeGetObj
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Sets/changes the output type for an constraint equations identified by a user number.
+  SUBROUTINE CMISSConstraintEquations_OutputTypeSetNumber(regionUserNumber,constraintConditionUserNumber, &
+    & outputType,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: regionUserNumber !<The user number of the region containing the constraint, constraint condition and constraint equations to set the output type for.
+    INTEGER(INTG), INTENT(IN) :: constraintConditionUserNumber !<The user number of the constraint condition and constraint equations to set the output type for.
+    INTEGER(INTG), INTENT(IN) :: outputType !<The constraint equations output type to set. \see OPENCMISS_EquationsOutputTypes,OPENCMISS
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION
+    TYPE(CONSTRAINT_EQUATIONS_TYPE), POINTER :: CONSTRAINT_EQUATIONS
+    TYPE(REGION_TYPE), POINTER :: REGION
+    TYPE(VARYING_STRING) :: localError
+
+    ENTERS("CMISSConstraintEquations_OutputTypeSetNumber",err,error,*999)
+
+    NULLIFY(REGION)
+    NULLIFY(CONSTRAINT_CONDITION)
+    NULLIFY(CONSTRAINT_EQUATIONS)
+    CALL REGION_USER_NUMBER_FIND(regionUserNumber,REGION,err,error,*999)
+    IF(ASSOCIATED(REGION)) THEN
+      CALL CONSTRAINT_CONDITION_USER_NUMBER_FIND(constraintConditionUserNumber,REGION,CONSTRAINT_CONDITION,err,error,*999)
+      IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
+        CALL CONSTRAINT_CONDITION_EQUATIONS_GET(CONSTRAINT_CONDITION,CONSTRAINT_EQUATIONS,err,error,*999)
+        CALL CONSTRAINT_EQUATIONS_OUTPUT_TYPE_SET(CONSTRAINT_EQUATIONS,outputType,err,error,*999)
+      ELSE
+        localError="An constraint condition with an user number of "// &
+          & TRIM(NUMBER_TO_VSTRING(constraintConditionUserNumber,"*",err,error))// &
+          & " does not exist on the region with a user number of "// &
+          & TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))// &
+          & " defined on a region with a user number of "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//"."
+        CALL FlagError(localError,err,error,*999)
+      END IF
+    ELSE
+      localError="A region with an user number of "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
+    END IF
+
+    EXITS("CMISSConstraintEquations_OutputTypeSetNumber")
+    RETURN
+999 ERRORSEXITS("CMISSConstraintEquations_OutputTypeSetNumber",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintEquations_OutputTypeSetNumber
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Sets/changes the output type for an constraint equations identified by an object.
+  SUBROUTINE CMISSConstraintEquations_OutputTypeSetObj(constraintEquations,outputType,err)
+
+    !Argument variables
+    TYPE(CMISSConstraintEquationsType), INTENT(IN) :: constraintEquations !<The constraint equations to set the output type for.
+    INTEGER(INTG), INTENT(IN) :: outputType !<The constraint equations output type to set. \see OPENCMISS_EquationsOutputTypes,OPENCMISS
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    ENTERS("CMISSConstraintEquations_OutputTypeSetObj",err,error,*999)
+
+    CALL CONSTRAINT_EQUATIONS_OUTPUT_TYPE_SET(constraintEquations%CONSTRAINT_EQUATIONS,outputType,err,error,*999)
+
+    EXITS("CMISSConstraintEquations_OutputTypeSetObj")
+    RETURN
+999 ERRORSEXITS("CMISSConstraintEquations_OutputTypeSetObj",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintEquations_OutputTypeSetObj
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Returns the sparsity type for an constraint equations identified by a user number.
+  SUBROUTINE CMISSConstraintEquations_SparsityGetNumber(regionUserNumber,constraintConditionUserNumber, &
+    & sparsityType,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: regionUserNumber !<The user number of the region containing the constraint, constraint condition and constraint equations to get the sparsity type for.
+    INTEGER(INTG), INTENT(IN) :: constraintConditionUserNumber !<The user number of the constraint condition and constraint equation to get the sparsity type for.
+    INTEGER(INTG), INTENT(OUT) :: sparsityType !<On return, the constraint equations sparsity type. \see OPENCMISS_EquationsSparsityType,OPENCMISS
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION
+    TYPE(CONSTRAINT_EQUATIONS_TYPE), POINTER :: CONSTRAINT_EQUATIONS
+    TYPE(REGION_TYPE), POINTER :: REGION
+    TYPE(VARYING_STRING) :: localError
+
+    ENTERS("CMISSConstraintEquations_SparsityGetNumber",err,error,*999)
+
+    NULLIFY(REGION)
+    NULLIFY(CONSTRAINT_CONDITION)
+    NULLIFY(CONSTRAINT_EQUATIONS)
+    CALL REGION_USER_NUMBER_FIND(regionUserNumber,REGION,err,error,*999)
+    IF(ASSOCIATED(REGION)) THEN
+      CALL CONSTRAINT_CONDITION_USER_NUMBER_FIND(constraintConditionUserNumber,REGION,CONSTRAINT_CONDITION,err,error,*999)
+      IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
+        CALL CONSTRAINT_CONDITION_EQUATIONS_GET(CONSTRAINT_CONDITION,CONSTRAINT_EQUATIONS,err,error,*999)
+        CALL CONSTRAINT_EQUATIONS_SPARSITY_TYPE_GET(CONSTRAINT_EQUATIONS,sparsityType,err,error,*999)
+      ELSE
+        localError="An constraint condition with an user number of "// &
+          & TRIM(NUMBER_TO_VSTRING(constraintConditionUserNumber,"*",err,error))// &
+          & " does not exist on the region with a user number of "// &
+          & TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//"."
+          CALL FlagError(localError,err,error,*999)
+      END IF
+    ELSE
+      localError="A region with an user number of "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
+    END IF
+
+    EXITS("CMISSConstraintEquations_SparsityGetNumber")
+    RETURN
+999 ERRORSEXITS("CMISSConstraintEquations_SparsityGetNumber",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintEquations_SparsityGetNumber
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Gets the sparsity type for an constraint equations identified by an object.
+  SUBROUTINE CMISSConstraintEquations_SparsityGetObj(constraintEquations,sparsityType,err)
+
+    !Argument variables
+    TYPE(CMISSConstraintEquationsType), INTENT(IN) :: constraintEquations !<The constraint equations to get the sparsity type for.
+    INTEGER(INTG), INTENT(OUT) :: sparsityType !<On return, the constraint equations sparsity type. \see OPENCMISS_EquationsSparsityType,OPENCMISS
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    ENTERS("CMISSConstraintEquations_SparsityGetObj",err,error,*999)
+
+    CALL CONSTRAINT_EQUATIONS_SPARSITY_TYPE_GET(constraintEquations%CONSTRAINT_EQUATIONS,sparsityType,err,error,*999)
+
+    EXITS("CMISSConstraintEquations_SparsityGetObj")
+    RETURN
+999 ERRORSEXITS("CMISSConstraintEquations_SparsityGetObj",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintEquations_SparsityGetObj
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Sets/changes the sparsity type for an constraint equations identified by a user number.
+  SUBROUTINE CMISSConstraintEquations_SparsitySetNumber(regionUserNumber,constraintConditionUserNumber, &
+    & sparsityType,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: regionUserNumber !<The user number of the region containing the constraint, constraint condition and constraint equations to set the sparsity type for.
+    INTEGER(INTG), INTENT(IN) :: constraintConditionUserNumber !<The user number of the constraint condition and constraint equations to set the sparsity type for.
+    INTEGER(INTG), INTENT(IN) :: sparsityType !<The constraint equations sparsity type to set. \see OPENCMISS_EquationsSparsityTypes,OPENCMISS
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION
+    TYPE(CONSTRAINT_EQUATIONS_TYPE), POINTER :: CONSTRAINT_EQUATIONS
+    TYPE(REGION_TYPE), POINTER :: REGION
+    TYPE(VARYING_STRING) :: localError
+
+    ENTERS("CMISSConstraintEquations_SparsitySetNumber",err,error,*999)
+
+    NULLIFY(REGION)
+    NULLIFY(CONSTRAINT_CONDITION)
+    NULLIFY(CONSTRAINT_EQUATIONS)
+    CALL REGION_USER_NUMBER_FIND(regionUserNumber,REGION,err,error,*999)
+    IF(ASSOCIATED(REGION)) THEN
+      CALL CONSTRAINT_CONDITION_USER_NUMBER_FIND(constraintConditionUserNumber,REGION,CONSTRAINT_CONDITION,err,error,*999)
+      IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
+        CALL CONSTRAINT_CONDITION_EQUATIONS_GET(CONSTRAINT_CONDITION,CONSTRAINT_EQUATIONS,err,error,*999)
+        CALL CONSTRAINT_EQUATIONS_SPARSITY_TYPE_SET(CONSTRAINT_EQUATIONS,sparsityType,err,error,*999)
+      ELSE
+        localError="An constraint condition with an user number of "// &
+          & TRIM(NUMBER_TO_VSTRING(constraintConditionUserNumber,"*",err,error))// &
+          & " does not exist on the region with a user number of "// &
+          & TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//"."
+        CALL FlagError(localError,err,error,*999)
+      END IF
+    ELSE
+      localError="A region with an user number of "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
+    END IF
+
+    EXITS("CMISSConstraintEquations_SparsitySetNumber")
+    RETURN
+999 ERRORSEXITS("CMISSConstraintEquations_SparsitySetNumber",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintEquations_SparsitySetNumber
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Sets/changes the sparsity type for an constraint equations identified by an object.
+  SUBROUTINE CMISSConstraintEquations_SparsitySetObj(constraintEquations,sparsityType,err)
+
+    !Argument variables
+    TYPE(CMISSConstraintEquationsType), INTENT(IN) :: constraintEquations !<The constraint equations to set the sparsity type for.
+    INTEGER(INTG), INTENT(IN) :: sparsityType !<The constraint equations sparsity type to set. \see OPENCMISS_EquationsSparsityTypes,OPENCMISS
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    ENTERS("CMISSConstraintEquations_SparsitySetObj",err,error,*999)
+
+    CALL CONSTRAINT_EQUATIONS_SPARSITY_TYPE_SET(constraintEquations%CONSTRAINT_EQUATIONS,sparsityType,err,error,*999)
+
+    EXITS("CMISSConstraintEquations_SparsitySetObj")
+    RETURN
+999 ERRORSEXITS("CMISSConstraintEquations_SparsitySetObj",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSConstraintEquations_SparsitySetObj
+
+!!==================================================================================================================================
+!!
 !! CONTROL_LOOP_ROUTINES
 !!
 !!==================================================================================================================================
@@ -15548,7 +18328,7 @@ CONTAINS
     !Local variables
     TYPE(CONTROL_LOOP_TYPE), POINTER :: CONTROL_LOOP
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSControlLoop_CurrentTimesGetNumber0",err,error,*999)
 
@@ -15559,8 +18339,8 @@ CONTAINS
       CALL PROBLEM_CONTROL_LOOP_GET(PROBLEM,controlLoopIdentifier,CONTROL_LOOP,err,error,*999)
       CALL CONTROL_LOOP_CURRENT_TIMES_GET(CONTROL_LOOP,currentTime,timeIncrement,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSControlLoop_CurrentTimesGetNumber0")
@@ -15587,7 +18367,7 @@ CONTAINS
     !Local variables
     TYPE(CONTROL_LOOP_TYPE), POINTER :: CONTROL_LOOP
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSControlLoop_CurrentTimesGetNumber1",err,error,*999)
 
@@ -15598,8 +18378,8 @@ CONTAINS
       CALL PROBLEM_CONTROL_LOOP_GET(PROBLEM,controlLoopIdentifiers,CONTROL_LOOP,err,error,*999)
       CALL CONTROL_LOOP_CURRENT_TIMES_GET(CONTROL_LOOP,currentTime,timeIncrement,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSControlLoop_CurrentTimesGetNumber1")
@@ -15650,7 +18430,7 @@ CONTAINS
     !Local variables
     TYPE(CONTROL_LOOP_TYPE), POINTER :: CONTROL_LOOP
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSControlLoop_DestroyNumber0",err,error,*999)
 
@@ -15661,8 +18441,8 @@ CONTAINS
       CALL PROBLEM_CONTROL_LOOP_GET(PROBLEM,controlLoopIdentifier,CONTROL_LOOP,err,error,*999)
       CALL CONTROL_LOOP_DESTROY(CONTROL_LOOP,err,error,*999)
    ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSControlLoop_DestroyNumber0")
@@ -15687,7 +18467,7 @@ CONTAINS
     !Local variables
     TYPE(CONTROL_LOOP_TYPE), POINTER :: CONTROL_LOOP
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSControlLoop_DestroyNumber1",err,error,*999)
 
@@ -15698,8 +18478,8 @@ CONTAINS
       CALL PROBLEM_CONTROL_LOOP_GET(PROBLEM,controlLoopIdentifiers,CONTROL_LOOP,err,error,*999)
       CALL CONTROL_LOOP_DESTROY(CONTROL_LOOP,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSControlLoop_DestroyNumber1")
@@ -15751,7 +18531,7 @@ CONTAINS
     !Local variables
     TYPE(CONTROL_LOOP_TYPE), POINTER :: ROOT_CONTROL_LOOP
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSControlLoop_ControlLoopGetNumber00",err,error,*999)
 
@@ -15762,8 +18542,8 @@ CONTAINS
       CALL PROBLEM_CONTROL_LOOP_GET(PROBLEM,controlLoopRootIdentifier,ROOT_CONTROL_LOOP,err,error,*999)
       CALL CONTROL_LOOP_GET(ROOT_CONTROL_LOOP,controlLoopIdentifier,controlLoop%CONTROL_LOOP,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSControlLoop_ControlLoopGetNumber00")
@@ -15791,7 +18571,7 @@ CONTAINS
     !Local variables
     TYPE(CONTROL_LOOP_TYPE), POINTER :: ROOT_CONTROL_LOOP
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSControlLoop_ControlLoopGetNumber10",err,error,*999)
 
@@ -15802,8 +18582,8 @@ CONTAINS
       CALL PROBLEM_CONTROL_LOOP_GET(PROBLEM,controlLoopRootIdentifiers,ROOT_CONTROL_LOOP,err,error,*999)
       CALL CONTROL_LOOP_GET(ROOT_CONTROL_LOOP,controlLoopIdentifier,controlLoop%CONTROL_LOOP,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSControlLoop_ControlLoopGetNumber10")
@@ -15831,7 +18611,7 @@ CONTAINS
     !Local variables
     TYPE(CONTROL_LOOP_TYPE), POINTER :: ROOT_CONTROL_LOOP
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSControlLoop_ControlLoopGetNumber01",err,error,*999)
 
@@ -15842,8 +18622,8 @@ CONTAINS
       CALL PROBLEM_CONTROL_LOOP_GET(PROBLEM,controlLoopRootIdentifier,ROOT_CONTROL_LOOP,err,error,*999)
       CALL CONTROL_LOOP_GET(ROOT_CONTROL_LOOP,controlLoopIdentifiers,controlLoop%CONTROL_LOOP,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSControlLoop_ControlLoopGetNumber01")
@@ -15871,7 +18651,7 @@ CONTAINS
     !Local variables
     TYPE(CONTROL_LOOP_TYPE), POINTER :: ROOT_CONTROL_LOOP
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSControlLoop_ControlLoopGetNumber11",err,error,*999)
 
@@ -15882,8 +18662,8 @@ CONTAINS
       CALL PROBLEM_CONTROL_LOOP_GET(PROBLEM,controlLoopRootIdentifiers,ROOT_CONTROL_LOOP,err,error,*999)
       CALL CONTROL_LOOP_GET(ROOT_CONTROL_LOOP,controlLoopIdentifiers,controlLoop%CONTROL_LOOP,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSControlLoop_ControlLoopGetNumber11")
@@ -15964,7 +18744,7 @@ CONTAINS
     !Local variables
     TYPE(CONTROL_LOOP_TYPE), POINTER :: CONTROL_LOOP
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSControlLoop_IterationsSetNumber0",err,error,*999)
 
@@ -15975,8 +18755,8 @@ CONTAINS
       CALL PROBLEM_CONTROL_LOOP_GET(PROBLEM,controlLoopIdentifier,CONTROL_LOOP,err,error,*999)
       CALL CONTROL_LOOP_ITERATIONS_SET(CONTROL_LOOP,startIteration,stopIteration,iterationIncrement,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSControlLoop_IterationsSetNumber0")
@@ -16005,7 +18785,7 @@ CONTAINS
     !Local variables
     TYPE(CONTROL_LOOP_TYPE), POINTER :: CONTROL_LOOP
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSControlLoop_IterationsSetNumber1",err,error,*999)
 
@@ -16016,8 +18796,8 @@ CONTAINS
       CALL PROBLEM_CONTROL_LOOP_GET(PROBLEM,controlLoopIdentifiers,CONTROL_LOOP,err,error,*999)
       CALL CONTROL_LOOP_ITERATIONS_SET(CONTROL_LOOP,startIteration,stopIteration,iterationIncrement,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSControlLoop_IterationsSetNumber1")
@@ -16069,7 +18849,7 @@ CONTAINS
     !Local variables
     TYPE(CONTROL_LOOP_TYPE), POINTER :: CONTROL_LOOP
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSControlLoop_LabelGetCNumber0",err,error,*999)
 
@@ -16080,8 +18860,8 @@ CONTAINS
       CALL PROBLEM_CONTROL_LOOP_GET(PROBLEM,controlLoopIdentifier,CONTROL_LOOP,err,error,*999)
       CALL CONTROL_LOOP_LABEL_GET(CONTROL_LOOP,label,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSControlLoop_LabelGetCNumber0")
@@ -16107,7 +18887,7 @@ CONTAINS
     !Local variables
     TYPE(CONTROL_LOOP_TYPE), POINTER :: CONTROL_LOOP
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSControlLoop_LabelGetCNumber1",err,error,*999)
 
@@ -16118,8 +18898,8 @@ CONTAINS
       CALL PROBLEM_CONTROL_LOOP_GET(PROBLEM,controlLoopIdentifiers,CONTROL_LOOP,err,error,*999)
       CALL CONTROL_LOOP_LABEL_GET(CONTROL_LOOP,label,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSControlLoop_LabelGetCNumber1")
@@ -16170,7 +18950,7 @@ CONTAINS
     !Local variables
     TYPE(CONTROL_LOOP_TYPE), POINTER :: CONTROL_LOOP
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSControlLoop_LabelGetVSNumber0",err,error,*999)
 
@@ -16181,8 +18961,8 @@ CONTAINS
       CALL PROBLEM_CONTROL_LOOP_GET(PROBLEM,controlLoopIdentifier,CONTROL_LOOP,err,error,*999)
       CALL CONTROL_LOOP_LABEL_GET(CONTROL_LOOP,label,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSControlLoop_LabelGetVSNumber0")
@@ -16208,7 +18988,7 @@ CONTAINS
     !Local variables
     TYPE(CONTROL_LOOP_TYPE), POINTER :: CONTROL_LOOP
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSControlLoop_LabelGetVSNumber1",err,error,*999)
 
@@ -16219,8 +18999,8 @@ CONTAINS
       CALL PROBLEM_CONTROL_LOOP_GET(PROBLEM,controlLoopIdentifiers,CONTROL_LOOP,err,error,*999)
       CALL CONTROL_LOOP_LABEL_GET(CONTROL_LOOP,label,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSControlLoop_LabelGetVSNumber1")
@@ -16271,7 +19051,7 @@ CONTAINS
     !Local variables
     TYPE(CONTROL_LOOP_TYPE), POINTER :: CONTROL_LOOP
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSControlLoop_LabelSetCNumber0",err,error,*999)
 
@@ -16282,8 +19062,8 @@ CONTAINS
       CALL PROBLEM_CONTROL_LOOP_GET(PROBLEM,controlLoopIdentifier,CONTROL_LOOP,err,error,*999)
       CALL CONTROL_LOOP_LABEL_SET(CONTROL_LOOP,label,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSControlLoop_LabelSetCNumber0")
@@ -16309,7 +19089,7 @@ CONTAINS
     !Local variables
     TYPE(CONTROL_LOOP_TYPE), POINTER :: CONTROL_LOOP
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSControlLoop_LabelSetCNumber1",err,error,*999)
 
@@ -16320,8 +19100,8 @@ CONTAINS
       CALL PROBLEM_CONTROL_LOOP_GET(PROBLEM,controlLoopIdentifiers,CONTROL_LOOP,err,error,*999)
       CALL CONTROL_LOOP_LABEL_SET(CONTROL_LOOP,label,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSControlLoop_LabelSetCNumber1")
@@ -16372,7 +19152,7 @@ CONTAINS
     !Local variables
     TYPE(CONTROL_LOOP_TYPE), POINTER :: CONTROL_LOOP
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSControlLoop_LabelSetVSNumber0",err,error,*999)
 
@@ -16383,8 +19163,8 @@ CONTAINS
       CALL PROBLEM_CONTROL_LOOP_GET(PROBLEM,controlLoopIdentifier,CONTROL_LOOP,err,error,*999)
       CALL CONTROL_LOOP_LABEL_SET(CONTROL_LOOP,CHAR(label),err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSControlLoopLabelStVSNumber0")
@@ -16410,7 +19190,7 @@ CONTAINS
     !Local variables
     TYPE(CONTROL_LOOP_TYPE), POINTER :: CONTROL_LOOP
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSControlLoop_LabelSetVSNumber1",err,error,*999)
 
@@ -16421,8 +19201,8 @@ CONTAINS
       CALL PROBLEM_CONTROL_LOOP_GET(PROBLEM,controlLoopIdentifiers,CONTROL_LOOP,err,error,*999)
       CALL CONTROL_LOOP_LABEL_SET(CONTROL_LOOP,CHAR(label),err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSControlLoopLabelStVSNumber1")
@@ -16473,7 +19253,7 @@ CONTAINS
     !Local variables
     TYPE(CONTROL_LOOP_TYPE), POINTER :: CONTROL_LOOP
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSControlLoop_MaximumIterationsSetNumber0",err,error,*999)
 
@@ -16484,8 +19264,8 @@ CONTAINS
       CALL PROBLEM_CONTROL_LOOP_GET(PROBLEM,controlLoopIdentifier,CONTROL_LOOP,err,error,*999)
       CALL CONTROL_LOOP_MAXIMUM_ITERATIONS_SET(CONTROL_LOOP,maximumIterations,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSControlLoop_MaximumIterationsSetNumber0")
@@ -16512,7 +19292,7 @@ CONTAINS
     !Local variables
     TYPE(CONTROL_LOOP_TYPE), POINTER :: CONTROL_LOOP
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSControlLoop_MaximumIterationsSetNumber1",err,error,*999)
 
@@ -16523,8 +19303,8 @@ CONTAINS
       CALL PROBLEM_CONTROL_LOOP_GET(PROBLEM,controlLoopIdentifiers,CONTROL_LOOP,err,error,*999)
       CALL CONTROL_LOOP_MAXIMUM_ITERATIONS_SET(CONTROL_LOOP,maximumIterations,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSControlLoop_MaximumIterationsSetNumber1")
@@ -16601,7 +19381,7 @@ CONTAINS
     !Local variables
     TYPE(CONTROL_LOOP_TYPE), POINTER :: CONTROL_LOOP
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSControlLoop_AbsoluteToleranceSetNumber0",err,error,*999)
 
@@ -16612,8 +19392,8 @@ CONTAINS
       CALL PROBLEM_CONTROL_LOOP_GET(PROBLEM,controlLoopIdentifier,CONTROL_LOOP,err,error,*999)
       CALL ControlLoop_AbsoluteToleranceSet(CONTROL_LOOP,absoluteTolerance,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSControlLoop_AbsoluteToleranceSetNumber0")
@@ -16640,7 +19420,7 @@ CONTAINS
     !Local variables
     TYPE(CONTROL_LOOP_TYPE), POINTER :: CONTROL_LOOP
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSControlLoop_AbsoluteToleranceSetNumber1",err,error,*999)
 
@@ -16651,8 +19431,8 @@ CONTAINS
       CALL PROBLEM_CONTROL_LOOP_GET(PROBLEM,controlLoopIdentifiers,CONTROL_LOOP,err,error,*999)
       CALL ControlLoop_AbsoluteToleranceSet(CONTROL_LOOP,absoluteTolerance,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSControlLoop_AbsoluteToleranceSetNumber1")
@@ -16704,7 +19484,7 @@ CONTAINS
     !Local variables
     TYPE(CONTROL_LOOP_TYPE), POINTER :: CONTROL_LOOP
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSControlLoop_NumberOfSubLoopsGetNumber0",err,error,*999)
 
@@ -16715,8 +19495,8 @@ CONTAINS
       CALL PROBLEM_CONTROL_LOOP_GET(PROBLEM,controlLoopIdentifier,CONTROL_LOOP,err,error,*999)
       CALL CONTROL_LOOP_NUMBER_OF_SUB_LOOPS_GET(CONTROL_LOOP,numberOfSubLoops,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSControlLoop_NumberOfSubLoopsGetNumber0")
@@ -16742,7 +19522,7 @@ CONTAINS
     !Local variables
     TYPE(CONTROL_LOOP_TYPE), POINTER :: CONTROL_LOOP
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSControlLoop_NumberOfSubLoopsGetNumber1",err,error,*999)
 
@@ -16753,8 +19533,8 @@ CONTAINS
       CALL PROBLEM_CONTROL_LOOP_GET(PROBLEM,controlLoopIdentifiers,CONTROL_LOOP,err,error,*999)
       CALL CONTROL_LOOP_NUMBER_OF_SUB_LOOPS_GET(CONTROL_LOOP,numberOfSubLoops,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSControlLoop_NumberOfSubLoopsGetNumber1")
@@ -16805,7 +19585,7 @@ CONTAINS
     !Local variables
     TYPE(CONTROL_LOOP_TYPE), POINTER :: CONTROL_LOOP
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSControlLoopNumberOfSubLoopsSetNumber",err,error,*999)
 
@@ -16816,8 +19596,8 @@ CONTAINS
       CALL PROBLEM_CONTROL_LOOP_GET(PROBLEM,controlLoopIdentifier,CONTROL_LOOP,err,error,*999)
       CALL CONTROL_LOOP_NUMBER_OF_SUB_LOOPS_SET(CONTROL_LOOP,numberOfSubLoops,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSControlLoop_NumberOfSubLoopsSetNumber0")
@@ -16843,7 +19623,7 @@ CONTAINS
     !Local variables
     TYPE(CONTROL_LOOP_TYPE), POINTER :: CONTROL_LOOP
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSControlLoop_NumberOfSubLoopsSetNumber1",err,error,*999)
 
@@ -16854,8 +19634,8 @@ CONTAINS
       CALL PROBLEM_CONTROL_LOOP_GET(PROBLEM,controlLoopIdentifiers,CONTROL_LOOP,err,error,*999)
       CALL CONTROL_LOOP_NUMBER_OF_SUB_LOOPS_SET(CONTROL_LOOP,numberOfSubLoops,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSControlLoop_NumberOfSubLoopsSetNumber1")
@@ -16906,7 +19686,7 @@ CONTAINS
     !Local variables
     TYPE(CONTROL_LOOP_TYPE), POINTER :: CONTROL_LOOP
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSControlLoop_OutputTypeGetNumber0",err,error,*999)
 
@@ -16917,8 +19697,8 @@ CONTAINS
       CALL PROBLEM_CONTROL_LOOP_GET(PROBLEM,controlLoopIdentifier,CONTROL_LOOP,err,error,*999)
       CALL CONTROL_LOOP_OUTPUT_TYPE_GET(CONTROL_LOOP,outputType,err,error,*999)
    ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSControlLoop_OutputTypeGetNumber0")
@@ -16944,7 +19724,7 @@ CONTAINS
     !Local variables
     TYPE(CONTROL_LOOP_TYPE), POINTER :: CONTROL_LOOP
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSControlLoop_OutputTypeGetNumber1",err,error,*999)
 
@@ -16955,8 +19735,8 @@ CONTAINS
       CALL PROBLEM_CONTROL_LOOP_GET(PROBLEM,controlLoopIdentifiers,CONTROL_LOOP,err,error,*999)
       CALL CONTROL_LOOP_OUTPUT_TYPE_GET(CONTROL_LOOP,outputType,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSControlLoop_OutputTypeGetNumber1")
@@ -17007,7 +19787,7 @@ CONTAINS
     !Local variables
     TYPE(CONTROL_LOOP_TYPE), POINTER :: CONTROL_LOOP
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSControlLoop_OutputTypeSetNumber0",err,error,*999)
 
@@ -17018,8 +19798,8 @@ CONTAINS
       CALL PROBLEM_CONTROL_LOOP_GET(PROBLEM,controlLoopIdentifier,CONTROL_LOOP,err,error,*999)
       CALL CONTROL_LOOP_OUTPUT_TYPE_SET(CONTROL_LOOP,outputType,err,error,*999)
    ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSControlLoop_OutputTypeSetNumber0")
@@ -17045,7 +19825,7 @@ CONTAINS
     !Local variables
     TYPE(CONTROL_LOOP_TYPE), POINTER :: CONTROL_LOOP
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSControlLoop_OutputTypeSetNumber1",err,error,*999)
 
@@ -17056,8 +19836,8 @@ CONTAINS
       CALL PROBLEM_CONTROL_LOOP_GET(PROBLEM,controlLoopIdentifiers,CONTROL_LOOP,err,error,*999)
       CALL CONTROL_LOOP_OUTPUT_TYPE_SET(CONTROL_LOOP,outputType,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSControlLoop_OutputTypeSetNumber1")
@@ -17108,7 +19888,7 @@ CONTAINS
     !Local variables
     TYPE(CONTROL_LOOP_TYPE), POINTER :: CONTROL_LOOP
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSControlLoop_TimeOutputSetNumber0",err,error,*999)
 
@@ -17119,8 +19899,8 @@ CONTAINS
       CALL PROBLEM_CONTROL_LOOP_GET(PROBLEM,controlLoopIdentifier,CONTROL_LOOP,err,error,*999)
       CALL CONTROL_LOOP_TIME_OUTPUT_SET(CONTROL_LOOP,outputFrequency,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSControlLoop_TimeOutputSetNumber0")
@@ -17145,7 +19925,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(CONTROL_LOOP_TYPE), POINTER :: CONTROL_LOOP
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
 
     ENTERS("CMISSControlLoop_TimeOutputSetNumber1",err,error,*999)
@@ -17157,8 +19937,8 @@ CONTAINS
       CALL PROBLEM_CONTROL_LOOP_GET(PROBLEM,controlLoopIdentifiers,CONTROL_LOOP,err,error,*999)
       CALL CONTROL_LOOP_TIME_OUTPUT_SET(CONTROL_LOOP,outputFrequency,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSControlLoop_TimeOutputSetNumber1")
@@ -17209,7 +19989,7 @@ CONTAINS
     !Local variables
     TYPE(CONTROL_LOOP_TYPE), POINTER :: CONTROL_LOOP
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSControlLoop_TimeInputSetNumber0",err,error,*999)
 
@@ -17220,8 +20000,8 @@ CONTAINS
       CALL PROBLEM_CONTROL_LOOP_GET(PROBLEM,controlLoopIdentifier,CONTROL_LOOP,err,error,*999)
       CALL CONTROL_LOOP_TIME_OUTPUT_SET(CONTROL_LOOP,inputOption,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSControlLoop_TimeInputSetNumber0")
@@ -17246,7 +20026,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(CONTROL_LOOP_TYPE), POINTER :: CONTROL_LOOP
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
 
     ENTERS("CMISSControlLoop_TimeInputSetNumber1",err,error,*999)
@@ -17258,8 +20038,8 @@ CONTAINS
       CALL PROBLEM_CONTROL_LOOP_GET(PROBLEM,controlLoopIdentifiers,CONTROL_LOOP,err,error,*999)
       CALL CONTROL_LOOP_TIME_OUTPUT_SET(CONTROL_LOOP,inputOption,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSControlLoop_TimeInputSetNumber1")
@@ -17317,7 +20097,7 @@ CONTAINS
     !Local variables
     TYPE(CONTROL_LOOP_TYPE), POINTER :: CONTROL_LOOP
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSControlLoop_TimesGetNumber0",err,error,*999)
 
@@ -17329,8 +20109,8 @@ CONTAINS
       CALL CONTROL_LOOP_TIMES_GET(CONTROL_LOOP,startTime,stopTime,timeIncrement,currentTime, &
         & currentLoopIteration,outputIterationNumber,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSControlLoop_TimesGetNumber0")
@@ -17362,7 +20142,7 @@ CONTAINS
     !Local variables
     TYPE(CONTROL_LOOP_TYPE), POINTER :: CONTROL_LOOP
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSControlLoop_TimesGetNumber1",err,error,*999)
 
@@ -17374,8 +20154,8 @@ CONTAINS
       CALL CONTROL_LOOP_TIMES_GET(CONTROL_LOOP,startTime,stopTime,timeIncrement,currentTime, &
         & currentLoopIteration,outputIterationNumber,err,error,*999)
    ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSControlLoop_TimesGetNumber1")
@@ -17435,7 +20215,7 @@ CONTAINS
     !Local variables
     TYPE(CONTROL_LOOP_TYPE), POINTER :: CONTROL_LOOP
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSControlLoop_TimesSetNumber0",err,error,*999)
 
@@ -17446,8 +20226,8 @@ CONTAINS
       CALL PROBLEM_CONTROL_LOOP_GET(PROBLEM,controlLoopIdentifier,CONTROL_LOOP,err,error,*999)
       CALL CONTROL_LOOP_TIMES_SET(CONTROL_LOOP,startTime,stopTime,timeIncrement,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSControlLoop_TimesSetNumber0")
@@ -17474,7 +20254,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(CONTROL_LOOP_TYPE), POINTER :: CONTROL_LOOP
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
 
     ENTERS("CMISSControlLoop_TimesSetNumber1",err,error,*999)
@@ -17486,8 +20266,8 @@ CONTAINS
       CALL PROBLEM_CONTROL_LOOP_GET(PROBLEM,controlLoopIdentifiers,CONTROL_LOOP,err,error,*999)
       CALL CONTROL_LOOP_TIMES_SET(CONTROL_LOOP,startTime,stopTime,timeIncrement,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSControlLoop_TimesSetNumber1")
@@ -17540,7 +20320,7 @@ CONTAINS
     !Local variables
     TYPE(CONTROL_LOOP_TYPE), POINTER :: CONTROL_LOOP
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSControlLoop_TypeSetNumber0",err,error,*999)
 
@@ -17551,8 +20331,8 @@ CONTAINS
       CALL PROBLEM_CONTROL_LOOP_GET(PROBLEM,controlLoopIdentifier,CONTROL_LOOP,err,error,*999)
       CALL CONTROL_LOOP_TYPE_SET(CONTROL_LOOP,loopType,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSControlLoop_TypeSetNumber0")
@@ -17578,7 +20358,7 @@ CONTAINS
     !Local variables
     TYPE(CONTROL_LOOP_TYPE), POINTER :: CONTROL_LOOP
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSControlLoop_TypeSetNumber1",err,error,*999)
 
@@ -17589,8 +20369,8 @@ CONTAINS
       CALL PROBLEM_CONTROL_LOOP_GET(PROBLEM,controlLoopIdentifiers,CONTROL_LOOP,err,error,*999)
       CALL CONTROL_LOOP_TYPE_SET(CONTROL_LOOP,loopType,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSControlLoop_TypeSetNumber1")
@@ -17640,7 +20420,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(COORDINATE_SYSTEM_TYPE), POINTER :: COORDINATE_SYSTEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSCoordinateSystem_CreateFinishNumber",err,error,*999)
 
@@ -17649,9 +20429,9 @@ CONTAINS
     IF(ASSOCIATED(COORDINATE_SYSTEM)) THEN
       CALL COORDINATE_SYSTEM_CREATE_FINISH(COORDINATE_SYSTEM,err,error,*999)
     ELSE
-      LOCAL_ERROR="A coordinate system with an user number of "// &
+      localError="A coordinate system with an user number of "// &
         & TRIM(NumberToVString(coordinateSystemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
 #ifdef TAUPROF
@@ -17765,7 +20545,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(COORDINATE_SYSTEM_TYPE), POINTER :: COORDINATE_SYSTEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSCoordinateSystem_DestroyNumber",err,error,*999)
 
@@ -17774,9 +20554,9 @@ CONTAINS
     IF(ASSOCIATED(COORDINATE_SYSTEM)) THEN
       CALL COORDINATE_SYSTEM_DESTROY(COORDINATE_SYSTEM,err,error,*999)
     ELSE
-      LOCAL_ERROR="A coordinate system with an user number of "// &
+      localError="A coordinate system with an user number of "// &
         & TRIM(NumberToVString(coordinateSystemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSCoordinateSystem_DestroyNumber")
@@ -17824,7 +20604,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(COORDINATE_SYSTEM_TYPE), POINTER :: COORDINATE_SYSTEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSCoordinateSystem_DimensionGetNumber",err,error,*999)
 
@@ -17833,9 +20613,9 @@ CONTAINS
     IF(ASSOCIATED(COORDINATE_SYSTEM)) THEN
       CALL COORDINATE_SYSTEM_DIMENSION_GET(COORDINATE_SYSTEM,coordinateSystemDimension,err,error,*999)
     ELSE
-      LOCAL_ERROR="A coordinate system with an user number of "// &
+      localError="A coordinate system with an user number of "// &
         & TRIM(NumberToVString(coordinateSystemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSCoordinateSystem_DimensionGetNumber")
@@ -17884,7 +20664,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(COORDINATE_SYSTEM_TYPE), POINTER :: COORDINATE_SYSTEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSCoordinateSystem_DimensionSetNumber",err,error,*999)
 
@@ -17893,9 +20673,9 @@ CONTAINS
     IF(ASSOCIATED(COORDINATE_SYSTEM)) THEN
       CALL COORDINATE_SYSTEM_DIMENSION_SET(COORDINATE_SYSTEM,coordinateSystemDimension,err,error,*999)
     ELSE
-      LOCAL_ERROR="A coordinate system with an user number of "// &
+      localError="A coordinate system with an user number of "// &
         & TRIM(NumberToVString(coordinateSystemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSCoordinateSystem_DimensionSetNumber")
@@ -17944,7 +20724,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(COORDINATE_SYSTEM_TYPE), POINTER :: COORDINATE_SYSTEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSCoordinateSystem_FocusGetNumber",err,error,*999)
 
@@ -17953,9 +20733,9 @@ CONTAINS
     IF(ASSOCIATED(COORDINATE_SYSTEM)) THEN
       CALL COORDINATE_SYSTEM_FOCUS_GET(COORDINATE_SYSTEM,focus,err,error,*999)
     ELSE
-      LOCAL_ERROR="A coordinate system with an user number of "// &
+      localError="A coordinate system with an user number of "// &
         & TRIM(NumberToVString(coordinateSystemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSCoordinateSystem_FocusGetNumber")
@@ -18004,7 +20784,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(COORDINATE_SYSTEM_TYPE), POINTER :: COORDINATE_SYSTEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSCoordinateSystem_FocusSetNumber",err,error,*999)
 
@@ -18013,9 +20793,9 @@ CONTAINS
     IF(ASSOCIATED(COORDINATE_SYSTEM)) THEN
       CALL COORDINATE_SYSTEM_FOCUS_SET(COORDINATE_SYSTEM,focus,err,error,*999)
     ELSE
-      LOCAL_ERROR="A coordinate system with an user number of "// &
+      localError="A coordinate system with an user number of "// &
         & TRIM(NumberToVString(coordinateSystemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSCoordinateSystem_FocusSetNumber")
@@ -18064,7 +20844,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(COORDINATE_SYSTEM_TYPE), POINTER :: COORDINATE_SYSTEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSCoordinateSystem_RadialInterpolationGetNumber",err,error,*999)
 
@@ -18073,9 +20853,9 @@ CONTAINS
     IF(ASSOCIATED(COORDINATE_SYSTEM)) THEN
       CALL Coordinates_RadialInterpolationTypeGet(COORDINATE_SYSTEM,radialInterpolationType,err,error,*999)
     ELSE
-      LOCAL_ERROR="A coordinate system with an user number of "// &
+      localError="A coordinate system with an user number of "// &
         & TRIM(NumberToVString(coordinateSystemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSCoordinateSystem_RadialInterpolationGetNumber")
@@ -18126,7 +20906,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(COORDINATE_SYSTEM_TYPE), POINTER :: COORDINATE_SYSTEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSCoordinateSystem_RadialInterpolationSetNumber",err,error,*999)
 
@@ -18135,9 +20915,9 @@ CONTAINS
     IF(ASSOCIATED(COORDINATE_SYSTEM)) THEN
       CALL Coordinates_RadialInterpolationTypeSet(COORDINATE_SYSTEM,radialInterpolationType,err,error,*999)
     ELSE
-      LOCAL_ERROR="A coordinate system with an user number of "// &
+      localError="A coordinate system with an user number of "// &
         & TRIM(NumberToVString(coordinateSystemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSCoordinateSystem_RadialInterpolationSetNumber")
@@ -18188,7 +20968,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(COORDINATE_SYSTEM_TYPE), POINTER :: COORDINATE_SYSTEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSCoordinateSystem_TypeGetNumber",err,error,*999)
 
@@ -18197,9 +20977,9 @@ CONTAINS
     IF(ASSOCIATED(COORDINATE_SYSTEM)) THEN
       CALL COORDINATE_SYSTEM_TYPE_GET(COORDINATE_SYSTEM,coordinateSystemType,err,error,*999)
     ELSE
-      LOCAL_ERROR="A coordinate system with an user number of "// &
+      localError="A coordinate system with an user number of "// &
         & TRIM(NumberToVString(coordinateSystemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSCoordinateSystem_TypeGetNumber")
@@ -18248,7 +21028,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(COORDINATE_SYSTEM_TYPE), POINTER :: COORDINATE_SYSTEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSCoordinateSystem_TypeSetNumber",err,error,*999)
 
@@ -18257,9 +21037,9 @@ CONTAINS
     IF(ASSOCIATED(COORDINATE_SYSTEM)) THEN
       CALL COORDINATE_SYSTEM_TYPE_SET(COORDINATE_SYSTEM,coordinateSystemType,err,error,*999)
     ELSE
-      LOCAL_ERROR="A coordinate system with an user number of "// &
+      localError="A coordinate system with an user number of "// &
         & TRIM(NumberToVString(coordinateSystemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSCoordinateSystem_TypeSetNumber")
@@ -18308,7 +21088,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(COORDINATE_SYSTEM_TYPE), POINTER :: COORDINATE_SYSTEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSCoordinateSystem_OriginGetNumber",err,error,*999)
 
@@ -18317,9 +21097,9 @@ CONTAINS
     IF(ASSOCIATED(COORDINATE_SYSTEM)) THEN
       CALL COORDINATE_SYSTEM_ORIGIN_GET(COORDINATE_SYSTEM,origin,err,error,*999)
     ELSE
-      LOCAL_ERROR="A coordinate system with an user number of "// &
+      localError="A coordinate system with an user number of "// &
         & TRIM(NumberToVString(coordinateSystemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSCoordinateSystem_OriginGetNumber")
@@ -18368,7 +21148,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(COORDINATE_SYSTEM_TYPE), POINTER :: COORDINATE_SYSTEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSCoordinateSystem_OriginSetNumber",err,error,*999)
 
@@ -18377,9 +21157,9 @@ CONTAINS
     IF(ASSOCIATED(COORDINATE_SYSTEM)) THEN
       CALL COORDINATE_SYSTEM_ORIGIN_SET(COORDINATE_SYSTEM,origin,err,error,*999)
     ELSE
-      LOCAL_ERROR="A coordinate system with an user number of "// &
+      localError="A coordinate system with an user number of "// &
         & TRIM(NumberToVString(coordinateSystemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSCoordinateSystem_OriginSetNumber")
@@ -18428,7 +21208,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(COORDINATE_SYSTEM_TYPE), POINTER :: COORDINATE_SYSTEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSCoordinateSystem_OrientationGetNumber",err,error,*999)
 
@@ -18437,9 +21217,9 @@ CONTAINS
     IF(ASSOCIATED(COORDINATE_SYSTEM)) THEN
       CALL COORDINATE_SYSTEM_ORIENTATION_GET(COORDINATE_SYSTEM,ORIENTATION,err,error,*999)
     ELSE
-      LOCAL_ERROR="A coordinate system with an user number of "// &
+      localError="A coordinate system with an user number of "// &
         & TRIM(NumberToVString(coordinateSystemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSCoordinateSystem_OrientationGetNumber")
@@ -18488,7 +21268,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(COORDINATE_SYSTEM_TYPE), POINTER :: COORDINATE_SYSTEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSCoordinateSystem_OrientationSetNumber",err,error,*999)
 
@@ -18497,9 +21277,9 @@ CONTAINS
     IF(ASSOCIATED(COORDINATE_SYSTEM)) THEN
       CALL COORDINATE_SYSTEM_ORIENTATION_SET(COORDINATE_SYSTEM,ORIENTATION,err,error,*999)
     ELSE
-      LOCAL_ERROR="A coordinate system with an user number of "// &
+      localError="A coordinate system with an user number of "// &
         & TRIM(NumberToVString(coordinateSystemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSCoordinateSystem_OrientationSetNumber")
@@ -18550,7 +21330,7 @@ CONTAINS
     !Local variables
     TYPE(DATA_POINTS_TYPE), POINTER :: DATA_POINTS
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSDataPoints_CreateFinishNumber",err,error,*999)
 
@@ -18561,9 +21341,9 @@ CONTAINS
       CALL REGION_DATA_POINTS_GET(REGION,DATA_POINTS,err,error,*999)
       CALL DATA_POINTS_CREATE_FINISH(DATA_POINTS,err,error,*999)
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSDataPoints_CreateFinishNumber")
@@ -18612,7 +21392,7 @@ CONTAINS
     !Local variables
     TYPE(DATA_POINTS_TYPE), POINTER :: DATA_POINTS
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSDataPoints_CreateStartNumber",err,error,*999)
 
@@ -18622,9 +21402,9 @@ CONTAINS
     IF(ASSOCIATED(REGION)) THEN
       CALL DATA_POINTS_CREATE_START(REGION,numberOfDataPoints,DATA_POINTS,err,error,*999)
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSDataPoints_CreateStartNumber")
@@ -18705,7 +21485,7 @@ CONTAINS
     !Local variables
     TYPE(DATA_POINTS_TYPE), POINTER :: DATA_POINTS
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSDataPoints_DestroyNumber",err,error,*999)
 
@@ -18716,9 +21496,9 @@ CONTAINS
       CALL REGION_DATA_POINTS_GET(REGION,DATA_POINTS,err,error,*999)
       CALL DATA_POINTS_DESTROY(DATA_POINTS,err,error,*999)
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSDataPoints_DestroyNumber")
@@ -18767,7 +21547,7 @@ CONTAINS
     !Local variables
     TYPE(DATA_POINTS_TYPE), POINTER :: DATA_POINTS
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSDataPoints_NumberOfDataPointsGetNumber",err,error,*999)
 
@@ -18778,9 +21558,9 @@ CONTAINS
       CALL REGION_DATA_POINTS_GET(REGION,DATA_POINTS,err,error,*999)
       CALL DATA_POINTS_NUMBER_OF_DATA_POINTS_GET(DATA_POINTS,numberOfDataPoints,err,error,*999)
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSDataPoints_NumberOfDataPointsGetNumber")
@@ -18832,7 +21612,7 @@ CONTAINS
     !Local variables
     TYPE(DATA_POINTS_TYPE), POINTER :: DATA_POINTS
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSDataPoints_LabelGetCNumber",err,error,*999)
 
@@ -18843,9 +21623,9 @@ CONTAINS
       CALL REGION_DATA_POINTS_GET(REGION,DATA_POINTS,err,error,*999)
       CALL DATA_POINTS_LABEL_GET(DATA_POINTS,dataPointGlobalNumber,label,err,error,*999)
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSDataPoints_LabelGetCNumber")
@@ -18897,7 +21677,7 @@ CONTAINS
     !Local variables
     TYPE(DATA_POINTS_TYPE), POINTER :: DATA_POINTS
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSDataPoints_LabelGetVSNumber",err,error,*999)
 
@@ -18908,9 +21688,9 @@ CONTAINS
       CALL REGION_DATA_POINTS_GET(REGION,DATA_POINTS,err,error,*999)
       CALL DATA_POINTS_LABEL_GET(DATA_POINTS,dataPointGlobalNumber,label,err,error,*999)
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSDataPoints_LabelGetVSNumber")
@@ -18962,7 +21742,7 @@ CONTAINS
     !Local variables
     TYPE(DATA_POINTS_TYPE), POINTER :: DATA_POINTS
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSDataPoints_LabelSetCNumber",err,error,*999)
 
@@ -18973,9 +21753,9 @@ CONTAINS
       CALL REGION_DATA_POINTS_GET(REGION,DATA_POINTS,err,error,*999)
       CALL DATA_POINTS_LABEL_SET(DATA_POINTS,dataPointGlobalNumber,label,err,error,*999)
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSDataPoints_LabelSetCNumber")
@@ -19027,7 +21807,7 @@ CONTAINS
     !Local variables
     TYPE(DATA_POINTS_TYPE), POINTER :: DATA_POINTS
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSDataPoints_LabelSetVSNumber",err,error,*999)
 
@@ -19038,9 +21818,9 @@ CONTAINS
       CALL REGION_DATA_POINTS_GET(REGION,DATA_POINTS,err,error,*999)
       CALL DATA_POINTS_LABEL_SET(DATA_POINTS,dataPointGlobalNumber,label,err,error,*999)
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSDataPoints_LabelSetVSNumber")
@@ -19092,7 +21872,7 @@ CONTAINS
     !Local variables
     TYPE(DATA_POINTS_TYPE), POINTER :: DATA_POINTS
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSDataPoints_UserNumberGetNumber",err,error,*999)
 
@@ -19103,9 +21883,9 @@ CONTAINS
       CALL REGION_DATA_POINTS_GET(REGION,DATA_POINTS,err,error,*999)
       CALL DATA_POINTS_USER_NUMBER_GET(DATA_POINTS,dataPointGlobalNumber,dataPointUserNumber,err,error,*999)
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSDataPoints_UserNumberGetNumber")
@@ -19157,7 +21937,7 @@ CONTAINS
     !Local variables
     TYPE(DATA_POINTS_TYPE), POINTER :: DATA_POINTS
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSDataPoints_UserNumberSetNumber",err,error,*999)
 
@@ -19168,9 +21948,9 @@ CONTAINS
       CALL REGION_DATA_POINTS_GET(REGION,DATA_POINTS,err,error,*999)
       CALL DATA_POINTS_USER_NUMBER_SET(DATA_POINTS,dataPointGlobalNumber,dataPointUserNumber,err,error,*999)
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSDataPoints_UserNumberSetNumber")
@@ -19222,7 +22002,7 @@ CONTAINS
     !Local variables
     TYPE(DATA_POINTS_TYPE), POINTER :: DATA_POINTS
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSDataPoints_ValuesGetNumber",err,error,*999)
 
@@ -19233,9 +22013,9 @@ CONTAINS
       CALL REGION_DATA_POINTS_GET(REGION,DATA_POINTS,err,error,*999)
       CALL DATA_POINTS_VALUES_GET(DATA_POINTS,dataPointGlobalNumber,dataPointValues,err,error,*999)
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSDataPoints_ValuesGetNumber")
@@ -19287,7 +22067,7 @@ CONTAINS
     !Local variables
     TYPE(DATA_POINTS_TYPE), POINTER :: DATA_POINTS
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSDataPoints_ValuesSetNumber",err,error,*999)
 
@@ -19298,9 +22078,9 @@ CONTAINS
       CALL REGION_DATA_POINTS_GET(REGION,DATA_POINTS,err,error,*999)
       CALL DATA_POINTS_VALUES_SET(DATA_POINTS,dataPointGlobalNumber,dataPointValues,err,error,*999)
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSDataPoints_ValuesSetNumber")
@@ -19352,7 +22132,7 @@ CONTAINS
     !Local variables
     TYPE(DATA_POINTS_TYPE), POINTER :: DATA_POINTS
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSDataPoints_WeightsGetNumber",err,error,*999)
 
@@ -19363,9 +22143,9 @@ CONTAINS
       CALL REGION_DATA_POINTS_GET(REGION,DATA_POINTS,err,error,*999)
       CALL DATA_POINTS_WEIGHTS_GET(DATA_POINTS,dataPointGlobalNumber,dataPointWeights,err,error,*999)
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSDataPoints_WeightsGetNumber")
@@ -19417,7 +22197,7 @@ CONTAINS
     !Local variables
     TYPE(DATA_POINTS_TYPE), POINTER :: DATA_POINTS
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSDataPoints_WeightsSetNumber",err,error,*999)
 
@@ -19428,9 +22208,9 @@ CONTAINS
       CALL REGION_DATA_POINTS_GET(REGION,DATA_POINTS,err,error,*999)
       CALL DATA_POINTS_WEIGHTS_SET(DATA_POINTS,dataPointGlobalNumber,dataPointWeights,err,error,*999)
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSDataPoints_WeightsSetNumber")
@@ -19485,7 +22265,7 @@ CONTAINS
     TYPE(REGION_TYPE), POINTER :: REGION
     TYPE(DATA_POINTS_TYPE), POINTER :: DATA_POINTS
     TYPE(DATA_PROJECTION_TYPE), POINTER :: DATA_PROJECTION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
     INTEGER(INTG) :: GLOBAL_NUMBER !<The data projection global number.
 
     ENTERS("CMISSDataProjection_AbsoluteToleranceGetNumber",ERR,error,*999)
@@ -19500,9 +22280,9 @@ CONTAINS
       CALL DATA_POINTS_DATA_PROJECTION_GET(DATA_POINTS,GLOBAL_NUMBER,DATA_PROJECTION,err,ERROR,*999)
       CALL DATA_PROJECTION_ABSOLUTE_TOLERANCE_GET(DATA_PROJECTION,absoluteTolerance,err,error,*999)
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSDataProjection_AbsoluteToleranceGetNumber")
@@ -19555,7 +22335,7 @@ CONTAINS
     TYPE(REGION_TYPE), POINTER :: REGION
     TYPE(DATA_POINTS_TYPE), POINTER :: DATA_POINTS
     TYPE(DATA_PROJECTION_TYPE), POINTER :: DATA_PROJECTION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
     INTEGER(INTG) :: GLOBAL_NUMBER !<The data projection global number.
 
     ENTERS("CMISSDataProjection_AbsoluteToleranceSetNumber",err,error,*999)
@@ -19570,9 +22350,9 @@ CONTAINS
       CALL DATA_POINTS_DATA_PROJECTION_GET(DATA_POINTS,GLOBAL_NUMBER,DATA_PROJECTION,err,ERROR,*999)
       CALL DATA_PROJECTION_ABSOLUTE_TOLERANCE_SET(DATA_PROJECTION,absoluteTolerance,err,error,*999)
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSDataProjection_AbsoluteToleranceSetNumber")
@@ -19624,7 +22404,7 @@ CONTAINS
     TYPE(REGION_TYPE), POINTER :: REGION
     TYPE(DATA_POINTS_TYPE), POINTER :: DATA_POINTS
     TYPE(DATA_PROJECTION_TYPE), POINTER :: DATA_PROJECTION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
     INTEGER(INTG) :: GLOBAL_NUMBER !<The data projection global number.
 
     ENTERS("CMISSDataProjection_CreateFinishNumber",err,error,*999)
@@ -19639,9 +22419,9 @@ CONTAINS
       CALL DATA_POINTS_DATA_PROJECTION_GET(DATA_POINTS,GLOBAL_NUMBER,DATA_PROJECTION,err,ERROR,*999)
       CALL DATA_PROJECTION_CREATE_FINISH(DATA_PROJECTION,err,error,*999)
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSDataProjection_CreateFinishNumber")
@@ -19696,7 +22476,7 @@ CONTAINS
     TYPE(MESH_TYPE), POINTER :: MESH
     TYPE(REGION_TYPE), POINTER :: DATA_POINTS_REGION
     TYPE(REGION_TYPE), POINTER :: MESH_REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR    
+    TYPE(VARYING_STRING) :: localError    
 
     ENTERS("CMISSDataProjection_CreateStartNumber",err,ERROR,*999)
 
@@ -19715,19 +22495,19 @@ CONTAINS
           CALL DATA_PROJECTION_CREATE_START_DATA_POINTS(dataProjectionUserNumber,DATA_POINTS,MESH,DATA_PROJECTION,err, &
             & ERROR,*999)
         ELSE
-          LOCAL_ERROR="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,ERROR))// &
+          localError="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,ERROR))// &
             & " does not exist."
-          CALL FlagError(LOCAL_ERROR,err,ERROR,*999)
+          CALL FlagError(localError,err,ERROR,*999)
         ENDIF
       ELSE
-        LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(meshRegionUserNumber,"*",err,ERROR))// &
+        localError="A region with an user number of "//TRIM(NumberToVString(meshRegionUserNumber,"*",err,ERROR))// &
           & " does not exist."
-        CALL FlagError(LOCAL_ERROR,err,ERROR,*999)
+        CALL FlagError(localError,err,ERROR,*999)
       ENDIF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(dataPointRegionUserNumber,"*",err,ERROR))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(dataPointRegionUserNumber,"*",err,ERROR))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,ERROR,*999)
+      CALL FlagError(localError,err,ERROR,*999)
     ENDIF
 
     EXITS("CMISSDataProjection_CreateStartNumber")
@@ -19781,7 +22561,7 @@ CONTAINS
     TYPE(REGION_TYPE), POINTER :: REGION
     TYPE(DATA_POINTS_TYPE), POINTER :: DATA_POINTS
     TYPE(DATA_PROJECTION_TYPE), POINTER :: DATA_PROJECTION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
     INTEGER(INTG) :: GLOBAL_NUMBER !<The data projection global number.
 
     ENTERS("CMISSDataProjection_DestroyNumber",err,error,*999)
@@ -19796,9 +22576,9 @@ CONTAINS
       CALL DATA_POINTS_DATA_PROJECTION_GET(DATA_POINTS,GLOBAL_NUMBER,DATA_PROJECTION,err,ERROR,*999)
       CALL DATA_PROJECTION_DESTROY(DATA_PROJECTION,err,error,*999)
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSDataProjection_DestroyNumber")
@@ -20139,7 +22919,7 @@ CONTAINS
     TYPE(REGION_TYPE), POINTER :: DATA_POINTS_REGION
     TYPE(REGION_TYPE), POINTER :: PROJECTION_FIELD_REGION
     INTEGER(INTG) :: GLOBAL_NUMBER !<The data projection global number.
-    TYPE(VARYING_STRING) :: LOCAL_ERROR      
+    TYPE(VARYING_STRING) :: localError      
 
     ENTERS("CMISSDataProjection_ProjectionEvaluateNumber",err,error,*999)
     
@@ -20159,19 +22939,19 @@ CONTAINS
         IF(ASSOCIATED(PROJECTION_FIELD)) THEN
           CALL DataProjection_DataPointsProjectionEvaluate(DATA_PROJECTION,PROJECTION_FIELD,err,error,*999)
         ELSE
-          LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(projectionFieldUserNumber,"*",err,ERROR))// &
+          localError="A field with an user number of "//TRIM(NumberToVString(projectionFieldUserNumber,"*",err,ERROR))// &
             & " does not exist."
-          CALL FlagError(LOCAL_ERROR,err,ERROR,*999)
+          CALL FlagError(localError,err,ERROR,*999)
         ENDIF
       ELSE
-        LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(projectionFieldRegionUserNumber,"*",err,ERROR))// &
+        localError="A region with an user number of "//TRIM(NumberToVString(projectionFieldRegionUserNumber,"*",err,ERROR))// &
           & " does not exist."
-        CALL FlagError(LOCAL_ERROR,err,ERROR,*999)
+        CALL FlagError(localError,err,ERROR,*999)
       ENDIF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(dataPointsRegionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(dataPointsRegionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSDataProjection_ProjectionEvaluateNumber")
@@ -20226,7 +23006,7 @@ CONTAINS
     TYPE(REGION_TYPE), POINTER :: REGION
     TYPE(DATA_POINTS_TYPE), POINTER :: DATA_POINTS
     TYPE(DATA_PROJECTION_TYPE), POINTER :: DATA_PROJECTION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
     INTEGER(INTG) :: GLOBAL_NUMBER !<The data projection global number.
 
     ENTERS("CMISSDataProjection_MaximumIterationUpdateGetNumber",err,error,*999)
@@ -20241,9 +23021,9 @@ CONTAINS
       CALL DATA_POINTS_DATA_PROJECTION_GET(DATA_POINTS,GLOBAL_NUMBER,DATA_PROJECTION,err,ERROR,*999)
       CALL DataProjection_MaximumInterationUpdateGet(DATA_PROJECTION,maximumIterationUpdate,err,error,*999)
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSDataProjection_MaximumIterationUpdateGetNumber")
@@ -20298,7 +23078,7 @@ CONTAINS
     TYPE(REGION_TYPE), POINTER :: REGION
     TYPE(DATA_POINTS_TYPE), POINTER :: DATA_POINTS
     TYPE(DATA_PROJECTION_TYPE), POINTER :: DATA_PROJECTION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
     INTEGER(INTG) :: GLOBAL_NUMBER !<The data projection global number.
 
     ENTERS("CMISSDataProjection_MaximumIterationUpdateSetNumber",err,error,*999)
@@ -20313,9 +23093,9 @@ CONTAINS
       CALL DATA_POINTS_DATA_PROJECTION_GET(DATA_POINTS,GLOBAL_NUMBER,DATA_PROJECTION,err,ERROR,*999)
       CALL DataProjection_MaximumInterationUpdateSet(DATA_PROJECTION,maximumIterationUpdate,err,error,*999)
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSDataProjection_MaximumIterationUpdateSetNumber")
@@ -20370,7 +23150,7 @@ CONTAINS
     TYPE(REGION_TYPE), POINTER :: REGION
     TYPE(DATA_POINTS_TYPE), POINTER :: DATA_POINTS
     TYPE(DATA_PROJECTION_TYPE), POINTER :: DATA_PROJECTION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
     INTEGER(INTG) :: GLOBAL_NUMBER !<The data projection global number.
 
     ENTERS("CMISSDataProjection_MaximumNumberOfIterationsGetNumber",err,error,*999)
@@ -20385,9 +23165,9 @@ CONTAINS
       CALL DATA_POINTS_DATA_PROJECTION_GET(DATA_POINTS,GLOBAL_NUMBER,DATA_PROJECTION,err,ERROR,*999)
       CALL DataProjection_MaximumNumberOfIterationsGet(DATA_PROJECTION,maximumNumberOfIterations,err,error,*999)
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSDataProjection_MaximumNumberOfIterationsGetNumber")
@@ -20418,7 +23198,7 @@ CONTAINS
     TYPE(DATA_PROJECTION_TYPE), POINTER :: DATA_PROJECTION
     INTEGER(INTG) :: DATA_PROJECTION_GLOBAL_NUMBER    
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR 
+    TYPE(VARYING_STRING) :: localError 
 
     ENTERS("CMISSDataProjection_ResultDistanceGetNumber",err,error,*999)
 
@@ -20434,14 +23214,14 @@ CONTAINS
       IF(ASSOCIATED(DATA_PROJECTION)) THEN
         CALL DATA_PROJECTION_RESULT_DISTANCE_GET(DATA_PROJECTION,dataPointUserNumber,ProjectionDistance,err,error,*999)
       ELSE
-        LOCAL_ERROR="A data projection with an user number of "//TRIM(NumberToVString(dataProjectionUserNumber,"*",err,error)) &
+        localError="A data projection with an user number of "//TRIM(NumberToVString(dataProjectionUserNumber,"*",err,error)) &
           & //" does not exist."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       ENDIF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     ENDIF
 
     EXITS("CMISSDataProjection_ResultDistanceGetNumber")
@@ -20499,7 +23279,7 @@ CONTAINS
     TYPE(DATA_PROJECTION_TYPE), POINTER :: DATA_PROJECTION
     INTEGER(INTG) :: DATA_PROJECTION_GLOBAL_NUMBER  
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSDataProjection_ResultElementNumberGetNumber",err,error,*999)
 
@@ -20515,14 +23295,14 @@ CONTAINS
       IF(ASSOCIATED(DATA_PROJECTION)) THEN
         CALL DATA_PROJECTION_RESULT_ELEMENT_NUMBER_GET(DATA_PROJECTION,dataPointUserNumber,ProjectionElementNumber,err,error,*999)
       ELSE
-        LOCAL_ERROR="A data projection with an user number of "//TRIM(NumberToVString(dataProjectionUserNumber,"*",err,error)) &
+        localError="A data projection with an user number of "//TRIM(NumberToVString(dataProjectionUserNumber,"*",err,error)) &
           & //" does not exist."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       ENDIF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     ENDIF    
 
     EXITS("CMISSDataProjection_ResultElementNumberGetNumber")
@@ -20581,7 +23361,7 @@ CONTAINS
     TYPE(DATA_PROJECTION_TYPE), POINTER :: DATA_PROJECTION
     INTEGER(INTG) :: DATA_PROJECTION_GLOBAL_NUMBER  
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSDataProjection_ResultElementFaceNumberGetNumber",err,error,*999)
 
@@ -20598,14 +23378,14 @@ CONTAINS
         CALL DataProjection_ResultElementFaceNumberGet(DATA_PROJECTION,dataPointUserNumber,ProjectionElementFaceNumber,err, &
           & error,*999)
       ELSE
-        LOCAL_ERROR="A data projection with an user number of "//TRIM(NumberToVString(dataProjectionUserNumber,"*",err,error)) &
+        localError="A data projection with an user number of "//TRIM(NumberToVString(dataProjectionUserNumber,"*",err,error)) &
           & //" does not exist."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       ENDIF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     ENDIF    
 
     EXITS("CMISSDataProjection_ResultElementFaceNumberGetNumber")
@@ -20665,7 +23445,7 @@ CONTAINS
     TYPE(DATA_PROJECTION_TYPE), POINTER :: DATA_PROJECTION
     INTEGER(INTG) :: DATA_PROJECTION_GLOBAL_NUMBER  
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSDataProjection_ResultElementLineNumberGetNumber",err,error,*999)
 
@@ -20682,14 +23462,14 @@ CONTAINS
         CALL DataProjection_ResultElementLineNumberGet(DATA_PROJECTION,dataPointUserNumber,ProjectionElementLineNumber,err, &
           & error,*999)
       ELSE
-        LOCAL_ERROR="A data projection with an user number of "//TRIM(NumberToVString(dataProjectionUserNumber,"*",err,error)) &
+        localError="A data projection with an user number of "//TRIM(NumberToVString(dataProjectionUserNumber,"*",err,error)) &
           & //" does not exist."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       ENDIF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     ENDIF    
 
     EXITS("CMISSDataProjection_ResultElementLineNumberGetNumber")
@@ -20749,7 +23529,7 @@ CONTAINS
     TYPE(DATA_PROJECTION_TYPE), POINTER :: DATA_PROJECTION
     INTEGER(INTG) :: DATA_PROJECTION_GLOBAL_NUMBER  
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSDataProjection_ResultExitTagGetNumber",err,error,*999)
 
@@ -20765,14 +23545,14 @@ CONTAINS
       IF(ASSOCIATED(DATA_PROJECTION)) THEN
         CALL DATA_PROJECTION_RESULT_EXIT_TAG_GET(DATA_PROJECTION,dataPointUserNumber,ProjectionExitTag,err,error,*999)
       ELSE
-        LOCAL_ERROR="A data projection with an user number of "//TRIM(NumberToVString(dataProjectionUserNumber,"*",err,error)) &
+        localError="A data projection with an user number of "//TRIM(NumberToVString(dataProjectionUserNumber,"*",err,error)) &
           & //" does not exist."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       ENDIF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     ENDIF    
 
     EXITS("CMISSDataProjection_ResultExitTagGetNumber")
@@ -20828,7 +23608,7 @@ CONTAINS
     TYPE(DATA_PROJECTION_TYPE), POINTER :: DATA_PROJECTION
     INTEGER(INTG) :: DATA_PROJECTION_GLOBAL_NUMBER  
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSDataProjection_ResultXiGetNumber",err,error,*999)
 
@@ -20844,14 +23624,14 @@ CONTAINS
       IF(ASSOCIATED(DATA_PROJECTION)) THEN
         CALL DATA_PROJECTION_RESULT_XI_GET(DATA_PROJECTION,dataPointUserNumber,ProjectionXi,err,error,*999)
       ELSE
-        LOCAL_ERROR="A data projection with an user number of "//TRIM(NumberToVString(dataProjectionUserNumber,"*",err,error)) &
+        localError="A data projection with an user number of "//TRIM(NumberToVString(dataProjectionUserNumber,"*",err,error)) &
           & //" does not exist."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       ENDIF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     ENDIF
 
     EXITS("CMISSDataProjection_ResultXiGetNumber")
@@ -20906,7 +23686,7 @@ CONTAINS
     TYPE(DATA_PROJECTION_TYPE), POINTER :: DATA_PROJECTION
     INTEGER(INTG) :: DATA_PROJECTION_GLOBAL_NUMBER  
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSDataProjection_ResultXiSetNumber",err,error,*999)
 
@@ -20922,14 +23702,14 @@ CONTAINS
       IF(ASSOCIATED(DATA_PROJECTION)) THEN
         CALL DATA_PROJECTION_RESULT_XI_SET(DATA_PROJECTION,dataPointUserNumber,ProjectionXi,err,error,*999)
       ELSE
-        LOCAL_ERROR="A data projection with an user number of "//TRIM(NumberToVString(dataProjectionUserNumber,"*",err,error)) &
+        localError="A data projection with an user number of "//TRIM(NumberToVString(dataProjectionUserNumber,"*",err,error)) &
           & //" does not exist."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       ENDIF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     ENDIF
 
     EXITS("CMISSDataProjection_ResultXiSetNumber")
@@ -21009,7 +23789,7 @@ CONTAINS
     TYPE(REGION_TYPE), POINTER :: REGION
     TYPE(DATA_POINTS_TYPE), POINTER :: DATA_POINTS
     TYPE(DATA_PROJECTION_TYPE), POINTER :: DATA_PROJECTION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
     INTEGER(INTG) :: GLOBAL_NUMBER !<The data projection global number.
 
     ENTERS("CMISSDataProjection_MaximumNumberOfIterationsSetNumber",err,error,*999)
@@ -21024,9 +23804,9 @@ CONTAINS
       CALL DATA_POINTS_DATA_PROJECTION_GET(DATA_POINTS,GLOBAL_NUMBER,DATA_PROJECTION,err,ERROR,*999)
       CALL DataProjection_MaximumNumberOfIterationsSet(DATA_PROJECTION,maximumNumberOfIterations,err,error,*999)
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSDataProjection_MaximumNumberOfIterationsSetNumber")
@@ -21081,7 +23861,7 @@ CONTAINS
     TYPE(REGION_TYPE), POINTER :: REGION
     TYPE(DATA_POINTS_TYPE), POINTER :: DATA_POINTS
     TYPE(DATA_PROJECTION_TYPE), POINTER :: DATA_PROJECTION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
     INTEGER(INTG) :: GLOBAL_NUMBER !<The data projection global number.
 
     ENTERS("CMISSDataProjection_NumberOfClosestElementsGetNumber",err,error,*999)
@@ -21096,9 +23876,9 @@ CONTAINS
       CALL DATA_POINTS_DATA_PROJECTION_GET(DATA_POINTS,GLOBAL_NUMBER,DATA_PROJECTION,err,ERROR,*999)
       CALL DataProjection_NumberOfClosestElementsGet(DATA_PROJECTION,numberOfClosestElements,err,error,*999)
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSDataProjection_NumberOfClosestElementsGetNumber")
@@ -21153,7 +23933,7 @@ CONTAINS
     TYPE(REGION_TYPE), POINTER :: REGION
     TYPE(DATA_POINTS_TYPE), POINTER :: DATA_POINTS
     TYPE(DATA_PROJECTION_TYPE), POINTER :: DATA_PROJECTION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
     INTEGER(INTG) :: GLOBAL_NUMBER !<The data projection global number.
 
     ENTERS("CMISSDataProjection_NumberOfClosestElementsSetNumber",err,error,*999)
@@ -21168,9 +23948,9 @@ CONTAINS
       CALL DATA_POINTS_DATA_PROJECTION_GET(DATA_POINTS,GLOBAL_NUMBER,DATA_PROJECTION,err,ERROR,*999)
       CALL DataProjection_NumberOfClosestElementsSet(DATA_PROJECTION,numberOfClosestElements,err,error,*999)
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSDataProjection_NumberOfClosestElementsSetNumber")
@@ -21224,7 +24004,7 @@ CONTAINS
     TYPE(REGION_TYPE), POINTER :: REGION
     TYPE(DATA_POINTS_TYPE), POINTER :: DATA_POINTS
     TYPE(DATA_PROJECTION_TYPE), POINTER :: DATA_PROJECTION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
     INTEGER(INTG) :: GLOBAL_NUMBER !<The data projection global number.
 
     ENTERS("CMISSDataProjection_ProjectionTypeGetNumber",err,error,*999)
@@ -21239,9 +24019,9 @@ CONTAINS
       CALL DATA_POINTS_DATA_PROJECTION_GET(DATA_POINTS,GLOBAL_NUMBER,DATA_PROJECTION,err,ERROR,*999)
       CALL DATA_PROJECTION_PROJECTION_TYPE_GET(DATA_PROJECTION,projectionType,err,error,*999)
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSDataProjection_ProjectionTypeGetNumber")
@@ -21293,7 +24073,7 @@ CONTAINS
     TYPE(REGION_TYPE), POINTER :: REGION
     TYPE(DATA_POINTS_TYPE), POINTER :: DATA_POINTS
     TYPE(DATA_PROJECTION_TYPE), POINTER :: DATA_PROJECTION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
     INTEGER(INTG) :: GLOBAL_NUMBER !<The data projection global number.
 
     ENTERS("CMISSDataProjection_ProjectionTypeSetNumber",err,error,*999)
@@ -21308,9 +24088,9 @@ CONTAINS
       CALL DATA_POINTS_DATA_PROJECTION_GET(DATA_POINTS,GLOBAL_NUMBER,DATA_PROJECTION,err,ERROR,*999)
       CALL DATA_PROJECTION_PROJECTION_TYPE_SET(DATA_PROJECTION,projectionType,err,error,*999)
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSDataProjection_ProjectionTypeSetNumber")
@@ -21362,7 +24142,7 @@ CONTAINS
     TYPE(REGION_TYPE), POINTER :: REGION
     TYPE(DATA_POINTS_TYPE), POINTER :: DATA_POINTS
     TYPE(DATA_PROJECTION_TYPE), POINTER :: DATA_PROJECTION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
     INTEGER(INTG) :: GLOBAL_NUMBER !<The data projection global number.
 
     ENTERS("CMISSDataProjection_RelativeToleranceGetNumber",err,error,*999)
@@ -21377,9 +24157,9 @@ CONTAINS
       CALL DATA_POINTS_DATA_PROJECTION_GET(DATA_POINTS,GLOBAL_NUMBER,DATA_PROJECTION,err,ERROR,*999)
       CALL DATA_PROJECTION_RELATIVE_TOLERANCE_GET(DATA_PROJECTION,relativeTolerance,err,error,*999)
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSDataProjection_RelativeToleranceGetNumber")
@@ -21432,7 +24212,7 @@ CONTAINS
     TYPE(REGION_TYPE), POINTER :: REGION
     TYPE(DATA_POINTS_TYPE), POINTER :: DATA_POINTS
     TYPE(DATA_PROJECTION_TYPE), POINTER :: DATA_PROJECTION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
     INTEGER(INTG) :: GLOBAL_NUMBER !<The data projection global number.
 
     ENTERS("CMISSDataProjection_RelativeToleranceSetNumber",err,error,*999)
@@ -21447,9 +24227,9 @@ CONTAINS
       CALL DATA_POINTS_DATA_PROJECTION_GET(DATA_POINTS,GLOBAL_NUMBER,DATA_PROJECTION,err,ERROR,*999)
       CALL DATA_PROJECTION_RELATIVE_TOLERANCE_SET(DATA_PROJECTION,relativeTolerance,err,error,*999)
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSDataProjection_RelativeToleranceSetNumber")
@@ -21502,7 +24282,7 @@ CONTAINS
     TYPE(REGION_TYPE), POINTER :: REGION
     TYPE(DATA_POINTS_TYPE), POINTER :: DATA_POINTS
     TYPE(DATA_PROJECTION_TYPE), POINTER :: DATA_PROJECTION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
     INTEGER(INTG) :: GLOBAL_NUMBER !<The data projection global number.
 
     ENTERS("CMISSDataProjection_StartingXiGetNumber",err,error,*999)
@@ -21517,9 +24297,9 @@ CONTAINS
       CALL DATA_POINTS_DATA_PROJECTION_GET(DATA_POINTS,GLOBAL_NUMBER,DATA_PROJECTION,err,ERROR,*999)
       CALL DATA_PROJECTION_STARTING_XI_GET(DATA_PROJECTION,startingXi,err,error,*999)
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSDataProjection_StartingXiGetNumber")
@@ -21572,7 +24352,7 @@ CONTAINS
     TYPE(REGION_TYPE), POINTER :: REGION
     TYPE(DATA_POINTS_TYPE), POINTER :: DATA_POINTS
     TYPE(DATA_PROJECTION_TYPE), POINTER :: DATA_PROJECTION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
     INTEGER(INTG) :: GLOBAL_NUMBER !<data projection global number
 
     ENTERS("CMISSDataProjection_StartingXiSetNumber",err,error,*999)
@@ -21587,9 +24367,9 @@ CONTAINS
       CALL DATA_POINTS_DATA_PROJECTION_GET(DATA_POINTS,GLOBAL_NUMBER,DATA_PROJECTION,err,ERROR,*999)
       CALL DATA_PROJECTION_STARTING_XI_SET(DATA_PROJECTION,startingXi,err,error,*999)
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSDataProjection_StartingXiSetNumber")
@@ -21645,7 +24425,7 @@ CONTAINS
     TYPE(INTERFACE_TYPE), POINTER :: INTERFACE
     TYPE(DATA_POINTS_TYPE), POINTER :: DATA_POINTS
     TYPE(DATA_PROJECTION_TYPE), POINTER :: DATA_PROJECTION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
     INTEGER(INTG) :: GLOBAL_NUMBER !<data projection global number
 
     ENTERS("CMISSDataProjection_ElementSetInterfaceNumber",ERR,error,*999)
@@ -21663,14 +24443,14 @@ CONTAINS
         CALL DATA_POINTS_DATA_PROJECTION_GET(DATA_POINTS,GLOBAL_NUMBER,DATA_PROJECTION,Err,ERROR,*999)
         CALL DATA_PROJECTION_ELEMENT_SET(DATA_PROJECTION,dataPointNumber,elementNumber,err,error,*999)
       ELSE
-        LOCAL_ERROR="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",Err,ERROR))// &
+        localError="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",Err,ERROR))// &
           & " does not exist."
-        CALL FlagError(LOCAL_ERROR,Err,ERROR,*999)
+        CALL FlagError(localError,Err,ERROR,*999)
       ENDIF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(parentregionUserNumber,"*",Err,ERROR))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(parentregionUserNumber,"*",Err,ERROR))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,Err,ERROR,*999)
+      CALL FlagError(localError,Err,ERROR,*999)
     ENDIF
 
     EXITS("CMISSDataProjection_ElementSetInterfaceNumber")
@@ -21699,7 +24479,7 @@ CONTAINS
     TYPE(REGION_TYPE), POINTER :: REGION
     TYPE(DATA_POINTS_TYPE), POINTER :: DATA_POINTS
     TYPE(DATA_PROJECTION_TYPE), POINTER :: DATA_PROJECTION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
     INTEGER(INTG) :: GLOBAL_NUMBER !<data projection global number
 
     ENTERS("CMISSDataProjection_ElementSetRegionNumber",ERR,error,*999)
@@ -21714,9 +24494,9 @@ CONTAINS
       CALL DATA_POINTS_DATA_PROJECTION_GET(DATA_POINTS,GLOBAL_NUMBER,DATA_PROJECTION,Err,ERROR,*999)
       CALL DATA_PROJECTION_ELEMENT_SET(DATA_PROJECTION,dataPointNumber,elementNumber,err,error,*999)
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSDataProjection_ElementSetRegionNumber")
@@ -21771,7 +24551,7 @@ CONTAINS
     TYPE(REGION_TYPE), POINTER :: PARENT_REGION
     TYPE(INTERFACE_TYPE), POINTER :: INTERFACE
     TYPE(DATA_PROJECTION_TYPE), POINTER :: DATA_PROJECTION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSDataProjection_LabelGetCInterfaceNumber",ERR,error,*999)
 
@@ -21784,14 +24564,14 @@ CONTAINS
       IF(ASSOCIATED(INTERFACE)) THEN
         CALL DATA_PROJECTION_LABEL_GET(DATA_PROJECTION,label,err,error,*999)
       ELSE
-        LOCAL_ERROR="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",Err,ERROR))// &
+        localError="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",Err,ERROR))// &
           & " does not exist."
-        CALL FlagError(LOCAL_ERROR,Err,ERROR,*999)
+        CALL FlagError(localError,Err,ERROR,*999)
       ENDIF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(parentregionUserNumber,"*",Err,ERROR))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(parentregionUserNumber,"*",Err,ERROR))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,Err,ERROR,*999)
+      CALL FlagError(localError,Err,ERROR,*999)
     ENDIF
 
     EXITS("CMISSDataProjection_LabelGetCInterfaceNumber")
@@ -21821,7 +24601,7 @@ CONTAINS
     TYPE(REGION_TYPE), POINTER :: PARENT_REGION
     TYPE(INTERFACE_TYPE), POINTER :: INTERFACE
     TYPE(DATA_PROJECTION_TYPE), POINTER :: DATA_PROJECTION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSDataProjection_LabelGetVSInterfaceNumber",ERR,error,*999)
 
@@ -21834,14 +24614,14 @@ CONTAINS
       IF(ASSOCIATED(INTERFACE)) THEN
         CALL DATA_PROJECTION_LABEL_GET(DATA_PROJECTION,label,err,error,*999)
       ELSE
-        LOCAL_ERROR="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",Err,ERROR))// &
+        localError="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",Err,ERROR))// &
           & " does not exist."
-        CALL FlagError(LOCAL_ERROR,Err,ERROR,*999)
+        CALL FlagError(localError,Err,ERROR,*999)
       ENDIF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(parentregionUserNumber,"*",Err,ERROR))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(parentregionUserNumber,"*",Err,ERROR))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,Err,ERROR,*999)
+      CALL FlagError(localError,Err,ERROR,*999)
     ENDIF
 
     EXITS("CMISSDataProjection_LabelGetVSInterfaceNumber")
@@ -21868,7 +24648,7 @@ CONTAINS
     !Local variables
     TYPE(REGION_TYPE), POINTER :: REGION
     TYPE(DATA_PROJECTION_TYPE), POINTER :: DATA_PROJECTION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSDataProjection_LabelGetCRegionNumber",ERR,error,*999)
 
@@ -21878,9 +24658,9 @@ CONTAINS
     IF(ASSOCIATED(REGION)) THEN
       CALL DATA_PROJECTION_LABEL_GET(DATA_PROJECTION,label,err,error,*999)
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSDataProjection_LabelGetRegionNumber")
@@ -21906,7 +24686,7 @@ CONTAINS
     !Local variables
     TYPE(REGION_TYPE), POINTER :: REGION
     TYPE(DATA_PROJECTION_TYPE), POINTER :: DATA_PROJECTION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSDataProjection_LabelGetVSRegionNumber",ERR,error,*999)
 
@@ -21916,9 +24696,9 @@ CONTAINS
     IF(ASSOCIATED(REGION)) THEN
       CALL DATA_PROJECTION_LABEL_GET(DATA_PROJECTION,label,err,error,*999)
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSDataProjection_LabelGetVSRegionNumber")
@@ -21997,7 +24777,7 @@ CONTAINS
     TYPE(REGION_TYPE), POINTER :: PARENT_REGION
     TYPE(INTERFACE_TYPE), POINTER :: INTERFACE
     TYPE(DATA_PROJECTION_TYPE), POINTER :: DATA_PROJECTION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSDataProjection_LabelSetCInterfaceNumber",ERR,error,*999)
 
@@ -22010,14 +24790,14 @@ CONTAINS
       IF(ASSOCIATED(INTERFACE)) THEN
         CALL DATA_PROJECTION_LABEL_SET(DATA_PROJECTION,label,err,error,*999)
       ELSE
-        LOCAL_ERROR="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",Err,ERROR))// &
+        localError="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",Err,ERROR))// &
           & " does not exist."
-        CALL FlagError(LOCAL_ERROR,Err,ERROR,*999)
+        CALL FlagError(localError,Err,ERROR,*999)
       ENDIF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(parentregionUserNumber,"*",Err,ERROR))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(parentregionUserNumber,"*",Err,ERROR))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,Err,ERROR,*999)
+      CALL FlagError(localError,Err,ERROR,*999)
     ENDIF
 
     EXITS("CMISSDataProjection_LabelSetCInterfaceNumber")
@@ -22047,7 +24827,7 @@ CONTAINS
     TYPE(REGION_TYPE), POINTER :: PARENT_REGION
     TYPE(INTERFACE_TYPE), POINTER :: INTERFACE
     TYPE(DATA_PROJECTION_TYPE), POINTER :: DATA_PROJECTION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSDataProjection_LabelSetVSInterfaceNumber",ERR,error,*999)
 
@@ -22060,14 +24840,14 @@ CONTAINS
       IF(ASSOCIATED(INTERFACE)) THEN
         CALL DATA_PROJECTION_LABEL_SET(DATA_PROJECTION,label,err,error,*999)
       ELSE
-        LOCAL_ERROR="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",Err,ERROR))// &
+        localError="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",Err,ERROR))// &
           & " does not exist."
-        CALL FlagError(LOCAL_ERROR,Err,ERROR,*999)
+        CALL FlagError(localError,Err,ERROR,*999)
       ENDIF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(parentregionUserNumber,"*",Err,ERROR))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(parentregionUserNumber,"*",Err,ERROR))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,Err,ERROR,*999)
+      CALL FlagError(localError,Err,ERROR,*999)
     ENDIF
 
     EXITS("CMISSDataProjection_LabelSetVSInterfaceNumber")
@@ -22094,7 +24874,7 @@ CONTAINS
     !Local variables
     TYPE(REGION_TYPE), POINTER :: REGION
     TYPE(DATA_PROJECTION_TYPE), POINTER :: DATA_PROJECTION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSDataProjection_LabelSetCRegionNumber",ERR,error,*999)
 
@@ -22104,9 +24884,9 @@ CONTAINS
     IF(ASSOCIATED(REGION)) THEN
       CALL DATA_PROJECTION_LABEL_SET(DATA_PROJECTION,label,err,error,*999)
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSDataProjection_LabelSetRegionNumber")
@@ -22132,7 +24912,7 @@ CONTAINS
     !Local variables
     TYPE(REGION_TYPE), POINTER :: REGION
     TYPE(DATA_PROJECTION_TYPE), POINTER :: DATA_PROJECTION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSDataProjection_LabelSetVSRegionNumber",ERR,error,*999)
 
@@ -22142,9 +24922,9 @@ CONTAINS
     IF(ASSOCIATED(REGION)) THEN
       CALL DATA_PROJECTION_LABEL_SET(DATA_PROJECTION,label,err,error,*999)
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSDataProjection_LabelSetVSRegionNumber")
@@ -22222,7 +25002,7 @@ CONTAINS
     TYPE(EQUATIONS_TYPE), POINTER :: EQUATIONS
     TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSEquations_DestroyNumber",err,error,*999)
 
@@ -22236,13 +25016,13 @@ CONTAINS
         CALL EQUATIONS_SET_EQUATIONS_GET(EQUATIONS_SET,EQUATIONS,ERR,error,*999)
         CALL EQUATIONS_DESTROY(EQUATIONS,err,error,*999)
       ELSE
-        LOCAL_ERROR="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
+        localError="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSEquations_DestroyNumber")
@@ -22293,7 +25073,7 @@ CONTAINS
     TYPE(EQUATIONS_TYPE), POINTER :: EQUATIONS
     TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSEquations_LinearityTypeGetNumber",err,error,*999)
 
@@ -22307,13 +25087,13 @@ CONTAINS
         CALL EQUATIONS_SET_EQUATIONS_GET(EQUATIONS_SET,EQUATIONS,ERR,error,*999)
         CALL EQUATIONS_LINEARITY_TYPE_GET(EQUATIONS,linearityType,err,error,*999)
       ELSE
-        LOCAL_ERROR="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
+        localError="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSEquations_LinearityTypeGetNumber")
@@ -22365,7 +25145,7 @@ CONTAINS
     TYPE(EQUATIONS_TYPE), POINTER :: EQUATIONS
     TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSEquations_LumpingTypeGetNumber",err,error,*999)
 
@@ -22379,13 +25159,13 @@ CONTAINS
         CALL EQUATIONS_SET_EQUATIONS_GET(EQUATIONS_SET,EQUATIONS,ERR,error,*999)
         CALL EQUATIONS_LUMPING_TYPE_GET(EQUATIONS,lumpingType,err,error,*999)
       ELSE
-        LOCAL_ERROR="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
+        localError="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSEquations_LumpingTypeGetNumber")
@@ -22437,7 +25217,7 @@ CONTAINS
     TYPE(EQUATIONS_TYPE), POINTER :: EQUATIONS
     TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSEquations_LumpingTypeSetNumber",err,error,*999)
 
@@ -22451,13 +25231,13 @@ CONTAINS
         CALL EQUATIONS_SET_EQUATIONS_GET(EQUATIONS_SET,EQUATIONS,ERR,error,*999)
         CALL EQUATIONS_LUMPING_TYPE_SET(EQUATIONS,lumpingType,err,error,*999)
       ELSE
-        LOCAL_ERROR="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
+        localError="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSEquations_LumpingTypeSetNumber")
@@ -22509,7 +25289,7 @@ CONTAINS
     TYPE(EQUATIONS_TYPE), POINTER :: EQUATIONS
     TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSEquations_OutputTypeGetNumber",err,error,*999)
 
@@ -22523,13 +25303,13 @@ CONTAINS
         CALL EQUATIONS_SET_EQUATIONS_GET(EQUATIONS_SET,EQUATIONS,ERR,error,*999)
         CALL EQUATIONS_OUTPUT_TYPE_GET(EQUATIONS,outputType,err,error,*999)
       ELSE
-        LOCAL_ERROR="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
+        localError="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSEquations_OutputTypeGetNumber")
@@ -22581,7 +25361,7 @@ CONTAINS
     TYPE(EQUATIONS_TYPE), POINTER :: EQUATIONS
     TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSEquations_OutputTypeSetNumber",err,error,*999)
 
@@ -22595,13 +25375,13 @@ CONTAINS
         CALL EQUATIONS_SET_EQUATIONS_GET(EQUATIONS_SET,EQUATIONS,ERR,error,*999)
         CALL EQUATIONS_OUTPUT_TYPE_SET(EQUATIONS,outputType,err,error,*999)
       ELSE
-        LOCAL_ERROR="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
+        localError="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSEquations_OutputTypeSetNumber")
@@ -22653,7 +25433,7 @@ CONTAINS
     TYPE(EQUATIONS_TYPE), POINTER :: EQUATIONS
     TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSEquations_SparsityTypeGetNumber",err,error,*999)
 
@@ -22667,13 +25447,13 @@ CONTAINS
         CALL EQUATIONS_SET_EQUATIONS_GET(EQUATIONS_SET,EQUATIONS,ERR,error,*999)
         CALL EQUATIONS_SPARSITY_TYPE_GET(EQUATIONS,sparsityType,err,error,*999)
       ELSE
-        LOCAL_ERROR="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
+        localError="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSEquations_SparsityTypeGetNumber")
@@ -22725,7 +25505,7 @@ CONTAINS
     TYPE(EQUATIONS_TYPE), POINTER :: EQUATIONS
     TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSEquations_SparsityTypeSetNumber",err,error,*999)
 
@@ -22739,13 +25519,13 @@ CONTAINS
         CALL EQUATIONS_SET_EQUATIONS_GET(EQUATIONS_SET,EQUATIONS,ERR,error,*999)
         CALL EQUATIONS_SPARSITY_TYPE_SET(EQUATIONS,sparsityType,err,error,*999)
       ELSE
-        LOCAL_ERROR="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
+        localError="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSEquations_SparsityTypeSetNumber")
@@ -22797,7 +25577,7 @@ CONTAINS
     TYPE(EQUATIONS_TYPE), POINTER :: EQUATIONS
     TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSEquations_TimeDependenceTypeGetNumber",err,error,*999)
 
@@ -22811,13 +25591,13 @@ CONTAINS
         CALL EQUATIONS_SET_EQUATIONS_GET(EQUATIONS_SET,EQUATIONS,ERR,error,*999)
         CALL EQUATIONS_TIME_DEPENDENCE_TYPE_GET(EQUATIONS,timeDependenceType,err,error,*999)
       ELSE
-        LOCAL_ERROR="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
+        localError="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSEquations_TimeDependenceTypeGetNumber")
@@ -23535,7 +26315,7 @@ CONTAINS
     !Local variables
     TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSEquationsSet_AnalyticCreateFinishNumber",err,error,*999)
 
@@ -23547,13 +26327,13 @@ CONTAINS
       IF(ASSOCIATED(EQUATIONS_SET)) THEN
         CALL EQUATIONS_SET_ANALYTIC_CREATE_FINISH(EQUATIONS_SET,err,error,*999)
       ELSE
-        LOCAL_ERROR="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
+        localError="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSEquationsSet_AnalyticCreateFinishNumber")
@@ -23607,7 +26387,7 @@ CONTAINS
     TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET
     TYPE(FIELD_TYPE), POINTER :: ANALYTIC_FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSEquationsSet_AnalyticCreateStartNumber",err,error,*999)
 
@@ -23622,13 +26402,13 @@ CONTAINS
         CALL EQUATIONS_SET_ANALYTIC_CREATE_START(EQUATIONS_SET,analyticFunctionType,analyticFieldUserNumber,ANALYTIC_FIELD, &
           & err,error,*999)
       ELSE
-        LOCAL_ERROR="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
+        localError="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSEquationsSet_AnalyticCreateStartNumber")
@@ -23681,7 +26461,7 @@ CONTAINS
     !Local variables
     TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET
      TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSEquationsSet_AnalyticDestroyNumber",err,error,*999)
 
@@ -23693,13 +26473,13 @@ CONTAINS
       IF(ASSOCIATED(EQUATIONS_SET)) THEN
         CALL EQUATIONS_SET_ANALYTIC_DESTROY(EQUATIONS_SET,err,error,*999)
       ELSE
-        LOCAL_ERROR="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
+        localError="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSEquationsSet_AnalyticDestroyNumber")
@@ -23749,7 +26529,7 @@ CONTAINS
     !Local variables
     TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET
      TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSEquationsSet_AnalyticEvaluateNumber",err,error,*999)
 
@@ -23761,13 +26541,13 @@ CONTAINS
       IF(ASSOCIATED(EQUATIONS_SET)) THEN
         CALL EQUATIONS_SET_ANALYTIC_EVALUATE(EQUATIONS_SET,err,error,*999)
       ELSE
-        LOCAL_ERROR="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
+        localError="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSEquationsSet_AnalyticEvaluateNumber")
@@ -23817,7 +26597,7 @@ CONTAINS
     !Local variables
     TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSEquationsSet_AnalyticTimeGetNumber",err,error,*999)
 
@@ -23829,13 +26609,13 @@ CONTAINS
       IF(ASSOCIATED(EQUATIONS_SET)) THEN
         CALL EQUATIONS_SET_ANALYTIC_TIME_GET(EQUATIONS_SET,time,err,error,*999)
       ELSE
-        LOCAL_ERROR="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
+        localError="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSEquationsSet_AnalyticTimeGetNumber")
@@ -23886,7 +26666,7 @@ CONTAINS
     !Local variables
     TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSEquationsSet_AnalyticTimeSetNumber",err,error,*999)
 
@@ -23898,13 +26678,13 @@ CONTAINS
       IF(ASSOCIATED(EQUATIONS_SET)) THEN
         CALL EQUATIONS_SET_ANALYTIC_TIME_SET(EQUATIONS_SET,time,err,error,*999)
       ELSE
-        LOCAL_ERROR="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
+        localError="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSEquationsSet_AnalyticTimeSetNumber")
@@ -23956,7 +26736,7 @@ CONTAINS
     !Local variables
     TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSEquationsSet_AnalyticUserParamSetNumber",err,error,*999)
 
@@ -23969,18 +26749,18 @@ CONTAINS
         IF(ASSOCIATED(EQUATIONS_SET%ANALYTIC)) THEN
           CALL EQUATIONS_SET_ANALYTIC_USER_PARAM_SET(EQUATIONS_SET,paramIdx,param,err,error,*999)
         ELSE
-          LOCAL_ERROR="Equations set analytic is not associated for equations set with a user number of " &
+          localError="Equations set analytic is not associated for equations set with a user number of " &
             & //TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))//"."
-          CALL FlagError(LOCAL_ERROR,err,error,*999)
+          CALL FlagError(localError,err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
+        localError="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSEquationsSet_AnalyticUserParamSetNumber")
@@ -24032,7 +26812,7 @@ CONTAINS
     !Local variables
     TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSEquationsSet_AnalyticUserParamGetNumber",err,error,*999)
 
@@ -24045,18 +26825,18 @@ CONTAINS
         IF(ASSOCIATED(EQUATIONS_SET%ANALYTIC)) THEN
           CALL EQUATIONS_SET_ANALYTIC_USER_PARAM_GET(EQUATIONS_SET,paramIdx,param,err,error,*999)
         ELSE
-          LOCAL_ERROR="Equations set analytic is not associated for equations set with a user number of " &
+          localError="Equations set analytic is not associated for equations set with a user number of " &
             & //TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))//"."
-          CALL FlagError(LOCAL_ERROR,err,error,*999)
+          CALL FlagError(localError,err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
+        localError="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSEquationsSet_AnalyticUserParamGetNumber")
@@ -24107,7 +26887,7 @@ CONTAINS
     !Local variables
     TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSEquationsSet_CreateFinishNumber",err,error,*999)
 
@@ -24119,13 +26899,13 @@ CONTAINS
       IF(ASSOCIATED(EQUATIONS_SET)) THEN
         CALL EQUATIONS_SET_CREATE_FINISH(EQUATIONS_SET,err,error,*999)
       ELSE
-        LOCAL_ERROR="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
+        localError="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
 #ifdef TAUPROF
@@ -24190,7 +26970,7 @@ CONTAINS
     TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET
     TYPE(FIELD_TYPE), POINTER :: GEOM_FIBRE_FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSEquationsSet_CreateStartNumber",err,error,*999)
 
@@ -24214,13 +26994,13 @@ CONTAINS
           & equationsSetClass,equationsSetType,equationsSetSubtype,equationsSetFieldUserNumber,&
           & EQUATIONS_SET_FIELD_FIELD,EQUATIONS_SET,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(geomFibreFieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(geomFibreFieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSEquationsSet_CreateStartNumber")
@@ -24286,7 +27066,7 @@ CONTAINS
     !Local variables
     TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET
      TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSEquationsSet_DestroyNumber",err,error,*999)
 
@@ -24298,13 +27078,13 @@ CONTAINS
       IF(ASSOCIATED(EQUATIONS_SET)) THEN
         CALL EQUATIONS_SET_DESTROY(EQUATIONS_SET,err,error,*999)
       ELSE
-        LOCAL_ERROR="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
+        localError="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSEquationsSet_DestroyNumber")
@@ -24353,7 +27133,7 @@ CONTAINS
     !Local variables
     TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSEquationsSet_DependentCreateFinishNumber",err,error,*999)
 
@@ -24365,13 +27145,13 @@ CONTAINS
       IF(ASSOCIATED(EQUATIONS_SET)) THEN
         CALL EQUATIONS_SET_DEPENDENT_CREATE_FINISH(EQUATIONS_SET,err,error,*999)
       ELSE
-        LOCAL_ERROR="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
+        localError="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSEquationsSet_DependentCreateFinishNumber")
@@ -24423,7 +27203,7 @@ CONTAINS
     TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET
     TYPE(FIELD_TYPE), POINTER :: DEPENDENT_FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSEquationsSet_DependentCreateStartNumber",err,error,*999)
 
@@ -24437,13 +27217,13 @@ CONTAINS
         CALL FIELD_USER_NUMBER_FIND(dependentFieldUserNumber,REGION,DEPENDENT_FIELD,ERR,error,*999)
         CALL EQUATIONS_SET_DEPENDENT_CREATE_START(EQUATIONS_SET,dependentFieldUserNumber,DEPENDENT_FIELD,err,error,*999)
       ELSE
-        LOCAL_ERROR="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
+        localError="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSEquationsSet_DependentCreateStartNumber")
@@ -24496,7 +27276,7 @@ CONTAINS
     !Local variables
     TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSEquationsSet_DependentDestroyNumber",err,error,*999)
 
@@ -24508,13 +27288,13 @@ CONTAINS
       IF(ASSOCIATED(EQUATIONS_SET)) THEN
         CALL EQUATIONS_SET_DEPENDENT_DESTROY(EQUATIONS_SET,err,error,*999)
       ELSE
-        LOCAL_ERROR="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
+        localError="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSEquationsSet_DependentDestroyNumber")
@@ -24563,7 +27343,7 @@ CONTAINS
     !Local variables
     TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSEquationsSet_EquationsCreateFinishNumber",err,error,*999)
 
@@ -24575,13 +27355,13 @@ CONTAINS
       IF(ASSOCIATED(EQUATIONS_SET)) THEN
         CALL EQUATIONS_SET_EQUATIONS_CREATE_FINISH(EQUATIONS_SET,err,error,*999)
       ELSE
-        LOCAL_ERROR="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
+        localError="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSEquationsSet_EquationsCreateFinishNumber")
@@ -24632,7 +27412,7 @@ CONTAINS
     TYPE(EQUATIONS_TYPE), POINTER :: EQUATIONS
     TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSEquationsSet_EquationsCreateStartNumber",err,error,*999)
 
@@ -24645,13 +27425,13 @@ CONTAINS
       IF(ASSOCIATED(EQUATIONS_SET)) THEN
         CALL EQUATIONS_SET_EQUATIONS_CREATE_START(EQUATIONS_SET,EQUATIONS,err,error,*999)
       ELSE
-        LOCAL_ERROR="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
+        localError="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSEquationsSet_EquationsCreateStartNumber")
@@ -24702,7 +27482,7 @@ CONTAINS
     !Local variables
     TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSEquationsSet_EquationsDestroyNumber",err,error,*999)
 
@@ -24714,13 +27494,13 @@ CONTAINS
       IF(ASSOCIATED(EQUATIONS_SET)) THEN
         CALL EQUATIONS_SET_EQUATIONS_DESTROY(EQUATIONS_SET,err,error,*999)
       ELSE
-        LOCAL_ERROR="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
+        localError="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSEquationsSet_EquationsDestroyNumber")
@@ -24769,7 +27549,7 @@ CONTAINS
     !Local variables
     TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSEquationsSet_IndependentCreateFinishNumber",err,error,*999)
 
@@ -24781,13 +27561,13 @@ CONTAINS
       IF(ASSOCIATED(EQUATIONS_SET)) THEN
         CALL EQUATIONS_SET_INDEPENDENT_CREATE_FINISH(EQUATIONS_SET,err,error,*999)
       ELSE
-        LOCAL_ERROR="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
+        localError="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSEquationsSet_IndependentCreateFinishNumber")
@@ -24840,7 +27620,7 @@ CONTAINS
     TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET
     TYPE(FIELD_TYPE), POINTER :: INDEPENDENT_FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSEquationsSet_DependentCreateStartNumber",err,error,*999)
 
@@ -24854,13 +27634,13 @@ CONTAINS
         CALL FIELD_USER_NUMBER_FIND(independentFieldUserNumber,REGION,INDEPENDENT_FIELD,ERR,error,*999)
         CALL EQUATIONS_SET_DEPENDENT_CREATE_START(EQUATIONS_SET,independentFieldUserNumber,INDEPENDENT_FIELD,err,error,*999)
       ELSE
-        LOCAL_ERROR="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
+        localError="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSEquationsSet_IndependentCreateStartNumber")
@@ -24913,7 +27693,7 @@ CONTAINS
     !Local variables
     TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSEquationsSet_IndependentDestroyNumber",err,error,*999)
 
@@ -24925,13 +27705,13 @@ CONTAINS
       IF(ASSOCIATED(EQUATIONS_SET)) THEN
         CALL EQUATIONS_SET_INDEPENDENT_DESTROY(EQUATIONS_SET,err,error,*999)
       ELSE
-        LOCAL_ERROR="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
+        localError="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSEquationsSet_IndependentDestroyNumber")
@@ -24984,7 +27764,7 @@ CONTAINS
     !Local variables
     TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSEquationsSet_MaterialsCreateFinishNumber",err,error,*999)
 
@@ -24996,13 +27776,13 @@ CONTAINS
       IF(ASSOCIATED(EQUATIONS_SET)) THEN
         CALL EQUATIONS_SET_MATERIALS_CREATE_FINISH(EQUATIONS_SET,err,error,*999)
       ELSE
-        LOCAL_ERROR="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
+        localError="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSEquationsSet_MaterialsCreateFinishNumber")
@@ -25054,7 +27834,7 @@ CONTAINS
     TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET
     TYPE(FIELD_TYPE), POINTER :: MATERIALS_FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSEquationsSet_MaterialsCreateStartNumber",err,error,*999)
 
@@ -25068,13 +27848,13 @@ CONTAINS
         CALL FIELD_USER_NUMBER_FIND(materialsFieldUserNumber,REGION,MATERIALS_FIELD,ERR,error,*999)
         CALL EQUATIONS_SET_MATERIALS_CREATE_START(EQUATIONS_SET,materialsFieldUserNumber,MATERIALS_FIELD,err,error,*999)
       ELSE
-        LOCAL_ERROR="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
+        localError="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSEquationsSet_MaterialsCreateStartNumber")
@@ -25127,7 +27907,7 @@ CONTAINS
     !Local variables
     TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSEquationsSet_MaterialsDestroyNumber",err,error,*999)
 
@@ -25139,13 +27919,13 @@ CONTAINS
       IF(ASSOCIATED(EQUATIONS_SET)) THEN
         CALL EQUATIONS_SET_MATERIALS_DESTROY(EQUATIONS_SET,err,error,*999)
       ELSE
-        LOCAL_ERROR="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
+        localError="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSEquationsSet_MaterialsDestroyNumber")
@@ -25195,7 +27975,7 @@ CONTAINS
     !Local variables
     TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSEquationsSet_SolutionMethodGetNumber",err,error,*999)
 
@@ -25207,13 +27987,13 @@ CONTAINS
       IF(ASSOCIATED(EQUATIONS_SET)) THEN
         CALL EQUATIONS_SET_SOLUTION_METHOD_GET(EQUATIONS_SET,solutionMethod,err,error,*999)
       ELSE
-        LOCAL_ERROR="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
+        localError="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSEquationsSet_SolutionMethodGetNumber")
@@ -25264,7 +28044,7 @@ CONTAINS
     !Local variables
     TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSEquationsSet_SolutionMethodSetNumber",err,error,*999)
 
@@ -25276,13 +28056,13 @@ CONTAINS
       IF(ASSOCIATED(EQUATIONS_SET)) THEN
         CALL EQUATIONS_SET_SOLUTION_METHOD_SET(EQUATIONS_SET,solutionMethod,err,error,*999)
       ELSE
-        LOCAL_ERROR="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
+        localError="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSEquationsSet_SolutionMethodSetNumber")
@@ -25332,7 +28112,7 @@ CONTAINS
     !Local variables
     TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSEquationsSet_SourceCreateFinishNumber",err,error,*999)
 
@@ -25344,13 +28124,13 @@ CONTAINS
       IF(ASSOCIATED(EQUATIONS_SET)) THEN
         CALL EQUATIONS_SET_SOURCE_CREATE_FINISH(EQUATIONS_SET,err,error,*999)
       ELSE
-        LOCAL_ERROR="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
+        localError="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSEquationsSet_SourceCreateFinishNumber")
@@ -25401,7 +28181,7 @@ CONTAINS
     TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET
     TYPE(FIELD_TYPE), POINTER :: SOURCE_FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSEquationsSet_SourceCreateStartNumber",err,error,*999)
 
@@ -25415,13 +28195,13 @@ CONTAINS
         CALL FIELD_USER_NUMBER_FIND(sourceFieldUserNumber,REGION,SOURCE_FIELD,ERR,error,*999)
         CALL EQUATIONS_SET_SOURCE_CREATE_START(EQUATIONS_SET,sourceFieldUserNumber,SOURCE_FIELD,err,error,*999)
       ELSE
-        LOCAL_ERROR="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
+        localError="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSEquationsSet_SourceCreateStartNumber")
@@ -25472,7 +28252,7 @@ CONTAINS
     !Local variables
     TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSEquationsSet_SourceDestroyNumber",err,error,*999)
 
@@ -25484,13 +28264,13 @@ CONTAINS
       IF(ASSOCIATED(EQUATIONS_SET)) THEN
         CALL EQUATIONS_SET_SOURCE_DESTROY(EQUATIONS_SET,err,error,*999)
       ELSE
-        LOCAL_ERROR="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
+        localError="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSEquationsSet_SourceDestroyNumber")
@@ -25543,7 +28323,7 @@ CONTAINS
     !Local variables
     TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSEquationsSet_SpecificationGetNumber",err,error,*999)
 
@@ -25555,13 +28335,13 @@ CONTAINS
       IF(ASSOCIATED(EQUATIONS_SET)) THEN
         CALL EQUATIONS_SET_SPECIFICATION_GET(EQUATIONS_SET,equationsSetClass,equationsSetType,equationsSetSubtype,err,error,*999)
       ELSE
-        LOCAL_ERROR="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
+        localError="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSEquationsSet_SpecificationGetNumber")
@@ -25618,7 +28398,7 @@ CONTAINS
     !Local variables
     TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSEquationsSet_SpecificationSetNumber",err,error,*999)
 
@@ -25630,13 +28410,13 @@ CONTAINS
       IF(ASSOCIATED(EQUATIONS_SET)) THEN
         CALL EQUATIONS_SET_SPECIFICATION_SET(EQUATIONS_SET,equationsSetClass,equationsSetType,equationsSetSubtype,err,error,*999)
       ELSE
-        LOCAL_ERROR="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
+        localError="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSEquationsSet_SpecificationSetNumber")
@@ -25770,7 +28550,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ComponentInterpolationGetNumber",err,error,*999)
 
@@ -25782,13 +28562,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_COMPONENT_INTERPOLATION_GET(FIELD,variableType,componentNumber,interpolationType,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ComponentInterpolationGetNumber")
@@ -25844,7 +28624,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ComponentInterpolationSetNumber",err,error,*999)
 
@@ -25856,13 +28636,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_COMPONENT_INTERPOLATION_SET(FIELD,variableType,componentNumber,interpolationType,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ComponentInterpolationSetNumber")
@@ -25917,7 +28697,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ComponentLabelGetCNumber",err,error,*999)
 
@@ -25929,13 +28709,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_COMPONENT_LABEL_GET(FIELD,variableType,componentNumber,label,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ComponentLabelGetCNumber")
@@ -25990,7 +28770,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ComponentLabelGetVSNumber",err,error,*999)
 
@@ -26002,13 +28782,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_COMPONENT_LABEL_GET(FIELD,variableType,componentNumber,label,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ComponentLabelGetVSNumber")
@@ -26063,7 +28843,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ComponentLabelSetCNumber",err,error,*999)
 
@@ -26075,13 +28855,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_COMPONENT_LABEL_SET(FIELD,variableType,componentNumber,label,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ComponentLabelSetCNumber")
@@ -26136,7 +28916,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ComponentLabelSetVSNumber",err,error,*999)
 
@@ -26148,13 +28928,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_COMPONENT_LABEL_SET(FIELD,variableType,componentNumber,label,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ComponentLabelSetVSNumber")
@@ -26210,7 +28990,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ComponentMeshComponentGetNumber",err,error,*999)
 
@@ -26222,13 +29002,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_COMPONENT_MESH_COMPONENT_GET(FIELD,variableType,componentNumber,meshComponent,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ComponentMeshComponentGetNumber")
@@ -26284,7 +29064,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ComponentMeshComponentSetNumber",err,error,*999)
 
@@ -26296,13 +29076,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_COMPONENT_MESH_COMPONENT_SET(FIELD,variableType,componentNumber,meshComponent,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ComponentMeshComponentSetNumber")
@@ -26359,7 +29139,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ComponentValuesInitialiseIntgNumber",err,error,*999)
 
@@ -26371,13 +29151,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_COMPONENT_VALUES_INITIALISE(FIELD,variableType,fieldSetType,componentNumber,value,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ComponentValuesInitialiseIntgNumber")
@@ -26435,7 +29215,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ComponentValuesInitialiseSPNumber",err,error,*999)
 
@@ -26447,13 +29227,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_COMPONENT_VALUES_INITIALISE(FIELD,variableType,fieldSetType,componentNumber,value,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ComponentValuesInitialiseSPNumber")
@@ -26511,7 +29291,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ComponentValuesInitialiseDPNumber",err,error,*999)
 
@@ -26523,13 +29303,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_COMPONENT_VALUES_INITIALISE(FIELD,variableType,fieldSetType,componentNumber,value,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ComponentValuesInitialiseDPNumber")
@@ -26587,7 +29367,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ComponentValuesInitialiseLNumber",err,error,*999)
 
@@ -26599,13 +29379,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_COMPONENT_VALUES_INITIALISE(FIELD,variableType,fieldSetType,componentNumber,value,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ComponentValuesInitialiseLNumber")
@@ -26660,7 +29440,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_DataTypeGetNumber",err,error,*999)
 
@@ -26672,13 +29452,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_DATA_TYPE_GET(FIELD,variableType,dataType,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_DataTypeGetNumber")
@@ -26731,7 +29511,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_DataTypeSetNumber",err,error,*999)
 
@@ -26743,13 +29523,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_DATA_TYPE_SET(FIELD,variableType,dataType,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_DataTypeSetNumber")
@@ -26802,7 +29582,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_DOFOrderTypeGetNumber",err,error,*999)
 
@@ -26814,13 +29594,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_DOF_ORDER_TYPE_GET(FIELD,variableType,DOFOrderType,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_DOFOrderTypeGetNumber")
@@ -26873,7 +29653,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_DOFOrderTypeSetNumber",err,error,*999)
 
@@ -26885,13 +29665,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_DOF_ORDER_TYPE_SET(FIELD,variableType,DOFOrderType,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_DOFOrderTypeSetNumber")
@@ -26942,7 +29722,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_CreateFinishNumber",err,error,*999)
 
@@ -26954,13 +29734,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_CREATE_FINISH(FIELD,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
 #ifdef TAUPROF
@@ -27017,7 +29797,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_CreateStartNumber",err,error,*999)
 
@@ -27031,8 +29811,8 @@ CONTAINS
     IF(ASSOCIATED(REGION)) THEN
       CALL FIELD_CREATE_START(fieldUserNumber,REGION,FIELD,err,error,*999)
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_CreateStartNumber")
@@ -27114,7 +29894,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_DependentTypeGetNumber",err,error,*999)
 
@@ -27126,13 +29906,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_DEPENDENT_TYPE_GET(FIELD,dependentType,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_DependentTypeGetNumber")
@@ -27183,7 +29963,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_DependentTypeSetNumber",err,error,*999)
 
@@ -27195,13 +29975,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_DEPENDENT_TYPE_SET(FIELD,dependentType,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_DependentTypeSetNumber")
@@ -27251,7 +30031,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_DestroyNumber",err,error,*999)
 
@@ -27263,13 +30043,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_DESTROY(FIELD,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_DestroyNumber")
@@ -27320,7 +30100,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_DimensionGetNumber",err,error,*999)
 
@@ -27332,13 +30112,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_DIMENSION_GET(FIELD,variableType,dimension,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_DimensionGetNumber")
@@ -27391,7 +30171,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_DimensionSetNumber",err,error,*999)
 
@@ -27403,13 +30183,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_DIMENSION_SET(FIELD,variableType,dimension,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_DimensionSetNumber")
@@ -27461,7 +30241,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD,GEOMETRIC_FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_GeometricFieldGetNumber",err,error,*999)
 
@@ -27475,13 +30255,13 @@ CONTAINS
         CALL FIELD_GEOMETRIC_FIELD_GET(FIELD,GEOMETRIC_FIELD,err,error,*999)
         geometricFieldUserNumber=GEOMETRIC_FIELD%USER_NUMBER
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_GeometricFieldGetNumber")
@@ -27532,7 +30312,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD,GEOMETRIC_FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_GeometricFieldSetNumber",err,error,*999)
 
@@ -27547,19 +30327,19 @@ CONTAINS
         IF(ASSOCIATED(GEOMETRIC_FIELD)) THEN
           CALL FIELD_GEOMETRIC_FIELD_SET(FIELD,GEOMETRIC_FIELD,err,error,*999)
         ELSE
-          LOCAL_ERROR="A geometric field with an user number of "// &
+          localError="A geometric field with an user number of "// &
             & TRIM(NumberToVString(geometricFieldUserNumber,"*",err,error))// &
             & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-          CALL FlagError(LOCAL_ERROR,err,error,*999)
+          CALL FlagError(localError,err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_GeometricFieldSetNumber")
@@ -28089,7 +30869,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_LabelGetCNumber",err,error,*999)
 
@@ -28101,13 +30881,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_LABEL_GET(FIELD,label,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_LabelGetCNumber")
@@ -28158,7 +30938,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_LabelGetVSNumber",err,error,*999)
 
@@ -28170,13 +30950,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_LABEL_GET(FIELD,label,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_LabelGetVSNumber")
@@ -28227,7 +31007,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_LabelSetCNumber",err,error,*999)
 
@@ -28239,13 +31019,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_LABEL_SET(FIELD,label,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_LabelSetCNumber")
@@ -28296,7 +31076,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_LabelSetVSNumber",err,error,*999)
 
@@ -28308,13 +31088,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_LABEL_SET(FIELD,label,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_LabelSetVSNumber")
@@ -28369,7 +31149,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_PositionNormalTangentCalculateNodeNumber",err,error,*999)
 
@@ -28382,13 +31162,13 @@ CONTAINS
         CALL Field_PositionNormalTangentsCalculateNode(FIELD,variableType,componentNumber,localNodeNumber, &
           & position,normal,tangents,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_PositionNormalTangentCalculateNodeNumber")
@@ -28449,7 +31229,7 @@ CONTAINS
     TYPE(DECOMPOSITION_TYPE), POINTER :: DECOMPOSITION
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_MeshDecompositionGetNumber",err,error,*999)
 
@@ -28463,13 +31243,13 @@ CONTAINS
         CALL FIELD_MESH_DECOMPOSITION_GET(FIELD,DECOMPOSITION,err,error,*999)
         decompositionUserNumber=DECOMPOSITION%USER_NUMBER
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_MeshDecompositionGetNumber")
@@ -28523,7 +31303,7 @@ CONTAINS
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(MESH_TYPE), POINTER :: MESH
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_MeshDecompositionSetNumber",err,error,*999)
 
@@ -28541,23 +31321,23 @@ CONTAINS
           IF(ASSOCIATED(DECOMPOSITION)) THEN
             CALL FIELD_MESH_DECOMPOSITION_SET(FIELD,DECOMPOSITION,err,error,*999)
           ELSE
-            LOCAL_ERROR="A decomposition with a user number of "//TRIM(NumberToVString(decompositionUserNumber,"*",err,error))// &
+            localError="A decomposition with a user number of "//TRIM(NumberToVString(decompositionUserNumber,"*",err,error))// &
               & " does not exist on mesh number "//TRIM(NumberToVString(meshUserNumber,"*",err,error))//"."
-            CALL FlagError(LOCAL_ERROR,err,error,*999)
+            CALL FlagError(localError,err,error,*999)
           END IF
         ELSE
-          LOCAL_ERROR="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
+          localError="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
             & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-          CALL FlagError(LOCAL_ERROR,err,error,*999)
+          CALL FlagError(localError,err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_MeshDecompositionSetNumber")
@@ -28697,7 +31477,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_NumberOfComponentsGetNumber",err,error,*999)
 
@@ -28709,13 +31489,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_NUMBER_OF_COMPONENTS_GET(FIELD,variableType,numberOfComponents,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_NumberOfComponentsGetNumber")
@@ -28768,7 +31548,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_NumberOfComponentsSetNumber",err,error,*999)
 
@@ -28780,13 +31560,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_NUMBER_OF_COMPONENTS_SET(FIELD,variableType,numberOfComponents,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_NumberOfComponentsSetNumber")
@@ -28838,7 +31618,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_NumberOfVariablesGetNumber",err,error,*999)
 
@@ -28850,13 +31630,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_NUMBER_OF_VARIABLES_GET(FIELD,numberOfVariables,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_NumberOfVariablesGetNumber")
@@ -28907,7 +31687,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_NumberOfVariablesSetNumber",err,error,*999)
 
@@ -28919,13 +31699,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_NUMBER_OF_VARIABLES_SET(FIELD,numberOfVariables,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_NumberOfVariablesSetNumber")
@@ -28980,7 +31760,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ParameterSetAddConstantIntgNumber",err,error,*999)
 
@@ -28992,13 +31772,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_PARAMETER_SET_ADD_CONSTANT(FIELD,variableType,fieldSetType,componentNumber,value,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ParameterSetAddConstantIntgNumber")
@@ -29057,7 +31837,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ParameterSetAddConstantSPNumber",err,error,*999)
 
@@ -29069,13 +31849,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_PARAMETER_SET_ADD_CONSTANT(FIELD,variableType,fieldSetType,componentNumber,value,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ParameterSetAddConstantSPNumber")
@@ -29133,7 +31913,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ParameterSetAddConstantDPNumber",err,error,*999)
 
@@ -29145,13 +31925,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_PARAMETER_SET_ADD_CONSTANT(FIELD,variableType,fieldSetType,componentNumber,value,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ParameterSetAddConstantDPNumber")
@@ -29209,7 +31989,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ParameterSetAddConstantLNumber",err,error,*999)
 
@@ -29221,13 +32001,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_PARAMETER_SET_ADD_CONSTANT(FIELD,variableType,fieldSetType,componentNumber,value,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ParameterSetAddConstantLNumber")
@@ -29286,7 +32066,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ParameterSetAddElementIntgNumber",err,error,*999)
 
@@ -29298,13 +32078,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_PARAMETER_SET_ADD_ELEMENT(FIELD,variableType,fieldSetType,userElementNumber,componentNumber,value,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ParameterSetAddElementIntgNumber")
@@ -29365,7 +32145,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ParameterSetAddElementSPNumber",err,error,*999)
 
@@ -29377,13 +32157,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_PARAMETER_SET_ADD_ELEMENT(FIELD,variableType,fieldSetType,userElementNumber,componentNumber,value,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ParameterSetAddElementSPNumber")
@@ -29444,7 +32224,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ParameterSetAddElementDPNumber",err,error,*999)
 
@@ -29456,13 +32236,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_PARAMETER_SET_ADD_ELEMENT(FIELD,variableType,fieldSetType,userElementNumber,componentNumber,value,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ParameterSetAddElementDPNumber")
@@ -29523,7 +32303,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ParameterSetAddElementLNumber",err,error,*999)
 
@@ -29535,13 +32315,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_PARAMETER_SET_ADD_ELEMENT(FIELD,variableType,fieldSetType,userElementNumber,componentNumber,value,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ParameterSetAddElementLNumber")
@@ -29604,7 +32384,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ParameterSetAddNodeIntgNumber",err,error,*999)
 
@@ -29617,13 +32397,13 @@ CONTAINS
         CALL FIELD_PARAMETER_SET_ADD_NODE(FIELD,variableType,fieldSetType,versionNumber,derivativeNumber,userNodeNumber, &
           & componentNumber,value,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ParameterSetAddNodeIntgNumber")
@@ -29689,7 +32469,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ParameterSetAddNodeSPNumber",err,error,*999)
 
@@ -29702,13 +32482,13 @@ CONTAINS
         CALL FIELD_PARAMETER_SET_ADD_NODE(FIELD,variableType,fieldSetType,versionNumber,derivativeNumber,userNodeNumber, &
           & componentNumber,value,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ParameterSetAddNodeSPNumber")
@@ -29774,7 +32554,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ParameterSetAddNodeDPNumber",err,error,*999)
 
@@ -29787,13 +32567,13 @@ CONTAINS
         CALL FIELD_PARAMETER_SET_ADD_NODE(FIELD,variableType,fieldSetType,versionNumber,derivativeNumber,userNodeNumber, &
           & componentNumber,value,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ParameterSetAddNodeDPNumber")
@@ -29859,7 +32639,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ParameterSetAddNodeLNumber",err,error,*999)
 
@@ -29872,13 +32652,13 @@ CONTAINS
         CALL FIELD_PARAMETER_SET_ADD_NODE(FIELD,variableType,fieldSetType,versionNumber,derivativeNumber,userNodeNumber, &
           & componentNumber,value,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ParameterSetAddNodeLNumber")
@@ -29938,7 +32718,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ParameterSetCreateNumber",err,error,*999)
 
@@ -29950,13 +32730,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_PARAMETER_SET_CREATE(FIELD,variableType,fieldSetType,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ParameterSetCreateNumber")
@@ -30009,7 +32789,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ParameterSetDestroyNumber",err,error,*999)
 
@@ -30021,13 +32801,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_PARAMETER_SET_DESTROY(FIELD,variableType,fieldSetType,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ParameterSetDestroyNumber")
@@ -30081,7 +32861,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ParameterSetDataGetIntgNumber",err,error,*999)
 
@@ -30093,13 +32873,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_PARAMETER_SET_DATA_GET(FIELD,variableType,fieldSetType,parameters,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ParameterSetDataGetIntgNumber")
@@ -30154,7 +32934,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ParameterSetDataGetSPNumber",err,error,*999)
 
@@ -30166,13 +32946,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_PARAMETER_SET_DATA_GET(FIELD,variableType,fieldSetType,parameters,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ParameterSetDataGetSPNumber")
@@ -30227,7 +33007,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ParameterSetDataGetDPNumber",err,error,*999)
 
@@ -30239,13 +33019,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_PARAMETER_SET_DATA_GET(FIELD,variableType,fieldSetType,parameters,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ParameterSetDataGetDPNumber")
@@ -30300,7 +33080,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ParameterSetDataGetLNumber",err,error,*999)
 
@@ -30312,13 +33092,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_PARAMETER_SET_DATA_GET(FIELD,variableType,fieldSetType,parameters,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ParameterSetDataGetLNumber")
@@ -30373,7 +33153,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ParameterSetDataRestoreIntgNumber",err,error,*999)
 
@@ -30385,13 +33165,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_PARAMETER_SET_DATA_RESTORE(FIELD,variableType,fieldSetType,parameters,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ParameterSetDataRestoreIntgNumber")
@@ -30447,7 +33227,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ParameterSetDataRestoreSPNumber",err,error,*999)
 
@@ -30459,13 +33239,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_PARAMETER_SET_DATA_RESTORE(FIELD,variableType,fieldSetType,parameters,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ParameterSetDataRestoreSPNumber")
@@ -30520,7 +33300,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ParameterSetDataRestoreDPNumber",err,error,*999)
 
@@ -30532,13 +33312,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_PARAMETER_SET_DATA_RESTORE(FIELD,variableType,fieldSetType,parameters,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ParameterSetDataRestoreDPNumber")
@@ -30593,7 +33373,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ParameterSetDataRestoreLNumber",err,error,*999)
 
@@ -30605,13 +33385,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_PARAMETER_SET_DATA_RESTORE(FIELD,variableType,fieldSetType,parameters,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ParameterSetDataRestoreLNumber")
@@ -30668,7 +33448,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ParameterSetGetConstantIntgNumber",err,error,*999)
 
@@ -30680,13 +33460,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_PARAMETER_SET_GET_CONSTANT(FIELD,variableType,fieldSetType,componentNumber,Value,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ParameterSetGetConstantIntgNumber")
@@ -30745,7 +33525,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ParameterSetGetConstantSPNumber",err,error,*999)
 
@@ -30757,13 +33537,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_PARAMETER_SET_GET_CONSTANT(FIELD,variableType,fieldSetType,componentNumber,value,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ParameterSetGetConstantSPNumber")
@@ -30821,7 +33601,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ParameterSetGetConstantDPNumber",err,error,*999)
 
@@ -30833,13 +33613,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_PARAMETER_SET_GET_CONSTANT(FIELD,variableType,fieldSetType,componentNumber,value,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ParameterSetGetConstantDPNumber")
@@ -30897,7 +33677,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ParameterSetGetConstantLNumber",err,error,*999)
 
@@ -30909,13 +33689,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_PARAMETER_SET_GET_CONSTANT(FIELD,variableType,fieldSetType,componentNumber,value,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ParameterSetGetConstantLNumber")
@@ -31545,7 +34325,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ParameterSetGetElementIntgNumber",err,error,*999)
 
@@ -31557,13 +34337,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_PARAMETER_SET_GET_ELEMENT(FIELD,variableType,fieldSetType,userElementNumber,componentNumber,value,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ParameterSetGetElementIntgNumber")
@@ -31624,7 +34404,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ParameterSetGetElementSPNumber",err,error,*999)
 
@@ -31636,13 +34416,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_PARAMETER_SET_GET_ELEMENT(FIELD,variableType,fieldSetType,userElementNumber,componentNumber,value,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ParameterSetGetElementSPNumber")
@@ -31703,7 +34483,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ParameterSetGetElementDPNumber",err,error,*999)
 
@@ -31715,13 +34495,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_PARAMETER_SET_GET_ELEMENT(FIELD,variableType,fieldSetType,userElementNumber,componentNumber,value,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ParameterSetGetElementDPNumber")
@@ -31782,7 +34562,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ParameterSetGetElementLNumber",err,error,*999)
 
@@ -31794,13 +34574,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_PARAMETER_SET_GET_ELEMENT(FIELD,variableType,fieldSetType,userElementNumber,componentNumber,value,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ParameterSetGetElementLNumber")
@@ -31863,7 +34643,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ParameterSetGetNodeIntgNumber",err,error,*999)
 
@@ -31876,13 +34656,13 @@ CONTAINS
         CALL FIELD_PARAMETER_SET_GET_NODE(FIELD,variableType,fieldSetType,versionNumber,derivativeNumber,userNodeNumber, &
           & componentNumber,value,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ParameterSetGetNodeIntgNumber")
@@ -31948,7 +34728,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ParameterSetGetNodeSPNumber",err,error,*999)
 
@@ -31961,13 +34741,13 @@ CONTAINS
         CALL FIELD_PARAMETER_SET_GET_NODE(FIELD,variableType,fieldSetType,versionNumber,derivativeNumber,userNodeNumber, &
           & componentNumber,value,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ParameterSetGetNodeSPNumber")
@@ -32033,7 +34813,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ParameterSetGetNodeDPNumber",err,error,*999)
 
@@ -32046,13 +34826,13 @@ CONTAINS
         CALL FIELD_PARAMETER_SET_GET_NODE(FIELD,variableType,fieldSetType,versionNumber,derivativeNumber,userNodeNumber, &
           & componentNumber,value,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ParameterSetGetNodeDPNumber")
@@ -32118,7 +34898,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ParameterSetGetNodeLNumber",err,error,*999)
 
@@ -32131,13 +34911,13 @@ CONTAINS
         CALL FIELD_PARAMETER_SET_GET_NODE(FIELD,variableType,fieldSetType,versionNumber,derivativeNumber,userNodeNumber, &
           & componentNumber, value,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ParameterSetGetNodeLNumber")
@@ -32232,7 +35012,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ParameterSetUpdateConstantIntgNumber",err,error,*999)
 
@@ -32244,13 +35024,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_PARAMETER_SET_UPDATE_CONSTANT(FIELD,variableType,fieldSetType,componentNumber,value,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ParameterSetUpdateConstantIntgNumber")
@@ -32310,7 +35090,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ParameterSetUpdateConstantSPNumber",err,error,*999)
 
@@ -32322,13 +35102,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_PARAMETER_SET_UPDATE_CONSTANT(FIELD,variableType,fieldSetType,componentNumber,value,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ParameterSetUpdateConstantSPNumber")
@@ -32387,7 +35167,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ParameterSetUpdateConstantDPNumber",err,error,*999)
 
@@ -32399,13 +35179,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_PARAMETER_SET_UPDATE_CONSTANT(FIELD,variableType,fieldSetType,componentNumber,value,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ParameterSetUpdateConstantDPNumber")
@@ -32464,7 +35244,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ParameterSetUpdateConstantLNumber",err,error,*999)
 
@@ -32476,13 +35256,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_PARAMETER_SET_UPDATE_CONSTANT(FIELD,variableType,fieldSetType,componentNumber,value,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ParameterSetUpdateConstantLNumber")
@@ -33119,7 +35899,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ParameterSetUpdateElementIntgNumber",err,error,*999)
 
@@ -33132,13 +35912,13 @@ CONTAINS
         CALL FIELD_PARAMETER_SET_UPDATE_ELEMENT(FIELD,variableType,fieldSetType,userElementNumber,componentNumber,value, &
           & err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ParameterSetUpdateElementIntgNumber")
@@ -33201,7 +35981,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ParameterSetUpdateElementSPNumber",err,error,*999)
 
@@ -33214,13 +35994,13 @@ CONTAINS
         CALL FIELD_PARAMETER_SET_UPDATE_ELEMENT(FIELD,variableType,fieldSetType,userElementNumber,componentNumber,value, &
           & err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ParameterSetUpdateElementSPNumber")
@@ -33283,7 +36063,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ParameterSetUpdateElementDPNumber",err,error,*999)
 
@@ -33296,13 +36076,13 @@ CONTAINS
         CALL FIELD_PARAMETER_SET_UPDATE_ELEMENT(FIELD,variableType,fieldSetType,userElementNumber,componentNumber,Value, &
           & err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ParameterSetUpdateElementDPNumber")
@@ -33365,7 +36145,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ParameterSetUpdateElementLNumber",err,error,*999)
 
@@ -33378,13 +36158,13 @@ CONTAINS
         CALL FIELD_PARAMETER_SET_UPDATE_ELEMENT(FIELD,variableType,fieldSetType,userElementNumber,componentNumber,value, &
           & err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ParameterSetUpdateElementLNumber")
@@ -33475,7 +36255,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ParameterSetUpdateFinishNumber",err,error,*999)
 
@@ -33487,13 +36267,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_PARAMETER_SET_UPDATE_FINISH(FIELD,variableType,fieldSetType,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ParameterSetUpdateFinishNumber")
@@ -33552,7 +36332,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ParameterSetUpdateNodeIntgNumber",err,error,*999)
 
@@ -33565,13 +36345,13 @@ CONTAINS
         CALL FIELD_PARAMETER_SET_UPDATE_NODE(FIELD,variableType,fieldSetType,versionNumber,derivativeNumber,userNodeNumber, &
           & componentNumber,value,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ParameterSetUpdateNodeIntgNumber")
@@ -33638,7 +36418,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ParameterSetUpdateNodeSPNumber",err,error,*999)
 
@@ -33651,13 +36431,13 @@ CONTAINS
         CALL FIELD_PARAMETER_SET_UPDATE_NODE(FIELD,variableType,fieldSetType,versionNumber,derivativeNumber,userNodeNumber, &
           & componentNumber, value,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ParameterSetUpdateNodeSPNumber")
@@ -33724,7 +36504,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ParameterSetUpdateNodeDPNumber",err,error,*999)
 
@@ -33737,13 +36517,13 @@ CONTAINS
         CALL FIELD_PARAMETER_SET_UPDATE_NODE(FIELD,variableType,fieldSetType,versionNumber,derivativeNumber, &
           & userNodeNumber,componentNumber,value,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ParameterSetUpdateNodeDPNumber")
@@ -33810,7 +36590,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ParameterSetUpdateNodeLNumber",err,error,*999)
 
@@ -33823,13 +36603,13 @@ CONTAINS
         CALL FIELD_PARAMETER_SET_UPDATE_NODE(FIELD,variableType,fieldSetType,versionNumber,derivativeNumber, &
           & userNodeNumber,componentNumber,value,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ParameterSetUpdateNodeLNumber")
@@ -34267,7 +37047,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ParameterSetInterpolateSingleXiDPNumber",err,error,*999)
 
@@ -34280,13 +37060,13 @@ CONTAINS
         CALL FIELD_PARAMETER_SET_INTERPOLATE_SINGLE_XI(FIELD,variableType,fieldSetType,derivativeNumber,userElementNumber, &
           & xi,values,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ParameterSetInterpolateSingleXiDPNumber")
@@ -34352,7 +37132,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ParameterSetInterpolateMultipleXiDPNumber",err,error,*999)
 
@@ -34365,13 +37145,13 @@ CONTAINS
         CALL FIELD_PARAMETER_SET_INTERPOLATE_MULTIPLE_XI(FIELD,variableType,fieldSetType,derivativeNumber,userElementNumber, &
           & xi,values,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ParameterSetInterpolateMultipleXiDPNumber")
@@ -34438,7 +37218,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ParameterSetInterpolateSingleGaussDPNumber",err,error,*999)
 
@@ -34451,13 +37231,13 @@ CONTAINS
         CALL FIELD_PARAMETER_SET_INTERPOLATE_SINGLE_GAUSS(FIELD,variableType,fieldSetType,derivativeNumber,userElementNumber, &
           & quadratureScheme,GaussPoint,values,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ParameterSetInterpolateSingleGaussDPNumber")
@@ -34525,7 +37305,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ParameterSetInterpolateMultipleGaussDPNumber",err,error,*999)
 
@@ -34538,13 +37318,13 @@ CONTAINS
         CALL FIELD_PARAMETER_SET_INTERPOLATE_MULTIPLE_GAUSS(FIELD,variableType,fieldSetType,derivativeNumber,userElementNumber, &
           & quadratureScheme,GaussPoints,values,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ParameterSetInterpolateMultipleGaussDPNumber")
@@ -34606,7 +37386,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ParameterSetUpdateStartNumber",err,error,*999)
 
@@ -34618,13 +37398,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_PARAMETER_SET_UPDATE_START(FIELD,variableType,fieldSetType,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ParameterSetUpdateStartNumber")
@@ -34688,7 +37468,7 @@ CONTAINS
     TYPE(FIELD_TYPE), POINTER :: FROM_FIELD
     TYPE(REGION_TYPE), POINTER :: TO_REGION
     TYPE(FIELD_TYPE), POINTER :: TO_FIELD
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ParametersToFieldParametersComponentCopyNumber",err,error,*999)
 
@@ -34707,24 +37487,24 @@ CONTAINS
             CALL Field_ParametersToFieldParametersCopy(FROM_FIELD,fromVariableType,fromParameterSetType, &
               & fromComponentNumber,TO_FIELD,toVariableType,toParameterSetType,toComponentNumber,err,error,*999)
           ELSE
-            LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(toFieldUserNumber,"*",err,error))// &
+            localError="A field with an user number of "//TRIM(NumberToVString(toFieldUserNumber,"*",err,error))// &
               & " does not exist on region number "//TRIM(NumberToVString(toRegionUserNumber,"*",err,error))//"."
-            CALL FlagError(LOCAL_ERROR,err,error,*999)
+            CALL FlagError(localError,err,error,*999)
           END IF
         ELSE
-          LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(toRegionUserNumber,"*",err,error))// &
+          localError="A region with an user number of "//TRIM(NumberToVString(toRegionUserNumber,"*",err,error))// &
             & " does not exist."
-          CALL FlagError(LOCAL_ERROR,err,error,*999)
+          CALL FlagError(localError,err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fromFieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fromFieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(fromRegionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(fromRegionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(fromRegionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     RETURN
@@ -34784,7 +37564,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ScalingTypeGetNumber",err,error,*999)
 
@@ -34796,13 +37576,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_SCALING_TYPE_GET(FIELD,scalingType,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ScalingTypeGetNumber")
@@ -34853,7 +37633,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_ScalingTypeSetNumber",err,error,*999)
 
@@ -34865,13 +37645,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_SCALING_TYPE_SET(FIELD,scalingType,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_ScalingTypeSetNumber")
@@ -34922,7 +37702,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_TypeGetNumber",err,error,*999)
 
@@ -34934,13 +37714,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_TYPE_GET(FIELD,fieldType,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_TypeGetNumber")
@@ -34991,7 +37771,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_TypeSetNumber",err,error,*999)
 
@@ -35003,13 +37783,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_TYPE_SET(FIELD,fieldType,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_TypeSetNumber")
@@ -35061,7 +37841,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_VariableLabelGetCNumber",err,error,*999)
 
@@ -35073,13 +37853,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_VARIABLE_LABEL_GET(FIELD,variableType,label,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_VariableLabelGetCNumber")
@@ -35132,7 +37912,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_VariableLabelGetVSNumber",err,error,*999)
 
@@ -35144,13 +37924,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_VARIABLE_LABEL_GET(FIELD,variableType,label,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_VariableLabelGetVSNumber")
@@ -35203,7 +37983,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_VariableLabelSetCNumber",err,error,*999)
 
@@ -35215,13 +37995,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_VARIABLE_LABEL_SET(FIELD,variableType,label,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_VariableLabelSetCNumber")
@@ -35274,7 +38054,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_VariableLabelSetVSNumber",err,error,*999)
 
@@ -35286,13 +38066,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_VARIABLE_LABEL_SET(FIELD,variableType,label,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_VariableLabelSetVSNumber")
@@ -35344,7 +38124,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_VariableTypesGetNumber",err,error,*999)
 
@@ -35356,13 +38136,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_VARIABLE_TYPES_GET(FIELD,variableTypes,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_VariableTypesGetNumber")
@@ -35413,7 +38193,7 @@ CONTAINS
     !Local variables
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSField_VariableTypesSetNumber",err,error,*999)
 
@@ -35425,13 +38205,13 @@ CONTAINS
       IF(ASSOCIATED(FIELD)) THEN
         CALL FIELD_VARIABLE_TYPES_SET(FIELD,variableTypes,err,error,*999)
       ELSE
-        LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="A field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSField_VariableTypesSetNumber")
@@ -35735,7 +38515,7 @@ CONTAINS
     TYPE(BASIS_PTR_TYPE), POINTER :: BASES(:)
     TYPE(GENERATED_MESH_TYPE), POINTER :: GENERATED_MESH
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
     INTEGER(INTG) :: basis_idx,NumBases
 
     ENTERS("CMISSGeneratedMesh_BasisGetNumber",err,error,*999)
@@ -35752,36 +38532,36 @@ CONTAINS
         IF(ASSOCIATED(BASES)) THEN
           NumBases=SIZE(BASES)
           IF(SIZE(basisUserNumbers)<NumBases) THEN
-            LOCAL_ERROR="The basis user numbers array must have a size of at least "// &
+            localError="The basis user numbers array must have a size of at least "// &
                 & TRIM(NumberToVString(NumBases,"*",err,error))// &
                 & ". However, it has a size of " &
                 & //TRIM(NumberToVString(SIZE(basisUserNumbers),"*",err,error))//"."
-            CALL FlagError(LOCAL_ERROR,err,error,*999)
+            CALL FlagError(localError,err,error,*999)
           END IF
           DO basis_idx=1,NumBases
             IF(ASSOCIATED(BASES(basis_idx)%PTR)) THEN
               basisUserNumbers(basis_idx)=BASES(basis_idx)%PTR%USER_NUMBER
             ELSE
-              LOCAL_ERROR="The basis with index "//TRIM(NumberToVString(basis_idx,"*",err,error))// &
+              localError="The basis with index "//TRIM(NumberToVString(basis_idx,"*",err,error))// &
                 & " is not associated for the generated mesh with a user number of "// &
                 & TRIM(NumberToVString(generatedMeshUserNumber,"*",err,error))//"."
-              CALL FlagError(LOCAL_ERROR,err,error,*999)
+              CALL FlagError(localError,err,error,*999)
             END IF
           END DO
         ELSE
-          LOCAL_ERROR="The bases are not associated for the generated mesh with a user number of "// &
+          localError="The bases are not associated for the generated mesh with a user number of "// &
             & TRIM(NumberToVString(generatedMeshUserNumber,"*",err,error))//"."
-          CALL FlagError(LOCAL_ERROR,err,error,*999)
+          CALL FlagError(localError,err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="A generated mesh with an user number of "//TRIM(NumberToVString(generatedMeshUserNumber,"*",err,error))// &
+        localError="A generated mesh with an user number of "//TRIM(NumberToVString(generatedMeshUserNumber,"*",err,error))// &
           & " does not exist on the region with a user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSGeneratedMesh_BasisGetNumber")
@@ -35806,7 +38586,7 @@ CONTAINS
     !Local variables
     TYPE(BASIS_PTR_TYPE), POINTER :: BASIS_PTRS(:)
     INTEGER(INTG) :: basis_idx,NumBases
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSGeneratedMesh_BasisGetObj",err,error,*999)
 
@@ -35816,18 +38596,18 @@ CONTAINS
     IF(ASSOCIATED(BASIS_PTRS)) THEN
       NumBases=SIZE(BASIS_PTRS)
       IF(SIZE(bases)<NumBases) THEN
-        LOCAL_ERROR="The bases array must have a size of at least "// &
+        localError="The bases array must have a size of at least "// &
             & TRIM(NumberToVString(NumBases,"*",err,error))// &
             & ". However, it has a size of " &
             & //TRIM(NumberToVString(SIZE(bases),"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
       DO basis_idx=1,NumBases
         bases(basis_idx)%BASIS=>BASIS_PTRS(basis_idx)%PTR
       END DO
     ELSE
-      LOCAL_ERROR="The bases are not associated for the generated mesh."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="The bases are not associated for the generated mesh."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSGeneratedMesh_BasisGetObj")
@@ -35855,7 +38635,7 @@ CONTAINS
     TYPE(BASIS_TYPE), POINTER :: BASIS
     TYPE(GENERATED_MESH_TYPE), POINTER :: GENERATED_MESH
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSGeneratedMesh_BasisSetNumber0",err,error,*999)
 
@@ -35874,19 +38654,19 @@ CONTAINS
           BASES(1)%PTR=>BASIS
           CALL GENERATED_MESH_BASIS_SET(GENERATED_MESH,BASES,err,error,*999)
         ELSE
-          LOCAL_ERROR="A basis with an user number of "//TRIM(NumberToVString(basisUserNumber,"*",err,error))// &
+          localError="A basis with an user number of "//TRIM(NumberToVString(basisUserNumber,"*",err,error))// &
             & " does not exist."
-          CALL FlagError(LOCAL_ERROR,err,error,*999)
+          CALL FlagError(localError,err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="A generated mesh with an user number of "//TRIM(NumberToVString(generatedMeshUserNumber,"*",err,error))// &
+        localError="A generated mesh with an user number of "//TRIM(NumberToVString(generatedMeshUserNumber,"*",err,error))// &
           & " does not exist on the region with a user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSGeneratedMesh_BasisSetNumber0")
@@ -35914,7 +38694,7 @@ CONTAINS
     TYPE(BASIS_TYPE), POINTER :: BASIS
     TYPE(GENERATED_MESH_TYPE), POINTER :: GENERATED_MESH
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
     INTEGER(INTG) :: basis_idx,NumBases
 
     ENTERS("CMISSGeneratedMesh_BasisSetNumber1",err,error,*999)
@@ -35937,21 +38717,21 @@ CONTAINS
           IF(ASSOCIATED(BASIS)) THEN
             BASES(basis_idx)%PTR=>BASIS
           ELSE
-            LOCAL_ERROR="A basis with an user number of "//TRIM(NumberToVString(basisUserNumbers(basis_idx),"*",err,error))// &
+            localError="A basis with an user number of "//TRIM(NumberToVString(basisUserNumbers(basis_idx),"*",err,error))// &
               & " does not exist."
-            CALL FlagError(LOCAL_ERROR,err,error,*999)
+            CALL FlagError(localError,err,error,*999)
           END IF
         END DO
         CALL GENERATED_MESH_BASIS_SET(GENERATED_MESH,BASES,err,error,*999)
       ELSE
-        LOCAL_ERROR="A generated mesh with an user number of "//TRIM(NumberToVString(generatedMeshUserNumber,"*",err,error))// &
+        localError="A generated mesh with an user number of "//TRIM(NumberToVString(generatedMeshUserNumber,"*",err,error))// &
           & " does not exist on the region with a user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSGeneratedMesh_BasisSetNumber1")
@@ -36001,7 +38781,7 @@ CONTAINS
     !Local variables
     INTEGER(INTG) :: basis_idx
     TYPE(BASIS_PTR_TYPE), ALLOCATABLE :: BASIS_PTRS(:)
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSGeneratedMesh_BasisSetObj1",err,error,*999)
 
@@ -36011,8 +38791,8 @@ CONTAINS
       IF(ASSOCIATED(bases(basis_idx)%BASIS)) THEN
         BASIS_PTRS(basis_idx)%PTR=>bases(basis_idx)%BASIS
       ELSE
-        LOCAL_ERROR="The basis for index "//TRIM(NumberToVString(basis_idx,"*",err,error))//" is not associated."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        localError="The basis for index "//TRIM(NumberToVString(basis_idx,"*",err,error))//" is not associated."
+        CALL FlagError(localError,err,error,*999)
       END IF
     END DO
 
@@ -36041,7 +38821,7 @@ CONTAINS
     !Local variables
     TYPE(GENERATED_MESH_TYPE), POINTER :: GENERATED_MESH
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSGeneratedMesh_BaseVectorsSetNumber",err,error,*999)
 
@@ -36053,14 +38833,14 @@ CONTAINS
       IF(ASSOCIATED(GENERATED_MESH)) THEN
         CALL GENERATED_MESH_BASE_VECTORS_SET(GENERATED_MESH,baseVectors,err,error,*999)
       ELSE
-        LOCAL_ERROR="A generated mesh with an user number of "//TRIM(NumberToVString(generatedMeshUserNumber,"*",err,error))// &
+        localError="A generated mesh with an user number of "//TRIM(NumberToVString(generatedMeshUserNumber,"*",err,error))// &
           & " does not exist on the region with a user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSGeneratedMesh_BaseVectorsSetNumber")
@@ -36112,7 +38892,7 @@ CONTAINS
     TYPE(MESH_TYPE), POINTER :: MESH
     TYPE(GENERATED_MESH_TYPE), POINTER :: GENERATED_MESH
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSGeneratedMesh_CreateFinishNumber",err,error,*999)
 
@@ -36125,14 +38905,14 @@ CONTAINS
       IF(ASSOCIATED(GENERATED_MESH)) THEN
         CALL GENERATED_MESH_CREATE_FINISH(GENERATED_MESH,meshUserNumber,MESH,err,error,*999)
       ELSE
-        LOCAL_ERROR="A generated mesh with an user number of "//TRIM(NumberToVString(generatedMeshUserNumber,"*",err,error))// &
+        localError="A generated mesh with an user number of "//TRIM(NumberToVString(generatedMeshUserNumber,"*",err,error))// &
           & " does not exist on the region with a user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
 #ifdef TAUPROF
@@ -36191,7 +38971,7 @@ CONTAINS
     !Local variables
     TYPE(GENERATED_MESH_TYPE), POINTER :: GENERATED_MESH
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSGeneratedMesh_CreateStartNumber",err,error,*999)
 
@@ -36205,9 +38985,9 @@ CONTAINS
     IF(ASSOCIATED(REGION)) THEN
       CALL GENERATED_MESH_CREATE_START(generatedMeshUserNumber,REGION,GENERATED_MESH,err,error,*999)
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSGeneratedMesh_CreateStartNumber")
@@ -36288,7 +39068,7 @@ CONTAINS
     !Local variables
     TYPE(GENERATED_MESH_TYPE), POINTER :: GENERATED_MESH
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSGeneratedMesh_DestroyNumber",err,error,*999)
 
@@ -36300,14 +39080,14 @@ CONTAINS
       IF(ASSOCIATED(GENERATED_MESH)) THEN
         CALL GENERATED_MESH_DESTROY(GENERATED_MESH,err,error,*999)
       ELSE
-        LOCAL_ERROR="A generated mesh with an user number of "//TRIM(NumberToVString(generatedMeshUserNumber,"*",err,error))// &
+        localError="A generated mesh with an user number of "//TRIM(NumberToVString(generatedMeshUserNumber,"*",err,error))// &
           & " does not exist on the region with a user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSGeneratedMesh_DestroyNumber")
@@ -36356,7 +39136,7 @@ CONTAINS
     !Local variables
     TYPE(GENERATED_MESH_TYPE), POINTER :: GENERATED_MESH
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSGeneratedMesh_ExtentGetNumber",err,error,*999)
 
@@ -36368,14 +39148,14 @@ CONTAINS
       IF(ASSOCIATED(GENERATED_MESH)) THEN
         CALL GENERATED_MESH_EXTENT_GET(GENERATED_MESH,extent,err,error,*999)
       ELSE
-        LOCAL_ERROR="A generated mesh with an user number of "//TRIM(NumberToVString(generatedMeshUserNumber,"*",err,error))// &
+        localError="A generated mesh with an user number of "//TRIM(NumberToVString(generatedMeshUserNumber,"*",err,error))// &
           & " does not exist on the region with a user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSGeneratedMesh_ExtentGetNumber")
@@ -36426,7 +39206,7 @@ CONTAINS
     !Local variables
     TYPE(GENERATED_MESH_TYPE), POINTER :: GENERATED_MESH
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSGeneratedMesh_ExtentSetNumber",err,error,*999)
 
@@ -36438,14 +39218,14 @@ CONTAINS
       IF(ASSOCIATED(GENERATED_MESH)) THEN
         CALL GENERATED_MESH_EXTENT_SET(GENERATED_MESH,extent,err,error,*999)
       ELSE
-        LOCAL_ERROR="A generated mesh with an user number of "//TRIM(NumberToVString(generatedMeshUserNumber,"*",err,error))// &
+        localError="A generated mesh with an user number of "//TRIM(NumberToVString(generatedMeshUserNumber,"*",err,error))// &
           & " does not exist on the region with a user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSGeneratedMesh_ExtentSetNumber")
@@ -36496,7 +39276,7 @@ CONTAINS
     !Local variables
     TYPE(GENERATED_MESH_TYPE), POINTER :: GENERATED_MESH
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSGeneratedMesh_NumberOfElementsGetNumber",err,error,*999)
 
@@ -36508,14 +39288,14 @@ CONTAINS
       IF(ASSOCIATED(GENERATED_MESH)) THEN
         CALL GENERATED_MESH_NUMBER_OF_ELEMENTS_GET(GENERATED_MESH,numberOfElements,err,error,*999)
       ELSE
-        LOCAL_ERROR="A generated mesh with an user number of "//TRIM(NumberToVString(generatedMeshUserNumber,"*",err,error))// &
+        localError="A generated mesh with an user number of "//TRIM(NumberToVString(generatedMeshUserNumber,"*",err,error))// &
           & " does not exist on the region with a user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSGeneratedMesh_NumberOfElementsGetNumber")
@@ -36567,7 +39347,7 @@ CONTAINS
     !Local variables
     TYPE(GENERATED_MESH_TYPE), POINTER :: GENERATED_MESH
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSGeneratedMesh_NumberOfElementsSetNumber",err,error,*999)
 
@@ -36579,14 +39359,14 @@ CONTAINS
       IF(ASSOCIATED(GENERATED_MESH)) THEN
         CALL GENERATED_MESH_NUMBER_OF_ELEMENTS_SET(GENERATED_MESH,numberOfElements,err,error,*999)
       ELSE
-        LOCAL_ERROR="A generated mesh with an user number of "//TRIM(NumberToVString(generatedMeshUserNumber,"*",err,error))// &
+        localError="A generated mesh with an user number of "//TRIM(NumberToVString(generatedMeshUserNumber,"*",err,error))// &
           & " does not exist on the region with a user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSGeneratedMesh_NumberOfElementsSetNumber")
@@ -36638,7 +39418,7 @@ CONTAINS
     !Local variables
     TYPE(GENERATED_MESH_TYPE), POINTER :: GENERATED_MESH
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSGeneratedMesh_OriginGetNumber",err,error,*999)
 
@@ -36650,14 +39430,14 @@ CONTAINS
       IF(ASSOCIATED(GENERATED_MESH)) THEN
         CALL GENERATED_MESH_ORIGIN_GET(GENERATED_MESH,origin,err,error,*999)
       ELSE
-        LOCAL_ERROR="A generated mesh with an user number of "//TRIM(NumberToVString(generatedMeshUserNumber,"*",err,error))// &
+        localError="A generated mesh with an user number of "//TRIM(NumberToVString(generatedMeshUserNumber,"*",err,error))// &
           & " does not exist on the region with a user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSGeneratedMesh_OriginGetNumber")
@@ -36708,7 +39488,7 @@ CONTAINS
     !Local variables
     TYPE(GENERATED_MESH_TYPE), POINTER :: GENERATED_MESH
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSGeneratedMesh_OriginSetNumber",err,error,*999)
 
@@ -36720,14 +39500,14 @@ CONTAINS
       IF(ASSOCIATED(GENERATED_MESH)) THEN
         CALL GENERATED_MESH_ORIGIN_SET(GENERATED_MESH,origin,err,error,*999)
       ELSE
-        LOCAL_ERROR="A generated mesh with an user number of "//TRIM(NumberToVString(generatedMeshUserNumber,"*",err,error))// &
+        localError="A generated mesh with an user number of "//TRIM(NumberToVString(generatedMeshUserNumber,"*",err,error))// &
           & " does not exist on the region with a user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSGeneratedMesh_OriginSetNumber")
@@ -36778,7 +39558,7 @@ CONTAINS
     !Local variables
     TYPE(GENERATED_MESH_TYPE), POINTER :: GENERATED_MESH
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSGeneratedMesh_TypeGetNumber",err,error,*999)
 
@@ -36790,14 +39570,14 @@ CONTAINS
       IF(ASSOCIATED(GENERATED_MESH)) THEN
         CALL GENERATED_MESH_TYPE_GET(GENERATED_MESH,generatedMeshType,err,error,*999)
       ELSE
-        LOCAL_ERROR="A generated mesh with an user number of "//TRIM(NumberToVString(generatedMeshUserNumber,"*",err,error))// &
+        localError="A generated mesh with an user number of "//TRIM(NumberToVString(generatedMeshUserNumber,"*",err,error))// &
           & " does not exist on the region with a user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSGeneratedMesh_TypeGetNumber")
@@ -36848,7 +39628,7 @@ CONTAINS
     !Local variables
     TYPE(GENERATED_MESH_TYPE), POINTER :: GENERATED_MESH
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSGeneratedMesh_TypeSetNumber",err,error,*999)
 
@@ -36860,14 +39640,14 @@ CONTAINS
       IF(ASSOCIATED(GENERATED_MESH)) THEN
         CALL GENERATED_MESH_TYPE_SET(GENERATED_MESH,generatedMeshType,err,error,*999)
       ELSE
-        LOCAL_ERROR="A generated mesh with an user number of "//TRIM(NumberToVString(generatedMeshUserNumber,"*",err,error))// &
+        localError="A generated mesh with an user number of "//TRIM(NumberToVString(generatedMeshUserNumber,"*",err,error))// &
           & " does not exist on a region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSGeneratedMesh_TypeSetNumber")
@@ -36920,7 +39700,7 @@ CONTAINS
     TYPE(FIELD_TYPE), POINTER :: FIELD
     TYPE(GENERATED_MESH_TYPE), POINTER :: GENERATED_MESH
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSGeneratedMesh_GeometricParametersCalculateNumber",err,error,*999)
 
@@ -36935,19 +39715,19 @@ CONTAINS
         IF(ASSOCIATED(GENERATED_MESH)) THEN
           CALL GeneratedMesh_GeometricParametersCalculate(FIELD,GENERATED_MESH,err,error,*999)
         ELSE
-          LOCAL_ERROR="A generated mesh with an user number of "//TRIM(NumberToVString(generatedMeshUserNumber,"*",err,error))// &
+          localError="A generated mesh with an user number of "//TRIM(NumberToVString(generatedMeshUserNumber,"*",err,error))// &
             & " does not exist."
-          CALL FlagError(LOCAL_ERROR,err,error,*999)
+          CALL FlagError(localError,err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="An field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
+        localError="An field with an user number of "//TRIM(NumberToVString(fieldUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSGeneratedMesh_GeometricParametersCalculateNumber")
@@ -37002,7 +39782,7 @@ CONTAINS
     !Local variables
     TYPE(REGION_TYPE), POINTER :: REGION
     TYPE(GENERATED_MESH_TYPE), POINTER :: GENERATED_MESH
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSGeneratedMesh_SurfaceGetNumber0",err,error,*999)
 
@@ -37015,14 +39795,14 @@ CONTAINS
       IF(ASSOCIATED(GENERATED_MESH)) THEN
           CALL GENERATED_MESH_SURFACE_GET(GENERATED_MESH,1,surfaceType,surfaceNodes,normalXi,err,error,*999)
       ELSE
-        LOCAL_ERROR="A generated mesh with an user number of "//TRIM(NumberToVString(generatedMeshUserNumber,"*",err,error))// &
+        localError="A generated mesh with an user number of "//TRIM(NumberToVString(generatedMeshUserNumber,"*",err,error))// &
             & " does not exist."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSGeneratedMesh_SurfaceGetNumber0")
@@ -37051,7 +39831,7 @@ CONTAINS
     !Local variables
     TYPE(REGION_TYPE), POINTER :: REGION
     TYPE(GENERATED_MESH_TYPE), POINTER :: GENERATED_MESH
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSGeneratedMesh_SurfaceGetNumber1",err,error,*999)
 
@@ -37064,14 +39844,14 @@ CONTAINS
       IF(ASSOCIATED(GENERATED_MESH)) THEN
           CALL GENERATED_MESH_SURFACE_GET(GENERATED_MESH,meshComponent,surfaceType,surfaceNodes,normalXi,err,error,*999)
       ELSE
-        LOCAL_ERROR="A generated mesh with an user number of "//TRIM(NumberToVString(generatedMeshUserNumber,"*",err,error))// &
+        localError="A generated mesh with an user number of "//TRIM(NumberToVString(generatedMeshUserNumber,"*",err,error))// &
             & " does not exist."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSGeneratedMesh_SurfaceGetNumber1")
@@ -37170,7 +39950,7 @@ CONTAINS
 
     TYPE(CMISSMeshEmbeddingType), INTENT(INOUT) :: meshEmbedding !<The embedding
     TYPE(REGION_TYPE), POINTER :: REGION1, REGION2
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
     TYPE(MESH_TYPE), POINTER :: PARENTMESH,CHILDMESH
     INTEGER(INTG), INTENT(IN) :: parentMeshUserNumber, childMeshUserNumber  !<The user number of the mesh.
     INTEGER(INTG), INTENT(IN) :: regionOneUserNumber, regionTwoUserNumber !<The user number of the region containing the mesh.
@@ -37193,19 +39973,19 @@ CONTAINS
         IF(ASSOCIATED(PARENTMESH).AND.ASSOCIATED(CHILDMESH)) THEN
           CALL MESH_EMBEDDING_CREATE(meshEmbedding%MESH_EMBEDDING,PARENTMESH,CHILDMESH,err,error,*999)
         ELSE
-          LOCAL_ERROR="Meshes with user number of "//TRIM(NumberToVString(parentMeshUserNumber,"*",err,error))// &
+          localError="Meshes with user number of "//TRIM(NumberToVString(parentMeshUserNumber,"*",err,error))// &
               & " and "//TRIM(NumberToVString(childMeshUserNumber,"*",err,error))//  " do not exist."
-          CALL FlagError(LOCAL_ERROR,err,error,*999)
+          CALL FlagError(localError,err,error,*999)
         END IF
       ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionTwoUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionTwoUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionOneUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionOneUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSMeshEmbedding_CreateNumber")
@@ -37338,7 +40118,7 @@ CONTAINS
     !Local variables
     TYPE(INTERFACE_TYPE), POINTER :: INTERFACE
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSInterface_CreateFinishNumber",err,error,*999)
 
@@ -37350,14 +40130,14 @@ CONTAINS
       IF(ASSOCIATED(INTERFACE)) THEN
         CALL INTERFACE_CREATE_FINISH(INTERFACE,err,error,*999)
       ELSE
-        LOCAL_ERROR="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
+        localError="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
           & " does not exist on the region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSInterface_CreateFinishNumber")
@@ -37406,7 +40186,7 @@ CONTAINS
     !Local variables
     TYPE(INTERFACE_TYPE), POINTER :: INTERFACE
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSInterface_CreateStartNumber",err,error,*999)
 
@@ -37416,9 +40196,9 @@ CONTAINS
     IF(ASSOCIATED(REGION)) THEN
       CALL INTERFACE_CREATE_START(interfaceUserNumber,REGION,INTERFACE,err,error,*999)
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSInterface_CreateStartNumber")
@@ -37471,7 +40251,7 @@ CONTAINS
     TYPE(COORDINATE_SYSTEM_TYPE), POINTER :: COORDINATE_SYSTEM
     TYPE(REGION_TYPE), POINTER :: REGION
     TYPE(INTERFACE_TYPE), POINTER :: INTERFACE
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
     
     ENTERS("CMISSInterface_CoordinateSystemSetNumber",err,error,*999)
  
@@ -37486,14 +40266,14 @@ CONTAINS
       IF(ASSOCIATED(COORDINATE_SYSTEM)) THEN
         CALL INTERFACE_COORDINATE_SYSTEM_SET(INTERFACE,COORDINATE_SYSTEM,err,error,*999)
       ELSE
-        LOCAL_ERROR="A coordinate system with an user number of "// &
+        localError="A coordinate system with an user number of "// &
           & TRIM(NumberToVString(CoordinateSystemUserNumber,"*",err,ERROR))//" does not exist."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       ENDIF
     ELSE
-      LOCAL_ERROR="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,ERROR))// &
+      localError="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,ERROR))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     ENDIF
 
     EXITS("CMISSInterface_CoordinateSystemSetNumber")
@@ -37544,7 +40324,7 @@ CONTAINS
     TYPE(COORDINATE_SYSTEM_TYPE), POINTER :: COORDINATE_SYSTEM
     TYPE(INTERFACE_TYPE), POINTER :: INTERFACE
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
     
     ENTERS("CMISSInterface_CoordinateSystemGetNumber",err,error,*999)
  
@@ -37558,14 +40338,14 @@ CONTAINS
       IF(ASSOCIATED(COORDINATE_SYSTEM)) THEN
         coordinateSystemUserNumber = COORDINATE_SYSTEM%USER_NUMBER
       ELSE
-        LOCAL_ERROR="The coordinate system is not associated for interface number "// &
+        localError="The coordinate system is not associated for interface number "// &
           & TRIM(NumberToVString(interfaceUserNumber,"*",err,ERROR))//" does not exist."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       ENDIF
     ELSE
-      LOCAL_ERROR="An interface with an user number of "//TRIM(NumberToVString(InterfaceUserNumber,"*",err,ERROR))// &
+      localError="An interface with an user number of "//TRIM(NumberToVString(InterfaceUserNumber,"*",err,ERROR))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     ENDIF
 
     EXITS("CMISSInterface_CoordinateSystemGetNumber")
@@ -37615,7 +40395,7 @@ CONTAINS
     !Local variables
     TYPE(INTERFACE_TYPE), POINTER :: INTERFACE
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSFInterfaceDestroyNumber",err,error,*999)
 
@@ -37627,13 +40407,13 @@ CONTAINS
       IF(ASSOCIATED(INTERFACE)) THEN
         CALL INTERFACE_DESTROY(INTERFACE,err,error,*999)
       ELSE
-        LOCAL_ERROR="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
+        localError="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSInterface_DestroyNumber")
@@ -37683,7 +40463,7 @@ CONTAINS
     !Local variables
     TYPE(INTERFACE_TYPE), POINTER :: INTERFACE
     TYPE(REGION_TYPE), POINTER :: PARENT_REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSInterface_LabelGetCNumber",err,error,*999)
 
@@ -37695,15 +40475,15 @@ CONTAINS
       IF(ASSOCIATED(INTERFACE)) THEN
         CALL INTERFACE_LABEL_GET(INTERFACE,label,err,error,*999)
       ELSE
-        LOCAL_ERROR="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
+        localError="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
           & " does not exist on a parent region with a user number of "// &
           & TRIM(NumberToVString(parentRegionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(parentRegionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(parentRegionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSInterface_LabelGetCNumber")
@@ -37754,7 +40534,7 @@ CONTAINS
     !Local variables
     TYPE(INTERFACE_TYPE), POINTER :: INTERFACE
     TYPE(REGION_TYPE), POINTER :: PARENT_REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSInterface_LabelGetVSNumber",err,error,*999)
 
@@ -37766,15 +40546,15 @@ CONTAINS
       IF(ASSOCIATED(INTERFACE)) THEN
         CALL INTERFACE_LABEL_GET(INTERFACE,label,err,error,*999)
       ELSE
-        LOCAL_ERROR="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
+        localError="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
           & " does not exist on a parent region with a user number of "// &
           & TRIM(NumberToVString(parentRegionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(parentRegionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(parentRegionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSInterface_LabelGetVSNumber")
@@ -37825,7 +40605,7 @@ CONTAINS
     !Local variables
     TYPE(INTERFACE_TYPE), POINTER :: INTERFACE
     TYPE(REGION_TYPE), POINTER :: PARENT_REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSInterface_LabelSetCNumber",err,error,*999)
 
@@ -37837,15 +40617,15 @@ CONTAINS
       IF(ASSOCIATED(INTERFACE)) THEN
         CALL INTERFACE_LABEL_SET(INTERFACE,label,err,error,*999)
       ELSE
-        LOCAL_ERROR="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
+        localError="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
           & " does not exist on a parent region with a user number of "// &
           & TRIM(NumberToVString(parentRegionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(parentRegionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(parentRegionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSInterface_LabelSetCNumber")
@@ -37896,7 +40676,7 @@ CONTAINS
     !Local variables
     TYPE(INTERFACE_TYPE), POINTER :: INTERFACE
     TYPE(REGION_TYPE), POINTER :: PARENT_REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSInterface_LabelSetVSNumber",err,error,*999)
 
@@ -37908,15 +40688,15 @@ CONTAINS
       IF(ASSOCIATED(INTERFACE)) THEN
         CALL INTERFACE_LABEL_SET(INTERFACE,CHAR(label),err,error,*999)
       ELSE
-        LOCAL_ERROR="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
+        localError="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
           & " does not exist on a parent region with a user number of "// &
           & TRIM(NumberToVString(parentRegionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(parentRegionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(parentRegionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSInterfaceLabelStVSNumber")
@@ -37996,7 +40776,7 @@ CONTAINS
     TYPE(INTERFACE_TYPE), POINTER :: INTERFACE
     TYPE(MESH_TYPE), POINTER :: MESH
     TYPE(REGION_TYPE), POINTER :: MESH_REGION,PARENT_REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSInterface_MeshAddNumber",err,error,*999)
 
@@ -38014,26 +40794,26 @@ CONTAINS
           IF(ASSOCIATED(MESH)) THEN
             CALL INTERFACE_MESH_ADD(INTERFACE,MESH,meshIndex,err,error,*999)
           ELSE
-            LOCAL_ERROR="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
+            localError="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
               & " does not exist on the region with an user number of "// &
               & TRIM(NumberToVString(meshRegionUserNumber,"*",err,error))//"."
-            CALL FlagError(LOCAL_ERROR,err,error,*999)
+            CALL FlagError(localError,err,error,*999)
           END IF
         ELSE
-          LOCAL_ERROR="The mesh region with an user number of "//TRIM(NumberToVString(meshRegionUserNumber,"*",err,error))// &
+          localError="The mesh region with an user number of "//TRIM(NumberToVString(meshRegionUserNumber,"*",err,error))// &
             & " does not exist."
-          CALL FlagError(LOCAL_ERROR,err,error,*999)
+          CALL FlagError(localError,err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
+        localError="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
           & " does not exist on the region with an user number of "// &
           & TRIM(NumberToVString(interfaceRegionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="The interface parent region with an user number of "// &
+      localError="The interface parent region with an user number of "// &
         & TRIM(NumberToVString(interfaceRegionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSInterface_MeshAddNumber")
@@ -38084,7 +40864,7 @@ CONTAINS
     !Local variables
     TYPE(INTERFACE_TYPE), POINTER :: INTERFACE
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSInterfaceMeshConnectivity_CreateFinishNumber",err,error,*999)
 
@@ -38096,14 +40876,14 @@ CONTAINS
       IF(ASSOCIATED(INTERFACE)) THEN
         CALL INTERFACE_MESH_CONNECTIVITY_CREATE_FINISH(INTERFACE%MESH_CONNECTIVITY,err,error,*999)
       ELSE
-        LOCAL_ERROR="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
+        localError="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
           & " does not exist on the region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       ENDIF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     ENDIF
 
     EXITS("CMISSInterfaceMeshConnectivity_CreateFinishNumber")
@@ -38157,7 +40937,7 @@ CONTAINS
     TYPE(MESH_TYPE), POINTER :: MESH
     TYPE(INTERFACE_MESH_CONNECTIVITY_TYPE), POINTER :: INTERFACE_MESH_CONNECTIVITY
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSInterfaceMeshConnectivity_CreateStartNumber",err,error,*999)
 
@@ -38172,19 +40952,19 @@ CONTAINS
         IF(ASSOCIATED(MESH)) THEN
           CALL INTERFACE_MESH_CONNECTIVITY_CREATE_START(INTERFACE,MESH,INTERFACE_MESH_CONNECTIVITY,err,error,*999)
         ELSE
-          LOCAL_ERROR="A mesh with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
+          localError="A mesh with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
            & " does not exist on the interface with user number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-          CALL FlagError(LOCAL_ERROR,err,error,*999)
+          CALL FlagError(localError,err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
+        localError="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
           & " does not exist on the region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSInterfaceMeshConnectivity_CreateStartNumber")
@@ -38243,7 +41023,7 @@ CONTAINS
     !Local variables
     TYPE(INTERFACE_TYPE), POINTER :: INTERFACE
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSInterfaceMeshConnectivity_ElementNumberSetNumber",err,error,*999)
 
@@ -38256,14 +41036,14 @@ CONTAINS
         CALL InterfaceMeshConnectivity_ElementNumberSet(INTERFACE%MESH_CONNECTIVITY,interfaceElementNumber, &
          & coupledMeshIndexNumber,coupledMeshElementNumber,err,error,*999)
       ELSE
-        LOCAL_ERROR="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
+        localError="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
           & " does not exist on the region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSInterfaceMeshConnectivity_ElementNumberSetNumber")
@@ -38351,7 +41131,7 @@ CONTAINS
     INTEGER(INTG), INTENT(IN) :: firstCoupledMeshNodeNumbers(:),secondCoupledMeshNodeNumbers(:) !<The coupled meshes nodes to be connected to the interface
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSInterfaceMeshConnectivity_NodeNumberSetObj",err,error,*999)
     
@@ -38363,8 +41143,8 @@ CONTAINS
         & interfaceNodeNumbers,firstCoupledMeshIndexNumber,firstCoupledMeshNodeNumbers, &
         & secondCoupledMeshIndexNumber,secondCoupledMeshNodeNumbers,err,error,*999)
     ELSE
-      LOCAL_ERROR="Interface number of nodes does not match coupled meshes number of nodes."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="Interface number of nodes does not match coupled meshes number of nodes."
+        CALL FlagError(localError,err,error,*999)
     ENDIF
 
     EXITS("CMISSInterfaceMeshConnectivity_NodeNumberSetObj")
@@ -38398,7 +41178,7 @@ CONTAINS
     !Local variables
     TYPE(INTERFACE_TYPE), POINTER :: INTERFACE
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSInterfaceMeshConnectivity_ElementXiSetNumber",err,error,*999)
 
@@ -38412,14 +41192,14 @@ CONTAINS
          & coupledMeshIndexNumber,coupledMeshElementNumber,interfaceMeshLocalNodeNumber,interfaceMeshComponentNodeNumber,xi, &
          & err,error,*999)
       ELSE
-        LOCAL_ERROR="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
+        localError="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
           & " does not exist on the region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSInterfaceMeshConnectivity_ElementXiSetNumber")
@@ -38480,7 +41260,7 @@ CONTAINS
     TYPE(BASIS_TYPE), POINTER :: BASIS
     TYPE(INTERFACE_TYPE), POINTER :: INTERFACE
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSInterfaceMeshConnectivity_BasisSetNumber",err,error,*999)
 
@@ -38495,18 +41275,18 @@ CONTAINS
         IF (ASSOCIATED(BASIS)) THEN
           CALL INTERFACE_MESH_CONNECTIVITY_BASIS_SET(INTERFACE%MESH_CONNECTIVITY,BASIS,err,error,*999)
         ELSE
-          LOCAL_ERROR="A basis with the user number "//TRIM(NumberToVString(interfaceBasisNumber,"*",err,error))// &
+          localError="A basis with the user number "//TRIM(NumberToVString(interfaceBasisNumber,"*",err,error))// &
             & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-          CALL FlagError(LOCAL_ERROR,err,error,*999)
+          CALL FlagError(localError,err,error,*999)
         END IF
      ELSE
-        LOCAL_ERROR="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
+        localError="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSInterfaceMeshConnectivity_BasisSetNumber")
@@ -38558,7 +41338,7 @@ CONTAINS
     !Local variables
     TYPE(INTERFACE_TYPE), POINTER :: INTERFACE
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSFInterfaceMeshConnectivityDestroyNumber",err,error,*999)
 
@@ -38570,13 +41350,13 @@ CONTAINS
       IF(ASSOCIATED(INTERFACE)) THEN
         CALL INTERFACE_MESH_CONNECTIVITY_DESTROY(INTERFACE%MESH_CONNECTIVITY,err,error,*999)
      ELSE
-        LOCAL_ERROR="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
+        localError="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSInterfaceMeshConnectivity_DestroyNumber")
@@ -39331,7 +42111,7 @@ CONTAINS
     TYPE(INTERFACE_TYPE), POINTER :: INTERFACE
     TYPE(INTERFACE_CONDITION_TYPE), POINTER :: INTERFACE_CONDITION
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSInterfaceCondition_CreateFinishNumber",err,error,*999)
 
@@ -39346,22 +42126,22 @@ CONTAINS
         IF(ASSOCIATED(INTERFACE_CONDITION)) THEN
           CALL INTERFACE_CONDITION_CREATE_FINISH(INTERFACE_CONDITION,err,error,*999)
         ELSE
-          LOCAL_ERROR="An interface condition with an user number of "// &
+          localError="An interface condition with an user number of "// &
             & TRIM(NumberToVString(interfaceConditionUserNumber,"*",err,error))// &
             & " does not exist on the interface with a user number of "// &
             & TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
             & " defined on a region with a user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-          CALL FlagError(LOCAL_ERROR,err,error,*999)
+          CALL FlagError(localError,err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
+        localError="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
           & " does not exist on the region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSInterfaceCondition_CreateFinishNumber")
@@ -39415,7 +42195,7 @@ CONTAINS
     TYPE(INTERFACE_TYPE), POINTER :: INTERFACE
     TYPE(INTERFACE_CONDITION_TYPE), POINTER :: INTERFACE_CONDITION
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSInterfaceCondition_CreateStartNumber",err,error,*999)
 
@@ -39432,21 +42212,21 @@ CONTAINS
           CALL INTERFACE_CONDITION_CREATE_START(interfaceConditionUserNumber,INTERFACE,GEOMETRIC_FIELD,INTERFACE_CONDITION, &
             & err,error,*999)
         ELSE
-          LOCAL_ERROR="A field with an user number of "//TRIM(NumberToVString(geometricFieldUserNumber,"*",err,error))// &
+          localError="A field with an user number of "//TRIM(NumberToVString(geometricFieldUserNumber,"*",err,error))// &
             & " does not exist on the interface with a user number of "// &
             & TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
             & " in the region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-          CALL FlagError(LOCAL_ERROR,err,error,*999)
+          CALL FlagError(localError,err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
+        localError="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
           & " does not exist on the region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSInterfaceCondition_CreateStartNumber")
@@ -39507,7 +42287,7 @@ CONTAINS
     TYPE(INTERFACE_TYPE), POINTER :: INTERFACE
     TYPE(INTERFACE_CONDITION_TYPE), POINTER :: INTERFACE_CONDITION
     TYPE(REGION_TYPE), POINTER :: EQUATIONS_SET_REGION,INTERFACE_REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSInterfaceCondition_DependentVariableAddNumber",err,error,*999)
 
@@ -39529,33 +42309,33 @@ CONTAINS
               CALL INTERFACE_CONDITION_DEPENDENT_VARIABLE_ADD(INTERFACE_CONDITION,meshIndex,EQUATIONS_SET,variableType, &
                 & err,error,*999)
             ELSE
-              LOCAL_ERROR="An equations set with an user number of "// &
+              localError="An equations set with an user number of "// &
                 & TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
                 & " does not exist on region number "//TRIM(NumberToVString(equationsSetRegionUserNumber,"*",err,error))//"."
-              CALL FlagError(LOCAL_ERROR,err,error,*999)
+              CALL FlagError(localError,err,error,*999)
             END IF
           ELSE
-            LOCAL_ERROR="The equations set region with an user number of "// &
+            localError="The equations set region with an user number of "// &
               & TRIM(NumberToVString(equationsSetRegionUserNumber,"*",err,error))//" does not exist."
-            CALL FlagError(LOCAL_ERROR,err,error,*999)
+            CALL FlagError(localError,err,error,*999)
           END IF
         ELSE
-          LOCAL_ERROR="An interface condition with an user number of "// &
+          localError="An interface condition with an user number of "// &
             & TRIM(NumberToVString(interfaceConditionUserNumber,"*",err,error))// &
             & " does not exist on the interface with a user number of "// &
             & TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
             & " defined on a region with a user number of "//TRIM(NumberToVString(interfaceRegionUserNumber,"*",err,error))//"."
-          CALL FlagError(LOCAL_ERROR,err,error,*999)
+          CALL FlagError(localError,err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
+        localError="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(interfaceRegionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="The interface region with an user number of "// &
+      localError="The interface region with an user number of "// &
         & TRIM(NumberToVString(interfaceRegionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSInterfaceCondition_DependentVariableAddNumber")
@@ -39612,7 +42392,7 @@ CONTAINS
     TYPE(INTERFACE_TYPE), POINTER :: INTERFACE
     TYPE(INTERFACE_CONDITION_TYPE), POINTER :: INTERFACE_CONDITION
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSFInterfaceConditionDestroyNumber",err,error,*999)
 
@@ -39627,21 +42407,21 @@ CONTAINS
         IF(ASSOCIATED(INTERFACE_CONDITION)) THEN
           CALL INTERFACE_CONDITION_DESTROY(INTERFACE_CONDITION,err,error,*999)
         ELSE
-          LOCAL_ERROR="An interface condition with an user number of "// &
+          localError="An interface condition with an user number of "// &
             & TRIM(NumberToVString(interfaceConditionUserNumber,"*",err,error))// &
             & " does not exist on the interface with a user number of "// &
             & TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
             & " defined on a region with a user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-          CALL FlagError(LOCAL_ERROR,err,error,*999)
+          CALL FlagError(localError,err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
+        localError="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSInterfaceCondition_DestroyNumber")
@@ -39693,7 +42473,7 @@ CONTAINS
     TYPE(INTERFACE_TYPE), POINTER :: INTERFACE
     TYPE(INTERFACE_CONDITION_TYPE), POINTER :: INTERFACE_CONDITION
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSInterfaceCondition_EquationsCreateFinishNumber",err,error,*999)
 
@@ -39708,22 +42488,22 @@ CONTAINS
         IF(ASSOCIATED(INTERFACE_CONDITION)) THEN
           CALL INTERFACE_CONDITION_EQUATIONS_CREATE_FINISH(INTERFACE_CONDITION,err,error,*999)
         ELSE
-          LOCAL_ERROR="An interface condition with an user number of "// &
+          localError="An interface condition with an user number of "// &
             & TRIM(NumberToVString(interfaceConditionUserNumber,"*",err,error))// &
             & " does not exist on the interface with a user number of "// &
             & TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
             & " defined on a region with a user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-          CALL FlagError(LOCAL_ERROR,err,error,*999)
+          CALL FlagError(localError,err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
+        localError="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
           & " does not exist on the region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSInterfaceCondition_EquationsCreateFinishNumber")
@@ -39778,7 +42558,7 @@ CONTAINS
     TYPE(INTERFACE_CONDITION_TYPE), POINTER :: INTERFACE_CONDITION
     TYPE(INTERFACE_EQUATIONS_TYPE), POINTER :: INTERFACE_EQUATIONS
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSInterfaceCondition_EquationsCreateStartNumber",err,error,*999)
 
@@ -39794,22 +42574,22 @@ CONTAINS
         IF(ASSOCIATED(INTERFACE_CONDITION)) THEN
           CALL INTERFACE_CONDITION_EQUATIONS_CREATE_START(INTERFACE_CONDITION,INTERFACE_EQUATIONS,err,error,*999)
         ELSE
-          LOCAL_ERROR="An interface condition with an user number of "// &
+          localError="An interface condition with an user number of "// &
             & TRIM(NumberToVString(interfaceConditionUserNumber,"*",err,error))// &
             & " does not exist on the interface with a user number of "// &
             & TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
             & " defined on a region with a user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-          CALL FlagError(LOCAL_ERROR,err,error,*999)
+          CALL FlagError(localError,err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
+        localError="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
           & " does not exist on the region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSInterfaceCondition_EquationsCreateStartNumber")
@@ -39864,7 +42644,7 @@ CONTAINS
     TYPE(INTERFACE_TYPE), POINTER :: INTERFACE
     TYPE(INTERFACE_CONDITION_TYPE), POINTER :: INTERFACE_CONDITION
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSFInterfaceConditionEquationsDestroyNumber",err,error,*999)
 
@@ -39879,21 +42659,21 @@ CONTAINS
         IF(ASSOCIATED(INTERFACE_CONDITION)) THEN
           CALL INTERFACE_CONDITION_EQUATIONS_DESTROY(INTERFACE_CONDITION,err,error,*999)
         ELSE
-          LOCAL_ERROR="An interface condition with an user number of "// &
+          localError="An interface condition with an user number of "// &
             & TRIM(NumberToVString(interfaceConditionUserNumber,"*",err,error))// &
             & " does not exist on the interface with a user number of "// &
             & TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
             & " defined on a region with a user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-          CALL FlagError(LOCAL_ERROR,err,error,*999)
+          CALL FlagError(localError,err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
+        localError="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSInterfaceCondition_EquationsDestroyNumber")
@@ -40118,7 +42898,7 @@ CONTAINS
     TYPE(INTERFACE_TYPE), POINTER :: INTERFACE
     TYPE(INTERFACE_CONDITION_TYPE), POINTER :: INTERFACE_CONDITION
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSInterfaceCondition_LagrangeFieldCreateFinishNumber",err,error,*999)
 
@@ -40133,22 +42913,22 @@ CONTAINS
         IF(ASSOCIATED(INTERFACE_CONDITION)) THEN
           CALL InterfaceCondition_LagrangeFieldCreateFinish(INTERFACE_CONDITION,err,error,*999)
         ELSE
-          LOCAL_ERROR="An interface condition with an user number of "// &
+          localError="An interface condition with an user number of "// &
             & TRIM(NumberToVString(interfaceConditionUserNumber,"*",err,error))// &
             & " does not exist on the interface with a user number of "// &
             & TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
             & " defined on a region with a user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-          CALL FlagError(LOCAL_ERROR,err,error,*999)
+          CALL FlagError(localError,err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
+        localError="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
           & " does not exist on the region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSInterfaceCondition_LagrangeFieldCreateFinishNumber")
@@ -40204,7 +42984,7 @@ CONTAINS
     TYPE(INTERFACE_TYPE), POINTER :: INTERFACE
     TYPE(INTERFACE_CONDITION_TYPE), POINTER :: INTERFACE_CONDITION
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSInterfaceCondition_LagrangeFieldCreateStartNumber",err,error,*999)
 
@@ -40221,22 +43001,22 @@ CONTAINS
           CALL InterfaceCondition_LagrangeFieldCreateStart(INTERFACE_CONDITION,lagrangeFieldUserNumber,LAGRANGE_FIELD, &
             & err,error,*999)
         ELSE
-          LOCAL_ERROR="An interface condition with an user number of "// &
+          localError="An interface condition with an user number of "// &
             & TRIM(NumberToVString(interfaceConditionUserNumber,"*",err,error))// &
             & " does not exist on the interface with a user number of "// &
             & TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
             & " defined on a region with a user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-          CALL FlagError(LOCAL_ERROR,err,error,*999)
+          CALL FlagError(localError,err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
+        localError="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
           & " does not exist on the region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSInterfaceCondition_LagrangeFieldCreateStartNumber")
@@ -40293,7 +43073,7 @@ CONTAINS
     TYPE(INTERFACE_TYPE), POINTER :: INTERFACE
     TYPE(INTERFACE_CONDITION_TYPE), POINTER :: INTERFACE_CONDITION
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
     
     ENTERS("CMISSInterfaceCondition_PenaltyFieldCreateFinishNumber",Err,ERROR,*999)
  
@@ -40308,22 +43088,22 @@ CONTAINS
         IF(ASSOCIATED(INTERFACE_CONDITION)) THEN
           CALL InterfaceCondition_PenaltyFieldCreateFinish(INTERFACE_CONDITION,Err,ERROR,*999)
         ELSE
-          LOCAL_ERROR="An interface condition with an user number of "// &
+          localError="An interface condition with an user number of "// &
             & TRIM(NumberToVString(InterfaceConditionUserNumber,"*",Err,ERROR))// &
             & " does not exist on the interface with a user number of "// &
             & TRIM(NumberToVString(InterfaceUserNumber,"*",Err,ERROR))// &
             & " defined on a region with a user number of "//TRIM(NumberToVString(RegionUserNumber,"*",Err,ERROR))//"."
-          CALL FlagError(LOCAL_ERROR,Err,ERROR,*999)
+          CALL FlagError(localError,Err,ERROR,*999)
         ENDIF
       ELSE
-        LOCAL_ERROR="An interface with an user number of "//TRIM(NumberToVString(InterfaceUserNumber,"*",Err,ERROR))// &
+        localError="An interface with an user number of "//TRIM(NumberToVString(InterfaceUserNumber,"*",Err,ERROR))// &
           & " does not exist on the region with an user number of "//TRIM(NumberToVString(RegionUserNumber,"*",Err,ERROR))//"."
-        CALL FlagError(LOCAL_ERROR,Err,ERROR,*999)
+        CALL FlagError(localError,Err,ERROR,*999)
       ENDIF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(RegionUserNumber,"*",Err,ERROR))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(RegionUserNumber,"*",Err,ERROR))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,Err,ERROR,*999)
+      CALL FlagError(localError,Err,ERROR,*999)
     ENDIF
 
     EXITS("CMISSInterfaceCondition_PenaltyFieldCreateFinishNumber")
@@ -40379,7 +43159,7 @@ CONTAINS
     TYPE(INTERFACE_TYPE), POINTER :: INTERFACE
     TYPE(INTERFACE_CONDITION_TYPE), POINTER :: INTERFACE_CONDITION
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
     
     ENTERS("CMISSInterfaceCondition_PenaltyFieldCreateStartNumber",Err,ERROR,*999)
  
@@ -40396,22 +43176,22 @@ CONTAINS
           CALL InterfaceCondition_PenaltyFieldCreateStart(INTERFACE_CONDITION,PenaltyFieldUserNumber,PENALTY_FIELD, &
             & Err,ERROR,*999)
         ELSE
-          LOCAL_ERROR="An interface condition with an user number of "// &
+          localError="An interface condition with an user number of "// &
             & TRIM(NumberToVString(InterfaceConditionUserNumber,"*",Err,ERROR))// &
             & " does not exist on the interface with a user number of "// &
             & TRIM(NumberToVString(InterfaceUserNumber,"*",Err,ERROR))// &
             & " defined on a region with a user number of "//TRIM(NumberToVString(RegionUserNumber,"*",Err,ERROR))//"."
-          CALL FlagError(LOCAL_ERROR,Err,ERROR,*999)
+          CALL FlagError(localError,Err,ERROR,*999)
         ENDIF
       ELSE
-        LOCAL_ERROR="An interface with an user number of "//TRIM(NumberToVString(InterfaceUserNumber,"*",Err,ERROR))// &
+        localError="An interface with an user number of "//TRIM(NumberToVString(InterfaceUserNumber,"*",Err,ERROR))// &
           & " does not exist on the region with an user number of "//TRIM(NumberToVString(RegionUserNumber,"*",Err,ERROR))//"."
-        CALL FlagError(LOCAL_ERROR,Err,ERROR,*999)
+        CALL FlagError(localError,Err,ERROR,*999)
       ENDIF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(RegionUserNumber,"*",Err,ERROR))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(RegionUserNumber,"*",Err,ERROR))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,Err,ERROR,*999)
+      CALL FlagError(localError,Err,ERROR,*999)
     ENDIF
 
     EXITS("CMISSInterfaceCondition_PenaltyFieldCreateStartNumber")
@@ -40469,7 +43249,7 @@ CONTAINS
     TYPE(INTERFACE_TYPE), POINTER :: INTERFACE
     TYPE(INTERFACE_CONDITION_TYPE), POINTER :: INTERFACE_CONDITION
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSInterfaceCondition_MethodGetNumber",err,error,*999)
 
@@ -40484,21 +43264,21 @@ CONTAINS
         IF(ASSOCIATED(INTERFACE_CONDITION)) THEN
           CALL INTERFACE_CONDITION_METHOD_GET(INTERFACE_CONDITION,interfaceConditionMethod,err,error,*999)
         ELSE
-          LOCAL_ERROR="An interface condition with an user number of "// &
+          localError="An interface condition with an user number of "// &
             & TRIM(NumberToVString(interfaceConditionUserNumber,"*",err,error))// &
             & " does not exist on the interface with a user number of "// &
             & TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
             & " defined on a region with a user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-          CALL FlagError(LOCAL_ERROR,err,error,*999)
+          CALL FlagError(localError,err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
+        localError="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSInterfaceCondition_MethodGetNumber")
@@ -40552,7 +43332,7 @@ CONTAINS
     TYPE(INTERFACE_TYPE), POINTER :: INTERFACE
     TYPE(INTERFACE_CONDITION_TYPE), POINTER :: INTERFACE_CONDITION
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSInterfaceCondition_MethodSetNumber",err,error,*999)
 
@@ -40567,21 +43347,21 @@ CONTAINS
         IF(ASSOCIATED(INTERFACE_CONDITION)) THEN
           CALL INTERFACE_CONDITION_METHOD_SET(INTERFACE_CONDITION,interfaceConditionMethod,err,error,*999)
         ELSE
-          LOCAL_ERROR="An interface condition with an user number of "// &
+          localError="An interface condition with an user number of "// &
             & TRIM(NumberToVString(interfaceConditionUserNumber,"*",err,error))// &
             & " does not exist on the interface with a user number of "// &
             & TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
             & " defined on a region with a user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-          CALL FlagError(LOCAL_ERROR,err,error,*999)
+          CALL FlagError(localError,err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
+        localError="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSInterfaceCondition_MethodSetNumber")
@@ -40635,7 +43415,7 @@ CONTAINS
     TYPE(INTERFACE_TYPE), POINTER :: INTERFACE
     TYPE(INTERFACE_CONDITION_TYPE), POINTER :: INTERFACE_CONDITION
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSInterfaceCondition_OperatorGetNumber",err,error,*999)
 
@@ -40650,21 +43430,21 @@ CONTAINS
         IF(ASSOCIATED(INTERFACE_CONDITION)) THEN
           CALL INTERFACE_CONDITION_OPERATOR_GET(INTERFACE_CONDITION,interfaceConditionOperator,err,error,*999)
         ELSE
-          LOCAL_ERROR="An interface condition with an user number of "// &
+          localError="An interface condition with an user number of "// &
             & TRIM(NumberToVString(interfaceConditionUserNumber,"*",err,error))// &
             & " does not exist on the interface with a user number of "// &
             & TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
             & " defined on a region with a user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-          CALL FlagError(LOCAL_ERROR,err,error,*999)
+          CALL FlagError(localError,err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
+        localError="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSInterfaceCondition_OperatorGetNumber")
@@ -40719,7 +43499,7 @@ CONTAINS
     TYPE(INTERFACE_TYPE), POINTER :: INTERFACE
     TYPE(INTERFACE_CONDITION_TYPE), POINTER :: INTERFACE_CONDITION
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSInterfaceCondition_OperatorSetNumber",err,error,*999)
 
@@ -40734,21 +43514,21 @@ CONTAINS
         IF(ASSOCIATED(INTERFACE_CONDITION)) THEN
           CALL INTERFACE_CONDITION_OPERATOR_SET(INTERFACE_CONDITION,interfaceConditionOperator,err,error,*999)
         ELSE
-          LOCAL_ERROR="An interface condition with an user number of "// &
+          localError="An interface condition with an user number of "// &
             & TRIM(NumberToVString(interfaceConditionUserNumber,"*",err,error))// &
             & " does not exist on the interface with a user number of "// &
             & TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
             & " defined on a region with a user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-          CALL FlagError(LOCAL_ERROR,err,error,*999)
+          CALL FlagError(localError,err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
+        localError="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSInterfaceCondition_OperatorSetNumber")
@@ -40804,7 +43584,7 @@ CONTAINS
     TYPE(INTERFACE_CONDITION_TYPE), POINTER :: INTERFACE_CONDITION
     TYPE(INTERFACE_EQUATIONS_TYPE), POINTER :: INTERFACE_EQUATIONS
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSInterfaceEquations_OutputTypeGetNumber",err,error,*999)
 
@@ -40821,21 +43601,21 @@ CONTAINS
           CALL INTERFACE_CONDITION_EQUATIONS_GET(INTERFACE_CONDITION,INTERFACE_EQUATIONS,err,error,*999)
           CALL INTERFACE_EQUATIONS_OUTPUT_TYPE_GET(INTERFACE_EQUATIONS,outputType,err,error,*999)
         ELSE
-          LOCAL_ERROR="An interface condition with an user number of "// &
+          localError="An interface condition with an user number of "// &
             & TRIM(NumberToVString(interfaceConditionUserNumber,"*",err,error))// &
             & " does not exist on the interface with a user number of "// &
             & TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
             & " defined on a region with a user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-          CALL FlagError(LOCAL_ERROR,err,error,*999)
+          CALL FlagError(localError,err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
+        localError="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSInterfaceEquations_OutputTypeGetNumber")
@@ -40890,7 +43670,7 @@ CONTAINS
     TYPE(INTERFACE_CONDITION_TYPE), POINTER :: INTERFACE_CONDITION
     TYPE(INTERFACE_EQUATIONS_TYPE), POINTER :: INTERFACE_EQUATIONS
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSInterfaceEquations_OutputTypeSetNumber",err,error,*999)
 
@@ -40907,21 +43687,21 @@ CONTAINS
           CALL INTERFACE_CONDITION_EQUATIONS_GET(INTERFACE_CONDITION,INTERFACE_EQUATIONS,err,error,*999)
           CALL INTERFACE_EQUATIONS_OUTPUT_TYPE_SET(INTERFACE_EQUATIONS,outputType,err,error,*999)
         ELSE
-          LOCAL_ERROR="An interface condition with an user number of "// &
+          localError="An interface condition with an user number of "// &
             & TRIM(NumberToVString(interfaceConditionUserNumber,"*",err,error))// &
             & " does not exist on the interface with a user number of "// &
             & TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
             & " defined on a region with a user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-          CALL FlagError(LOCAL_ERROR,err,error,*999)
+          CALL FlagError(localError,err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
+        localError="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSInterfaceEquations_OutputTypeSetNumber")
@@ -40976,7 +43756,7 @@ CONTAINS
     TYPE(INTERFACE_CONDITION_TYPE), POINTER :: INTERFACE_CONDITION
     TYPE(INTERFACE_EQUATIONS_TYPE), POINTER :: INTERFACE_EQUATIONS
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSInterfaceEquations_SparsityGetNumber",err,error,*999)
 
@@ -40993,21 +43773,21 @@ CONTAINS
           CALL INTERFACE_CONDITION_EQUATIONS_GET(INTERFACE_CONDITION,INTERFACE_EQUATIONS,err,error,*999)
           CALL INTERFACE_EQUATIONS_SPARSITY_TYPE_GET(INTERFACE_EQUATIONS,sparsityType,err,error,*999)
         ELSE
-          LOCAL_ERROR="An interface condition with an user number of "// &
+          localError="An interface condition with an user number of "// &
             & TRIM(NumberToVString(interfaceConditionUserNumber,"*",err,error))// &
             & " does not exist on the interface with a user number of "// &
             & TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
             & " defined on a region with a user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-          CALL FlagError(LOCAL_ERROR,err,error,*999)
+          CALL FlagError(localError,err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
+        localError="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSInterfaceEquations_SparsityGetNumber")
@@ -41062,7 +43842,7 @@ CONTAINS
     TYPE(INTERFACE_CONDITION_TYPE), POINTER :: INTERFACE_CONDITION
     TYPE(INTERFACE_EQUATIONS_TYPE), POINTER :: INTERFACE_EQUATIONS
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSInterfaceEquations_SparsitySetNumber",err,error,*999)
 
@@ -41079,21 +43859,21 @@ CONTAINS
           CALL INTERFACE_CONDITION_EQUATIONS_GET(INTERFACE_CONDITION,INTERFACE_EQUATIONS,err,error,*999)
           CALL INTERFACE_EQUATIONS_SPARSITY_TYPE_SET(INTERFACE_EQUATIONS,sparsityType,err,error,*999)
         ELSE
-          LOCAL_ERROR="An interface condition with an user number of "// &
+          localError="An interface condition with an user number of "// &
             & TRIM(NumberToVString(interfaceConditionUserNumber,"*",err,error))// &
             & " does not exist on the interface with a user number of "// &
             & TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
             & " defined on a region with a user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-          CALL FlagError(LOCAL_ERROR,err,error,*999)
+          CALL FlagError(localError,err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
+        localError="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
           & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSInterfaceEquations_SparsitySetNumber")
@@ -41147,7 +43927,7 @@ CONTAINS
     TYPE(DECOMPOSITION_TYPE), POINTER :: DECOMPOSITION
     TYPE(MESH_TYPE), POINTER :: MESH
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSDecomposition_CreateFinishNumber",err,error,*999)
 
@@ -41162,19 +43942,19 @@ CONTAINS
         IF(ASSOCIATED(DECOMPOSITION)) THEN
           CALL DECOMPOSITION_CREATE_FINISH(DECOMPOSITION,err,error,*999)
         ELSE
-          LOCAL_ERROR="A decomposition with an user number of "//TRIM(NumberToVString(decompositionUserNumber,"*",err,error))// &
+          localError="A decomposition with an user number of "//TRIM(NumberToVString(decompositionUserNumber,"*",err,error))// &
             & " does not exist on the mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))//"."
-          CALL FlagError(LOCAL_ERROR,err,error,*999)
+          CALL FlagError(localError,err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
+        localError="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
           & " does not exist on the region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
 #ifdef TAUPROF
@@ -41362,7 +44142,7 @@ CONTAINS
     TYPE(DECOMPOSITION_TYPE), POINTER :: DECOMPOSITION
     TYPE(MESH_TYPE), POINTER :: MESH
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSDecomposition_CreateStartNumber",err,error,*999)
 
@@ -41379,14 +44159,14 @@ CONTAINS
       IF(ASSOCIATED(MESH)) THEN
         CALL DECOMPOSITION_CREATE_START(decompositionUserNumber,MESH,DECOMPOSITION,err,error,*999)
       ELSE
-        LOCAL_ERROR="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
+        localError="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
           & " does not exist on the region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSDecomposition_CreateStartNumber")
@@ -41443,7 +44223,7 @@ CONTAINS
     TYPE(DECOMPOSITION_TYPE), POINTER :: DECOMPOSITION
     TYPE(MESH_TYPE), POINTER :: MESH
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSDecomposition_DestroyNumber",err,error,*999)
 
@@ -41458,19 +44238,19 @@ CONTAINS
         IF(ASSOCIATED(DECOMPOSITION)) THEN
           CALL DECOMPOSITION_DESTROY(DECOMPOSITION,err,error,*999)
         ELSE
-          LOCAL_ERROR="A decomposition with an user number of "//TRIM(NumberToVString(decompositionUserNumber,"*",err,error))// &
+          localError="A decomposition with an user number of "//TRIM(NumberToVString(decompositionUserNumber,"*",err,error))// &
             & " does not exist on the mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))//"."
-          CALL FlagError(LOCAL_ERROR,err,error,*999)
+          CALL FlagError(localError,err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
+        localError="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
           & " does not exist on the region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSDecomposition_DestroyNumber")
@@ -41521,7 +44301,7 @@ CONTAINS
     TYPE(DECOMPOSITION_TYPE), POINTER :: DECOMPOSITION
     TYPE(MESH_TYPE), POINTER :: MESH
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSDecomposition_ElementDomainCalculateNumber",err,error,*999)
 
@@ -41536,19 +44316,19 @@ CONTAINS
         IF(ASSOCIATED(DECOMPOSITION)) THEN
           CALL DECOMPOSITION_ELEMENT_DOMAIN_CALCULATE(DECOMPOSITION,err,error,*999)
         ELSE
-          LOCAL_ERROR="A decomposition with an user number of "//TRIM(NumberToVString(decompositionUserNumber,"*",err,error))// &
+          localError="A decomposition with an user number of "//TRIM(NumberToVString(decompositionUserNumber,"*",err,error))// &
             & " does not exist on the mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))//"."
-          CALL FlagError(LOCAL_ERROR,err,error,*999)
+          CALL FlagError(localError,err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
+        localError="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
           & " does not exist on the region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSDecomposition_ElementDomainCalculateNumber")
@@ -41604,7 +44384,7 @@ CONTAINS
     TYPE(DECOMPOSITION_TYPE), POINTER :: DECOMPOSITION
     TYPE(MESH_TYPE), POINTER :: MESH
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSDecomposition_ElementDomainGetNumber",err,error,*999)
 
@@ -41619,19 +44399,19 @@ CONTAINS
         IF(ASSOCIATED(DECOMPOSITION)) THEN
           CALL DECOMPOSITION_ELEMENT_DOMAIN_GET(DECOMPOSITION,elementUserNumber,domain,err,error,*999)
         ELSE
-          LOCAL_ERROR="A decomposition with an user number of "//TRIM(NumberToVString(decompositionUserNumber,"*",err,error))// &
+          localError="A decomposition with an user number of "//TRIM(NumberToVString(decompositionUserNumber,"*",err,error))// &
             & " does not exist on the mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))//"."
-          CALL FlagError(LOCAL_ERROR,err,error,*999)
+          CALL FlagError(localError,err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
+        localError="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
           & " does not exist on the region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSDecomposition_ElementDomainGetNumber")
@@ -41687,7 +44467,7 @@ CONTAINS
     TYPE(DECOMPOSITION_TYPE), POINTER :: DECOMPOSITION
     TYPE(MESH_TYPE), POINTER :: MESH
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSDecomposition_ElementDomainSetNumber",err,error,*999)
 
@@ -41702,19 +44482,19 @@ CONTAINS
         IF(ASSOCIATED(DECOMPOSITION)) THEN
           CALL DECOMPOSITION_ELEMENT_DOMAIN_SET(DECOMPOSITION,elementUserNumber,domain,err,error,*999)
         ELSE
-          LOCAL_ERROR="A decomposition with an user number of "//TRIM(NumberToVString(decompositionUserNumber,"*",err,error))// &
+          localError="A decomposition with an user number of "//TRIM(NumberToVString(decompositionUserNumber,"*",err,error))// &
             & " does not exist on the mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))//"."
-          CALL FlagError(LOCAL_ERROR,err,error,*999)
+          CALL FlagError(localError,err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
+        localError="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
           & " does not exist on the region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSDecomposition_ElementDomainSetNumber")
@@ -41769,7 +44549,7 @@ CONTAINS
     TYPE(DECOMPOSITION_TYPE), POINTER :: DECOMPOSITION
     TYPE(MESH_TYPE), POINTER :: MESH
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSDecomposition_MeshComponentGetNumber",err,error,*999)
 
@@ -41784,19 +44564,19 @@ CONTAINS
         IF(ASSOCIATED(DECOMPOSITION)) THEN
           CALL DECOMPOSITION_MESH_COMPONENT_NUMBER_GET(DECOMPOSITION,meshComponentNumber,err,error,*999)
         ELSE
-          LOCAL_ERROR="A decomposition with an user number of "//TRIM(NumberToVString(decompositionUserNumber,"*",err,error))// &
+          localError="A decomposition with an user number of "//TRIM(NumberToVString(decompositionUserNumber,"*",err,error))// &
             & " does not exist on the mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))//"."
-          CALL FlagError(LOCAL_ERROR,err,error,*999)
+          CALL FlagError(localError,err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
+        localError="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
           & " does not exist on the region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSDecomposition_MeshComponentGetNumber")
@@ -41850,7 +44630,7 @@ CONTAINS
     TYPE(DECOMPOSITION_TYPE), POINTER :: DECOMPOSITION
     TYPE(MESH_TYPE), POINTER :: MESH
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSDecomposition_MeshComponentSetNumber",err,error,*999)
 
@@ -41865,19 +44645,19 @@ CONTAINS
         IF(ASSOCIATED(DECOMPOSITION)) THEN
           CALL DECOMPOSITION_MESH_COMPONENT_NUMBER_SET(DECOMPOSITION,meshComponentNumber,err,error,*999)
         ELSE
-          LOCAL_ERROR="A decomposition with an user number of "//TRIM(NumberToVString(decompositionUserNumber,"*",err,error))// &
+          localError="A decomposition with an user number of "//TRIM(NumberToVString(decompositionUserNumber,"*",err,error))// &
             & " does not exist on the mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))//"."
-          CALL FlagError(LOCAL_ERROR,err,error,*999)
+          CALL FlagError(localError,err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
+        localError="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
           & " does not exist on the region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSDecomposition_MeshComponentSetNumber")
@@ -41931,7 +44711,7 @@ CONTAINS
     TYPE(DECOMPOSITION_TYPE), POINTER :: DECOMPOSITION
     TYPE(MESH_TYPE), POINTER :: MESH
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSDecomposition_NumberOfDomainsGetNumber",err,error,*999)
 
@@ -41946,19 +44726,19 @@ CONTAINS
         IF(ASSOCIATED(DECOMPOSITION)) THEN
           CALL DECOMPOSITION_NUMBER_OF_DOMAINS_GET(DECOMPOSITION,numberOfDomains,err,error,*999)
         ELSE
-          LOCAL_ERROR="A decomposition with an user number of "//TRIM(NumberToVString(decompositionUserNumber,"*",err,error))// &
+          localError="A decomposition with an user number of "//TRIM(NumberToVString(decompositionUserNumber,"*",err,error))// &
             & " does not exist on the mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))//"."
-          CALL FlagError(LOCAL_ERROR,err,error,*999)
+          CALL FlagError(localError,err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
+        localError="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
           & " does not exist on the region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSDecomposition_NumberOfDomainsGetNumber")
@@ -42012,7 +44792,7 @@ CONTAINS
     TYPE(DECOMPOSITION_TYPE), POINTER :: DECOMPOSITION
     TYPE(MESH_TYPE), POINTER :: MESH
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSDecomposition_NumberOfDomainsSetNumber",err,error,*999)
 
@@ -42027,19 +44807,19 @@ CONTAINS
         IF(ASSOCIATED(DECOMPOSITION)) THEN
           CALL DECOMPOSITION_NUMBER_OF_DOMAINS_SET(DECOMPOSITION,numberOfDomains,err,error,*999)
         ELSE
-          LOCAL_ERROR="A decomposition with an user number of "//TRIM(NumberToVString(decompositionUserNumber,"*",err,error))// &
+          localError="A decomposition with an user number of "//TRIM(NumberToVString(decompositionUserNumber,"*",err,error))// &
             & " does not exist on the mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))//"."
-          CALL FlagError(LOCAL_ERROR,err,error,*999)
+          CALL FlagError(localError,err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
+        localError="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
           & " does not exist on the region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSDecomposition_NumberOfDomainsSetNumber")
@@ -42092,7 +44872,7 @@ CONTAINS
     TYPE(DECOMPOSITION_TYPE), POINTER :: DECOMPOSITION
     TYPE(MESH_TYPE), POINTER :: MESH
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSDecomposition_TypeGetNumber",err,error,*999)
 
@@ -42107,19 +44887,19 @@ CONTAINS
         IF(ASSOCIATED(DECOMPOSITION)) THEN
           CALL DECOMPOSITION_TYPE_GET(DECOMPOSITION,decompositionType,err,error,*999)
         ELSE
-          LOCAL_ERROR="A decomposition with an user number of "//TRIM(NumberToVString(decompositionUserNumber,"*",err,error))// &
+          localError="A decomposition with an user number of "//TRIM(NumberToVString(decompositionUserNumber,"*",err,error))// &
             & " does not exist on the mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))//"."
-          CALL FlagError(LOCAL_ERROR,err,error,*999)
+          CALL FlagError(localError,err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
+        localError="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
           & " does not exist on the region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSDecomposition_TypeGetNumber")
@@ -42172,7 +44952,7 @@ CONTAINS
     TYPE(DECOMPOSITION_TYPE), POINTER :: DECOMPOSITION
     TYPE(MESH_TYPE), POINTER :: MESH
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSDecomposition_TypeSetNumber",err,error,*999)
 
@@ -42187,19 +44967,19 @@ CONTAINS
         IF(ASSOCIATED(DECOMPOSITION)) THEN
           CALL DECOMPOSITION_TYPE_SET(DECOMPOSITION,decompositionType,err,error,*999)
         ELSE
-          LOCAL_ERROR="A decomposition with an user number of "//TRIM(NumberToVString(decompositionUserNumber,"*",err,error))// &
+          localError="A decomposition with an user number of "//TRIM(NumberToVString(decompositionUserNumber,"*",err,error))// &
             & " does not exist on the mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))//"."
-          CALL FlagError(LOCAL_ERROR,err,error,*999)
+          CALL FlagError(localError,err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
+        localError="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
           & " does not exist on the region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSDecomposition_TypeSetNumber")
@@ -42253,7 +45033,7 @@ CONTAINS
     TYPE(DECOMPOSITION_TYPE), POINTER :: DECOMPOSITION
     TYPE(MESH_TYPE), POINTER :: MESH
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSDecomposition_CalculateLinesSetNumber",err,error,*999)
 
@@ -42268,19 +45048,19 @@ CONTAINS
         IF(ASSOCIATED(DECOMPOSITION)) THEN
           CALL DECOMPOSITION_CALCULATE_LINES_SET(DECOMPOSITION,calculateLinesFlag,err,error,*999)
         ELSE
-          LOCAL_ERROR="A decomposition with an user number of "//TRIM(NumberToVString(decompositionUserNumber,"*",err,error))// &
+          localError="A decomposition with an user number of "//TRIM(NumberToVString(decompositionUserNumber,"*",err,error))// &
             & " does not exist on the mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))//"."
-          CALL FlagError(LOCAL_ERROR,err,error,*999)
+          CALL FlagError(localError,err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
+        localError="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
           & " does not exist on the region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSDecomposition_CalculateLinesSetNumber")
@@ -42334,7 +45114,7 @@ CONTAINS
     TYPE(DECOMPOSITION_TYPE), POINTER :: DECOMPOSITION
     TYPE(MESH_TYPE), POINTER :: MESH
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSDecomposition_CalculateFacesSetNumber",err,error,*999)
 
@@ -42349,19 +45129,19 @@ CONTAINS
         IF(ASSOCIATED(DECOMPOSITION)) THEN
           CALL DECOMPOSITION_CALCULATE_FACES_SET(DECOMPOSITION,calculateFacesFlag,err,error,*999)
         ELSE
-          LOCAL_ERROR="A decomposition with an user number of "//TRIM(NumberToVString(decompositionUserNumber,"*",err,error))// &
+          localError="A decomposition with an user number of "//TRIM(NumberToVString(decompositionUserNumber,"*",err,error))// &
             & " does not exist on the mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))//"."
-          CALL FlagError(LOCAL_ERROR,err,error,*999)
+          CALL FlagError(localError,err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
+        localError="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
           & " does not exist on the region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSDecomposition_CalculateFacesSetNumber")
@@ -42417,7 +45197,7 @@ CONTAINS
     TYPE(DECOMPOSITION_TYPE), POINTER :: DECOMPOSITION
     TYPE(MESH_TYPE), POINTER :: MESH
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSDecomposition_NodeDomainGetNumber",err,error,*999)
 
@@ -42432,19 +45212,19 @@ CONTAINS
         IF(ASSOCIATED(DECOMPOSITION)) THEN
           CALL DECOMPOSITION_NODE_DOMAIN_GET(DECOMPOSITION,nodeUserNumber,meshComponentNumber,domain,err,error,*999)
         ELSE
-          LOCAL_ERROR="A decomposition with an user number of "//TRIM(NumberToVString(decompositionUserNumber,"*",err,error))// &
+          localError="A decomposition with an user number of "//TRIM(NumberToVString(decompositionUserNumber,"*",err,error))// &
             & " does not exist on the mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))//"."
-          CALL FlagError(LOCAL_ERROR,err,error,*999)
+          CALL FlagError(localError,err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
+        localError="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
           & " does not exist on the region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSDecomposition_NodeDomainGetNumber")
@@ -42496,7 +45276,7 @@ CONTAINS
     !Local variables
     TYPE(MESH_TYPE), POINTER :: MESH
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSMesh_CreateFinishNumber",err,error,*999)
 
@@ -42508,14 +45288,14 @@ CONTAINS
       IF(ASSOCIATED(MESH)) THEN
         CALL MESH_CREATE_FINISH(MESH,err,error,*999)
       ELSE
-        LOCAL_ERROR="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
+        localError="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
           & " does not exist on the region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
 #ifdef TAUPROF
@@ -42573,7 +45353,7 @@ CONTAINS
     !Local variables
     TYPE(MESH_TYPE), POINTER :: MESH
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSMesh_CreateStartNumber",err,error,*999)
 
@@ -42587,9 +45367,9 @@ CONTAINS
     IF(ASSOCIATED(REGION)) THEN
       CALL MESH_CREATE_START(meshUserNumber,REGION,numberOfDimensions,MESH,err,error,*999)
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSMesh_CreateStartNumber")
@@ -42676,7 +45456,7 @@ CONTAINS
     !Local variables
     TYPE(MESH_TYPE), POINTER :: MESH
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSMesh_DestroyNumber",err,error,*999)
 
@@ -42688,14 +45468,14 @@ CONTAINS
       IF(ASSOCIATED(MESH)) THEN
         CALL MESH_DESTROY(MESH,err,error,*999)
       ELSE
-        LOCAL_ERROR="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
+        localError="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
           & " does not exist on the region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSMesh_DestroyNumber")
@@ -42745,7 +45525,7 @@ CONTAINS
     !Local variables
     TYPE(MESH_TYPE), POINTER :: MESH
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSMesh_NumberOfComponentsGetNumber",err,error,*999)
 
@@ -42757,14 +45537,14 @@ CONTAINS
       IF(ASSOCIATED(MESH)) THEN
         CALL MESH_NUMBER_OF_COMPONENTS_GET(MESH,numberOfComponents,err,error,*999)
       ELSE
-        LOCAL_ERROR="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
+        localError="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
           & " does not exist on the region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSMesh_NumberOfComponentsGetNumber")
@@ -42815,7 +45595,7 @@ CONTAINS
     !Local variables
     TYPE(MESH_TYPE), POINTER :: MESH
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSMesh_NumberOfComponentsSetNumber",err,error,*999)
 
@@ -42827,14 +45607,14 @@ CONTAINS
       IF(ASSOCIATED(MESH)) THEN
         CALL MESH_NUMBER_OF_COMPONENTS_SET(MESH,numberOfComponents,err,error,*999)
       ELSE
-        LOCAL_ERROR="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
+        localError="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
           & " does not exist on the region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSMesh_NumberOfComponentsSetNumber")
@@ -42885,7 +45665,7 @@ CONTAINS
     !Local variables
     TYPE(MESH_TYPE), POINTER :: MESH
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSMesh_SurroundingElementsCalculateSetNumber",err,error,*999)
 
@@ -42897,14 +45677,14 @@ CONTAINS
       IF(ASSOCIATED(MESH)) THEN
         CALL MESH_SURROUNDING_ELEMENTS_CALCULATE_SET(MESH,surroundingElementsCalculateFlag,err,error,*999)
       ELSE
-        LOCAL_ERROR="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
+        localError="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
           & " does not exist on the region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSMesh_SurroundingElementsCalculateSetNumber")
@@ -42957,7 +45737,7 @@ CONTAINS
     !Local variables
     TYPE(MESH_TYPE), POINTER :: MESH
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSMesh_NumberOfElementsGetNumber",err,error,*999)
 
@@ -42969,14 +45749,14 @@ CONTAINS
       IF(ASSOCIATED(MESH)) THEN
         CALL MESH_NUMBER_OF_ELEMENTS_GET(MESH,numberOfElements,err,error,*999)
       ELSE
-        LOCAL_ERROR="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
+        localError="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
           & " does not exist on the region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSMesh_NumberOfElementsGetNumber")
@@ -43027,7 +45807,7 @@ CONTAINS
     !Local variables
     TYPE(MESH_TYPE), POINTER :: MESH
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSMesh_NumberOfElementsSetNumber",err,error,*999)
 
@@ -43039,14 +45819,14 @@ CONTAINS
       IF(ASSOCIATED(MESH)) THEN
         CALL MESH_NUMBER_OF_ELEMENTS_SET(MESH,numberOfElements,err,error,*999)
       ELSE
-        LOCAL_ERROR="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
+        localError="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
           & " does not exist on the region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSMesh_NumberOfElementsSetNumber")
@@ -43098,7 +45878,7 @@ CONTAINS
     !Local variables
     TYPE(MESH_TYPE), POINTER :: MESH
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
     
     ENTERS("CMISSMesh_TopologyDataPointsCalculateProjectionRegionNumber",Err,ERROR,*999)
  
@@ -43110,14 +45890,14 @@ CONTAINS
       IF(ASSOCIATED(MESH)) THEN
         CALL MeshTopologyDataPointsCalculateProjection(MESH,DataProjection%DATA_PROJECTION,Err,ERROR,*999)
       ELSE
-        LOCAL_ERROR="A mesh with an user number of "//TRIM(NumberToVString(MeshUserNumber,"*",Err,ERROR))// &
+        localError="A mesh with an user number of "//TRIM(NumberToVString(MeshUserNumber,"*",Err,ERROR))// &
           & " does not exist on the region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",Err,ERROR))//"."
-        CALL FlagError(LOCAL_ERROR,Err,ERROR,*999)
+        CALL FlagError(localError,Err,ERROR,*999)
       ENDIF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",Err,ERROR))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",Err,ERROR))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,Err,ERROR,*999)
+      CALL FlagError(localError,Err,ERROR,*999)
     ENDIF
 
     EXITS("CMISSMesh_TopologyDataPointsCalculateProjectionRegionNumber")
@@ -43146,7 +45926,7 @@ CONTAINS
     TYPE(MESH_TYPE), POINTER :: MESH
     TYPE(REGION_TYPE), POINTER :: PARENT_REGION
     TYPE(INTERFACE_TYPE), POINTER :: INTERFACE
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
     
     ENTERS("CMISSMesh_TopologyDataPointsCalculateProjectionInterfaceNumber",Err,ERROR,*999)
  
@@ -43161,20 +45941,20 @@ CONTAINS
         IF(ASSOCIATED(MESH)) THEN
           CALL MeshTopologyDataPointsCalculateProjection(MESH,DataProjection%DATA_PROJECTION,Err,ERROR,*999)        
         ELSE
-          LOCAL_ERROR="A mesh with an user number of "//TRIM(NumberToVString(MeshUserNumber,"*",Err,ERROR))// &
+          localError="A mesh with an user number of "//TRIM(NumberToVString(MeshUserNumber,"*",Err,ERROR))// &
             & " does not exist on the region with an user number of "//TRIM(NumberToVString(parentregionUserNumber, &
             & "*",Err,ERROR))//"."
-          CALL FlagError(LOCAL_ERROR,Err,ERROR,*999)
+          CALL FlagError(localError,Err,ERROR,*999)
         ENDIF
       ELSE
-        LOCAL_ERROR="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",Err,ERROR))// &
+        localError="An interface with an user number of "//TRIM(NumberToVString(interfaceUserNumber,"*",Err,ERROR))// &
           & " does not exist."
-        CALL FlagError(LOCAL_ERROR,Err,ERROR,*999)
+        CALL FlagError(localError,Err,ERROR,*999)
       ENDIF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(parentregionUserNumber,"*",Err,ERROR))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(parentregionUserNumber,"*",Err,ERROR))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,Err,ERROR,*999)
+      CALL FlagError(localError,Err,ERROR,*999)
     ENDIF
 
     EXITS("CMISSMesh_TopologyDataPointsCalculateProjectionInterfaceNumber")
@@ -43228,7 +46008,7 @@ CONTAINS
     TYPE(MESH_TYPE), POINTER :: MESH
     TYPE(MeshElementsType), POINTER :: MESH_ELEMENTS
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSMeshElements_CreateFinishNumber",err,error,*999)
 
@@ -43242,14 +46022,14 @@ CONTAINS
         CALL MESH_TOPOLOGY_ELEMENTS_GET(MESH,meshComponentNumber,MESH_ELEMENTS,err,error,*999)
         CALL MESH_TOPOLOGY_ELEMENTS_CREATE_FINISH(MESH_ELEMENTS,err,error,*999)
       ELSE
-        LOCAL_ERROR="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
+        localError="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
           & " does not exist on the region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSMeshElements_CreateFinishNumber")
@@ -43302,7 +46082,7 @@ CONTAINS
     TYPE(MESH_TYPE), POINTER :: MESH
     TYPE(MeshElementsType), POINTER :: MESH_ELEMENTS
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSMeshElements_CreateStartNumber",err,error,*999)
 
@@ -43318,19 +46098,19 @@ CONTAINS
         IF(ASSOCIATED(BASIS)) THEN
           CALL MESH_TOPOLOGY_ELEMENTS_CREATE_START(MESH,meshComponentNumber,BASIS,MESH_ELEMENTS,err,error,*999)
         ELSE
-          LOCAL_ERROR="A basis with an user number of "//TRIM(NumberToVString(basisUserNumber,"*",err,error))// &
+          localError="A basis with an user number of "//TRIM(NumberToVString(basisUserNumber,"*",err,error))// &
             & " does not exist."
-          CALL FlagError(LOCAL_ERROR,err,error,*999)
+          CALL FlagError(localError,err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
+        localError="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
           & " does not exist on the region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSMeshElements_CreateStartNumber")
@@ -43385,7 +46165,7 @@ CONTAINS
     !Local variables
     TYPE(MESH_TYPE), POINTER :: MESH
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSMesh_ElementsGetNumber",err,error,*999)
 
@@ -43397,14 +46177,14 @@ CONTAINS
       IF(ASSOCIATED(MESH)) THEN
         CALL MESH_TOPOLOGY_ELEMENTS_GET(MESH,meshComponentNumber,meshElements%MESH_ELEMENTS,err,error,*999)
       ELSE
-        LOCAL_ERROR="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
+        localError="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
           & " does not exist on the region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSMesh_ElementsGetNumber")
@@ -43464,7 +46244,7 @@ CONTAINS
     TYPE(MESH_TYPE), POINTER :: MESH
     TYPE(MeshElementsType), POINTER :: MESH_ELEMENTS
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSMeshElements_BasisGetNumber",err,error,*999)
 
@@ -43481,22 +46261,22 @@ CONTAINS
         IF(ASSOCIATED(BASIS)) THEN
           basisUserNumber = BASIS%USER_NUMBER
         ELSE
-          LOCAL_ERROR="The basis is not associated for global element number "// &
+          localError="The basis is not associated for global element number "// &
             & TRIM(NumberToVString(globalElementNumber,"*",err,error))//" of mesh component number "// &
             & TRIM(NumberToVString(meshComponentNumber,"*",err,error))//" from the mesh with a user number of "//&
             & TRIM(NumberToVString(meshUserNumber,"*",err,error))//" in the region with a user number of "// &
             & TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-          CALL FlagError(LOCAL_ERROR,err,error,*999)
+          CALL FlagError(localError,err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
+        localError="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
           & " does not exist on the region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSMeshElements_BasisGetNumber")
@@ -43553,7 +46333,7 @@ CONTAINS
     TYPE(MESH_TYPE), POINTER :: MESH
     TYPE(MeshElementsType), POINTER :: MESH_ELEMENTS
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSMeshElements_BasisSetNumber",err,error,*999)
 
@@ -43570,19 +46350,19 @@ CONTAINS
         IF(ASSOCIATED(BASIS)) THEN
           CALL MESH_TOPOLOGY_ELEMENTS_ELEMENT_BASIS_SET(globalElementNumber,MESH_ELEMENTS,BASIS,err,error,*999)
         ELSE
-          LOCAL_ERROR="A basis with an user number of "//TRIM(NumberToVString(basisUserNumber,"*",err,error))// &
+          localError="A basis with an user number of "//TRIM(NumberToVString(basisUserNumber,"*",err,error))// &
             & " does not exist."
-          CALL FlagError(LOCAL_ERROR,err,error,*999)
+          CALL FlagError(localError,err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
+        localError="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
           & " does not exist on the region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSMeshElements_BasisSetNumber")
@@ -43639,7 +46419,7 @@ CONTAINS
     TYPE(MESH_TYPE), POINTER :: MESH
     TYPE(MeshElementsType), POINTER :: MESH_ELEMENTS
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSMeshElements_AdjacentElementGetNumber",err,error,*999)
 
@@ -43654,14 +46434,14 @@ CONTAINS
         CALL MESH_TOPOLOGY_ELEMENTS_ADJACENT_ELEMENT_GET(globalElementNumber,MESH_ELEMENTS,adjacentElementXi,adjacentElement, &
           & err,error,*999)
       ELSE
-        LOCAL_ERROR="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
+        localError="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
           & " does not exist on the region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSMeshElements_AdjacentElementGetNumber")
@@ -43719,7 +46499,7 @@ CONTAINS
     TYPE(MESH_TYPE), POINTER :: MESH
     TYPE(MeshElementsType), POINTER :: MESH_ELEMENTS
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSMeshElements_NodesGetNumber",err,error,*999)
 
@@ -43733,14 +46513,14 @@ CONTAINS
         CALL MESH_TOPOLOGY_ELEMENTS_GET(MESH,meshComponentNumber,MESH_ELEMENTS,err,error,*999)
         CALL MESH_TOPOLOGY_ELEMENTS_ELEMENT_NODES_GET(globalElementNumber,MESH_ELEMENTS,elementUserNodes,err,error,*999)
       ELSE
-        LOCAL_ERROR="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
+        localError="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
           & " does not exist on the region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSMeshElements_NodesGetNumber")
@@ -43796,7 +46576,7 @@ CONTAINS
     TYPE(MESH_TYPE), POINTER :: MESH
     TYPE(MeshElementsType), POINTER :: MESH_ELEMENTS
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSMeshElements_NodesSetNumber",err,error,*999)
 
@@ -43810,14 +46590,14 @@ CONTAINS
         CALL MESH_TOPOLOGY_ELEMENTS_GET(MESH,meshComponentNumber,MESH_ELEMENTS,err,error,*999)
         CALL MESH_TOPOLOGY_ELEMENTS_ELEMENT_NODES_SET(globalElementNumber,MESH_ELEMENTS,elementUserNodes,err,error,*999)
       ELSE
-        LOCAL_ERROR="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
+        localError="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
           & " does not exist on the region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSMeshElements_NodesSetNumber")
@@ -43877,7 +46657,7 @@ CONTAINS
     TYPE(MESH_TYPE), POINTER :: MESH
     TYPE(MeshElementsType), POINTER :: MESH_ELEMENTS
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
     INTEGER(INTG) :: localelementnode
     LOGICAL :: FOUND
 
@@ -43902,19 +46682,19 @@ CONTAINS
           CALL MeshElements_ElementNodeVersionSet(globalElementNumber,MESH_ELEMENTS,versionNumber,derivativeNumber, &
             & localelementnode,err,error,*999)
         ELSE
-          LOCAL_ERROR="User node number "//TRIM(NumberToVString(userNodeNumber,"*",err,error))// &
+          localError="User node number "//TRIM(NumberToVString(userNodeNumber,"*",err,error))// &
             & " does not exist in element number "//TRIM(NumberToVString(globalElementNumber,"*",err,error))//"."
-          CALL FlagError(LOCAL_ERROR,err,error,*999)
+          CALL FlagError(localError,err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
+        localError="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
           & " does not exist on the region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSMeshElements_UserNodeVersionSetNumber")
@@ -43941,7 +46721,7 @@ CONTAINS
     INTEGER(INTG), INTENT(IN) :: userNodeNumber !<The user node number to set a version for.
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
     INTEGER(INTG) :: localelementnode
     LOGICAL :: FOUND
 
@@ -43958,9 +46738,9 @@ CONTAINS
       CALL MeshElements_ElementNodeVersionSet(globalElementNumber,meshElements%MESH_ELEMENTS,versionNumber, &
          & derivativeNumber,localelementnode,err,error,*999)
     ELSE
-      LOCAL_ERROR="User node number "//TRIM(NumberToVString(userNodeNumber,"*",err,error))// &
+      localError="User node number "//TRIM(NumberToVString(userNodeNumber,"*",err,error))// &
         & " does not exist in element number "//TRIM(NumberToVString(globalElementNumber,"*",err,error))//"."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSMeshElements_UserNodeVersionSetObj")
@@ -43993,7 +46773,7 @@ CONTAINS
     TYPE(MESH_TYPE), POINTER :: MESH
     TYPE(MeshElementsType), POINTER :: MESH_ELEMENTS
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSMeshElements_LocalElementNodeVersionSetNumber",err,error,*999)
 
@@ -44008,14 +46788,14 @@ CONTAINS
         CALL MeshElements_ElementNodeVersionSet(globalElementNumber,MESH_ELEMENTS,versionNumber,derivativeNumber, &
           & localElementNodeNumber,err,error,*999)
       ELSE
-        LOCAL_ERROR="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
+        localError="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
           & " does not exist on the region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSMeshElements_LocalElementNodeVersionSetNumber")
@@ -44077,7 +46857,7 @@ CONTAINS
     TYPE(MESH_TYPE), POINTER :: MESH
     TYPE(MeshElementsType), POINTER :: MESH_ELEMENTS
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSMeshElements_UserNumberGetNumber",err,error,*999)
 
@@ -44091,14 +46871,14 @@ CONTAINS
         CALL MESH_TOPOLOGY_ELEMENTS_GET(MESH,meshComponentNumber,MESH_ELEMENTS,err,error,*999)
         CALL MeshElements_ElementUserNumberGet(elementGlobalNumber,elementUserNumber,MESH_ELEMENTS,err,error,*999)
       ELSE
-        LOCAL_ERROR="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
+        localError="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
           & " does not exist on the region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSMeshElements_UserNumberGetNumber")
@@ -44155,7 +46935,7 @@ CONTAINS
     TYPE(MESH_TYPE), POINTER :: MESH
     TYPE(MeshElementsType), POINTER :: MESH_ELEMENTS
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSMeshElements_UserNumberSetNumber",err,error,*999)
 
@@ -44169,14 +46949,14 @@ CONTAINS
         CALL MESH_TOPOLOGY_ELEMENTS_GET(MESH,meshComponentNumber,MESH_ELEMENTS,err,error,*999)
         CALL MeshElements_ElementUserNumberSet(elementGlobalNumber,elementUserNumber,MESH_ELEMENTS,err,error,*999)
       ELSE
-        LOCAL_ERROR="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
+        localError="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
           & " does not exist on the region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSMeshElements_UserNumberSetNumber")
@@ -44232,7 +47012,7 @@ CONTAINS
     TYPE(MESH_TYPE), POINTER :: MESH
     TYPE(MeshElementsType), POINTER :: MESH_ELEMENTS
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSMeshElements_UserNumbersAllSetNumber",err,error,*999)
 
@@ -44246,14 +47026,14 @@ CONTAINS
         CALL MESH_TOPOLOGY_ELEMENTS_GET(MESH,meshComponentNumber,MESH_ELEMENTS,err,error,*999)
         CALL MeshTopologyElementsUserNumbersAllSet(MESH_ELEMENTS,elementUserNumbers,err,error,*999)
       ELSE
-        LOCAL_ERROR="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
+        localError="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
           & " does not exist on the region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSMeshElements_UserNumbersAllSetNumber")
@@ -45382,7 +48162,7 @@ CONTAINS
     !Local variables
     TYPE(NODES_TYPE), POINTER :: NODES
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSNodes_CreateFinishNumber",err,error,*999)
 
@@ -45393,9 +48173,9 @@ CONTAINS
       CALL REGION_NODES_GET(REGION,NODES,err,error,*999)
       CALL NODES_CREATE_FINISH(NODES,err,error,*999)
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
 #ifdef TAUPROF
@@ -45452,7 +48232,7 @@ CONTAINS
     !Local variables
     TYPE(NODES_TYPE), POINTER :: NODES
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSNodes_CreateStartNumber",err,error,*999)
 
@@ -45466,9 +48246,9 @@ CONTAINS
     IF(ASSOCIATED(REGION)) THEN
       CALL NODES_CREATE_START(REGION,numberOfNodes,NODES,err,error,*999)
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSNodes_CreateStartNumber")
@@ -45552,7 +48332,7 @@ CONTAINS
     !Local variables
     TYPE(NODES_TYPE), POINTER :: NODES
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSNodes_DestroyNumber",err,error,*999)
 
@@ -45563,9 +48343,9 @@ CONTAINS
       CALL REGION_NODES_GET(REGION,NODES,err,error,*999)
       CALL NODES_DESTROY(NODES,err,error,*999)
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSNodes_DestroyNumber")
@@ -45614,7 +48394,7 @@ CONTAINS
     !Local variables
     TYPE(NODES_TYPE), POINTER :: NODES
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSNodes_NumberOfNodesGetNumber",err,error,*999)
 
@@ -45625,9 +48405,9 @@ CONTAINS
       CALL REGION_NODES_GET(REGION,NODES,err,error,*999)
       CALL NODES_NUMBER_OF_NODES_GET(NODES,numberOfNodes,err,error,*999)
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSNodes_NumberOfNodesGetNumber")
@@ -45678,7 +48458,7 @@ CONTAINS
     !Local variables
     TYPE(NODES_TYPE), POINTER :: NODES
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSNodes_LabelGetCNumber",err,error,*999)
 
@@ -45689,9 +48469,9 @@ CONTAINS
       CALL REGION_NODES_GET(REGION,NODES,err,error,*999)
       CALL NODES_LABEL_GET(NODES,nodeGlobalNumber,label,err,error,*999)
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSNodes_LabelGetCNumber")
@@ -45743,7 +48523,7 @@ CONTAINS
     !Local variables
     TYPE(NODES_TYPE), POINTER :: NODES
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSNodes_LabelGetVSNumber",err,error,*999)
 
@@ -45754,9 +48534,9 @@ CONTAINS
       CALL REGION_NODES_GET(REGION,NODES,err,error,*999)
       CALL NODES_LABEL_GET(NODES,nodeGlobalNumber,label,err,error,*999)
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSNodes_LabelGetVSNumber")
@@ -45808,7 +48588,7 @@ CONTAINS
     !Local variables
     TYPE(NODES_TYPE), POINTER :: NODES
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSNodes_LabelSetCNumber",err,error,*999)
 
@@ -45819,9 +48599,9 @@ CONTAINS
       CALL REGION_NODES_GET(REGION,NODES,err,error,*999)
       CALL NODES_LABEL_SET(NODES,nodeGlobalNumber,label,err,error,*999)
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSNodes_LabelSetCNumber")
@@ -45873,7 +48653,7 @@ CONTAINS
     !Local variables
     TYPE(NODES_TYPE), POINTER :: NODES
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSNodes_LabelSetVSNumber",err,error,*999)
 
@@ -45884,9 +48664,9 @@ CONTAINS
       CALL REGION_NODES_GET(REGION,NODES,err,error,*999)
       CALL NODES_LABEL_SET(NODES,nodeGlobalNumber,label,err,error,*999)
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSNodes_LabelSetVSNumber")
@@ -45938,7 +48718,7 @@ CONTAINS
     !Local variables
     TYPE(NODES_TYPE), POINTER :: NODES
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSNodes_UserNumberGetNumber",err,error,*999)
 
@@ -45949,9 +48729,9 @@ CONTAINS
       CALL REGION_NODES_GET(REGION,NODES,err,error,*999)
       CALL NODES_USER_NUMBER_GET(NODES,nodeGlobalNumber,nodeUserNumber,err,error,*999)
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSNodes_UserNumberGetNumber")
@@ -46003,7 +48783,7 @@ CONTAINS
     !Local variables
     TYPE(NODES_TYPE), POINTER :: NODES
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSNodes_UserNumberSetNumber",err,error,*999)
 
@@ -46014,9 +48794,9 @@ CONTAINS
       CALL REGION_NODES_GET(REGION,NODES,err,error,*999)
       CALL NODES_USER_NUMBER_SET(NODES,nodeGlobalNumber,nodeUserNumber,err,error,*999)
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSNodes_UserNumberSetNumber")
@@ -46118,6 +48898,256 @@ CONTAINS
 
 !!==================================================================================================================================
 !!
+!! PRECONDITIONER_ROUTINES
+!!
+!!==================================================================================================================================
+
+  !>Get the block preconditioner type for a preconditioner identified by an user number.
+  SUBROUTINE CMISSPreconditioner_BlockPreconditionerGetNumber0(problemUserNumber,controlLoopIdentifier,solverIndex, &
+      & blockPreconditioner,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: problemUserNumber !<The user number of the problem number with the iterative linear solver to set the preconditioner's preconditioner type for.
+    INTEGER(INTG), INTENT(IN) :: controlLoopIdentifier !<The control loop identifier with the iterative linear solver to set the preconditioner's preconditioner type for.
+    INTEGER(INTG), INTENT(IN) :: solverIndex !<The solver index to set the preconditioner type for.
+    TYPE(CMISSBlockPreconditionerType), INTENT(INOUT) :: blockPreconditioner !<The block preconditioner to get.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(PreconditionerType), POINTER :: preconditioner
+    TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
+    TYPE(SOLVER_TYPE), POINTER :: SOLVER
+    TYPE(VARYING_STRING) :: localError
+
+    ENTERS("CMISSPreconditioner_BlockPreconditionerGetNumber0",err,error,*999)
+
+    NULLIFY(preconditioner)
+    NULLIFY(PROBLEM)
+    NULLIFY(SOLVER)
+    CALL PROBLEM_USER_NUMBER_FIND(problemUserNumber,PROBLEM,err,error,*999)
+    IF(ASSOCIATED(PROBLEM)) THEN
+      CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
+      IF(ASSOCIATED(SOLVER)) THEN
+        CALL SolverLinearIterativePreconditionerGet(SOLVER,preconditioner,err,error,*999)
+        CALL PreconditionerBlockPreconditionerGet(preconditioner,blockPreconditioner%blockPreconditioner,err,error,*999)
+      ELSE
+        localError="A solver with a solver index of "//TRIM(NUMBER_TO_VSTRING(solverIndex,"*",err,error))// &
+          & " does not exist."
+        CALL FlagError(localError,err,error,*999)
+      END IF 
+    ELSE
+      localError="A problem with an user number of "//TRIM(NUMBER_TO_VSTRING(problemUserNumber,"*",err,error))// &
+        & " does not exist."
+      CALL FlagError(localError,err,error,*999)
+    END IF
+
+    EXITS("CMISSPreconditioner_BlockPreconditionerGetNumber0")
+    RETURN
+999 ERRORSEXITS("CMISSPreconditioner_BlockPreconditionerGetNumber0",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSPreconditioner_BlockPreconditionerGetNumber0
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Get the block preconditioner type for a preconditioner identified by an user number.
+  SUBROUTINE CMISSPreconditioner_BlockPreconditionerGetNumber1(problemUserNumber,controlLoopIdentifiers,solverIndex, &
+      & blockPreconditioner,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: problemUserNumber !<The user number of the problem number with the iterative linear solver to set the preconditioner's preconditioner type for.
+    INTEGER(INTG), INTENT(IN) :: controlLoopIdentifiers(:) !<The control loop identifier with the iterative linear solver to set the preconditioner's preconditioner type for.
+    INTEGER(INTG), INTENT(IN) :: solverIndex !<The solver index to set the preconditioner type for.
+    TYPE(CMISSBlockPreconditionerType), INTENT(INOUT) :: blockPreconditioner !<The block preconditioner to get.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(PreconditionerType), POINTER :: preconditioner
+    TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
+    TYPE(SOLVER_TYPE), POINTER :: SOLVER
+    TYPE(VARYING_STRING) :: localError
+
+    ENTERS("CMISSPreconditioner_BlockPreconditionerGetNumber1",err,error,*999)
+
+    NULLIFY(preconditioner)
+    NULLIFY(PROBLEM)
+    NULLIFY(SOLVER)
+    CALL PROBLEM_USER_NUMBER_FIND(problemUserNumber,PROBLEM,err,error,*999)
+    IF(ASSOCIATED(PROBLEM)) THEN
+      CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers(:),solverIndex,SOLVER,err,error,*999)
+      IF(ASSOCIATED(SOLVER)) THEN
+        CALL SolverLinearIterativePreconditionerGet(SOLVER,preconditioner,err,error,*999)
+        CALL PreconditionerBlockPreconditionerGet(preconditioner,blockPreconditioner%blockPreconditioner,err,error,*999)
+      ELSE
+        localError="A solver with a solver index of "//TRIM(NUMBER_TO_VSTRING(solverIndex,"*",err,error))// &
+          & " does not exist."
+        CALL FlagError(localError,err,error,*999)
+      END IF 
+    ELSE
+      localError="A problem with an user number of "//TRIM(NUMBER_TO_VSTRING(problemUserNumber,"*",err,error))// &
+        & " does not exist."
+      CALL FlagError(localError,err,error,*999)
+    END IF
+
+    EXITS("CMISSPreconditioner_BlockPreconditionerGetNumber1")
+    RETURN
+999 ERRORSEXITS("CMISSPreconditioner_BlockPreconditionerGetNumber1",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSPreconditioner_BlockPreconditionerGetNumber1
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Sets/changes the preconditioner type identified by an object.
+  SUBROUTINE CMISSPreconditioner_BlockPreconditionerGetObj(preconditioner,blockPreconditioner,err)
+
+    !Argument variables
+    TYPE(CMISSPreconditionerType), INTENT(IN) :: preconditioner !<The preconditioner to get the block preconditioner from.
+    TYPE(CMISSBlockPreconditionerType), INTENT(INOUT) :: blockPreconditioner !<The block preconditioner to get.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    ENTERS("CMISSPreconditioner_BlockPreconditionerGetObj",err,error,*999)
+
+    CALL PreconditionerBlockPreconditionerGet(preconditioner%preconditioner,blockPreconditioner%blockPreconditioner,err,error,*999)
+
+    EXITS("CMISSPreconditioner_BlockPreconditionerGetObj")
+    RETURN
+999 ERRORSEXITS("CMISSPreconditioner_BlockPreconditionerGetObj",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSPreconditioner_BlockPreconditionerGetObj
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Sets/changes the preconditioner type for a preconditioner identified by an user number.
+  SUBROUTINE CMISSPreconditioner_TypeSetNumber0(problemUserNumber,controlLoopIdentifier,solverIndex,iterativePreconditionerType,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: problemUserNumber !<The user number of the problem number with the iterative linear solver to set the preconditioner's preconditioner type for.
+    INTEGER(INTG), INTENT(IN) :: controlLoopIdentifier !<The control loop identifier with the iterative linear solver to set the preconditioner's preconditioner type for.
+    INTEGER(INTG), INTENT(IN) :: solverIndex !<The solver index to set the preconditioner type for.
+    INTEGER(INTG), INTENT(IN) :: iterativePreconditionerType !<The preconditioner type to set. \see OPENCMISS_IterativePreconditionerTypes
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(PreconditionerType), POINTER :: preconditioner
+    TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
+    TYPE(SOLVER_TYPE), POINTER :: SOLVER
+    TYPE(VARYING_STRING) :: localError
+
+    ENTERS("CMISSPreconditioner_TypeSetNumber0",err,error,*999)
+
+    NULLIFY(Preconditioner)
+    NULLIFY(PROBLEM)
+    NULLIFY(SOLVER)
+    CALL PROBLEM_USER_NUMBER_FIND(problemUserNumber,PROBLEM,err,error,*999)
+    IF(ASSOCIATED(PROBLEM)) THEN
+      CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
+      IF(ASSOCIATED(SOLVER)) THEN
+        CALL SolverLinearIterativePreconditionerGet(SOLVER,preconditioner,err,error,*999)
+        CALL PreconditionerTypeSet(preconditioner,iterativePreconditionerType,err,error,*999)
+      ELSE
+        localError="A solver with a solver index of "//TRIM(NUMBER_TO_VSTRING(solverIndex,"*",err,error))// &
+          & " does not exist."
+        CALL FlagError(localError,err,error,*999)
+      END IF 
+    ELSE
+      localError="A problem with an user number of "//TRIM(NUMBER_TO_VSTRING(problemUserNumber,"*",err,error))// &
+        & " does not exist."
+      CALL FlagError(localError,err,error,*999)
+    END IF
+
+    EXITS("CMISSPreconditioner_TypeSetNumber0")
+    RETURN
+999 ERRORSEXITS("CMISSPreconditioner_TypeSetNumber0",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSPreconditioner_TypeSetNumber0
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Sets/changes the preconditioner type for a preconditioner identified by an user number.
+  SUBROUTINE CMISSPreconditioner_TypeSetNumber1(problemUserNumber,controlLoopIdentifiers,solverIndex,iterativePreconditionerType,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: problemUserNumber !<The user number of the problem number with the iterative linear solver to set the preconditioner's preconditioner type for.
+    INTEGER(INTG), INTENT(IN) :: controlLoopIdentifiers(:) !<The control loop identifier with the iterative linear solver to set the preconditioner's preconditioner type for.
+    INTEGER(INTG), INTENT(IN) :: solverIndex !<The solver index to set the preconditioner type for.
+    INTEGER(INTG), INTENT(IN) :: iterativePreconditionerType !<The preconditioner type to set. \see OPENCMISS_IterativePreconditionerTypes
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(PreconditionerType), POINTER :: preconditioner
+    TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
+    TYPE(SOLVER_TYPE), POINTER :: SOLVER
+    TYPE(VARYING_STRING) :: localError
+
+    ENTERS("CMISSPreconditioner_TypeSetNumber1",err,error,*999)
+
+    NULLIFY(Preconditioner)
+    NULLIFY(PROBLEM)
+    NULLIFY(SOLVER)
+    CALL PROBLEM_USER_NUMBER_FIND(problemUserNumber,PROBLEM,err,error,*999)
+    IF(ASSOCIATED(PROBLEM)) THEN
+      CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers(:),solverIndex,SOLVER,err,error,*999)
+      IF(ASSOCIATED(SOLVER)) THEN
+        CALL SolverLinearIterativePreconditionerGet(SOLVER,preconditioner,err,error,*999)
+        CALL PreconditionerTypeSet(preconditioner,iterativePreconditionerType,err,error,*999)
+      ELSE
+        localError="A solver with a solver index of "//TRIM(NUMBER_TO_VSTRING(solverIndex,"*",err,error))// &
+          & " does not exist."
+        CALL FlagError(localError,err,error,*999)
+      END IF 
+    ELSE
+      localError="A problem with an user number of "//TRIM(NUMBER_TO_VSTRING(problemUserNumber,"*",err,error))// &
+        & " does not exist."
+      CALL FlagError(localError,err,error,*999)
+    END IF
+
+    EXITS("CMISSPreconditioner_TypeSetNumber1")
+    RETURN
+999 ERRORSEXITS("CMISSPreconditioner_TypeSetNumber1",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSPreconditioner_TypeSetNumber1
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Sets/changes the preconditioner type identified by an object.
+  SUBROUTINE CMISSPreconditioner_TypeSetObj(preconditioner,iterativePreconditionerType,err)
+
+    !Argument variables
+    TYPE(CMISSPreconditionerType), INTENT(IN) :: preconditioner !<The preconditioner to set the preconditioner type for.
+    INTEGER(INTG), INTENT(IN) :: iterativePreconditionerType !<The preconditioner type to set. \see OPENCMISS_IterativePreconditionerTypes
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    ENTERS("CMISSPreconditioner_TypeSetObj",err,error,*999)
+
+    CALL PreconditionerTypeSet(preconditioner%preconditioner,iterativePreconditionerType,err,error,*999)
+
+    EXITS("CMISSPreconditioner_TypeSetObj")
+    RETURN
+999 ERRORSEXITS("CMISSPreconditioner_TypeSetObj",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSPreconditioner_TypeSetObj
+
+!!==================================================================================================================================
+!!
 !! PROBLEM_ROUTINES
 !!
 !!==================================================================================================================================
@@ -46130,7 +49160,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSProblem_CellMLEquationsCreateFinishNumber",err,error,*999)
 
@@ -46139,9 +49169,9 @@ CONTAINS
     IF(ASSOCIATED(PROBLEM)) THEN
       CALL PROBLEM_CELLML_EQUATIONS_CREATE_FINISH(PROBLEM,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
 #ifdef TAUPROF
@@ -46197,7 +49227,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSProblem_CellMLEquationsCreateStartNumber",err,error,*999)
 
@@ -46210,9 +49240,9 @@ CONTAINS
     IF(ASSOCIATED(PROBLEM)) THEN
       CALL PROBLEM_CELLML_EQUATIONS_CREATE_START(PROBLEM,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSProblem_CellMLEquationsCreateStartNumber")
@@ -46267,7 +49297,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSProblem_CellMLEquationsGetNumber0",err,error,*999)
 
@@ -46276,8 +49306,8 @@ CONTAINS
     IF(ASSOCIATED(PROBLEM)) THEN
       CALL PROBLEM_CELLML_EQUATIONS_GET(PROBLEM,controlLoopIdentifier,solverIndex,CellMLEquations%CELLML_EQUATIONS,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSProblem_CellMLEquationsGetNumber0")
@@ -46303,7 +49333,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
      TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSProblem_CellMLEquationsGetNumber1",err,error,*999)
 
@@ -46312,8 +49342,8 @@ CONTAINS
     IF(ASSOCIATED(PROBLEM)) THEN
       CALL PROBLEM_CELLML_EQUATIONS_GET(PROBLEM,controlLoopIdentifiers,solverIndex,CellMLEquations%CELLML_EQUATIONS,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSProblem_CellMLEquationsGetNumber1")
@@ -46392,7 +49422,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSProblem_CreateFinishNumber",err,error,*999)
 
@@ -46401,9 +49431,9 @@ CONTAINS
     IF(ASSOCIATED(PROBLEM)) THEN
       CALL PROBLEM_CREATE_FINISH(PROBLEM,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
 #ifdef TAUPROF
@@ -46517,7 +49547,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSProblem_ControlLoopCreateFinishNumber",err,error,*999)
 
@@ -46526,9 +49556,9 @@ CONTAINS
     IF(ASSOCIATED(PROBLEM)) THEN
       CALL PROBLEM_CONTROL_LOOP_CREATE_FINISH(PROBLEM,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
 #ifdef TAUPROF
@@ -46583,7 +49613,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSProblem_ControlLoopCreateStartNumber",err,error,*999)
 
@@ -46596,9 +49626,9 @@ CONTAINS
     IF(ASSOCIATED(PROBLEM)) THEN
       CALL PROBLEM_CONTROL_LOOP_CREATE_START(PROBLEM,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSProblem_ControlLoopCreateStartNumber")
@@ -46649,7 +49679,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSProblem_ControlLoopDestroyNumber",err,error,*999)
 
@@ -46658,9 +49688,9 @@ CONTAINS
     IF(ASSOCIATED(PROBLEM)) THEN
       CALL PROBLEM_CONTROL_LOOP_DESTROY(PROBLEM,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSProblem_ControlLoopDestroyNumber")
@@ -46709,7 +49739,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSProblem_ControlLoopGetNumber0",err,error,*999)
 
@@ -46718,8 +49748,8 @@ CONTAINS
     IF(ASSOCIATED(PROBLEM)) THEN
       CALL PROBLEM_CONTROL_LOOP_GET(PROBLEM,controlLoopIdentifier,controlLoop%CONTROL_LOOP,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSProblem_ControlLoopGetNumber0")
@@ -46744,7 +49774,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
      TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSProblem_ControlLoopGetNumber1",err,error,*999)
 
@@ -46753,8 +49783,8 @@ CONTAINS
     IF(ASSOCIATED(PROBLEM)) THEN
       CALL PROBLEM_CONTROL_LOOP_GET(PROBLEM,controlLoopIdentifiers,controlLoop%CONTROL_LOOP,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSProblem_ControlLoopGetNumber1")
@@ -46829,7 +49859,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSProblem_DestroyNumber",err,error,*999)
 
@@ -46838,9 +49868,9 @@ CONTAINS
     IF(ASSOCIATED(PROBLEM)) THEN
       CALL PROBLEM_DESTROY(PROBLEM,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSProblem_DestroyNumber")
@@ -46887,7 +49917,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSProblem_SolveNumber",err,error,*999)
 
@@ -46900,9 +49930,9 @@ CONTAINS
     IF(ASSOCIATED(PROBLEM)) THEN
       CALL PROBLEM_SOLVE(PROBLEM,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
 #ifdef TAUPROF
@@ -46964,7 +49994,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSProblem_SolverGetNumber0",err,error,*999)
 
@@ -46973,8 +50003,8 @@ CONTAINS
     IF(ASSOCIATED(PROBLEM)) THEN
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,solver%SOLVER,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSProblem_SolverGetNumber0")
@@ -47000,7 +50030,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
      TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSProblem_SolverGetNumber1",err,error,*999)
 
@@ -47009,8 +50039,8 @@ CONTAINS
     IF(ASSOCIATED(PROBLEM)) THEN
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,solver%SOLVER,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSProblem_SolverGetNumber1")
@@ -47091,7 +50121,7 @@ CONTAINS
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_EQUATIONS_TYPE), POINTER :: SOLVER_EQUATIONS
     TYPE(BOUNDARY_CONDITIONS_TYPE), POINTER :: BOUNDARY_CONDITIONS
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolverEquations_BoundaryConditionsAnalyticNumber0",err,error,*999)
 
@@ -47104,12 +50134,12 @@ CONTAINS
       IF(ASSOCIATED(SOLVER_EQUATIONS)) THEN
         CALL Problem_SolverEquationsBoundaryConditionsAnalytic(SOLVER_EQUATIONS,err,error,*999)
       ELSE
-        LOCAL_ERROR="Solver equations with the given solver index and control loop identifier do not exist."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        localError="Solver equations with the given solver index and control loop identifier do not exist."
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A problem with a user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with a user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolverEquations_BoundaryConditionsAnalyticNumber0")
@@ -47137,7 +50167,7 @@ CONTAINS
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_EQUATIONS_TYPE), POINTER :: SOLVER_EQUATIONS
     TYPE(BOUNDARY_CONDITIONS_TYPE), POINTER :: BOUNDARY_CONDITIONS
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolverEquations_BoundaryConditionsAnalyticNumber1",err,error,*999)
 
@@ -47150,12 +50180,12 @@ CONTAINS
       IF(ASSOCIATED(SOLVER_EQUATIONS)) THEN
         CALL Problem_SolverEquationsBoundaryConditionsAnalytic(SOLVER_EQUATIONS,err,error,*999)
       ELSE
-        LOCAL_ERROR="Solver equations with the given solver index and control loop identifier do not exist."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        localError="Solver equations with the given solver index and control loop identifier do not exist."
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A problem with a user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with a user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolverEquations_BoundaryConditionsAnalyticNumber1")
@@ -47203,7 +50233,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSProblem_SolverEquationsCreateFinishNumber",err,error,*999)
 
@@ -47212,9 +50242,9 @@ CONTAINS
     IF(ASSOCIATED(PROBLEM)) THEN
       CALL PROBLEM_SOLVER_EQUATIONS_CREATE_FINISH(PROBLEM,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
 #ifdef TAUPROF
@@ -47270,7 +50300,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSProblem_SolverEquationsCreateStartNumber",err,error,*999)
 
@@ -47283,9 +50313,9 @@ CONTAINS
     IF(ASSOCIATED(PROBLEM)) THEN
       CALL PROBLEM_SOLVER_EQUATIONS_CREATE_START(PROBLEM,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSProblem_SolverEquationsCreateStartNumber")
@@ -47337,7 +50367,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSProblem_SolverEquationsDestroyNumber",err,error,*999)
 
@@ -47346,9 +50376,9 @@ CONTAINS
     IF(ASSOCIATED(PROBLEM)) THEN
       CALL PROBLEM_SOLVER_EQUATIONS_DESTROY(PROBLEM,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSProblem_SolverEquationsDestroyNumber")
@@ -47398,7 +50428,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSProblem_SolverEquationsGetNumber0",err,error,*999)
 
@@ -47407,8 +50437,8 @@ CONTAINS
     IF(ASSOCIATED(PROBLEM)) THEN
       CALL PROBLEM_SOLVER_EQUATIONS_GET(PROBLEM,controlLoopIdentifier,solverIndex,solverEquations%SOLVER_EQUATIONS,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSProblem_SolverEquationsGetNumber0")
@@ -47434,7 +50464,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
      TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSProblem_SolverEquationsGetNumber1",err,error,*999)
 
@@ -47443,8 +50473,8 @@ CONTAINS
     IF(ASSOCIATED(PROBLEM)) THEN
       CALL PROBLEM_SOLVER_EQUATIONS_GET(PROBLEM,controlLoopIdentifiers,solverIndex,solverEquations%SOLVER_EQUATIONS,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSProblem_SolverEquationsGetNumber1")
@@ -47523,7 +50553,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSProblem_SolversCreateFinishNumber",err,error,*999)
 
@@ -47532,9 +50562,9 @@ CONTAINS
     IF(ASSOCIATED(PROBLEM)) THEN
       CALL PROBLEM_SOLVERS_CREATE_FINISH(PROBLEM,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
 #ifdef TAUPROF
@@ -47589,7 +50619,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSProblem_SolversCreateStartNumber",err,error,*999)
 
@@ -47602,9 +50632,9 @@ CONTAINS
     IF(ASSOCIATED(PROBLEM)) THEN
       CALL PROBLEM_SOLVERS_CREATE_START(PROBLEM,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSProblem_SolversCreateStartNumber")
@@ -47655,7 +50685,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSProblem_SolversDestroyNumber",err,error,*999)
 
@@ -47664,9 +50694,9 @@ CONTAINS
     IF(ASSOCIATED(PROBLEM)) THEN
       CALL PROBLEM_SOLVERS_DESTROY(PROBLEM,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSProblem_SolversDestroyNumber")
@@ -47716,7 +50746,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSProblem_SpecificationGetNumber",err,error,*999)
 
@@ -47725,9 +50755,9 @@ CONTAINS
     IF(ASSOCIATED(PROBLEM)) THEN
       CALL PROBLEM_SPECIFICATION_GET(PROBLEM,problemClass,problemType,problemSubtype,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSProblem_SpecificationGetNumber")
@@ -47780,7 +50810,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSProblem_SpecificationSetNumber",err,error,*999)
 
@@ -47789,9 +50819,9 @@ CONTAINS
     IF(ASSOCIATED(PROBLEM)) THEN
       CALL PROBLEM_SPECIFICATION_SET(PROBLEM,problemClass,problemType,problemSubtype,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSProblem_SpecificationSetNumber")
@@ -47845,7 +50875,7 @@ CONTAINS
     !Local variables
     TYPE(COORDINATE_SYSTEM_TYPE), POINTER :: COORDINATE_SYSTEM
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSRegion_CoordinateSystemGetNumber",err,error,*999)
 
@@ -47857,14 +50887,14 @@ CONTAINS
       IF(ASSOCIATED(COORDINATE_SYSTEM)) THEN
         coordinateSystemUserNumber = COORDINATE_SYSTEM%USER_NUMBER
       ELSE
-        LOCAL_ERROR="The coordinate system is not associated for region number "// &
+        localError="The coordinate system is not associated for region number "// &
           & TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSRegion_CoordinateSystemGetNumber")
@@ -47914,7 +50944,7 @@ CONTAINS
     !Local variables
     TYPE(COORDINATE_SYSTEM_TYPE), POINTER :: COORDINATE_SYSTEM
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSRegion_CoordinateSystemSetNumber",err,error,*999)
 
@@ -47926,14 +50956,14 @@ CONTAINS
       IF(ASSOCIATED(COORDINATE_SYSTEM)) THEN
         CALL REGION_COORDINATE_SYSTEM_SET(REGION,COORDINATE_SYSTEM,err,error,*999)
       ELSE
-        LOCAL_ERROR="A coordinate system with an user number of "// &
+        localError="A coordinate system with an user number of "// &
           & TRIM(NumberToVString(coordinateSystemUserNumber,"*",err,error))//"."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSRegion_CoordinateSystemSetNumber")
@@ -47981,7 +51011,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSRegion_CreateFinishNumber",err,error,*999)
 
@@ -47990,9 +51020,9 @@ CONTAINS
     IF(ASSOCIATED(REGION)) THEN
       CALL REGION_CREATE_FINISH(REGION,err,error,*999)
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
 #ifdef TAUPROF
@@ -48048,7 +51078,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(REGION_TYPE), POINTER :: PARENT_REGION,REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSRegion_CreateStartNumber",err,error,*999)
 
@@ -48062,9 +51092,9 @@ CONTAINS
     IF(ASSOCIATED(PARENT_REGION)) THEN
       CALL REGION_CREATE_START(regionUserNumber,PARENT_REGION,REGION,err,error,*999)
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(parentRegionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(parentRegionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSRegion_CreateStartNumber")
@@ -48117,7 +51147,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSRegion_DestroyNumber",err,error,*999)
 
@@ -48126,9 +51156,9 @@ CONTAINS
     IF(ASSOCIATED(REGION)) THEN
       CALL REGION_DESTROY(REGION,err,error,*999)
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSRegion_DestroyNumber")
@@ -48201,7 +51231,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSRegion_LabelGetCNumber",err,error,*999)
 
@@ -48210,8 +51240,8 @@ CONTAINS
     IF(ASSOCIATED(REGION)) THEN
       CALL REGION_LABEL_GET(REGION,label,err,error,*999)
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSRegion_LabelGetCNumber")
@@ -48260,7 +51290,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSRegion_LabelGetVSNumber",err,error,*999)
 
@@ -48269,8 +51299,8 @@ CONTAINS
     IF(ASSOCIATED(REGION)) THEN
       CALL REGION_LABEL_GET(REGION,label,err,error,*999)
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSRegion_LabelGetVSNumber")
@@ -48319,7 +51349,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSRegion_LabelSetCNumber",err,error,*999)
 
@@ -48328,8 +51358,8 @@ CONTAINS
     IF(ASSOCIATED(REGION)) THEN
       CALL REGION_LABEL_SET(REGION,label,err,error,*999)
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSRegion_LabelSetCNumber")
@@ -48378,7 +51408,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSRegion_LabelSetVSNumber",err,error,*999)
 
@@ -48387,8 +51417,8 @@ CONTAINS
     IF(ASSOCIATED(REGION)) THEN
       CALL REGION_LABEL_SET(REGION,CHAR(label),err,error,*999)
     ELSE
-      LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSRegionLabelStVSNumber")
@@ -48477,7 +51507,7 @@ CONTAINS
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(REGION_TYPE), POINTER :: REGION
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSCellMLEquations_CellMLAddNumber0",err,error,*999)
 
@@ -48496,19 +51526,19 @@ CONTAINS
         IF(ASSOCIATED(CELLML)) THEN
           CALL CELLML_EQUATIONS_CELLML_ADD(CELLML_EQUATIONS,CELLML,CellMLIndex,err,error,*999)
         ELSE
-          LOCAL_ERROR="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
+          localError="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
             & " does not exist in region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-          CALL FlagError(LOCAL_ERROR,err,error,*999)
+          CALL FlagError(localError,err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+        localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
           & " does not exist."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSCellMLEquations_CellMLAddNumber0")
@@ -48541,7 +51571,7 @@ CONTAINS
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(REGION_TYPE), POINTER :: REGION
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSCellMLEquations_CellMLAddNumber1",err,error,*999)
 
@@ -48560,19 +51590,19 @@ CONTAINS
         IF(ASSOCIATED(CELLML)) THEN
           CALL CELLML_EQUATIONS_CELLML_ADD(CELLML_EQUATIONS,CELLML,CellMLIndex,err,error,*999)
         ELSE
-          LOCAL_ERROR="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
+          localError="A CellML environment with an user number of "//TRIM(NumberToVString(CellMLUserNumber,"*",err,error))// &
             & " does not exist in region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-          CALL FlagError(LOCAL_ERROR,err,error,*999)
+          CALL FlagError(localError,err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+        localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
           & " does not exist."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSCellMLEquations_CellMLAddNumber1")
@@ -48625,7 +51655,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_CellMLEquationsGetNumber0",err,error,*999)
 
@@ -48636,9 +51666,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_CELLML_EQUATIONS_GET(SOLVER,CellMLEquations%CELLML_EQUATIONS,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_CellMLEquationsGetNumber0")
@@ -48665,7 +51695,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_CellMLEquationsGetNumber1",err,error,*999)
 
@@ -48676,9 +51706,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_CELLML_EQUATIONS_GET(SOLVER,CellMLEquations%CELLML_EQUATIONS,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_CellMLEquationsGetNumber1")
@@ -48729,7 +51759,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_DAEEulerSolverTypeGetNumber0",err,error,*999)
 
@@ -48740,9 +51770,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_DAE_EULER_SOLVER_TYPE_GET(SOLVER,DAEEulerSolverType,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_DAEEulerSolverTypeGetNumber0")
@@ -48769,7 +51799,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_DAEEulerSolverTypeGetNumber1",err,error,*999)
 
@@ -48780,9 +51810,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_DAE_EULER_SOLVER_TYPE_GET(SOLVER,DAEEulerSolverType,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_DAEEulerSolverTypeGetNumber1")
@@ -48834,7 +51864,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_DAEEulerSolverTypeSetNumber0",err,error,*999)
 
@@ -48845,9 +51875,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_DAE_EULER_SOLVER_TYPE_SET(SOLVER,DAEEulerSolverType,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_DAEEulerSolverTypeSetNumber0")
@@ -48874,7 +51904,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_DAEEulerSolverTypeSetNumber1",err,error,*999)
 
@@ -48885,9 +51915,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_DAE_EULER_SOLVER_TYPE_SET(SOLVER,DAEEulerSolverType,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_DAEEulerSolverTypeSetNumber1")
@@ -48939,7 +51969,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_DAESolverTypeGetNumber0",err,error,*999)
 
@@ -48950,9 +51980,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_DAE_SOLVER_TYPE_GET(SOLVER,DAESolverType,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_DAESolverTypeGetNumber0")
@@ -48979,7 +52009,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_DAESolverTypeGetNumber1",err,error,*999)
 
@@ -48990,9 +52020,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_DAE_SOLVER_TYPE_GET(SOLVER,DAESolverType,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_DAESolverTypeGetNumber1")
@@ -49044,7 +52074,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_DAESolverTypeSetNumber0",err,error,*999)
 
@@ -49055,9 +52085,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_DAE_SOLVER_TYPE_SET(SOLVER,DAESolverType,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_DAESolverTypeSetNumber0")
@@ -49084,7 +52114,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_DAESolverTypeSetNumber1",err,error,*999)
 
@@ -49095,9 +52125,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_DAE_SOLVER_TYPE_SET(SOLVER,DAESolverType,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_DAESolverTypeSetNumber1")
@@ -49150,7 +52180,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_DAETimesSetNumber0",err,error,*999)
 
@@ -49161,9 +52191,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_DAE_TIMES_SET(SOLVER,startTime,endTime,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_DAETimesSetNumber0")
@@ -49191,7 +52221,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_DAETimesSetNumber1",err,error,*999)
 
@@ -49202,9 +52232,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_DAE_TIMES_SET(SOLVER,startTime,endTime,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_DAETimesSetNumber1")
@@ -49257,7 +52287,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_DAETimeStepSetNumber0",err,error,*999)
 
@@ -49268,9 +52298,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_DAE_TIME_STEP_SET(SOLVER,timeStep,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_DAETimeStepSetNumber0")
@@ -49297,7 +52327,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_DAETimeStepSetNumber1",err,error,*999)
 
@@ -49308,9 +52338,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_DAE_TIME_STEP_SET(SOLVER,timeStep,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_DAETimeStepSetNumber1")
@@ -49362,7 +52392,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_DynamicDegreeGetNumber0",err,error,*999)
 
@@ -49373,9 +52403,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_DYNAMIC_DEGREE_GET(SOLVER,degree,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_DynamicDegreeGetNumber0")
@@ -49402,7 +52432,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_DynamicDegreeGetNumber1",err,error,*999)
 
@@ -49413,9 +52443,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_DYNAMIC_DEGREE_GET(SOLVER,degree,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_DynamicDegreeGetNumber1")
@@ -49467,7 +52497,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_DynamicDegreeSetNumber0",err,error,*999)
 
@@ -49478,9 +52508,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_DYNAMIC_DEGREE_SET(SOLVER,degree,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_DynamicDegreeSetNumber0")
@@ -49507,7 +52537,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_DynamicDegreeSetNumber1",err,error,*999)
 
@@ -49518,9 +52548,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_DYNAMIC_DEGREE_SET(SOLVER,degree,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_DynamicDegreeSetNumber1")
@@ -49572,7 +52602,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_DynamicLinearityTypeGetNumber0",err,error,*999)
 
@@ -49583,9 +52613,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_DYNAMIC_LINEARITY_TYPE_GET(SOLVER,linearityType,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_DynamicLinearityTypeGetNumber0")
@@ -49612,7 +52642,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_DynamicLinearityTypeGetNumber1",err,error,*999)
 
@@ -49623,9 +52653,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_DYNAMIC_LINEARITY_TYPE_GET(SOLVER,linearityType,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_DynamicLinearityTypeGetNumber1")
@@ -49678,7 +52708,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER,NONLINEAR_SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_DynamicNonlinearSolverGetNumber0",err,error,*999)
 
@@ -49693,9 +52723,9 @@ CONTAINS
       nonlinearSolverIndex=NONLINEAR_SOLVER%GLOBAL_NUMBER
       CALL FlagError("Not implemented.",err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_DynamicNonlinearSolverGetNumber0")
@@ -49724,7 +52754,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER,NONLINEAR_SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_DynamicNonlinearSolverGetNumber1",err,error,*999)
 
@@ -49739,9 +52769,9 @@ CONTAINS
       nonlinearSolverIndex=NONLINEAR_SOLVER%GLOBAL_NUMBER
       CALL FlagError("Not implemented.",err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_DynamicNonlinearSolverGetNumber1")
@@ -49794,7 +52824,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER,LINEAR_SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_DynamicLinearSolverGetNumber0",err,error,*999)
 
@@ -49809,9 +52839,9 @@ CONTAINS
       linearSolverIndex=LINEAR_SOLVER%GLOBAL_NUMBER
       CALL FlagError("Not implemented.",err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_DynamicLinearSolverGetNumber0")
@@ -49838,7 +52868,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER,LINEAR_SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_DynamicLinearSolverGetNumber1",err,error,*999)
 
@@ -49853,9 +52883,9 @@ CONTAINS
       linearSolverIndex=LINEAR_SOLVER%GLOBAL_NUMBER
       CALL FlagError("Not implemented.",err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_DynamicLinearSolverGetNumber1")
@@ -49906,7 +52936,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_DynamicSchemeSetNumber0",err,error,*999)
 
@@ -49917,9 +52947,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_DYNAMIC_SCHEME_SET(SOLVER,scheme,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_DynamicSchemeSetNumber0")
@@ -49946,7 +52976,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_DynamicSchemeSetNumber1",err,error,*999)
 
@@ -49957,9 +52987,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_DYNAMIC_SCHEME_SET(SOLVER,scheme,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_DynamicSchemeSetNumber1")
@@ -50010,7 +53040,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_DynamicThetaSetNumber00",err,error,*999)
 
@@ -50021,9 +53051,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_DYNAMIC_THETA_SET(SOLVER,theta,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_DynamicThetaSetNumber00")
@@ -50050,7 +53080,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_DynamicThetaSetNumber01",err,error,*999)
 
@@ -50061,9 +53091,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_DYNAMIC_THETA_SET(SOLVER,thetas,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_DynamicThetaSetNumber01")
@@ -50090,7 +53120,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_DynamicThetaSetNumber10",err,error,*999)
 
@@ -50101,9 +53131,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_DYNAMIC_THETA_SET(SOLVER,theta,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_DynamicThetaSetNumber10")
@@ -50130,7 +53160,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_DynamicThetaSetNumber11",err,error,*999)
 
@@ -50141,9 +53171,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_DYNAMIC_THETA_SET(SOLVER,thetas,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_DynamicThetaSetNumber11")
@@ -50221,7 +53251,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_DynamicTimesSetNumber0",err,error,*999)
 
@@ -50232,9 +53262,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_DYNAMIC_TIMES_SET(SOLVER,currentTime,timeIncrement,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_DynamicTimesSetNumber0")
@@ -50262,7 +53292,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolverDynamicTimeSetNumber1",err,error,*999)
 
@@ -50273,9 +53303,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_DYNAMIC_TIMES_SET(SOLVER,currentTime,timeIncrement,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_DynamicTimesSetNumber1")
@@ -51172,7 +54202,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_LabelGetCNumber0",err,error,*999)
 
@@ -51183,8 +54213,8 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_LABEL_GET(SOLVER,label,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     ENDIF
 
     EXITS("CMISSSolver_LabelGetCNumber0")
@@ -51211,7 +54241,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_LabelGetCNumber1",err,error,*999)
 
@@ -51222,8 +54252,8 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_LABEL_GET(SOLVER,label,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     ENDIF
 
     EXITS("CMISSSolver_LabelGetCNumber1")
@@ -51275,7 +54305,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_LabelGetVSNumber0",err,error,*999)
 
@@ -51286,8 +54316,8 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_LABEL_GET(SOLVER,label,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_LabelGetVSNumber0")
@@ -51314,7 +54344,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_LabelGetVSNumber1",err,error,*999)
 
@@ -51325,8 +54355,8 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_LABEL_GET(SOLVER,label,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_LabelGetVSNumber1")
@@ -51378,7 +54408,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_LabelSetCNumber0",err,error,*999)
 
@@ -51389,8 +54419,8 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_LABEL_SET(SOLVER,label,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_LabelSetCNumber0")
@@ -51417,7 +54447,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_LabelSetCNumber1",err,error,*999)
 
@@ -51428,8 +54458,8 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_LABEL_SET(SOLVER,label,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_LabelSetCNumber1")
@@ -51481,7 +54511,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_LabelSetVSNumber0",err,error,*999)
 
@@ -51492,8 +54522,8 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_LABEL_SET(SOLVER,CHAR(label),err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolverLabelStVSNumber0")
@@ -51520,7 +54550,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_LabelSetVSNumber1",err,error,*999)
 
@@ -51531,8 +54561,8 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_LABEL_SET(SOLVER,CHAR(label),err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolverLabelStVSNumber1")
@@ -51584,7 +54614,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_LibraryTypeGetNumber0",err,error,*999)
 
@@ -51595,9 +54625,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_LIBRARY_TYPE_GET(SOLVER,libraryType,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_LibraryTypeGetNumber0")
@@ -51624,7 +54654,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_LibraryTypeGetNumber1",err,error,*999)
 
@@ -51635,9 +54665,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_LIBRARY_TYPE_GET(SOLVER,libraryType,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_LibraryTypeGetNumber1")
@@ -51688,7 +54718,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_LibraryTypeSetNumber0",err,error,*999)
 
@@ -51699,9 +54729,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_LIBRARY_TYPE_SET(SOLVER,libraryType,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_LibraryTypeSetNumber0")
@@ -51728,7 +54758,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_LibraryTypeSetNumber1",err,error,*999)
 
@@ -51739,9 +54769,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_LIBRARY_TYPE_SET(SOLVER,libraryType,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_LibraryTypeSetNumber1")
@@ -51792,7 +54822,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_LinearDirectTypeSetNumber0",err,error,*999)
 
@@ -51803,9 +54833,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_LINEAR_DIRECT_TYPE_SET(SOLVER,directSolverType,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_LinearDirectTypeSetNumber0")
@@ -51832,7 +54862,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_LinearDirectTypeSetNumber1",err,error,*999)
 
@@ -51843,9 +54873,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_LINEAR_DIRECT_TYPE_SET(SOLVER,directSolverType,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_LinearDirectTypeSetNumber1")
@@ -51949,7 +54979,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_LinearIterativeAbsoluteToleranceSetNumber0",err,error,*999)
 
@@ -51960,9 +54990,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL Solver_LinearIterativeAbsoluteToleranceSet(SOLVER,absoluteTolerance,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_LinearIterativeAbsoluteToleranceSetNumber0")
@@ -51991,7 +55021,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_LinearIterativeAbsoluteToleranceSetNumber1",err,error,*999)
 
@@ -52002,9 +55032,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL Solver_LinearIterativeAbsoluteToleranceSet(SOLVER,absoluteTolerance,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_LinearIterativeAbsoluteToleranceSetNumber1")
@@ -52058,7 +55088,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_LinearIterativeDivergenceToleranceSetNumber0",err,error,*999)
 
@@ -52069,9 +55099,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL Solver_LinearIterativeDivergenceToleranceSet(SOLVER,divergenceTolerance,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_LinearIterativeDivergenceToleranceSetNumber0")
@@ -52100,7 +55130,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_LinearIterativeDivergenceToleranceSetNumber1",err,error,*999)
 
@@ -52111,9 +55141,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL Solver_LinearIterativeDivergenceToleranceSet(SOLVER,divergenceTolerance,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_LinearIterativeDivergenceToleranceSetNumber1")
@@ -52167,7 +55197,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_LinearIterativeGMRESRestartSetNumber0",err,error,*999)
 
@@ -52178,9 +55208,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_LINEAR_ITERATIVE_GMRES_RESTART_SET(SOLVER,GMRESRestart,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_LinearIterativeGMRESRestartSetNumber0")
@@ -52209,7 +55239,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_LinearIterativeGMRESRestartSetNumber1",err,error,*999)
 
@@ -52220,9 +55250,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_LINEAR_ITERATIVE_GMRES_RESTART_SET(SOLVER,GMRESRestart,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_LinearIterativeGMRESRestartSetNumber1")
@@ -52276,7 +55306,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_LinearIterativeMaximumIterationsSetNumber0",err,error,*999)
 
@@ -52287,9 +55317,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL Solver_LinearIterativeMaximumIterationsSet(SOLVER,maximumIterations,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_LinearIterativeMaximumIterationsSetNumber0")
@@ -52318,7 +55348,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_LinearIterativeMaximumIterationsSetNumber1",err,error,*999)
 
@@ -52329,9 +55359,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL Solver_LinearIterativeMaximumIterationsSet(SOLVER,maximumIterations,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_LinearIterativeMaximumIterationsSetNumber1")
@@ -52372,110 +55402,107 @@ CONTAINS
   !================================================================================================================================
   !
 
-  !>Sets/changes the preconditioner type for an iterative linear solver identified by an user number.
-  SUBROUTINE CMISSSolver_LinearIterativePreconditionerTypeSetNumber0(problemUserNumber,controlLoopIdentifier,solverIndex, &
-    & preconditionerType,err)
+  !>Get the preconditioner for an iterative linear solver identified by an user number.
+  SUBROUTINE CMISSSolver_LinearIterativePreconditionerGetNumber0(problemUserNumber,controlLoopIdentifier,solverIndex, &
+      & preconditioner,err)
 
     !Argument variables
-    INTEGER(INTG), INTENT(IN) :: problemUserNumber !<The user number of the problem number with the iterative linear solver to set the preconditioner type for.
-    INTEGER(INTG), INTENT(IN) :: controlLoopIdentifier !<The control loop identifier with the iterative linear solver to set the preconditioner type for.
-    INTEGER(INTG), INTENT(IN) :: solverIndex !<The solver index to set the preconditioner type for.
-    INTEGER(INTG), INTENT(IN) :: preconditionerType !<The preconditioner type to set. \see OPENCMISS_IterativePreconditionerTypes
+    INTEGER(INTG), INTENT(IN) :: problemUserNumber !<The user number of the problem number with the iterative linear solver to get the preconditioner for.
+    INTEGER(INTG), INTENT(IN) :: controlLoopIdentifier !<The control loop identifier with the iterative linear solver to get the preconditioner for.
+    INTEGER(INTG), INTENT(IN) :: solverIndex !<The solver index to get the preconditionerfor.
+    TYPE(CMISSPreconditionerType), INTENT(INOUT) :: preconditioner !<The preconditioner to get.
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
-    ENTERS("CMISSSolver_LinearIterativePreconditionerTypeSetNumber0",err,error,*999)
+    ENTERS("CMISSSolver_LinearIterativePreconditionerGetNumber0",err,error,*999)
 
     NULLIFY(PROBLEM)
     NULLIFY(SOLVER)
     CALL PROBLEM_USER_NUMBER_FIND(problemUserNumber,PROBLEM,err,error,*999)
     IF(ASSOCIATED(PROBLEM)) THEN
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
-      CALL Solver_LinearIterativePreconditionerTypeSet(SOLVER,preconditionerType,err,error,*999)
+      CALL SolverLinearIterativePreconditionerGet(SOLVER,preconditioner%preconditioner,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
-    EXITS("CMISSSolver_LinearIterativePreconditionerTypeSetNumber0")
+    EXITS("CMISSSolver_LinearIterativePreconditionerGetNumber0")
     RETURN
-999 ERRORS("CMISSSolver_LinearIterativePreconditionerTypeSetNumber0",err,error)
-    EXITS("CMISSSolver_LinearIterativePreconditionerTypeSetNumber0")
+999 ERRORSEXITS("CMISSSolver_LinearIterativePreconditionerGetNumber0",err,error)
     CALL CmissHandleError(err,error)
     RETURN
 
-  END SUBROUTINE CMISSSolver_LinearIterativePreconditionerTypeSetNumber0
+  END SUBROUTINE CMISSSolver_LinearIterativePreconditionerGetNumber0
 
   !
   !================================================================================================================================
   !
 
-  !>Sets/changes the preconditioner type for an iterative linear solver identified by an user number.
-  SUBROUTINE CMISSSolver_LinearIterativePreconditionerTypeSetNumber1(problemUserNumber,controlLoopIdentifiers,solverIndex, &
-    & preconditionerType,err)
+  !>Get the preconditioner for an iterative linear solver identified by an user number.
+  SUBROUTINE CMISSSolver_LinearIterativePreconditionerGetNumber1(problemUserNumber,controlLoopIdentifiers,solverIndex, &
+      & preconditioner,err)
 
     !Argument variables
-    INTEGER(INTG), INTENT(IN) :: problemUserNumber !<The user number of the problem number with the iterative linear solver to set the preconditioner type for.
-    INTEGER(INTG), INTENT(IN) :: controlLoopIdentifiers(:) !<controlLoopIdentifiers(i). The i'th control loop identifier to set the preconditioner type for.
-    INTEGER(INTG), INTENT(IN) :: solverIndex !<The solver index to set the preconditioner type for.
-    INTEGER(INTG), INTENT(IN) :: preconditionerType !<The preconditioner type to set. \see OPENCMISS_IterativePreconditionerTypes
+    INTEGER(INTG), INTENT(IN) :: problemUserNumber !<The user number of the problem number with the iterative linear solver to get the preconditioner for.
+    INTEGER(INTG), INTENT(IN) :: controlLoopIdentifiers(:) !<controlLoopIdentifiers(i). The i'th control loop identifier to get the preconditioner for.
+    INTEGER(INTG), INTENT(IN) :: solverIndex !<The solver index to get the preconditioner for.
+    TYPE(CMISSPreconditionerType), INTENT(INOUT) :: preconditioner !<The preconditioner to get.
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
-    ENTERS("CMISSSolver_LinearIterativePreconditionerTypeSetNumber1",err,error,*999)
+    ENTERS("CMISSSolver_LinearIterativePreconditionerGetNumber1",err,error,*999)
 
     NULLIFY(PROBLEM)
     NULLIFY(SOLVER)
     CALL PROBLEM_USER_NUMBER_FIND(problemUserNumber,PROBLEM,err,error,*999)
     IF(ASSOCIATED(PROBLEM)) THEN
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
-      CALL Solver_LinearIterativePreconditionerTypeSet(SOLVER,preconditionerType,err,error,*999)
+      CALL SolverLinearIterativePreconditionerGet(SOLVER,preconditioner%preconditioner,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
-    EXITS("CMISSSolver_LinearIterativePreconditionerTypeSetNumber1")
+    EXITS("CMISSSolver_LinearIterativePreconditionerGetNumber1")
     RETURN
-999 ERRORS("CMISSSolver_LinearIterativePreconditionerTypeSetNumber1",err,error)
-    EXITS("CMISSSolver_LinearIterativePreconditionerTypeSetNumber1")
+999 ERRORSEXITS("CMISSSolver_LinearIterativePreconditionerGetNumber1",err,error)
     CALL CmissHandleError(err,error)
     RETURN
 
-  END SUBROUTINE CMISSSolver_LinearIterativePreconditionerTypeSetNumber1
+  END SUBROUTINE CMISSSolver_LinearIterativePreconditionerGetNumber1
 
   !================================================================================================================================
   !
 
-  !>Sets/changes the preconditioner type for an iterative linear solver identified by an object.
-  SUBROUTINE CMISSSolver_LinearIterativePreconditionerTypeSetObj(solver,preconditionerType,err)
+  !>Get the preconditioner for an iterative linear solver identified by an object.
+  SUBROUTINE CMISSSolver_LinearIterativePreconditionerGetObj(solver,preconditioner,err)
 
     !Argument variables
-    TYPE(CMISSSolverType), INTENT(IN) :: solver !<The iterative linear solver to set the preconditioner type for.
-    INTEGER(INTG), INTENT(IN) :: preconditionerType !<The preconditioner type to set. \see OPENCMISS_IterativePreconditionerTypes
+    TYPE(CMISSSolverType), INTENT(IN) :: solver !<The iterative linear solver to get the preconditioner for.
+    TYPE(CMISSPreconditionerType), INTENT(INOUT) :: preconditioner !<The preconditioner to get.
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
 
-    ENTERS("CMISSSolver_LinearIterativePreconditionerTypeSetObj",err,error,*999)
+    ENTERS("CMISSSolver_LinearIterativePreconditionerGetObj",err,error,*999)
 
-    CALL Solver_LinearIterativePreconditionerTypeSet(solver%solver,preconditionerType,err,error,*999)
+    CALL SolverLinearIterativePreconditionerGet(solver%SOLVER,preconditioner%preconditioner,err,error,*999)
 
-    EXITS("CMISSSolver_LinearIterativePreconditionerTypeSetObj")
+    EXITS("CMISSSolver_LinearIterativePreconditionerGetObj")
     RETURN
-999 ERRORS("CMISSSolver_LinearIterativePreconditionerTypeSetObj",err,error)
-    EXITS("CMISSSolver_LinearIterativePreconditionerTypeSetObj")
+999 ERRORSEXITS("CMISSSolver_LinearIterativePreconditionerGetObj",err,error)
     CALL CmissHandleError(err,error)
     RETURN
 
-  END SUBROUTINE CMISSSolver_LinearIterativePreconditionerTypeSetObj
+  END SUBROUTINE CMISSSolver_LinearIterativePreconditionerGetObj
 
   !
   !================================================================================================================================
@@ -52494,7 +55521,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_LinearIterativeRelativeToleranceSetNumber0",err,error,*999)
 
@@ -52505,9 +55532,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL Solver_LinearIterativeRelativeToleranceSet(SOLVER,relativeTolerance,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_LinearIterativeRelativeToleranceSetNumber0")
@@ -52536,7 +55563,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_LinearIterativeRelativeToleranceSetNumber1",err,error,*999)
 
@@ -52547,9 +55574,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL Solver_LinearIterativeRelativeToleranceSet(SOLVER,relativeTolerance,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_LinearIterativeRelativeToleranceSetNumber1")
@@ -52602,7 +55629,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_LinearIterativeTypeSetNumber0",err,error,*999)
 
@@ -52613,9 +55640,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_LINEAR_ITERATIVE_TYPE_SET(SOLVER,iterativeSolverType,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_LinearIterativeTypeSetNumber0")
@@ -52642,7 +55669,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_LinearIterativeTypeSetNumber1",err,error,*999)
 
@@ -52653,9 +55680,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_LINEAR_ITERATIVE_TYPE_SET(SOLVER,iterativeSolverType,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_LinearIterativeTypeSetNumber1")
@@ -52706,7 +55733,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_LinearTypeSetNumber0",err,error,*999)
 
@@ -52717,9 +55744,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_LINEAR_TYPE_SET(SOLVER,linearSolverType,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_LinearTypeSetNumber0")
@@ -52746,7 +55773,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_LinearTypeSetNumber1",err,error,*999)
 
@@ -52757,9 +55784,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_LINEAR_TYPE_SET(SOLVER,linearSolverType,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_LinearTypeSetNumber1")
@@ -52811,7 +55838,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_NewtonAbsoluteToleranceSetNumber0",err,error,*999)
 
@@ -52822,9 +55849,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_NEWTON_ABSOLUTE_TOLERANCE_SET(SOLVER,absoluteTolerance,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_NewtonAbsoluteToleranceSetNumber0")
@@ -52853,7 +55880,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_NewtonAbsoluteToleranceSetNumber1",err,error,*999)
 
@@ -52864,9 +55891,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_NEWTON_ABSOLUTE_TOLERANCE_SET(SOLVER,absoluteTolerance,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_NewtonAbsoluteToleranceSetNumber1")
@@ -52919,7 +55946,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_NewtonLineSearchMonitorOutputSetNumber0",err,error,*999)
 
@@ -52930,9 +55957,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL Solver_NewtonLineSearchMonitorOutputSet(SOLVER,monitorLinesearchFlag,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_NewtonLineSearchMonitorOutputSetNumber0")
@@ -52961,7 +55988,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_NewtonLineSearchMonitorOutputSetNumber1",err,error,*999)
 
@@ -52972,9 +55999,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL Solver_NewtonLineSearchMonitorOutputSet(SOLVER,monitorLinesearchFlag,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_NewtonLineSearchMonitorOutputSetNumber1")
@@ -53028,7 +56055,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_NewtonJacobianCalculationTypeSetNumber0",err,error,*999)
 
@@ -53039,9 +56066,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_NEWTON_JACOBIAN_CALCULATION_TYPE_SET(SOLVER,jacobianCalculationType,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_NewtonJacobianCalculationTypeSetNumber0")
@@ -53070,7 +56097,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_NewtonJacobianCalculationTypeSetNumber1",err,error,*999)
 
@@ -53081,9 +56108,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_NEWTON_JACOBIAN_CALCULATION_TYPE_SET(SOLVER,jacobianCalculationType,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_NewtonJacobianCalculationTypeSetNumber1")
@@ -53136,7 +56163,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER,LINEAR_SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_NewtonLinearSolverGetNumber0",err,error,*999)
 
@@ -53151,9 +56178,9 @@ CONTAINS
       linearSolverIndex=LINEAR_SOLVER%GLOBAL_NUMBER
       CALL FlagError("Not implemented.",err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_NewtonLinearSolverGetNumber0")
@@ -53180,7 +56207,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER,LINEAR_SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_NewtonLinearSolverGetNumber1",err,error,*999)
 
@@ -53195,9 +56222,9 @@ CONTAINS
       linearSolverIndex=LINEAR_SOLVER%GLOBAL_NUMBER
       CALL FlagError("Not implemented.",err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_NewtonLinearSolverGetNumber1")
@@ -53248,7 +56275,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER,CELLML_SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_NewtonCellMLSolverGetNumber0",err,error,*999)
 
@@ -53263,9 +56290,9 @@ CONTAINS
       CellMLSolverIndex=CELLML_SOLVER%GLOBAL_NUMBER
       CALL FlagError("Not implemented.",err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_NewtonCellMLSolverGetNumber0")
@@ -53292,7 +56319,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER,CELLML_SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_NewtonCellMLSolverGetNumber1",err,error,*999)
 
@@ -53307,9 +56334,9 @@ CONTAINS
       CellMLSolverIndex=CELLML_SOLVER%GLOBAL_NUMBER
       CALL FlagError("Not implemented.",err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_NewtonCellMLSolverGetNumber1")
@@ -53470,7 +56497,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_NewtonLineSearchAlphaSetNumber0",err,error,*999)
 
@@ -53481,9 +56508,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_NEWTON_LINESEARCH_ALPHA_SET(SOLVER,alpha,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_NewtonLineSearchAlphaSetNumber0")
@@ -53510,7 +56537,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_NewtonLineSearchAlphaSetNumber1",err,error,*999)
 
@@ -53521,9 +56548,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_NEWTON_LINESEARCH_ALPHA_SET(SOLVER,alpha,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_NewtonLineSearchAlphaSetNumber1")
@@ -53574,7 +56601,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_NewtonLineSearchMaxStepSetNumber0",err,error,*999)
 
@@ -53585,9 +56612,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_NEWTON_LINESEARCH_MAXSTEP_SET(SOLVER,maxStep,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_NewtonLineSearchMaxStepSetNumber0")
@@ -53615,7 +56642,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_NewtonLineSearchMaxStepSetNumber1",err,error,*999)
 
@@ -53626,9 +56653,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_NEWTON_LINESEARCH_MAXSTEP_SET(SOLVER,maxStep,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_NewtonLineSearchMaxStepSetNumber1")
@@ -53680,7 +56707,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_NewtonLineSearchStepTolSetNumber0",err,error,*999)
 
@@ -53691,9 +56718,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_NEWTON_LINESEARCH_STEPTOL_SET(SOLVER,stepTol,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_NewtonLineSearchStepTolSetNumber0")
@@ -53721,7 +56748,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_NewtonLineSearchStepTolSetNumber1",err,error,*999)
 
@@ -53732,9 +56759,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_NEWTON_LINESEARCH_STEPTOL_SET(SOLVER,stepTol,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_NewtonLineSearchStepTolSetNumber1")
@@ -53786,7 +56813,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_NewtonLineSearchTypeSetNumber0",err,error,*999)
 
@@ -53797,9 +56824,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_NEWTON_LINESEARCH_TYPE_SET(SOLVER,lineSearchType,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_NewtonLineSearchTypeSetNumber0")
@@ -53826,7 +56853,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_NewtonLineSearchTypeSetNumber1",err,error,*999)
 
@@ -53837,9 +56864,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_NEWTON_LINESEARCH_TYPE_SET(SOLVER,lineSearchType,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_NewtonLineSearchTypeSetNumber1")
@@ -53891,7 +56918,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_NewtonMaximumFunctionEvaluationsSetNumber0",err,error,*999)
 
@@ -53902,9 +56929,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL Solver_NewtonMaximumFunctionEvaluationsSet(SOLVER,maximumFunctionEvaluations,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_NewtonMaximumFunctionEvaluationsSetNumber0")
@@ -53933,7 +56960,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_NewtonMaximumFunctionEvaluationsSetNumber1",err,error,*999)
 
@@ -53944,9 +56971,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL Solver_NewtonMaximumFunctionEvaluationsSet(SOLVER,maximumFunctionEvaluations,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_NewtonMaximumFunctionEvaluationsSetNumber1")
@@ -54000,7 +57027,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_NewtonMaximumIterationsSetNumber0",err,error,*999)
 
@@ -54011,9 +57038,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_NEWTON_MAXIMUM_ITERATIONS_SET(SOLVER,maximumIterations,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_NewtonMaximumIterationsSetNumber0")
@@ -54042,7 +57069,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_NewtonMaximumIterationsSetNumber1",err,error,*999)
 
@@ -54053,9 +57080,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_NEWTON_MAXIMUM_ITERATIONS_SET(SOLVER,maximumIterations,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_NewtonMaximumIterationsSetNumber1")
@@ -54108,7 +57135,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_NewtonRelativeToleranceSetNumber0",err,error,*999)
 
@@ -54119,9 +57146,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_NEWTON_RELATIVE_TOLERANCE_SET(SOLVER,relativeTolerance,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_NewtonRelativeToleranceSetNumber0")
@@ -54150,7 +57177,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_NewtonRelativeToleranceSetNumber1",err,error,*999)
 
@@ -54161,9 +57188,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_NEWTON_RELATIVE_TOLERANCE_SET(SOLVER,relativeTolerance,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_NewtonRelativeToleranceSetNumber1")
@@ -54216,7 +57243,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_NewtonSolutionToleranceSetNumber0",err,error,*999)
 
@@ -54227,9 +57254,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_NEWTON_SOLUTION_TOLERANCE_SET(SOLVER,solutionTolerance,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_NewtonSolutionToleranceSetNumber0")
@@ -54258,7 +57285,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_NewtonSolutionToleranceSetNumber1",err,error,*999)
 
@@ -54269,9 +57296,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_NEWTON_SOLUTION_TOLERANCE_SET(SOLVER,solutionTolerance,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_NewtonSolutionToleranceSetNumber1")
@@ -54323,7 +57350,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_NewtonTrustRegionDelta0SetNumber0",err,error,*999)
 
@@ -54334,9 +57361,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_NEWTON_TRUSTREGION_DELTA0_SET(SOLVER,delta0,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_NewtonTrustRegionDelta0SetNumber0")
@@ -54364,7 +57391,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_NewtonTrustRegionDelta0SetNumber1",err,error,*999)
 
@@ -54375,9 +57402,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_NEWTON_TRUSTREGION_DELTA0_SET(SOLVER,delta0,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_NewtonTrustRegionDelta0SetNumber1")
@@ -54430,7 +57457,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_NewtonTrustRegionToleranceSetNumber0",err,error,*999)
 
@@ -54441,9 +57468,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_NEWTON_TRUSTREGION_TOLERANCE_SET(SOLVER,tolerance,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_NewtonTrustRegionToleranceSetNumber0")
@@ -54471,7 +57498,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_NewtonTrustRegionToleranceSetNumber1",err,error,*999)
 
@@ -54482,9 +57509,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_NEWTON_TRUSTREGION_TOLERANCE_SET(SOLVER,tolerance,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_NewtonTrustRegionToleranceSetNumber1")
@@ -54537,7 +57564,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_NewtonTypeSetNumber0",err,error,*999)
 
@@ -54548,9 +57575,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_NEWTON_TYPE_SET(SOLVER,newtonSolveType,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_NewtonTypeSetNumber0")
@@ -54577,7 +57604,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_NewtonTypeSetNumber1",err,error,*999)
 
@@ -54588,9 +57615,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_NEWTON_TYPE_SET(SOLVER,newtonSolveType,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_NewtonTypeSetNumber1")
@@ -54641,7 +57668,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_QuasiNewtonAbsoluteToleranceSetNumber0",err,error,*999)
 
@@ -54652,9 +57679,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_QUASI_NEWTON_ABSOLUTE_TOLERANCE_SET(SOLVER,absoluteTolerance,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_QuasiNewtonAbsoluteToleranceSetNumber0")
@@ -54683,7 +57710,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_QuasiNewtonAbsoluteToleranceSetNumber1",err,error,*999)
 
@@ -54694,9 +57721,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_QUASI_NEWTON_ABSOLUTE_TOLERANCE_SET(SOLVER,absoluteTolerance,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_QuasiNewtonAbsoluteToleranceSetNumber1")
@@ -54750,7 +57777,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_QuasiNewtonLineSearchMonitorOutputSetNumber0",err,error,*999)
 
@@ -54761,9 +57788,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL Solver_QuasiNewtonLineSearchMonitorOutputSet(SOLVER,monitorLinesearchFlag,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_QuasiNewtonLineSearchMonitorOutputSetNumber0")
@@ -54792,7 +57819,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_QuasiNewtonLineSearchMonitorOutputSetNumber1",err,error,*999)
 
@@ -54803,9 +57830,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL Solver_QuasiNewtonLineSearchMonitorOutputSet(SOLVER,monitorLinesearchFlag,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_QuasiNewtonLineSearchMonitorOutputSetNumber1")
@@ -54859,7 +57886,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_QuasiNewtonJacobianCalculationTypeSetNumber0",err,error,*999)
 
@@ -54870,9 +57897,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL Solver_QuasiNewtonJacobianCalculationTypeSet(SOLVER,jacobianCalculationType,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_QuasiNewtonJacobianCalculationTypeSetNumber0")
@@ -54901,7 +57928,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_QuasiNewtonJacobianCalculationTypeSetNumber1",err,error,*999)
 
@@ -54912,9 +57939,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL Solver_QuasiNewtonJacobianCalculationTypeSet(SOLVER,jacobianCalculationType,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_QuasiNewtonJacobianCalculationTypeSetNumber1")
@@ -54968,7 +57995,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER,LINEAR_SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_QuasiNewtonLinearSolverGetNumber0",err,error,*999)
 
@@ -54983,9 +58010,9 @@ CONTAINS
       linearSolverIndex=LINEAR_SOLVER%GLOBAL_NUMBER
       CALL FlagError("Not implemented.",err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_QuasiNewtonLinearSolverGetNumber0")
@@ -55014,7 +58041,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER,LINEAR_SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_QuasiNewtonLinearSolverGetNumber1",err,error,*999)
 
@@ -55029,9 +58056,9 @@ CONTAINS
       linearSolverIndex=LINEAR_SOLVER%GLOBAL_NUMBER
       CALL FlagError("Not implemented.",err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_QuasiNewtonLinearSolverGetNumber1")
@@ -55084,7 +58111,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER,CELLML_SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_QuasiNewtonCellMLSolverGetNumber0",err,error,*999)
 
@@ -55099,9 +58126,9 @@ CONTAINS
       CellMLSolverIndex=CELLML_SOLVER%GLOBAL_NUMBER
       CALL FlagError("Not implemented.",err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_QuasiNewtonCellMLSolverGetNumber0")
@@ -55130,7 +58157,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER,CELLML_SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_QuasiNewtonCellMLSolverGetNumber1",err,error,*999)
 
@@ -55145,9 +58172,9 @@ CONTAINS
       CellMLSolverIndex=CELLML_SOLVER%GLOBAL_NUMBER
       CALL FlagError("Not implemented.",err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_QuasiNewtonCellMLSolverGetNumber1")
@@ -55310,7 +58337,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_QuasiNewtonLineSearchMaxStepSetNumber0",err,error,*999)
 
@@ -55321,9 +58348,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_QUASI_NEWTON_LINESEARCH_MAXSTEP_SET(SOLVER,maxStep,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_QuasiNewtonLineSearchMaxStepSetNumber0")
@@ -55351,7 +58378,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_QuasiNewtonLineSearchMaxStepSetNumber1",err,error,*999)
 
@@ -55362,9 +58389,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_QUASI_NEWTON_LINESEARCH_MAXSTEP_SET(SOLVER,maxStep,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_QuasiNewtonLineSearchMaxStepSetNumber1")
@@ -55417,7 +58444,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_QuasiNewtonLineSearchStepTolSetNumber0",err,error,*999)
 
@@ -55428,9 +58455,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_QUASI_NEWTON_LINESEARCH_STEPTOL_SET(SOLVER,stepTol,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_QuasiNewtonLineSearchStepTolSetNumber0")
@@ -55458,7 +58485,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_QuasiNewtonLineSearchStepTolSetNumber1",err,error,*999)
 
@@ -55469,9 +58496,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_QUASI_NEWTON_LINESEARCH_STEPTOL_SET(SOLVER,stepTol,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_QuasiNewtonLineSearchStepTolSetNumber1")
@@ -55525,7 +58552,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_QuasiNewtonLineSearchTypeSetNumber0",err,error,*999)
 
@@ -55536,9 +58563,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_QUASI_NEWTON_LINESEARCH_TYPE_SET(SOLVER,lineSearchType,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_QuasiNewtonLineSearchTypeSetNumber0")
@@ -55567,7 +58594,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_QuasiNewtonLineSearchTypeSetNumber1",err,error,*999)
 
@@ -55578,9 +58605,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_QUASI_NEWTON_LINESEARCH_TYPE_SET(SOLVER,lineSearchType,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_QuasiNewtonLineSearchTypeSetNumber1")
@@ -55633,7 +58660,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_QuasiNewtonMaximumFunctionEvaluationsSetNumber0",err,error,*999)
 
@@ -55644,9 +58671,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL Solver_QuasiNewtonMaximumFunctionEvaluationsSet(SOLVER,maximumFunctionEvaluations,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_QuasiNewtonMaximumFunctionEvaluationsSetNumber0")
@@ -55675,7 +58702,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_QuasiNewtonMaximumFunctionEvaluationsSetNumber1",err,error,*999)
 
@@ -55686,9 +58713,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL Solver_QuasiNewtonMaximumFunctionEvaluationsSet(SOLVER,maximumFunctionEvaluations,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_QuasiNewtonMaximumFunctionEvaluationsSetNumber1")
@@ -55742,7 +58769,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_QuasiNewtonMaximumIterationsSetNumber0",err,error,*999)
 
@@ -55753,9 +58780,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_QUASI_NEWTON_MAXIMUM_ITERATIONS_SET(SOLVER,maximumIterations,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_QuasiNewtonMaximumIterationsSetNumber0")
@@ -55784,7 +58811,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_QuasiNewtonMaximumIterationsSetNumber1",err,error,*999)
 
@@ -55795,9 +58822,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_QUASI_NEWTON_MAXIMUM_ITERATIONS_SET(SOLVER,maximumIterations,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_QuasiNewtonMaximumIterationsSetNumber1")
@@ -55851,7 +58878,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_QuasiNewtonRelativeToleranceSetNumber0",err,error,*999)
 
@@ -55862,9 +58889,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_QUASI_NEWTON_RELATIVE_TOLERANCE_SET(SOLVER,relativeTolerance,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_QuasiNewtonRelativeToleranceSetNumber0")
@@ -55893,7 +58920,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_QuasiNewtonRelativeToleranceSetNumber1",err,error,*999)
 
@@ -55904,9 +58931,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_QUASI_NEWTON_RELATIVE_TOLERANCE_SET(SOLVER,relativeTolerance,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_QuasiNewtonRelativeToleranceSetNumber1")
@@ -55960,7 +58987,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_QuasiNewtonSolutionToleranceSetNumber0",err,error,*999)
 
@@ -55971,9 +58998,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_QUASI_NEWTON_SOLUTION_TOLERANCE_SET(SOLVER,solutionTolerance,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_QuasiNewtonSolutionToleranceSetNumber0")
@@ -56002,7 +59029,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_QuasiNewtonSolutionToleranceSetNumber1",err,error,*999)
 
@@ -56013,9 +59040,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_QUASI_NEWTON_SOLUTION_TOLERANCE_SET(SOLVER,solutionTolerance,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_QuasiNewtonSolutionToleranceSetNumber1")
@@ -56068,7 +59095,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_QuasiNewtonTrustRegionDelta0SetNumber0",err,error,*999)
 
@@ -56079,9 +59106,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_QUASI_NEWTON_TRUSTREGION_DELTA0_SET(SOLVER,delta0,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_QuasiNewtonTrustRegionDelta0SetNumber0")
@@ -56109,7 +59136,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_QuasiNewtonTrustRegionDelta0SetNumber1",err,error,*999)
 
@@ -56120,9 +59147,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_QUASI_NEWTON_TRUSTREGION_DELTA0_SET(SOLVER,delta0,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_QuasiNewtonTrustRegionDelta0SetNumber1")
@@ -56176,7 +59203,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_QuasiNewtonTrustRegionToleranceSetNumber0",err,error,*999)
 
@@ -56187,9 +59214,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL Solver_QuasiNewtonTrustRegionToleranceSet(SOLVER,tolerance,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_QuasiNewtonTrustRegionToleranceSetNumber0")
@@ -56218,7 +59245,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_QuasiNewtonTrustRegionToleranceSetNumber1",err,error,*999)
 
@@ -56229,9 +59256,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL Solver_QuasiNewtonTrustRegionToleranceSet(SOLVER,tolerance,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_QuasiNewtonTrustRegionToleranceSetNumber1")
@@ -56285,7 +59312,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_QuasiNewtonRestartSetNumber0",err,error,*999)
 
@@ -56296,9 +59323,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_QUASI_NEWTON_RESTART_SET(SOLVER,quasiNewtonRestart,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_QuasiNewtonRestartSetNumber0")
@@ -56326,7 +59353,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_QuasiNewtonRestartSetNumber1",err,error,*999)
 
@@ -56337,9 +59364,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_QUASI_NEWTON_RESTART_SET(SOLVER,quasiNewtonRestart,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_QuasiNewtonRestartSetNumber1")
@@ -56391,7 +59418,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_QuasiNewtonRestartTypeSetNumber0",err,error,*999)
 
@@ -56402,9 +59429,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_QUASI_NEWTON_RESTART_TYPE_SET(SOLVER,quasiNewtonRestartType,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_QuasiNewtonRestartTypeSetNumber0")
@@ -56433,7 +59460,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_QuasiNewtonRestartTypeSetNumber1",err,error,*999)
 
@@ -56444,9 +59471,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_QUASI_NEWTON_RESTART_TYPE_SET(SOLVER,quasiNewtonRestartType,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_QuasiNewtonRestartTypeSetNumber1")
@@ -56499,7 +59526,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_QuasiNewtonScaleTypeSetNumber0",err,error,*999)
 
@@ -56510,9 +59537,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_QUASI_NEWTON_SCALE_TYPE_SET(SOLVER,quasiNewtonScaleType,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_QuasiNewtonScaleTypeSetNumber0")
@@ -56540,7 +59567,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_QuasiNewtonScaleTypeSetNumber1",err,error,*999)
 
@@ -56551,9 +59578,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_QUASI_NEWTON_SCALE_TYPE_SET(SOLVER,quasiNewtonScaleType,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_QuasiNewtonScaleTypeSetNumber1")
@@ -56605,7 +59632,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_QuasiNewtonSolveTypeSetNumber0",err,error,*999)
 
@@ -56616,9 +59643,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_QUASI_NEWTON_SOLVE_TYPE_SET(SOLVER,quasiNewtonSolveType,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_QuasiNewtonSolveTypeSetNumber0")
@@ -56646,7 +59673,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_QuasiNewtonSolveTypeSetNumber1",err,error,*999)
 
@@ -56657,9 +59684,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_QUASI_NEWTON_SOLVE_TYPE_SET(SOLVER,quasiNewtonSolveType,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_QuasiNewtonSolveTypeSetNumber1")
@@ -56711,7 +59738,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_QuasiNewtonTypeSetNumber0",err,error,*999)
 
@@ -56722,9 +59749,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_QUASI_NEWTON_TYPE_SET(SOLVER,quasiNewtonType,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_QuasiNewtonTypeSetNumber0")
@@ -56752,7 +59779,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_QuasiNewtonTypeSetNumber1",err,error,*999)
 
@@ -56763,9 +59790,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_QUASI_NEWTON_TYPE_SET(SOLVER,quasiNewtonType,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_QuasiNewtonTypeSetNumber1")
@@ -56816,7 +59843,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_NonlinearTypeSetNumber0",err,error,*999)
 
@@ -56827,9 +59854,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_NONLINEAR_TYPE_SET(SOLVER,nonlinearSolveType,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_NonlinearTypeSetNumber0")
@@ -56856,7 +59883,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_NonlinearTypeSetNumber1",err,error,*999)
 
@@ -56867,9 +59894,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_NONLINEAR_TYPE_SET(SOLVER,nonlinearSolveType,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_NonlinearTypeSetNumber1")
@@ -56920,7 +59947,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_OutputTypeSetNumber0",err,error,*999)
 
@@ -56931,9 +59958,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_OUTPUT_TYPE_SET(SOLVER,outputType,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_OutputTypeSetNumber0")
@@ -56960,7 +59987,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_OutputTypeSetNumber1",err,error,*999)
 
@@ -56971,9 +59998,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_OUTPUT_TYPE_SET(SOLVER,outputType,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_OutputTypeSetNumber1")
@@ -57024,7 +60051,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_SolverEquationsGetNumber0",err,error,*999)
 
@@ -57035,9 +60062,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_SOLVER_EQUATIONS_GET(SOLVER,solverEquations%SOLVER_EQUATIONS,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_SolverEquationsGetNumber0")
@@ -57064,7 +60091,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolver_SolverEquationsGetNumber1",err,error,*999)
 
@@ -57075,9 +60102,9 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
       CALL SOLVER_SOLVER_EQUATIONS_GET(SOLVER,solverEquations%SOLVER_EQUATIONS,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolver_SolverEquationsGetNumber1")
@@ -57116,6 +60143,164 @@ CONTAINS
   !================================================================================================================================
   !
 
+  !>Adds constraint conditions to solver equations identified by an user number.
+  SUBROUTINE CMISSSolverEquations_ConstraintConditionAddNumber0(problemUserNumber,controlLoopIdentifier,solverIndex, &
+    & regionUserNumber,constraintConditionUserNumber,constraintConditionIndex,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: problemUserNumber !<The user number of the problem with the solver to add the constraint condition for.
+    INTEGER(INTG), INTENT(IN) :: controlLoopIdentifier !<The control loop identifier with the solver to add the constraint condition for.
+    INTEGER(INTG), INTENT(IN) :: solverIndex !<The solver index to add the constraint condition for.
+    INTEGER(INTG), INTENT(IN) :: regionUserNumber !<The user number of the region with the constraint condition to add.
+    INTEGER(INTG), INTENT(IN) :: constraintConditionUserNumber !<The user number of the constraint condition to add.
+    INTEGER(INTG), INTENT(OUT) :: constraintConditionIndex !<On return, the index of the added constraint condition in the solver equations.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION
+    TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
+    TYPE(REGION_TYPE), POINTER :: REGION
+    TYPE(SOLVER_TYPE), POINTER :: SOLVER
+    TYPE(SOLVER_EQUATIONS_TYPE), POINTER :: SOLVER_EQUATIONS
+    TYPE(VARYING_STRING) :: localError
+
+    ENTERS("CMISSSolverEquations_ConstraintConditionAddNumber0",err,error,*999)
+
+    NULLIFY(PROBLEM)
+    NULLIFY(SOLVER)
+    NULLIFY(SOLVER_EQUATIONS)
+    NULLIFY(REGION)
+    NULLIFY(CONSTRAINT_CONDITION)
+    CALL PROBLEM_USER_NUMBER_FIND(problemUserNumber,PROBLEM,err,error,*999)
+    IF(ASSOCIATED(PROBLEM)) THEN
+      CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
+      CALL SOLVER_SOLVER_EQUATIONS_GET(SOLVER,SOLVER_EQUATIONS,err,error,*999)
+      CALL REGION_USER_NUMBER_FIND(regionUserNumber,REGION,err,error,*999)
+      IF(ASSOCIATED(REGION)) THEN
+        CALL CONSTRAINT_CONDITION_USER_NUMBER_FIND(constraintConditionUserNumber,REGION,CONSTRAINT_CONDITION,err,error,*999)
+        IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
+          CALL SOLVER_EQUATIONS_CONSTRAINT_CONDITION_ADD(SOLVER_EQUATIONS,CONSTRAINT_CONDITION,constraintConditionIndex, &
+            & err,error,*999)
+        ELSE
+          localError="A constraint condition with an user number of "// &
+            & TRIM(NUMBER_TO_VSTRING(constraintConditionUserNumber,"*",err,error))// &
+            & " does not exist on region number "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//"."
+          CALL FlagError(localError,err,error,*999)
+        END IF
+      ELSE
+        localError="A region with an user number of "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))// &
+          & " does not exist."
+        CALL FlagError(localError,err,error,*999)
+      END IF
+    ELSE
+      localError="A problem with an user number of "//TRIM(NUMBER_TO_VSTRING(problemUserNumber,"*",err,error))// &
+        & " does not exist."
+      CALL FlagError(localError,err,error,*999)
+    END IF
+
+    EXITS("CMISSSolverEquations_ConstraintConditionAddNumber0")
+    RETURN
+999 ERRORSEXITS("CMISSSolverEquations_ConstraintConditionAddNumber0",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSSolverEquations_ConstraintConditionAddNumber0
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Adds constraint conditions to solver equations identified by an user number.
+  SUBROUTINE CMISSSolverEquations_ConstraintConditionAddNumber1(problemUserNumber,controlLoopIdentifiers,solverIndex, &
+    & regionUserNumber,constraintConditionUserNumber,constraintConditionIndex,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: problemUserNumber !<The user number of the problem number with the solver to add the constraint condition for.
+    INTEGER(INTG), INTENT(IN) :: controlLoopIdentifiers(:) !<controlLoopIdentifiers(i). The i'th control loop identifier to add the constraint condition for.
+    INTEGER(INTG), INTENT(IN) :: solverIndex !<The solver index to add the constraint condition for.
+    INTEGER(INTG), INTENT(IN) :: regionUserNumber !<The user number of the region with the constraint condition to add.
+    INTEGER(INTG), INTENT(IN) :: constraintConditionUserNumber !<The user number of the constraint condition to add.
+    INTEGER(INTG), INTENT(OUT) :: constraintConditionIndex !<On return, the index of the added constraint condition in the solver equations.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(CONSTRAINT_CONDITION_TYPE), POINTER :: CONSTRAINT_CONDITION
+    TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
+    TYPE(REGION_TYPE), POINTER :: REGION
+    TYPE(SOLVER_TYPE), POINTER :: SOLVER
+    TYPE(SOLVER_EQUATIONS_TYPE), POINTER :: SOLVER_EQUATIONS
+    TYPE(VARYING_STRING) :: localError
+
+    ENTERS("CMISSSolverEquations_ConstraintConditionAddNumber1",err,error,*999)
+
+    NULLIFY(PROBLEM)
+    NULLIFY(SOLVER)
+    NULLIFY(SOLVER_EQUATIONS)
+    NULLIFY(REGION)
+    NULLIFY(CONSTRAINT_CONDITION)
+    CALL PROBLEM_USER_NUMBER_FIND(problemUserNumber,PROBLEM,err,error,*999)
+    IF(ASSOCIATED(PROBLEM)) THEN
+      CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers,solverIndex,SOLVER,err,error,*999)
+      CALL SOLVER_SOLVER_EQUATIONS_GET(SOLVER,SOLVER_EQUATIONS,err,error,*999)
+      CALL REGION_USER_NUMBER_FIND(regionUserNumber,REGION,err,error,*999)
+      IF(ASSOCIATED(REGION)) THEN
+        CALL CONSTRAINT_CONDITION_USER_NUMBER_FIND(constraintConditionUserNumber,REGION,CONSTRAINT_CONDITION,err,error,*999)
+        IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
+          CALL SOLVER_EQUATIONS_CONSTRAINT_CONDITION_ADD(SOLVER_EQUATIONS,CONSTRAINT_CONDITION,constraintConditionIndex, &
+            & err,error,*999)
+        ELSE
+          localError="A constraint condition with an user number of &
+            & "//TRIM(NUMBER_TO_VSTRING(constraintConditionUserNumber,"*",err,error))// &
+            & " does not exist on region number "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))//"."
+          CALL FlagError(localError,err,error,*999)
+        END IF
+      ELSE
+        localError="A region with an user number of "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))// &
+          & " does not exist."
+        CALL FlagError(localError,err,error,*999)
+      END IF
+    ELSE
+      localError="A problem with an user number of "//TRIM(NUMBER_TO_VSTRING(problemUserNumber,"*",err,error))// &
+        & " does not exist."
+      CALL FlagError(localError,err,error,*999)
+    END IF
+
+    EXITS("CMISSSolverEquations_ConstraintConditionAddNumber1")
+    RETURN
+999 ERRORSEXITS("CMISSSolverEquations_ConstraintConditionAddNumber1",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSSolverEquations_ConstraintConditionAddNumber1
+
+  !================================================================================================================================
+  !
+
+  !>Adds constraint conditions to solver equations identified by an object.
+  SUBROUTINE CMISSSolverEquations_ConstraintConditionAddObj(solverEquations,constraintCondition,constraintConditionIndex,err)
+
+    !Argument variables
+    TYPE(CMISSSolverEquationsType), INTENT(IN) :: solverEquations !<The solver equations to add the constraint condition for.
+    TYPE(CMISSConstraintConditionType), INTENT(IN) :: constraintCondition !<The constraint condition to add.
+    INTEGER(INTG), INTENT(OUT) :: constraintConditionIndex !<On return, the index of the added constraint condition in the solver equations.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    ENTERS("CMISSSolverEquations_ConstraintConditionAddObj",err,error,*999)
+
+    CALL SOLVER_EQUATIONS_CONSTRAINT_CONDITION_ADD(solverEquations%SOLVER_EQUATIONS,constraintCondition%CONSTRAINT_CONDITION, &
+      & constraintConditionIndex,err,error,*999)
+
+    EXITS("CMISSSolverEquations_ConstraintConditionAddObj")
+    RETURN
+999 ERRORSEXITS("CMISSSolverEquations_ConstraintConditionAddObj",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSSolverEquations_ConstraintConditionAddObj
+
+  !
+  !================================================================================================================================
+  !
+
   !>Adds equations sets to solver equations identified by an user number.
   SUBROUTINE CMISSSolverEquations_EquationsSetAddNumber0(problemUserNumber,controlLoopIdentifier,solverIndex, &
     & regionUserNumber,equationsSetUserNumber,equationsSetIndex,err)
@@ -57134,7 +60319,7 @@ CONTAINS
     TYPE(REGION_TYPE), POINTER :: REGION
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
     TYPE(SOLVER_EQUATIONS_TYPE), POINTER :: SOLVER_EQUATIONS
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolverEquations_EquationsSetAddNumber0",err,error,*999)
 
@@ -57153,19 +60338,19 @@ CONTAINS
         IF(ASSOCIATED(EQUATIONS_SET)) THEN
           CALL SOLVER_EQUATIONS_EQUATIONS_SET_ADD(SOLVER_EQUATIONS,EQUATIONS_SET,equationsSetIndex,err,error,*999)
         ELSE
-          LOCAL_ERROR="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
+          localError="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
             & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-          CALL FlagError(LOCAL_ERROR,err,error,*999)
+          CALL FlagError(localError,err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+        localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
           & " does not exist."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolverEquations_EquationsSetAddNumber0")
@@ -57198,7 +60383,7 @@ CONTAINS
     TYPE(REGION_TYPE), POINTER :: REGION
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
     TYPE(SOLVER_EQUATIONS_TYPE), POINTER :: SOLVER_EQUATIONS
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolverEquations_EquationsSetAddNumber1",err,error,*999)
 
@@ -57217,19 +60402,19 @@ CONTAINS
         IF(ASSOCIATED(EQUATIONS_SET)) THEN
           CALL SOLVER_EQUATIONS_EQUATIONS_SET_ADD(SOLVER_EQUATIONS,EQUATIONS_SET,equationsSetIndex,err,error,*999)
         ELSE
-          LOCAL_ERROR="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
+          localError="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
             & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-          CALL FlagError(LOCAL_ERROR,err,error,*999)
+          CALL FlagError(localError,err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
+        localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
           & " does not exist."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolverEquations_EquationsSetAddNumber1")
@@ -57290,7 +60475,7 @@ CONTAINS
     TYPE(REGION_TYPE), POINTER :: INTERFACE_REGION
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
     TYPE(SOLVER_EQUATIONS_TYPE), POINTER :: SOLVER_EQUATIONS
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolverEquations_InterfaceConditionAddNumber0",err,error,*999)
 
@@ -57313,28 +60498,28 @@ CONTAINS
             CALL SOLVER_EQUATIONS_INTERFACE_CONDITION_ADD(SOLVER_EQUATIONS,INTERFACE_CONDITION,interfaceConditionIndex, &
               & err,error,*999)
           ELSE
-            LOCAL_ERROR="An interface condition with an user number of "// &
+            localError="An interface condition with an user number of "// &
               & TRIM(NumberToVString(interfaceConditionUserNumber,"*",err,error))// &
               & " does not exist on interface number "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
               & " of parent region number "//TRIM(NumberToVString(interfaceRegionUserNumber,"*",err,error))//"."
-            CALL FlagError(LOCAL_ERROR,err,error,*999)
+            CALL FlagError(localError,err,error,*999)
           END IF
         ELSE
-          LOCAL_ERROR="An interface with an user number of "// &
+          localError="An interface with an user number of "// &
             & TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
             & " does not exist on parent region number "// &
             & TRIM(NumberToVString(interfaceRegionUserNumber,"*",err,error))//"."
-          CALL FlagError(LOCAL_ERROR,err,error,*999)
+          CALL FlagError(localError,err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(interfaceRegionUserNumber,"*",err,error))// &
+        localError="A region with an user number of "//TRIM(NumberToVString(interfaceRegionUserNumber,"*",err,error))// &
           & " does not exist."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolverEquationsInterfaceConditionNumber0")
@@ -57370,7 +60555,7 @@ CONTAINS
     TYPE(REGION_TYPE), POINTER :: INTERFACE_REGION
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
     TYPE(SOLVER_EQUATIONS_TYPE), POINTER :: SOLVER_EQUATIONS
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolverEquations_InterfaceConditionAddNumber1",err,error,*999)
 
@@ -57393,28 +60578,28 @@ CONTAINS
             CALL SOLVER_EQUATIONS_INTERFACE_CONDITION_ADD(SOLVER_EQUATIONS,INTERFACE_CONDITION,interfaceConditionIndex, &
               & err,error,*999)
           ELSE
-            LOCAL_ERROR="An interface condition with an user number of "// &
+            localError="An interface condition with an user number of "// &
               & TRIM(NumberToVString(interfaceConditionUserNumber,"*",err,error))// &
               & " does not exist on interface number "//TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
               & " of parent region number "//TRIM(NumberToVString(interfaceRegionUserNumber,"*",err,error))//"."
-            CALL FlagError(LOCAL_ERROR,err,error,*999)
+            CALL FlagError(localError,err,error,*999)
           END IF
         ELSE
-          LOCAL_ERROR="An interface with an user number of "// &
+          localError="An interface with an user number of "// &
             & TRIM(NumberToVString(interfaceUserNumber,"*",err,error))// &
             & " does not exist on parent region number "// &
             & TRIM(NumberToVString(interfaceRegionUserNumber,"*",err,error))//"."
-          CALL FlagError(LOCAL_ERROR,err,error,*999)
+          CALL FlagError(localError,err,error,*999)
         END IF
       ELSE
-        LOCAL_ERROR="A region with an user number of "//TRIM(NumberToVString(interfaceRegionUserNumber,"*",err,error))// &
+        localError="A region with an user number of "//TRIM(NumberToVString(interfaceRegionUserNumber,"*",err,error))// &
           & " does not exist."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolverEquations_InterfaceConditionAddNumber1")
@@ -57468,7 +60653,7 @@ CONTAINS
     LOGICAL, INTENT(IN) :: hasTranspose
     INTEGER(INTG), INTENT(OUT) :: Err !<The error code
     !Local Variables
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
     
     ENTERS("CMISSInterfaceMatrices_TimeDependenceTypeSet",err,error,*999)
     
@@ -57484,17 +60669,17 @@ CONTAINS
           !ok)
         ELSEIF(hasTranspose.AND. &
           & .NOT.(timeDependenceTypes(2)>0.AND.timeDependenceTypes(2)<=CMISS_NUMBER_OF_INTERFACE_MATRIX_TYPES)) THEN
-          LOCAL_ERROR="Interface matrix number "//TRIM(NumberToVString(interfaceMatrixIndex,"*",err,error))// &
+          localError="Interface matrix number "//TRIM(NumberToVString(interfaceMatrixIndex,"*",err,error))// &
             & " has transpose but invalid time dependence type of "//TRIM(NumberToVString(timeDependenceTypes(1), &
             & "*",err,error))//" ."
-          CALL FlagError(LOCAL_ERROR,err,error,*999)
+          CALL FlagError(localError,err,error,*999)
         ENDIF
       ENDIF
     ELSE
-      LOCAL_ERROR="Interface matrix time dependence type of "//TRIM(NumberToVString(timeDependenceTypes(1),"*",err,error))// &
+      localError="Interface matrix time dependence type of "//TRIM(NumberToVString(timeDependenceTypes(1),"*",err,error))// &
         & " is invalid for interface matrix number "//TRIM(NumberToVString(interfaceMatrixIndex,"*",err,error))// &
         & " ."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     ENDIF
     
     EXITS("CMISSInterfaceMatrices_TimeDependenceTypeSet")
@@ -57558,7 +60743,7 @@ CONTAINS
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
     TYPE(SOLVER_EQUATIONS_TYPE), POINTER :: SOLVER_EQUATIONS
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolverEquations_SparsityTypeSetNumber0",err,error,*999)
 
@@ -57571,9 +60756,9 @@ CONTAINS
       CALL SOLVER_SOLVER_EQUATIONS_GET(SOLVER,SOLVER_EQUATIONS,err,error,*999)
       CALL SOLVER_EQUATIONS_SPARSITY_TYPE_SET(SOLVER_EQUATIONS,sparsityType,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolverEquations_SparsityTypeSetNumber0")
@@ -57601,7 +60786,7 @@ CONTAINS
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_TYPE), POINTER :: SOLVER
     TYPE(SOLVER_EQUATIONS_TYPE), POINTER :: SOLVER_EQUATIONS
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolverEquations_SparsityTypeSetNumber1",err,error,*999)
 
@@ -57614,9 +60799,9 @@ CONTAINS
       CALL SOLVER_SOLVER_EQUATIONS_GET(SOLVER,SOLVER_EQUATIONS,err,error,*999)
       CALL SOLVER_EQUATIONS_SPARSITY_TYPE_SET(SOLVER_EQUATIONS,sparsityType,err,error,*999)
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))// &
         & " does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolverEquations_SparsityTypeSetNumber1")
@@ -57667,7 +60852,7 @@ CONTAINS
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_EQUATIONS_TYPE), POINTER :: SOLVER_EQUATIONS
     TYPE(BOUNDARY_CONDITIONS_TYPE), POINTER :: BOUNDARY_CONDITIONS
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolverEquations_BoundaryConditionsCreateFinishNumber0",err,error,*999)
 
@@ -57680,12 +60865,12 @@ CONTAINS
       IF(ASSOCIATED(SOLVER_EQUATIONS)) THEN
         CALL SolverEquations_BoundaryConditionsCreateFinish(SOLVER_EQUATIONS,err,error,*999)
       ELSE
-        LOCAL_ERROR="Solver equations with the given solver index and control loop identifier do not exist."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        localError="Solver equations with the given solver index and control loop identifier do not exist."
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolverEquations_BoundaryConditionsCreateFinishNumber0")
@@ -57713,7 +60898,7 @@ CONTAINS
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_EQUATIONS_TYPE), POINTER :: SOLVER_EQUATIONS
     TYPE(BOUNDARY_CONDITIONS_TYPE), POINTER :: BOUNDARY_CONDITIONS
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolverEquations_BoundaryConditionsCreateFinishNumber1",err,error,*999)
 
@@ -57726,12 +60911,12 @@ CONTAINS
       IF(ASSOCIATED(SOLVER_EQUATIONS)) THEN
         CALL SolverEquations_BoundaryConditionsCreateFinish(SOLVER_EQUATIONS,err,error,*999)
       ELSE
-        LOCAL_ERROR="Solver equations with the given solver index and control loop identifier do not exist."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        localError="Solver equations with the given solver index and control loop identifier do not exist."
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolverEquations_BoundaryConditionsCreateFinishNumber1")
@@ -57784,7 +60969,7 @@ CONTAINS
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_EQUATIONS_TYPE), POINTER :: SOLVER_EQUATIONS
     TYPE(BOUNDARY_CONDITIONS_TYPE), POINTER :: BOUNDARY_CONDITIONS
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolverEquations_BoundaryConditionsCreateStartNumber0",err,error,*999)
 
@@ -57797,12 +60982,12 @@ CONTAINS
       IF(ASSOCIATED(SOLVER_EQUATIONS)) THEN
         CALL SolverEquations_BoundaryConditionsCreateStart(SOLVER_EQUATIONS,BOUNDARY_CONDITIONS,err,error,*999)
       ELSE
-        LOCAL_ERROR="Solver equations with the given solver index and control loop identifier do not exist."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        localError="Solver equations with the given solver index and control loop identifier do not exist."
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolverEquations_BoundaryConditionsCreateStartNumber0")
@@ -57830,7 +61015,7 @@ CONTAINS
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_EQUATIONS_TYPE), POINTER :: SOLVER_EQUATIONS
     TYPE(BOUNDARY_CONDITIONS_TYPE), POINTER :: BOUNDARY_CONDITIONS
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolverEquations_BoundaryConditionsCreateStartNumber1",err,error,*999)
 
@@ -57843,12 +61028,12 @@ CONTAINS
       IF(ASSOCIATED(SOLVER_EQUATIONS)) THEN
         CALL SolverEquations_BoundaryConditionsCreateStart(SOLVER_EQUATIONS,BOUNDARY_CONDITIONS,err,error,*999)
       ELSE
-        LOCAL_ERROR="Solver equations with the given solver index and control loop identifier do not exist."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        localError="Solver equations with the given solver index and control loop identifier do not exist."
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolverEquations_BoundaryConditionsCreateStartNumber1")
@@ -57904,7 +61089,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_EQUATIONS_TYPE), POINTER :: SOLVER_EQUATIONS
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolverEquations_BoundaryConditionsGetNumber0",err,error,*999)
 
@@ -57916,12 +61101,12 @@ CONTAINS
       IF(ASSOCIATED(SOLVER_EQUATIONS)) THEN
         CALL SOLVER_EQUATIONS_BOUNDARY_CONDITIONS_GET(SOLVER_EQUATIONS,boundaryConditions%BOUNDARY_CONDITIONS,err,error,*999)
       ELSE
-        LOCAL_ERROR="Solver equations with the given solver index and control loop identifier do not exist."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        localError="Solver equations with the given solver index and control loop identifier do not exist."
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolverEquations_BoundaryConditionsGetNumber0")
@@ -57950,7 +61135,7 @@ CONTAINS
     !Local variables
     TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
     TYPE(SOLVER_EQUATIONS_TYPE), POINTER :: SOLVER_EQUATIONS
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(VARYING_STRING) :: localError
 
     ENTERS("CMISSSolverEquations_BoundaryConditionsGetNumber1",err,error,*999)
 
@@ -57962,12 +61147,12 @@ CONTAINS
       IF(ASSOCIATED(SOLVER_EQUATIONS)) THEN
         CALL SOLVER_EQUATIONS_BOUNDARY_CONDITIONS_GET(SOLVER_EQUATIONS,boundaryConditions%BOUNDARY_CONDITIONS,err,error,*999)
       ELSE
-        LOCAL_ERROR="Solver equations with the given solver index and control loop identifier do not exist."
-        CALL FlagError(LOCAL_ERROR,err,error,*999)
+        localError="Solver equations with the given solver index and control loop identifier do not exist."
+        CALL FlagError(localError,err,error,*999)
       END IF
     ELSE
-      LOCAL_ERROR="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
-      CALL FlagError(LOCAL_ERROR,err,error,*999)
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
     END IF
 
     EXITS("CMISSSolverEquations_BoundaryConditionsGetNumber1")
