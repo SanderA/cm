@@ -2539,7 +2539,7 @@ CONTAINS
     TYPE(DOMAIN_TYPE), POINTER :: componentDomain !The domain mapping to calculate nodal mappings
     TYPE(DOMAIN_ELEMENTS_TYPE), POINTER :: DOMAIN_ELEMENTS ! domain nodes
     TYPE(DOMAIN_ELEMENT_TYPE), POINTER :: MAX_NODE_ELEMENT
-    TYPE(DOMAIN_NODES_TYPE), POINTER :: DOMAIN_NODES ! domain nodes
+    TYPE(DOMAIN_NODES_TYPE), POINTER :: DOMAIN_NODES,MAX_NODE_NODES ! domain nodes
     TYPE(BASIS_TYPE), POINTER :: BASIS
     TYPE(BASIS_PTR_TYPE), ALLOCATABLE :: listScaleBases(:)
     TYPE(FIELD_VARIABLE_COMPONENT_TYPE), POINTER :: component
@@ -2555,7 +2555,6 @@ CONTAINS
 
     ENTERS("FieldIO_ExportElementalGroupHeaderFortran",ERR,ERROR,*999)
 
-    !SANDER
     ALLOCATE(INTERPOLATION_XI(3), STAT = ERR)
 
     !colllect nodal header information for IO first
@@ -2594,7 +2593,8 @@ CONTAINS
       BASIS=>DOMAIN_ELEMENTS%ELEMENTS(local_number)%BASIS
       IF(BASIS%NUMBER_OF_NODES>MAX_NUM_NODES) THEN
         MAX_NODE_COMP_INDEX=comp_idx
-        MAX_NODE_ELEMENT => DOMAIN_ELEMENTS%ELEMENTS(local_number)
+        MAX_NODE_ELEMENT=>DOMAIN_ELEMENTS%ELEMENTS(local_number)
+        MAX_NODE_NODES=>DOMAIN_NODES
         MAX_NUM_NODES=BASIS%NUMBER_OF_NODES
       ENDIF
       !IF(.NOT.BASIS%DEGENERATE)  THEN
@@ -2751,6 +2751,7 @@ CONTAINS
 
       componentDomain=>component%DOMAIN
       DOMAIN_ELEMENTS=>componentDomain%TOPOLOGY%ELEMENTS
+      DOMAIN_NODES=>componentDomain%TOPOLOGY%NODES
       BASIS=>DOMAIN_ELEMENTS%ELEMENTS(GROUP_LOCAL_NUMBER(comp_idx))%BASIS
 
       SELECT CASE( BASIS%TYPE )
@@ -3357,21 +3358,20 @@ CONTAINS
 
           !Find the local-node index in the element's total node list.
           !TODO This assumes nested subsets of nodes, and will therefore break on, e.g., mixed quad and cubic interpolation
-          DO nn = 1, BASIS%NUMBER_OF_NODES
-            DO mm = 1, MAX_NODE_ELEMENT%BASIS%NUMBER_OF_NODES
-              IF( DOMAIN_ELEMENTS%ELEMENTS( local_number )%ELEMENT_NODES( nn ) == &
-                  & MAX_NODE_ELEMENT%ELEMENT_NODES( mm ) ) THEN
-                NODE_INDEXES( nn ) = mm
+          DO nn=1,BASIS%NUMBER_OF_NODES
+            DO mm=1,MAX_NUM_NODES
+              IF(DOMAIN_NODES%NODES(DOMAIN_ELEMENTS%ELEMENTS(local_number)%ELEMENT_NODES(nn))%GLOBAL_NUMBER== &
+                & MAX_NODE_NODES%NODES(MAX_NODE_ELEMENT%ELEMENT_NODES(mm))%GLOBAL_NUMBER) THEN
+                NODE_INDEXES(nn)=mm
                 EXIT
               ENDIF
             ENDDO !mm
           ENDDO !nn
-          NUMBER_OF_ELEMENT_NODES= BASIS%NUMBER_OF_NODES
+          NUMBER_OF_ELEMENT_NODES=BASIS%NUMBER_OF_NODES
         ENDIF
 
-
         IF( variable_ptr%FIELD%SCALINGS%SCALING_TYPE == FIELD_NO_SCALING ) THEN
-          SCALE_INDEXES(:) = -1
+          SCALE_INDEXES = -1
         ENDIF
         ERR = FieldExport_NodeScaleIndexes( sessionHandle, NUMBER_OF_ELEMENT_NODES, C_LOC( NUMBER_OF_DERIVATIVES ), &
             & C_LOC( ELEMENT_DERIVATIVES ), C_LOC( NODE_INDEXES ), C_LOC( SCALE_INDEXES ) )

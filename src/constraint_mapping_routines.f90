@@ -261,7 +261,7 @@ CONTAINS
                           IF(ERR/=0) CALL FLAG_ERROR("Could not allocate row to variable dofs map.",ERR,ERROR,*999)
                           !1-1 mapping for now
                           DO dof_idx=1,FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS
-                            row_idx=FIELD_VARIABLE%DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(dof_idx)
+                            row_idx=dof_idx
                             DYNAMIC_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(matrix_idx)% &
                               & ROW_TO_VARIABLE_DOF_MAP(row_idx)=dof_idx
                           ENDDO !dof_idx
@@ -311,7 +311,7 @@ CONTAINS
                             IF(ERR/=0) CALL FLAG_ERROR("Could not allocate variable dof to row map.",ERR,ERROR,*999)
                             !1-1 mapping for now
                             DO dof_idx=1,FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS
-                              row_idx=FIELD_VARIABLE%DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(dof_idx)
+                              row_idx=dof_idx
                               DYNAMIC_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(matrix_idx)% &
                                 & ROW_TO_VARIABLE_DOF_MAP(row_idx)=dof_idx
                             ENDDO !dof_idx
@@ -422,7 +422,7 @@ CONTAINS
                         IF(ERR/=0) CALL FLAG_ERROR("Could not allocate variable dof to row map.",ERR,ERROR,*999)
                         !1-1 mapping for now
                         DO dof_idx=1,FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS
-                          row_idx=FIELD_VARIABLE%DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(dof_idx)
+                          row_idx=dof_idx
                           LINEAR_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(matrix_idx)%ROW_TO_VARIABLE_DOF_MAP(row_idx)=dof_idx
                         ENDDO !dof_idx
                       ELSE
@@ -467,7 +467,7 @@ CONTAINS
                           IF(ERR/=0) CALL FLAG_ERROR("Could not allocate variable dof to row map.",ERR,ERROR,*999)
                           !1-1 mapping for now
                           DO dof_idx=1,FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS
-                            row_idx=FIELD_VARIABLE%DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(dof_idx)
+                            row_idx=dof_idx
                             LINEAR_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(matrix_idx)% &
                               & ROW_TO_VARIABLE_DOF_MAP(row_idx)=row_idx
                           ENDDO !dof_idx
@@ -567,8 +567,9 @@ CONTAINS
                         IF(ERR/=0) CALL FLAG_ERROR("Could not allocate variable dof to row map.",ERR,ERROR,*999)
                         !1-1 mapping for now
                         DO dof_idx=1,FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS
-                          row_idx=FIELD_VARIABLE%DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(dof_idx)
-                          NONLINEAR_MAPPING%CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAP(matrix_idx)%ROW_TO_VARIABLE_DOF_MAP(row_idx)=dof_idx
+                          row_idx=dof_idx
+                          NONLINEAR_MAPPING%CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAP(matrix_idx)%ROW_TO_VARIABLE_DOF_MAP(row_idx)= &
+                            & dof_idx
                         ENDDO !dof_idx
                       ELSE
                         CALL FLAG_ERROR("Dependent variable could not be found.",ERR,ERROR,*999)
@@ -617,7 +618,7 @@ CONTAINS
                           IF(ERR/=0) CALL FLAG_ERROR("Could not allocate variable dof to row map.",ERR,ERROR,*999)
                           !1-1 mapping for now
                           DO dof_idx=1,FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS
-                            row_idx=FIELD_VARIABLE%DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(dof_idx)
+                            row_idx=dof_idx
                             NONLINEAR_MAPPING%CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAP(matrix_idx)% &
                               & ROW_TO_VARIABLE_DOF_MAP(row_idx)=dof_idx
                           ENDDO !dof_idx
@@ -650,7 +651,7 @@ CONTAINS
                    IF(ERR/=0) CALL FLAG_ERROR("Could not allocate constraint row to dof map.",ERR,ERROR,*999)
                    DO dof_idx=1,LAGRANGE_VARIABLE%TOTAL_NUMBER_OF_DOFS
                      !1-1 mapping for now  
-                     row_idx=LAGRANGE_VARIABLE%DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(dof_idx)
+                     row_idx=dof_idx
                      RHS_MAPPING%RHS_DOF_TO_CONSTRAINT_ROW_MAP(dof_idx)=row_idx
                      RHS_MAPPING%CONSTRAINT_ROW_TO_RHS_DOF_MAP(row_idx)=dof_idx
                    ENDDO !dof_idx

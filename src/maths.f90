@@ -1789,11 +1789,8 @@ CONTAINS
     REAL(SP), INTENT(IN) :: A(:) !<The vector to calculate the L2 norm of
     !Function variable
     REAL(SP) :: L2NORM_SP
-    !Local variables
-    REAL(SP) :: ASUM
     
-    ASUM=SUM(A*A,1)
-    L2NORM_SP=SQRT(ASUM)
+    L2NORM_SP=NORM2(A)
 
     RETURN
     
@@ -1810,11 +1807,8 @@ CONTAINS
     REAL(DP), INTENT(IN) :: A(:) !<The vector to calculate the L2 norm of
     !Function variable
     REAL(DP) :: L2NORM_DP
-    !Local variables
-    REAL(DP) :: ASUM
 
-    ASUM=SUM(A*A,1)
-    L2NORM_DP=SQRT(ASUM)
+    L2NORM_DP=NORM2(A)
 
     RETURN
     

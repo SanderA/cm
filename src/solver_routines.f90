@@ -136,6 +136,7 @@ MODULE SOLVER_ROUTINES
   !> \brief The types of iterative linear solvers
   !> \see SOLVER_ROUTINES
   !>@{
+  INTEGER(INTG), PARAMETER :: SOLVER_ITERATIVE_PRE_ONLY=0 !<Precondition only solver type \see SOLVER_ROUTINES_IterativeLinearSolverTypes,SOLVER_ROUTINES
   INTEGER(INTG), PARAMETER :: SOLVER_ITERATIVE_RICHARDSON=1 !<Richardson iterative solver type \see SOLVER_ROUTINES_IterativeLinearSolverTypes,SOLVER_ROUTINES
   INTEGER(INTG), PARAMETER :: SOLVER_ITERATIVE_CHEBYSHEV=2 !<Chebyshev iterative solver type \see SOLVER_ROUTINES_IterativeLinearSolverTypes,SOLVER_ROUTINES
   INTEGER(INTG), PARAMETER :: SOLVER_ITERATIVE_CONJUGATE_GRADIENT=3 !<Conjugate gradient iterative solver type \see SOLVER_ROUTINES_IterativeLinearSolverTypes,SOLVER_ROUTINES
@@ -158,6 +159,16 @@ MODULE SOLVER_ROUTINES
   INTEGER(INTG), PARAMETER :: SOLVER_ITERATIVE_INCOMPLETE_LU_PRECONDITIONER=5 !<Incomplete LU preconditioner type \see SOLVER_ROUTINES_IterativePreconditionerTypes,SOLVER_ROUTINES
   INTEGER(INTG), PARAMETER :: SOLVER_ITERATIVE_ADDITIVE_SCHWARZ_PRECONDITIONER=6 !<Additive Schwarz preconditioner type \see SOLVER_ROUTINES_IterativePreconditionerTypes,SOLVER_ROUTINES
   INTEGER(INTG), PARAMETER :: SOLVER_ITERATIVE_BLOCK_PRECONDITIONER=7 !<Block preconditioner type \see SOLVER_ROUTINES_IterativePreconditionerTypes,SOLVER_ROUTINES
+  INTEGER(INTG), PARAMETER :: SOLVER_ITERATIVE_AMG_PRECONDITIONER=8 !<Algebraic multigrid preconditioner type \see SOLVER_ROUTINES_IterativePreconditionerTypes,SOLVER_ROUTINES
+  !>@}
+
+  !> \addtogroup SOLVER_ROUTINES_AMGPreconditionerTypes SOLVER_ROUTINES::AMGPreconditionerTypes
+  !> \brief The types of algebraic multigrid preconditioners
+  !> \see SOLVER_ROUTINES
+  !>@{
+!  INTEGER(INTG), PARAMETER :: AMG_PRECONDITIONER_CLASSICAL=1 !<Classical algebraic multigrid type. \see SOLVER_ROUTINES_AMGPreconditionerTypes,SOLVER_ROUTINES
+  INTEGER(INTG), PARAMETER :: AMG_PRECONDITIONER_SMOOTHED_AGGREGATION=2 !<Smoothed aggregation algebraic multigrid type. Recommended for symmetric positive definite (vector) problems. \see SOLVER_ROUTINES_AMGPreconditionerTypes,SOLVER_ROUTINES
+  INTEGER(INTG), PARAMETER :: AMG_PRECONDITIONER_UNSMOOTHED_AGGREGATION=3 !<Unsmoothed aggregation algebraic multigrid type. Useful for asymmetric (vector) problems. \see SOLVER_ROUTINES_AMGPreconditionerTypes,SOLVER_ROUTINES
   !>@}
 
   !> \addtogroup SOLVER_ROUTINES_BlockPreconditionerTypes SOLVER_ROUTINES::BlockPreconditionerTypes
@@ -454,14 +465,17 @@ MODULE SOLVER_ROUTINES
  
   PUBLIC SOLVER_DIRECT_LU,SOLVER_DIRECT_CHOLESKY,SOLVER_DIRECT_SVD
 
-  PUBLIC SOLVER_ITERATIVE_RICHARDSON,SOLVER_ITERATIVE_CONJUGATE_GRADIENT,SOLVER_ITERATIVE_CHEBYSHEV, &
+  PUBLIC SOLVER_ITERATIVE_PRE_ONLY,SOLVER_ITERATIVE_RICHARDSON,SOLVER_ITERATIVE_CONJUGATE_GRADIENT,SOLVER_ITERATIVE_CHEBYSHEV, &
     & SOLVER_ITERATIVE_BICONJUGATE_GRADIENT,SOLVER_ITERATIVE_GMRES,SOLVER_ITERATIVE_FGMRES, &
     & SOLVER_ITERATIVE_BiCGSTAB,SOLVER_ITERATIVE_CONJGRAD_SQUARED
   
   PUBLIC SOLVER_ITERATIVE_NO_PRECONDITIONER,SOLVER_ITERATIVE_JACOBI_PRECONDITIONER,SOLVER_ITERATIVE_BLOCK_JACOBI_PRECONDITIONER, &
     & SOLVER_ITERATIVE_SOR_PRECONDITIONER,SOLVER_ITERATIVE_INCOMPLETE_CHOLESKY_PRECONDITIONER, &
     & SOLVER_ITERATIVE_INCOMPLETE_LU_PRECONDITIONER,SOLVER_ITERATIVE_ADDITIVE_SCHWARZ_PRECONDITIONER, &
-    & SOLVER_ITERATIVE_BLOCK_PRECONDITIONER
+    & SOLVER_ITERATIVE_BLOCK_PRECONDITIONER,SOLVER_ITERATIVE_AMG_PRECONDITIONER
+
+  PUBLIC AMG_PRECONDITIONER_SMOOTHED_AGGREGATION,AMG_PRECONDITIONER_UNSMOOTHED_AGGREGATION
+  !PUBLIC AMG_PRECONDITIONER_CLASSICAL
 
   PUBLIC BLOCK_PRECONDITIONER_ADDITIVE,BLOCK_PRECONDITIONER_MULTIPLICATIVE,BLOCK_PRECONDITIONER_SYMMETRIC_MULTIPLICATIVE, &
     & BLOCK_PRECONDITIONER_SCHUR
@@ -631,7 +645,13 @@ MODULE SOLVER_ROUTINES
 
   PUBLIC PreconditionerTypeSet
 
-  PUBLIC PreconditionerBlockPreconditionerGet 
+  PUBLIC PreconditionerAMGPreconditionerGet,PreconditionerBlockPreconditionerGet
+
+  PUBLIC AMGPreconditionerDestroy
+
+  PUBLIC AMGPreconditionerEquationsSetAdd
+
+  PUBLIC AMGPreconditionerTypeSet
 
   PUBLIC BlockPreconditionerNumberOfSplitsSet 
 
@@ -10738,279 +10758,6 @@ CONTAINS
   !================================================================================================================================
   !
 
-  !>Sets up the block preconditioner.
-  SUBROUTINE BlockPreconditionerCreateFinish(blockPreconditioner,err,error,*)
-
-    !Argument variables
-    TYPE(BlockPreconditionerType), POINTER :: blockPreconditioner !<A pointer to the block preconditioner.
-    INTEGER(INTG), INTENT(OUT) :: err !<The error code
-    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
-    !Local Variables
-    TYPE(VARYING_STRING) :: localError 
-    INTEGER(INTG) :: solverMatrixIdx,variableIdx,splitIdx,equationsType,equationsIdx,variableDofIdx,localColumnIdx
-    INTEGER(INTG), POINTER :: columnNumbers(:)
-    TYPE(BlockPreconditionerSplitType), POINTER :: blockPreconditionerSplit
-    TYPE(PreconditionerType), POINTER :: preconditioner
-    TYPE(LINEAR_ITERATIVE_SOLVER_TYPE), POINTER :: linearIterativeSolver
-    TYPE(LINEAR_SOLVER_TYPE), POINTER :: linearSolver
-    TYPE(PetscISType), POINTER :: subIS(:)
-    TYPE(PetscDMType), POINTER :: subDM(:)
-    TYPE(SOLVER_TYPE), POINTER :: solver
-    TYPE(LINEAR_DIRECT_SOLVER_TYPE), POINTER :: directSolver
-    TYPE(LINEAR_ITERATIVE_SOLVER_TYPE), POINTER :: iterativeSolver
-    TYPE(SOLVER_EQUATIONS_TYPE), POINTER :: solverEquations
-    TYPE(SOLVER_MAPPING_TYPE), POINTER :: solverMapping
-
-    ENTERS("BlockPreconditionerCreateFinish",err,error,*999)
-
-    IF(ASSOCIATED(blockPreconditioner)) THEN
-      preconditioner=>blockPreconditioner%preconditioner
-      IF(ASSOCIATED(preconditioner)) THEN
-        linearIterativeSolver=>preconditioner%linearIterativeSolver
-        IF(ASSOCIATED(linearIterativeSolver)) THEN
-          linearSolver=>linearIterativeSolver%LINEAR_SOLVER
-          IF(ASSOCIATED(linearSolver)) THEN
-            solver=>linearSolver%SOLVER
-            IF(ASSOCIATED(solver)) THEN
-              solverEquations=>solver%SOLVER_EQUATIONS
-              IF(ASSOCIATED(solverEquations)) THEN
-                solverMapping=>solverEquations%SOLVER_MAPPING
-                IF(ASSOCIATED(solverMapping)) THEN
-                  !First create the PETSc section and DM, to define the splitting of the variables for the PETSc solver
-                  solverMatrixIdx=1
-                  CALL Petsc_PetscSectionCreate(COMPUTATIONAL_ENVIRONMENT%MPI_COMM,blockPreconditioner%section,err,error,*999)
-                  CALL Petsc_PetscSectionSetNumFields(blockPreconditioner%section,solverMapping%VARIABLES_LIST(solverMatrixIdx)% &
-                    & NUMBER_OF_VARIABLES,err,error,*999)
-                  !For now associate each solver matrix dof to a petsc point with 1 dof
-                  CALL Petsc_PetscSectionSetChart(blockPreconditioner%section, &
-                    & solverMapping%ROW_DOFS_MAPPING%LOCAL_TO_GLOBAL_MAP(1), &
-                    & solverMapping%ROW_DOFS_MAPPING%LOCAL_TO_GLOBAL_MAP(solverMapping%ROW_DOFS_MAPPING%TOTAL_NUMBER_OF_LOCAL)+1, &
-                    & err,error,*999)
-                  DO variableIdx=1,solverMapping%VARIABLES_LIST(solverMatrixIdx)%NUMBER_OF_VARIABLES
-                    CALL Petsc_PetscSectionSetFieldName(blockPreconditioner%section,variableIdx-1, &
-                      & solverMapping%VARIABLES_LIST(solverMatrixIdx)%VARIABLES(variableIdx)%VARIABLE%VARIABLE_LABEL, &
-                      & err,error,*999)
-                    equationsType=solverMapping%VARIABLES_LIST(solverMatrixIdx)%VARIABLES(variableIdx)%EQUATION_TYPES(1)
-                    equationsIdx=solverMapping%VARIABLES_LIST(solverMatrixIdx)%VARIABLES(variableIdx)%EQUATION_INDICES(1)
-                    SELECT CASE(equationsType)
-                    CASE(SOLVER_MAPPING_EQUATIONS_EQUATIONS_SET)
-                      columnNumbers=>solverMapping%EQUATIONS_SET_TO_SOLVER_MAP(equationsIdx)% &
-                        & EQUATIONS_TO_SOLVER_MATRIX_MAPS_SM(solverMatrixIdx)%VARIABLE_TO_SOLVER_COL_MAPS(variableIdx)% &
-                        & COLUMN_NUMBERS
-                    CASE(SOLVER_MAPPING_EQUATIONS_CONSTRAINT_CONDITION)
-                      columnNumbers=>solverMapping%CONSTRAINT_CONDITION_TO_SOLVER_MAP(equationsIdx)% &
-                        & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solverMatrixIdx)% &
-                        & LAGRANGE_VARIABLE_TO_SOLVER_COL_MAP%COLUMN_NUMBERS
-                    CASE(SOLVER_MAPPING_EQUATIONS_INTERFACE_CONDITION)
-                      columnNumbers=>solverMapping%INTERFACE_CONDITION_TO_SOLVER_MAP(equationsIdx)% &
-                        & INTERFACE_TO_SOLVER_MATRIX_MAPS_SM(solverMatrixIdx)% &
-                        & LAGRANGE_VARIABLE_TO_SOLVER_COL_MAP%COLUMN_NUMBERS
-                    CASE DEFAULT
-                      localError="The solver mapping equations type of "// &
-                        & TRIM(NUMBER_TO_VSTRING(equationsType,"*",err,error))// &
-                        & " is invalid."
-                      CALL FlagError(localError,err,error,*999)
-                    END SELECT
-                    DO variableDofIdx=1,solverMapping%VARIABLES_LIST(solverMatrixIdx)%VARIABLES(variableIdx)% &
-                      & VARIABLE%TOTAL_NUMBER_OF_DOFS
-                      localColumnIdx=columnNumbers(variableDofIdx)
-                      !The dof is not constrained, so it is included.
-                      IF(localColumnIdx/=0) THEN
-                        CALL Petsc_PetscSectionSetDof(blockPreconditioner%section,localColumnIdx,1,err,error,*999)
-                        CALL Petsc_PetscSectionSetFieldDof(blockPreconditioner%section,localColumnIdx,variableIdx-1,1, &
-                          & err,error,*999)
-                      ENDIF
-                    ENDDO
-                  ENDDO
-                  CALL Petsc_PetscSectionSetUp(blockPreconditioner%section,err,error,*999)
-                  CALL Petsc_DMShellCreate(COMPUTATIONAL_ENVIRONMENT%MPI_COMM,blockPreconditioner%DM,err,error,*999)
-                  CALL Petsc_DMSetDefaultSection(blockPreconditioner%DM,blockPreconditioner%section,err,error,*999)
-                  CALL Petsc_DMSetUp(blockPreconditioner%DM,err,error,*999)
-                  CALL Petsc_PCSetDM(preconditioner%PC,blockPreconditioner%DM,err,error,*999)
-                  CALL Petsc_PCSetType(preconditioner%PC,PETSC_PCFIELDSPLIT,err,error,*999)
-                  SELECT CASE(blockPreconditioner%blockPreconditionerType)
-                  CASE(BLOCK_PRECONDITIONER_ADDITIVE)
-                    CALL Petsc_PCFieldSplitSetType(preconditioner%PC,PETSC_PC_COMPOSITE_ADDITIVE,err,error,*999)
-                  CASE(BLOCK_PRECONDITIONER_MULTIPLICATIVE)
-                    CALL Petsc_PCFieldSplitSetType(preconditioner%PC,PETSC_PC_COMPOSITE_MULTIPLICATIVE,err,error,*999)
-                  CASE(BLOCK_PRECONDITIONER_SYMMETRIC_MULTIPLICATIVE)
-                    CALL Petsc_PCFieldSplitSetType(preconditioner%PC,PETSC_PC_COMPOSITE_SYM_MULTIPLICATIVE,err,error,*999)
-                  CASE(BLOCK_PRECONDITIONER_SCHUR)
-                    CALL Petsc_PCFieldSplitSetType(preconditioner%PC,PETSC_PC_COMPOSITE_SCHUR,err,error,*999)
-                  CASE DEFAULT
-                    localError="The block preconditioner type of "// &
-                      & TRIM(NumberToVString(blockPreconditioner%blockPreconditionerType,"*",err,error))//" is invalid."
-                    CALL FlagError(localError,err,error,*999)
-                  END SELECT
-                  SELECT CASE(blockPreconditioner%blockPreconditionerType)
-                  CASE(BLOCK_PRECONDITIONER_ADDITIVE)
-                    !Do nothing
-                  CASE(BLOCK_PRECONDITIONER_MULTIPLICATIVE)
-                    !Do nothing
-                  CASE(BLOCK_PRECONDITIONER_SYMMETRIC_MULTIPLICATIVE)
-                    !Do nothing
-                  CASE(BLOCK_PRECONDITIONER_SCHUR)
-                    SELECT CASE(blockPreconditioner%schurFactorisationType)
-                    CASE(BLOCK_PRECONDITIONER_SCHUR_FACT_DIAG)
-                      CALL Petsc_PCFieldSplitSetSchurFactType(preconditioner%PC, &
-                        & PETSC_PC_FIELDSPLIT_SCHUR_FACT_DIAG,err,error,*999)
-                    CASE(BLOCK_PRECONDITIONER_SCHUR_FACT_LOWER)
-                      CALL Petsc_PCFieldSplitSetSchurFactType(preconditioner%PC, &
-                        & PETSC_PC_FIELDSPLIT_SCHUR_FACT_LOWER,err,error,*999)
-                    CASE(BLOCK_PRECONDITIONER_SCHUR_FACT_UPPER)
-                      CALL Petsc_PCFieldSplitSetSchurFactType(preconditioner%PC, &
-                        & PETSC_PC_FIELDSPLIT_SCHUR_FACT_UPPER,err,error,*999)
-                    CASE(BLOCK_PRECONDITIONER_SCHUR_FACT_FULL)
-                      CALL Petsc_PCFieldSplitSetSchurFactType(preconditioner%PC, &
-                        & PETSC_PC_FIELDSPLIT_SCHUR_FACT_FULL,err,error,*999)
-                    CASE DEFAULT
-                      localError="The block preconditioner Schur factorisation type of "// &
-                        & TRIM(NumberToVString(blockPreconditioner%schurFactorisationType,"*",err,error))//" is invalid."
-                      CALL FlagError(localError,err,error,*999)
-                    END SELECT
-                    SELECT CASE(blockPreconditioner%schurPreType)
-                    CASE(BLOCK_PRECONDITIONER_SCHUR_PRE_SELF)
-                      CALL Petsc_PCFieldSplitSetSchurPre(preconditioner%PC,PETSC_PC_FIELDSPLIT_SCHUR_PRE_SELF,err,error,*999)
-                    CASE(BLOCK_PRECONDITIONER_SCHUR_PRE_SELFP)
-                      CALL Petsc_PCFieldSplitSetSchurPre(preconditioner%PC,PETSC_PC_FIELDSPLIT_SCHUR_PRE_SELFP,err,error,*999)
-                    CASE(BLOCK_PRECONDITIONER_SCHUR_PRE_A11)
-                      CALL Petsc_PCFieldSplitSetSchurPre(preconditioner%PC,PETSC_PC_FIELDSPLIT_SCHUR_PRE_A11,err,error,*999)
-                    CASE(BLOCK_PRECONDITIONER_SCHUR_PRE_FULL)
-                      CALL Petsc_PCFieldSplitSetSchurPre(preconditioner%PC,PETSC_PC_FIELDSPLIT_SCHUR_PRE_FULL,err,error,*999)
-                    CASE(BLOCK_PRECONDITIONER_SCHUR_PRE_USER)
-                      !SANDER
-                      !Finish preconditioner matrix here?
-                      !CALL Petsc_PCFieldSplitSetSchurPre(preconditioner%PC,PETSC_PC_FIELDSPLIT_SCHUR_PRE_USER, &
-                      !  & blockPreconditioner%schurPreconditioner%matrix%PETSC%MATRIX,err,error,*999)
-                    CASE DEFAULT
-                      localError="The block preconditioner Schur complement preconditioner type of "// &
-                        & TRIM(NumberToVString(blockPreconditioner%schurPreType,"*",err,error))//" is invalid."
-                      CALL FlagError(localError,err,error,*999)
-                    END SELECT
-                  CASE DEFAULT
-                    localError="The block preconditioner type of "// &
-                      & TRIM(NumberToVString(blockPreconditioner%blockPreconditionerType,"*",err,error))// &
-                      & " is invalid."
-                    CALL FlagError(localError,err,error,*999)
-                  END SELECT
-
-                  !Second finish the splits of the block preconditioner
-                  CALL BlockPreconditionerSplitsCreateFinish(blockPreconditioner,err,error,*999)
-                  ALLOCATE(subDM(blockPreconditioner%numberOfSplits),STAT=err)
-                  IF(err/=0) CALL FlagError("Could not allocate sub DM.",err,error,*999)
-                  ALLOCATE(subIS(blockPreconditioner%numberOfSplits),STAT=err)
-                  IF(err/=0) CALL FlagError("Could not allocate sub IS'.",err,error,*999)
-                  !Third inform PETSc which variables belong to which split/split
-                  DO splitIdx=1,blockPreconditioner%numberOfSplits
-                    blockPreconditionerSplit=>blockPreconditioner%splits(splitIdx)%ptr
-                    CALL Petsc_ISInitialise(subIS(splitIdx),err,error,*999)
-                    CALL Petsc_DMInitialise(subDM(splitIdx),err,error,*999)
-                    CALL Petsc_DMCreateSubDM(blockPreconditioner%DM,blockPreconditionerSplit%numberOfVariables, &
-                      & blockPreconditionerSplit%solverVariableIndices-1,subIS(splitIdx),subDM(splitIdx), &
-                      & err,error,*999)
-                    CALL Petsc_PCFieldSplitSetIS(preconditioner%PC,TRIM(NUMBER_TO_VSTRING(splitIdx-1,"*",err,error)), &
-                      & subIS(splitIdx),err,error,*999)
-                  END DO !splitIdx
-                  CALL Petsc_PCSetUp(preconditioner%PC,err,error,*999)
-                  !Fourth set up the sub ksp's
-                  DO splitIdx=1,blockPreconditioner%numberOfSplits
-                    blockPreconditionerSplit=>blockPreconditioner%splits(splitIdx)%ptr
-                    linearSolver=>blockPreconditioner%splits(splitIdx)%ptr%linearSolver%LINEAR_SOLVER
-                    SELECT CASE(linearSolver%LINEAR_SOLVE_TYPE)
-                    CASE(SOLVER_LINEAR_DIRECT_SOLVE_TYPE)
-                      directSolver=>linearSolver%DIRECT_SOLVER
-                      IF(ASSOCIATED(directSolver)) THEN
-                        CALL Petsc_PCFieldSplitGetSubKsp(preconditioner%PC,splitIdx,directSolver%KSP,err,error,*999)
-                        directSolver%isSubKsp=.TRUE.
-                        CALL Petsc_KSPSetDM(directSolver%KSP,subDM(splitIdx),err,error,*999)
-                        CALL Petsc_KSPSetDMActive(directSolver%KSP,PETSC_FALSE,err,error,*999)
-                        !Set the KSP type to preonly
-                        CALL Petsc_KSPSetType(directSolver%KSP,PETSC_KSPPREONLY,err,error,*999)
-                        !Get the pre-conditioner
-                        CALL Petsc_KSPGetPC(directSolver%KSP,directSolver%PC,err,error,*999)
-                        !Set the PC type to LU
-                        CALL Petsc_PCSetType(directSolver%PC,PETSC_PCLU,err,error,*999)
-                        SELECT CASE(directSolver%SOLVER_LIBRARY)
-                        CASE(SOLVER_MUMPS_LIBRARY)
-                          !Set the PC factorisation package to MUMPS
-                          CALL Petsc_PCFactorSetMatSolverPackage(directSolver%PC,PETSC_MAT_SOLVER_MUMPS,err,error,*999)
-                        CASE(SOLVER_SUPERLU_LIBRARY)
-                          !Set the PC factorisation package to SuperLU_DIST
-                          CALL Petsc_PCFactorSetMatSolverPackage(directSolver%PC,PETSC_MAT_SOLVER_SUPERLU_DIST, &
-                            & err,error,*999)
-                        CASE(SOLVER_LAPACK_LIBRARY)
-                          CALL FlagError("LAPACK not available in this version of PETSc.",err,error,*999)
-                        CASE(SOLVER_PASTIX_LIBRARY)
-                          !Set the PC factorisation package to PaStiX
-                          CALL Petsc_PCFactorSetMatSolverPackage(directSolver%PC,PETSC_MAT_SOLVER_PASTIX,err,error,*999)
-                        END SELECT
-                      ELSE
-                        CALL FlagError("Linear solver direct solver is not associated.",err,error,*999)
-                      ENDIF
-                    CASE(SOLVER_LINEAR_ITERATIVE_SOLVE_TYPE)
-                      iterativeSolver=>linearSolver%ITERATIVE_SOLVER
-                      IF(ASSOCIATED(iterativeSolver)) THEN
-                        CALL Petsc_PCFieldSplitGetSubKsp(preconditioner%PC,splitIdx,iterativeSolver%KSP,err,error,*999)
-                        iterativeSolver%isSubKsp=.TRUE.
-                        CALL Petsc_KSPSetDM(iterativeSolver%KSP,subDM(splitIdx),err,error,*999)
-                        CALL Petsc_KSPSetDMActive(iterativeSolver%KSP,PETSC_FALSE,err,error,*999)
-                        !Set the tolerances for the KSP solver
-                        CALL Petsc_KSPSetTolerances(iterativeSolver%KSP,iterativeSolver%RELATIVE_TOLERANCE, &
-                          & iterativeSolver%ABSOLUTE_TOLERANCE,iterativeSolver%DIVERGENCE_TOLERANCE, &
-                          & iterativeSolver%MAXIMUM_NUMBER_OF_ITERATIONS,err,error,*999)
-                        !Finish the preconditioner
-                        CALL SolverLinearIterativePreconditionerCreateFinish(iterativeSolver,err,error,*999)
-                      ELSE
-                        CALL FlagError("Linear solver iterative solver is not associated.",err,error,*999)
-                      ENDIF
-                    CASE DEFAULT
-                      localError="The linear solver type of "// &
-                        & TRIM(NumberToVString(linearSolver%LINEAR_SOLVE_TYPE,"*",err,error))// &
-                        & " is invalid."
-                      CALL FlagError(localError,err,error,*999)
-                    END SELECT
-                    CALL Petsc_ISFinalise(subIS(splitIdx),err,error,*999)
-                    CALL Petsc_DMFinalise(subDM(splitIdx),err,error,*999)
-                  END DO !splitIdx
-                  IF(ASSOCIATED(subIS)) DEALLOCATE(subIS)
-                  IF(ASSOCIATED(subDM)) DEALLOCATE(subDM)
-                ELSE
-                  CALL FlagError("The block preconditioner preconditioner linear iterative solver linear solver solver &
-                    &solver equations mapping is not associated.",err,error,*999)
-                ENDIF
-              ELSE
-                CALL FlagError("The block preconditioner preconditioner linear iterative solver linear solver solver &
-                  &solver equations is not associated.",err,error,*999)
-              ENDIF
-            ELSE
-              CALL FlagError("The block preconditioner preconditioner linear iterative solver linear solver &
-                &solver is not associated.",err,error,*999)
-            ENDIF
-          ELSE
-            CALL FlagError("The block preconditioner preconditioner linear iterative solver linear solver is not associated.", &
-              & err,error,*999)
-          ENDIF
-        ELSE
-          CALL FlagError("The block preconditioner preconditioner linear iterative solver is not associated.",err,error,*999)
-        ENDIF
-      ELSE
-        CALL FlagError("The block preconditioner preconditioner is not associated.",err,error,*999)
-      ENDIF
-    ELSE
-      CALL FlagError("The block preconditioner is not associated.",err,error,*999)
-    ENDIF
-
-    EXITS("BlockPreconditionerCreateFinish")
-    RETURN
-999 ERRORSEXITS("BlockPreconditionerCreateFinish",err,error)
-    RETURN 1
-   
-  END SUBROUTINE BlockPreconditionerCreateFinish
-        
-  !
-  !================================================================================================================================
-  !
-
   !>Initialise a linear solver for a solver.
   SUBROUTINE SOLVER_LINEAR_INITIALISE(SOLVER,ERR,ERROR,*)
 
@@ -11278,6 +11025,8 @@ CONTAINS
               & LINEAR_ITERATIVE_SOLVER%MAXIMUM_NUMBER_OF_ITERATIONS,ERR,ERROR,*999)
             !Set the KSP type 
             SELECT CASE(LINEAR_ITERATIVE_SOLVER%ITERATIVE_SOLVER_TYPE)
+            CASE(SOLVER_ITERATIVE_PRE_ONLY)
+              CALL Petsc_KSPSetType(LINEAR_ITERATIVE_SOLVER%KSP,PETSC_KSPPREONLY,ERR,ERROR,*999)
             CASE(SOLVER_ITERATIVE_RICHARDSON)
               CALL Petsc_KSPSetType(LINEAR_ITERATIVE_SOLVER%KSP,PETSC_KSPRICHARDSON,ERR,ERROR,*999)
             CASE(SOLVER_ITERATIVE_CHEBYSHEV)
@@ -11552,6 +11301,8 @@ CONTAINS
 
     IF(ASSOCIATED(ITERATIVE_SOLVER)) THEN
       SELECT CASE(ITERATIVE_SOLVER%ITERATIVE_SOLVER_TYPE)
+      CASE(SOLVER_ITERATIVE_PRE_ONLY)
+        SOLVER_LIBRARY_TYPE=ITERATIVE_SOLVER%SOLVER_LIBRARY
       CASE(SOLVER_ITERATIVE_RICHARDSON)
         SOLVER_LIBRARY_TYPE=ITERATIVE_SOLVER%SOLVER_LIBRARY
       CASE(SOLVER_ITERATIVE_CHEBYSHEV)
@@ -11601,6 +11352,18 @@ CONTAINS
     
     IF(ASSOCIATED(ITERATIVE_SOLVER)) THEN
       SELECT CASE(ITERATIVE_SOLVER%ITERATIVE_SOLVER_TYPE)
+      CASE(SOLVER_ITERATIVE_PRE_ONLY)
+        SELECT CASE(SOLVER_LIBRARY_TYPE)
+        CASE(SOLVER_CMISS_LIBRARY)
+          CALL FlagError("Not implemented.",ERR,ERROR,*999)
+        CASE(SOLVER_PETSC_LIBRARY)
+          ITERATIVE_SOLVER%SOLVER_LIBRARY=SOLVER_PETSC_LIBRARY
+          ITERATIVE_SOLVER%SOLVER_MATRICES_LIBRARY=DISTRIBUTED_MATRIX_VECTOR_PETSC_TYPE
+        CASE DEFAULT
+          LOCAL_ERROR="The specified solver library type of "// &
+            & TRIM(NumberToVString(SOLVER_LIBRARY_TYPE,"*",ERR,ERROR))// &
+            & " is invalid for a Richardson iterative linear solver."
+        END SELECT
       CASE(SOLVER_ITERATIVE_RICHARDSON)
         SELECT CASE(SOLVER_LIBRARY_TYPE)
         CASE(SOLVER_CMISS_LIBRARY)
@@ -11731,6 +11494,526 @@ CONTAINS
    
   END SUBROUTINE Solver_LinearIterativeMatricesLibraryTypeGet
 
+  !
+  !================================================================================================================================
+  !
+        
+  !> EquationsSetsAdd the algebraic multigrid preconditioner type.
+  SUBROUTINE AMGPreconditionerEquationsSetAdd(amgPreconditioner,equationsSet,err,error,*)
+
+    !Argument variables
+    TYPE(AMGPreconditionerType), POINTER :: amgPreconditioner !<The algebraic multigrid preconditioner
+    TYPE(EQUATIONS_SET_TYPE), POINTER :: equationsSet !<The equations set to add to the algebraic multigrid preconditioner
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+    INTEGER(INTG) :: numberOfEquationsSets
+    TYPE(EQUATIONS_SET_PTR_TYPE), ALLOCATABLE :: newEquationsSets(:)
+    
+    ENTERS("AMGPreconditionerEquationsSetAdd",err,error,*999)
+
+    IF(ASSOCIATED(amgPreconditioner)) THEN
+      IF(ASSOCIATED(equationsSet)) THEN
+        numberOfEquationsSets=amgPreconditioner%numberOfEquationsSets
+        ALLOCATE(newEquationsSets(numberOfEquationsSets+1),STAT=err)
+        IF(err/=0) CALL FlagError("Could not allocate new equations sets.",err,error,*999)
+        newEquationsSets(1:numberOfEquationsSets)=amgPreconditioner%equationsSets(1:numberOfEquationsSets)
+        newEquationsSets(numberOfEquationsSets+1)%ptr=>equationsSet
+        CALL MOVE_ALLOC(newEquationsSets,amgPreconditioner%equationsSets)
+        amgPreconditioner%numberOfEquationsSets=numberOfEquationsSets+1
+      ELSE
+        CALL FlagError("Equations set is not associated.",err,error,*999)
+      END IF
+    ELSE
+      CALL FlagError("Block preconditioner is not associated.",err,error,*999)
+    END IF
+    
+    EXITS("AMGPreconditionerEquationsSetAdd")
+    RETURN
+999 ERRORSEXITS("AMGPreconditionerEquationsSetAdd",err,error)
+    RETURN 1
+   
+  END SUBROUTINE AMGPreconditionerEquationsSetAdd
+        
+  !
+  !================================================================================================================================
+  !
+        
+  !> Initialise the algebraic multigrid preconditioner type.
+  SUBROUTINE AMGPreconditionerInitialise(amgPreconditioner,err,error,*)
+
+    !Argument variables
+    TYPE(AMGPreconditionerType), POINTER :: amgPreconditioner !<The algebraic multigrid preconditioner to initialise
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+    
+    ENTERS("AMGPreconditionerInitialise",err,error,*999)
+
+    IF(ASSOCIATED(amgPreconditioner)) THEN
+      NULLIFY(amgPreconditioner%preconditioner)
+      amgPreconditioner%amgType=0
+      amgPreconditioner%numberOfEquationsSets=0
+    ELSE
+      CALL FlagError("Block preconditioner is not associated.",err,error,*999)
+    END IF
+    
+    EXITS("AMGPreconditionerInitialise")
+    RETURN
+999 ERRORSEXITS("AMGPreconditionerInitialise",err,error)
+    RETURN 1
+   
+  END SUBROUTINE AMGPreconditionerInitialise
+        
+  !
+  !================================================================================================================================
+  !
+
+  !>Calculate and set the near null space (low energy modes) for the algebraic multigrid preconditioner. 
+  SUBROUTINE AMGPreconditionerNearNullSpaceCalculate(amgPreconditioner,err,error,*)
+
+    !Argument variables
+    TYPE(AMGPreconditionerType), POINTER :: amgPreconditioner !<A pointer the amg preconditioner
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+    INTEGER(INTG) :: numberOfComponents,numberOfDimensions,numberOfModes,componentIdx,modeIdx,derivativeIdx,versionIdx, &
+      & localDof,coordinateIdx,nodeIdx,eps,componentInterpolationType,rotationalModeIdx,orthonormalisedModeIdx
+    REAL(DP) :: coordinateValue,dotProduct,oldNorm
+    TYPE(DistributedVectorPtrType), ALLOCATABLE :: modes(:)
+    TYPE(DOMAIN_NODES_TYPE), POINTER :: domainNodes
+    TYPE(EQUATIONS_SET_TYPE), POINTER :: equationsSet
+    TYPE(FIELD_TYPE), POINTER :: field
+    TYPE(FIELD_VARIABLE_TYPE), POINTER :: fieldVariable
+    TYPE(PetscMatType) :: petscMatrix
+    TYPE(PetscMatNullSpaceType) :: nearNullSpace
+    TYPE(PetscVecType), ALLOCATABLE :: petscModes(:)
+    TYPE(VARYING_STRING) :: localError
+    
+    ENTERS("AMGPreconditionerNearNullSpaceCalculate",err,error,*999)
+
+    IF(ASSOCIATED(amgPreconditioner)) THEN
+      !Assume for now that the number of equations sets is equal to 1, such that the associated dependent field has only 1 field
+      !variable. The dependent field variable should also be of CONTIGUOUS type and no dirichlet dofs should be removed from the
+      !solver matrix, so use BOUNDARY_CONDITION_DIRICHLET_ZERO_ROWS.
+      IF(amgPreconditioner%numberOfEquationsSets==1) THEN
+        equationsSet=>amgPreconditioner%equationsSets(1)%ptr
+        IF(ASSOCIATED(equationsSet)) THEN
+          !\todo: implement these near null space calculations properly in the corresponding equations class routines. This could be
+          !done by returning n near null space vectors and then (if solver library is petsc) calling Petsc_MatCreateNullSpace and Petsc_MatSetNearNullSpace.
+          !Also don't forget to set the block size for the matrix.
+          SELECT CASE(equationsSet%CLASS)
+          CASE(EQUATIONS_SET_ELASTICITY_CLASS)
+            !The near null space consists of the rigid body modes.
+            !Have to use the geometric field, because the dependent field already has the boundary conditions set.
+            !This is only correct if the coordinate systems of both fields are the same.
+            field=>equationsSet%GEOMETRY%GEOMETRIC_FIELD
+            NULLIFY(fieldVariable)
+            CALL Field_VariableGet(field,FIELD_U_VARIABLE_TYPE,fieldVariable,err,error,*999)
+            numberOfComponents=fieldVariable%NUMBER_OF_COMPONENTS
+            numberOfDimensions=numberOfComponents
+            !The number of modes is n (number of translations) + n*(n-1)/2 (number of rotations, is equal to dim(so(n)).
+            numberOfModes=numberOfDimensions*(numberOfDimensions+1)/2
+            !Probably has to be an array of distributed vector pointers
+            ALLOCATE(modes(numberOfModes),STAT=err)
+            IF(err/=0) CALL FlagError("Could not allocate new modes.",err,error,*999)
+             
+            DO modeIdx=1,numberOfModes
+              NULLIFY(modes(modeIdx)%ptr)
+              CALL DistributedVector_CreateStart(fieldVariable%DOMAIN_MAPPING,modes(modeIdx)%ptr,err,error,*999)
+              CALL DistributedVector_GhostingTypeSet(modes(modeIdx)%ptr,DISTRIBUTED_MATRIX_VECTOR_NO_GHOSTS_TYPE,err,error,*999)
+              CALL DistributedVector_LibraryTypeSet(modes(modeIdx)%ptr,DISTRIBUTED_MATRIX_VECTOR_PETSC_TYPE,err,error,*999)
+              CALL DistributedVector_DataTypeSet(modes(modeIdx)%ptr,DISTRIBUTED_MATRIX_VECTOR_DP_TYPE,err,error,*999)
+              CALL DistributedVector_CreateFinish(modes(modeIdx)%ptr,err,error,*999)
+            END DO !modeIdx
+
+            !Compute the translational modes
+            DO modeIdx=1,numberOfDimensions
+              CALL DistributedVector_AllValuesSet(modes(modeIdx)%ptr,0.0_DP,err,error,*999)
+              componentIdx=modeIdx
+              domainNodes=>fieldVariable%COMPONENTS(componentIdx)%DOMAIN%TOPOLOGY%NODES
+              componentInterpolationType=fieldVariable%COMPONENTS(componentIdx)%INTERPOLATION_TYPE
+              SELECT CASE(componentInterpolationType)
+              CASE(FIELD_NODE_BASED_INTERPOLATION)
+                !No derivatives are needed.
+                derivativeIdx=1
+                versionIdx=1
+                !Loop over all nodes
+                DO nodeIdx=1,domainNodes%NUMBER_OF_NODES
+                  localDof=fieldVariable%COMPONENTS(componentIdx)%PARAM_TO_DOF_MAP%NODE_PARAM2DOF_MAP%NODES(nodeIdx)% &
+                    & DERIVATIVES(derivativeIdx)%VERSIONS(versionIdx)
+                  CALL DistributedVector_ValuesSet(modes(modeIdx)%ptr,localDof,1.0_DP,err,error,*999)
+                ENDDO !nodeIdx
+              CASE DEFAULT
+                CALL FlagError("Unsupported type of interpolation.",err,error,*999)
+              END SELECT
+              CALL DistributedVector_UpdateStart(modes(modeIdx)%ptr,err,error,*999)
+            END DO !modeIdx
+            !Compute the rotational modes
+            SELECT CASE(numberOfDimensions)
+            CASE(3)
+              DO modeIdx=numberOfDimensions+1,numberOfModes
+                rotationalModeIdx=modeIdx-numberOfDimensions
+                CALL DistributedVector_AllValuesSet(modes(modeIdx)%ptr,0.0_DP,err,error,*999)
+                DO componentIdx=1,numberOfComponents
+                  IF(componentIdx==rotationalModeIdx) CYCLE
+                  coordinateIdx=OTHER_XI_DIRECTIONS3(rotationalModeIdx,componentIdx,2)
+                  eps=OTHER_XI_ORIENTATIONS3(rotationalModeIdx,componentIdx)
+                  domainNodes=>fieldVariable%COMPONENTS(componentIdx)%DOMAIN%TOPOLOGY%NODES
+                  componentInterpolationType=fieldVariable%COMPONENTS(componentIdx)%INTERPOLATION_TYPE
+                  SELECT CASE(componentInterpolationType)
+                  CASE(FIELD_NODE_BASED_INTERPOLATION)
+                    !No derivatives are needed.
+                    derivativeIdx=1
+                    versionIdx=1
+                    !Loop over all nodes
+                    DO nodeIdx=1,domainNodes%NUMBER_OF_NODES
+                      localDof=fieldVariable%COMPONENTS(coordinateIdx)%PARAM_TO_DOF_MAP%NODE_PARAM2DOF_MAP%NODES(nodeIdx)% &
+                        & DERIVATIVES(derivativeIdx)%VERSIONS(versionIdx)
+                      CALL Field_ParameterSetGetLocalDof(field,FIELD_U_VARIABLE_TYPE,FIELD_VALUES_SET_TYPE, &
+                        & localDof,coordinateValue,err,error,*999)
+                      localDof=fieldVariable%COMPONENTS(componentIdx)%PARAM_TO_DOF_MAP%NODE_PARAM2DOF_MAP%NODES(nodeIdx)% &
+                        & DERIVATIVES(derivativeIdx)%VERSIONS(versionIdx)
+                      CALL DistributedVector_ValuesSet(modes(modeIdx)%ptr,localDof,coordinateValue*eps,err,error,*999)
+                    ENDDO !nodeIdx
+                  CASE DEFAULT
+                    CALL FlagError("Unsupported type of interpolation.",err,error,*999)
+                  END SELECT
+                END DO !componentIdx
+                CALL DistributedVector_UpdateStart(modes(modeIdx)%ptr,err,error,*999)
+              END DO !modeIdx
+            CASE(2)
+              DO modeIdx=numberOfDimensions,numberOfModes
+                rotationalModeIdx=modeIdx-numberOfDimensions
+                CALL DistributedVector_AllValuesSet(modes(modeIdx)%ptr,0.0_DP,err,error,*999)
+                coordinateIdx=OTHER_XI_DIRECTIONS2(rotationalModeIdx)
+                eps=OTHER_XI_ORIENTATIONS2(rotationalModeIdx)
+                DO componentIdx=1,numberOfComponents
+                  domainNodes=>fieldVariable%COMPONENTS(componentIdx)%DOMAIN%TOPOLOGY%NODES
+                  componentInterpolationType=fieldVariable%COMPONENTS(componentIdx)%INTERPOLATION_TYPE
+                  SELECT CASE(componentInterpolationType)
+                  CASE(FIELD_NODE_BASED_INTERPOLATION)
+                    !No derivatives are needed.
+                    derivativeIdx=1
+                    versionIdx=1
+                    !Loop over all nodes
+                    DO nodeIdx=1,domainNodes%NUMBER_OF_NODES
+                      localDof=fieldVariable%COMPONENTS(coordinateIdx)%PARAM_TO_DOF_MAP%NODE_PARAM2DOF_MAP%NODES(nodeIdx)% &
+                        & DERIVATIVES(derivativeIdx)%VERSIONS(versionIdx)
+                      CALL Field_ParameterSetGetLocalDof(field,FIELD_U_VARIABLE_TYPE,FIELD_VALUES_SET_TYPE, &
+                        & localDof,coordinateValue,err,error,*999)
+                      localDof=fieldVariable%COMPONENTS(componentIdx)%PARAM_TO_DOF_MAP%NODE_PARAM2DOF_MAP%NODES(nodeIdx)% &
+                        & DERIVATIVES(derivativeIdx)%VERSIONS(versionIdx)
+                      CALL DistributedVector_ValuesSet(modes(modeIdx)%ptr,localDof,coordinateValue*eps,err,error,*999)
+                    ENDDO !nodeIdx
+                  CASE DEFAULT
+                    CALL FlagError("Unsupported type of interpolation.",err,error,*999)
+                  END SELECT
+                END DO !componentIdx
+                CALL DistributedVector_UpdateStart(modes(modeIdx)%ptr,err,error,*999)
+              END DO !modeIdx
+            CASE(1)
+              !Do nothing, no rotational modes
+            CASE DEFAULT
+              localError="Number of dimensions of "//TRIM(NUMBER_TO_VSTRING(numberOfDimensions,"*",err,error))//" is not valid."
+              CALL FlagError(localError,err,error,*999)
+            END SELECT
+
+            !Orthonormalise the modes
+            !Translational modes only need to be normalised
+            DO modeIdx=1,numberOfDimensions
+              CALL DistributedVector_UpdateFinish(modes(modeIdx)%ptr,err,error,*999)
+              CALL DistributedVector_Normalise(modes(modeIdx)%ptr,oldNorm,err,error,*999)
+            END DO !modeIdx
+            !Use Gramm-Schmidt for rotational modes
+            DO modeIdx=numberOfDimensions+1,numberOfModes
+              CALL DistributedVector_UpdateFinish(modes(modeIdx)%ptr,err,error,*999)
+              !This can probably be more efficient parallel-wise by using VecMDot and VecMAXPY in PETSc
+              DO orthonormalisedModeIdx=1,modeIdx-1
+                CALL DistributedVector_VecDot(modes(modeIdx)%ptr,modes(orthonormalisedModeIdx)%ptr,dotProduct,err,error,*999)
+                CALL DistributedVector_VecAdd(modes(modeIdx)%ptr,-dotProduct,modes(orthonormalisedModeIdx)%ptr,err,error,*999)
+              END DO !orthonormalisedModeIdx
+              CALL DistributedVector_Normalise(modes(modeIdx)%ptr,oldNorm,err,error,*999)
+            END DO !modeIdx
+
+            ALLOCATE(petscModes(numberOfModes),STAT=err)
+            IF(err/=0) CALL FlagError("Could not allocate new PETSc modes.",err,error,*999)
+            DO modeIdx=1,numberOfModes
+              petscModes(modeIdx)=modes(modeIdx)%ptr%PETSC%VECTOR
+            END DO !modeIdx
+            
+            CALL Petsc_PCGetOperators(amgPreconditioner%preconditioner%PC,petscMatrix,err,error,*999)
+            CALL Petsc_MatNullSpaceInitialise(nearNullSpace,err,error,*999)
+            CALL Petsc_MatNullSpaceCreate(COMPUTATIONAL_ENVIRONMENT%MPI_COMM,.FALSE.,numberOfModes,petscModes,nearNullSpace, &
+              & err,error,*999)
+            CALL Petsc_MatSetNearNullSpace(petscMatrix,nearNullSpace,err,error,*999)
+            CALL Petsc_MatNullSpaceFinalise(nearNullSpace,err,error,*999)
+
+            DO modeIdx=1,numberOfModes
+              CALL DistributedVector_Destroy(modes(modeIdx)%ptr,err,error,*999) 
+            END DO !modeIdx
+            IF(ALLOCATED(modes)) DEALLOCATE(modes)
+            IF(ALLOCATED(petscModes)) DEALLOCATE(petscModes)
+            
+          CASE(EQUATIONS_SET_FLUID_MECHANICS_CLASS)
+            !Needs to be implemented
+          CASE(EQUATIONS_SET_ELECTROMAGNETICS_CLASS)
+            !Needs to be implemented
+          CASE(EQUATIONS_SET_CLASSICAL_FIELD_CLASS)
+            !Needs to be implemented
+          CASE(EQUATIONS_SET_FITTING_CLASS)
+            !Needs to be implemented
+          CASE(EQUATIONS_SET_BIOELECTRICS_CLASS)
+            !Needs to be implemented
+          CASE(EQUATIONS_SET_MODAL_CLASS)
+            !Needs to be implemented
+          CASE(EQUATIONS_SET_MULTI_PHYSICS_CLASS)
+            !Needs to be implemented
+          CASE DEFAULT
+            localError="Equations set class "//TRIM(NUMBER_TO_VSTRING(equationsSet%CLASS,"*",err,error))//" is not valid."
+            CALL FlagError(localError,err,error,*999)
+          END SELECT
+        ELSE
+          CALL FlagError("The algebraic multigrid preconditioner equations set is not associated.",err,error,*999)
+        END IF
+      ELSE
+        CALL FlagError("The number of equations sets for the algebraic multigrid preconditioner must be 1.",err,error,*999)
+      END IF
+    ELSE
+      CALL FlagError("The algebraic multigrid preconditioner is not associated.",err,error,*999)
+    END IF
+    
+    EXITS("AMGPreconditionerNearNullSpaceCalculate")
+    RETURN
+999 ERRORSEXITS("AMGPreconditionerNearNullSpaceCalculate",err,error)
+    RETURN 1
+   
+  END SUBROUTINE AMGPreconditionerNearNullSpaceCalculate
+        
+  !
+  !================================================================================================================================
+  !
+
+  !>Sets/changes the type of algebraic multigrid preconditioner for an iterative linear solver. \see OPENCMISS::CMISSAMGPreconditionerTypeSet
+  SUBROUTINE AMGPreconditionerTypeSet(amgPreconditioner,amgType,err,error,*)
+
+    !Argument variables
+    TYPE(AMGPreconditionerType), POINTER :: amgPreconditioner !<A pointer the amg preconditioner
+    INTEGER(INTG), INTENT(IN) :: amgType !<The type of amg preconditioner to set \see SOLVER_ROUTINES_AMGPreconditionerTypes,SOLVER_ROUTINES
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+    TYPE(VARYING_STRING) :: localError
+    
+    ENTERS("AMGPreconditionerTypeSet",err,error,*999)
+
+    IF(ASSOCIATED(amgPreconditioner)) THEN
+      SELECT CASE(amgType)
+!     CASE(AMG_PRECONDITIONER_CLASSICAL)
+!       amgPreconditioner%amgType=amgType
+      CASE(AMG_PRECONDITIONER_SMOOTHED_AGGREGATION)
+        amgPreconditioner%amgType=amgType
+      CASE(AMG_PRECONDITIONER_UNSMOOTHED_AGGREGATION)
+        amgPreconditioner%amgType=amgType
+      CASE DEFAULT
+        localError="The algebraic multigrid preconditioner type of "// &
+          & TRIM(NUMBER_TO_VSTRING(amgType,"*",err,error))//" is invalid."
+        CALL FlagError(localError,err,error,*999)
+      END SELECT
+    ELSE
+      CALL FlagError("The algebraic multigrid preconditioner is not associated.",err,error,*999)
+    ENDIF
+    
+    EXITS("AMGPreconditionerTypeSet")
+    RETURN
+999 ERRORSEXITS("AMGPreconditionerTypeSet",err,error)
+    RETURN 1
+   
+  END SUBROUTINE AMGPreconditionerTypeSet
+        
+  !
+  !================================================================================================================================
+  !
+
+  !> Get the algebraic multigrid preconditioner type.
+  SUBROUTINE PreconditionerAMGPreconditionerGet(preconditioner,amgPreconditioner,err,error,*)
+
+    !Argument variables
+    TYPE(PreconditionerType), POINTER :: preconditioner !<The preconditioner to get the algebraic multigrid preconditioner from 
+    TYPE(AMGPreconditionerType), POINTER :: amgPreconditioner !<The algebraic multigrid preconditioner to get
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+    
+    ENTERS("PreconditionerAMGPreconditionerGet",err,error,*999)
+
+    IF(ASSOCIATED(preconditioner)) THEN
+      IF(ASSOCIATED(preconditioner%amgPreconditioner)) THEN
+        IF(ASSOCIATED(amgPreconditioner)) THEN
+          CALL FlagError("Algebraic multigrid preconditioner is already associated.",err,error,*999)
+        ELSE
+          amgPreconditioner=>preconditioner%amgPreconditioner
+        END IF
+      ELSE
+        CALL FlagError("Preconditioner algebraic multigrid preconditioner is not associated.",err,error,*999)
+      END IF
+    ELSE
+      CALL FlagError("Preconditioner is not associated.",err,error,*999)
+    END IF
+    
+    EXITS("PreconditionerAMGPreconditionerGet")
+    RETURN
+999 ERRORSEXITS("PreconditionerAMGPreconditionerGet",err,error)
+    RETURN 1
+   
+  END SUBROUTINE PreconditionerAMGPreconditionerGet
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Finish the creation of the algebraic multigrid preconditioner.
+  SUBROUTINE AMGPreconditionerCreateFinish(amgPreconditioner,err,error,*)
+
+    !Argument variables
+    TYPE(AMGPreconditionerType), POINTER :: amgPreconditioner !<A pointer to the algebraic multigrid preconditioner.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+    TYPE(VARYING_STRING) :: localError 
+    TYPE(PreconditionerType), POINTER :: preconditioner
+
+    ENTERS("AMGPreconditionerCreateFinish",err,error,*999)
+
+    IF(ASSOCIATED(amgPreconditioner)) THEN
+      preconditioner=>amgPreconditioner%preconditioner
+      IF(ASSOCIATED(preconditioner)) THEN
+        CALL Petsc_PCSetType(preconditioner%PC,PETSC_PCGAMG,err,error,*999)
+        SELECT CASE(amgPreconditioner%amgType)
+!       CASE(AMG_PRECONDITIONER_CLASSICAL)
+!         CALL PCGAMGSetType(preconditioner%PC,PETSC_PC_GAMG_CLASSICAL,err,error,*999)
+        CASE(AMG_PRECONDITIONER_SMOOTHED_AGGREGATION)
+         ! CALL Petsc_PCGAMGSetType(preconditioner%PC,PETSC_PC_GAMG_AGG,err,error,*999)
+          CALL Petsc_PCGAMGSetNSmooths(preconditioner%PC,1,err,error,*999)
+          !Calculate the near null space (the low energy modes) for the algebraic multigrid preconditioner.
+         ! CALL AMGPreconditionerNearNullSpaceCalculate(amgPreconditioner,err,error,*999)
+        CASE(AMG_PRECONDITIONER_UNSMOOTHED_AGGREGATION)
+         ! CALL Petsc_PCGAMGSetType(preconditioner%PC,PETSC_PC_GAMG_AGG,err,error,*999)
+          CALL Petsc_PCGAMGSetNSmooths(preconditioner%PC,0,err,error,*999)
+          !Calculate the near null space (the low energy modes) for the algebraic multigrid preconditioner.
+          CALL AMGPreconditionerNearNullSpaceCalculate(amgPreconditioner,err,error,*999)
+        CASE DEFAULT
+          localError="The algebraic multigrid preconditioner type of "// &
+            & TRIM(NumberToVString(amgPreconditioner%amgType,"*",err,error))//" is invalid."
+          CALL FlagError(localError,err,error,*999)
+        END SELECT
+      ELSE
+        CALL FlagError("The algebraic multigrid preconditioner preconditioner is not associated.",err,error,*999)
+      ENDIF
+    ELSE
+      CALL FlagError("The algebraic multigrid preconditioner is not associated.",err,error,*999)
+    ENDIF
+
+    EXITS("AMGPreconditionerCreateFinish")
+    RETURN
+999 ERRORSEXITS("AMGPreconditionerCreateFinish",err,error)
+    RETURN 1
+   
+  END SUBROUTINE AMGPreconditionerCreateFinish
+        
+  !
+  !================================================================================================================================
+  !
+
+  !> Start the creation of the algebraic multigrid preconditioner type.
+  SUBROUTINE PreconditionerAMGPreconditionerCreateStart(preconditioner,err,error,*)
+
+    !Argument variables
+    TYPE(PreconditionerType), POINTER :: preconditioner !<The preconditioner to start the algebraic multigrid creation for
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+    
+    ENTERS("PreconditionerAMGPreconditionerCreateStart",err,error,*999)
+
+    IF(ASSOCIATED(preconditioner)) THEN
+      IF(ASSOCIATED(preconditioner%amgPreconditioner)) THEN
+        CALL FlagError("Algebraic multigrid preconditioner is already associated.",err,error,*999)
+      ELSE
+        ALLOCATE(preconditioner%amgPreconditioner,STAT=err)
+        IF(err/=0) CALL FlagError("Could not allocate new algebraic multigrid preconditioner type.",err,error,*999)
+        CALL AMGPreconditionerInitialise(preconditioner%amgPreconditioner,err,error,*999)
+        preconditioner%amgPreconditioner%preconditioner=>preconditioner
+        preconditioner%amgPreconditioner%amgType=AMG_PRECONDITIONER_SMOOTHED_AGGREGATION
+        ALLOCATE(preconditioner%amgPreconditioner%equationsSets(preconditioner%amgPreconditioner%numberOfEquationsSets),STAT=err)
+        IF(err/=0) CALL FlagError("Could not allocate equations sets for the AMG preconditioner type.",err,error,*999)
+      END IF
+    ELSE
+      CALL FlagError("Preconditioner is not associated.",err,error,*999)
+    END IF
+    
+    EXITS("PreconditionerAMGPreconditionerCreateStart")
+    RETURN
+999 ERRORSEXITS("PreconditionerAMGPreconditionerCreateStart",err,error)
+    RETURN 1
+   
+  END SUBROUTINE PreconditionerAMGPreconditionerCreateStart
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Destroys the amg preconditioner. \see OPENCMISS::CMISSAMGPreconditionerDestroy
+  SUBROUTINE AMGPreconditionerDestroy(amgPreconditioner,err,error,*)
+
+    !Argument variables
+    TYPE(AMGPreconditionerType), POINTER :: amgPreconditioner !<A pointer the amg preconditioner
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+    
+    ENTERS("AMGPreconditionerDestroy",err,error,*999)
+
+    IF(ASSOCIATED(amgPreconditioner)) THEN
+      CALL AMGPreconditionerFinalise(amgPreconditioner,err,error,*999)
+    ELSE
+      CALL FlagError("Algebraic multigrid Preconditioner is not associated.",err,error,*999)
+    ENDIF
+    
+    EXITS("AMGPreconditionerDestroy")
+    RETURN
+999 ERRORSEXITS("AMGPreconditionerDestroy",err,error)
+    RETURN 1
+   
+  END SUBROUTINE AMGPreconditionerDestroy
+        
+  !
+  !================================================================================================================================
+  !
+
+  !> Finalise the amg preconditioner type.
+  SUBROUTINE AMGPreconditionerFinalise(amgPreconditioner,err,error,*)
+
+    !Argument variables
+    TYPE(AMGPreconditionerType), POINTER :: amgPreconditioner !<The amg preconditioner to finalise
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+    
+    ENTERS("AMGPreconditionerFinalise",err,error,*999)
+
+    IF(ASSOCIATED(amgPreconditioner)) THEN
+      IF(ALLOCATED(amgPreconditioner%equationsSets)) DEALLOCATE(amgPreconditioner%equationsSets)
+      DEALLOCATE(amgPreconditioner)
+    END IF
+    
+    EXITS("AMGPreconditionerFinalise")
+    RETURN
+999 ERRORSEXITS("AMGPreconditionerFinalise",err,error)
+    RETURN 1
+   
+  END SUBROUTINE AMGPreconditionerFinalise
+        
   !
   !================================================================================================================================
   !
@@ -12290,6 +12573,310 @@ CONTAINS
   !================================================================================================================================
   !
 
+  !>Finish the creation of the block preconditioner.
+  SUBROUTINE BlockPreconditionerCreateFinish(blockPreconditioner,err,error,*)
+
+    !Argument variables
+    TYPE(BlockPreconditionerType), POINTER :: blockPreconditioner !<A pointer to the block preconditioner.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+    TYPE(VARYING_STRING) :: localError 
+    INTEGER(INTG) :: solverMatrixIdx,variableIdx,splitIdx,equationsType,equationIdx,equationsIdx,variableDofIdx,solverColumnNumber
+    INTEGER(INTG), POINTER :: solverColumnNumbers(:)
+    TYPE(BlockPreconditionerSplitType), POINTER :: blockPreconditionerSplit
+    TYPE(PreconditionerType), POINTER :: preconditioner
+    TYPE(LINEAR_ITERATIVE_SOLVER_TYPE), POINTER :: linearIterativeSolver
+    TYPE(LINEAR_SOLVER_TYPE), POINTER :: linearSolver
+    TYPE(PetscISType), POINTER :: subIS(:)
+    TYPE(PetscDMType), POINTER :: subDM(:)
+    TYPE(SOLVER_TYPE), POINTER :: solver
+    TYPE(LINEAR_DIRECT_SOLVER_TYPE), POINTER :: directSolver
+    TYPE(LINEAR_ITERATIVE_SOLVER_TYPE), POINTER :: iterativeSolver
+    TYPE(SOLVER_EQUATIONS_TYPE), POINTER :: solverEquations
+    TYPE(SOLVER_MAPPING_TYPE), POINTER :: solverMapping
+
+    ENTERS("BlockPreconditionerCreateFinish",err,error,*999)
+
+    IF(ASSOCIATED(blockPreconditioner)) THEN
+      preconditioner=>blockPreconditioner%preconditioner
+      IF(ASSOCIATED(preconditioner)) THEN
+        linearIterativeSolver=>preconditioner%linearIterativeSolver
+        IF(ASSOCIATED(linearIterativeSolver)) THEN
+          linearSolver=>linearIterativeSolver%LINEAR_SOLVER
+          IF(ASSOCIATED(linearSolver)) THEN
+            solver=>linearSolver%SOLVER
+            IF(ASSOCIATED(solver)) THEN
+              solverEquations=>solver%SOLVER_EQUATIONS
+              IF(ASSOCIATED(solverEquations)) THEN
+                solverMapping=>solverEquations%SOLVER_MAPPING
+                IF(ASSOCIATED(solverMapping)) THEN
+                  !First create the PETSc section and DM, to define the splitting of the variables for the PETSc solver
+                  solverMatrixIdx=1
+                  CALL Petsc_PetscSectionCreate(COMPUTATIONAL_ENVIRONMENT%MPI_COMM,blockPreconditioner%section,err,error,*999)
+                  CALL Petsc_PetscSectionSetNumFields(blockPreconditioner%section,solverMapping%VARIABLES_LIST(solverMatrixIdx)% &
+                    & NUMBER_OF_VARIABLES,err,error,*999)
+                  !For now associate each solver matrix dof to a petsc point with 1 dof
+                  CALL Petsc_PetscSectionSetChart(blockPreconditioner%section, &
+                    & solverMapping%ROW_DOFS_MAPPING%LOCAL_TO_GLOBAL_MAP(1), &
+                    & solverMapping%ROW_DOFS_MAPPING%LOCAL_TO_GLOBAL_MAP(solverMapping%ROW_DOFS_MAPPING%NUMBER_OF_LOCAL)+1, &
+                    & err,error,*999)
+                  DO variableIdx=1,solverMapping%VARIABLES_LIST(solverMatrixIdx)%NUMBER_OF_VARIABLES
+                    CALL Petsc_PetscSectionSetFieldName(blockPreconditioner%section,variableIdx-1, &
+                      & solverMapping%VARIABLES_LIST(solverMatrixIdx)%VARIABLES(variableIdx)%VARIABLE%VARIABLE_LABEL, &
+                      & err,error,*999)
+                    DO equationIdx=1,solverMapping%VARIABLES_LIST(solverMatrixIdx)%VARIABLES(variableIdx)%NUMBER_OF_EQUATIONS
+                      equationsType=solverMapping%VARIABLES_LIST(solverMatrixIdx)%VARIABLES(variableIdx)% &
+                        & EQUATION_TYPES(equationIdx)
+                      equationsIdx=solverMapping%VARIABLES_LIST(solverMatrixIdx)%VARIABLES(variableIdx)% &
+                        & EQUATION_INDICES(equationIdx)
+                      SELECT CASE(equationsType)
+                      CASE(SOLVER_MAPPING_EQUATIONS_EQUATIONS_SET)
+                        solverColumnNumbers=>solverMapping%EQUATIONS_SET_TO_SOLVER_MAP(equationsIdx)% &
+                          & EQUATIONS_TO_SOLVER_MATRIX_MAPS_SM(solverMatrixIdx)% &
+                          & VARIABLE_TO_SOLVER_COL_MAPS(variableIdx)%COLUMN_NUMBERS
+                      CASE(SOLVER_MAPPING_EQUATIONS_CONSTRAINT_CONDITION)
+                        solverColumnNumbers=>solverMapping%CONSTRAINT_CONDITION_TO_SOLVER_MAP(equationsIdx)% &
+                          & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solverMatrixIdx)% &
+                          & LAGRANGE_VARIABLE_TO_SOLVER_COL_MAP%COLUMN_NUMBERS
+                      CASE(SOLVER_MAPPING_EQUATIONS_INTERFACE_CONDITION)
+                        solverColumnNumbers=>solverMapping%INTERFACE_CONDITION_TO_SOLVER_MAP(equationsIdx)% &
+                          & INTERFACE_TO_SOLVER_MATRIX_MAPS_SM(solverMatrixIdx)% &
+                          & LAGRANGE_VARIABLE_TO_SOLVER_COL_MAP%COLUMN_NUMBERS
+                      CASE DEFAULT
+                        localError="The solver mapping equations type of "// &
+                          & TRIM(NUMBER_TO_VSTRING(equationsType,"*",err,error))// &
+                          & " is invalid."
+                        CALL FlagError(localError,err,error,*999)
+                      END SELECT
+                      DO variableDofIdx=1,solverMapping%VARIABLES_LIST(solverMatrixIdx)%VARIABLES(variableIdx)% &
+                        & VARIABLE%NUMBER_OF_DOFS
+                        solverColumnNumber=solverColumnNumbers(variableDofIdx)
+                        !The dof is not a Dirichlet dof, so it is included.
+                        IF(solverColumnNumber>0) THEN
+                          CALL Petsc_PetscSectionSetDof(blockPreconditioner%section,solverColumnNumber,1,err,error,*999)
+                          CALL Petsc_PetscSectionSetFieldDof(blockPreconditioner%section,solverColumnNumber,variableIdx-1,1, &
+                            & err,error,*999)
+                        ENDIF
+                      ENDDO !variableDofIdx
+                    ENDDO !equationIdx
+                  ENDDO
+                  CALL Petsc_PetscSectionSetUp(blockPreconditioner%section,err,error,*999)
+                  CALL Petsc_DMShellCreate(COMPUTATIONAL_ENVIRONMENT%MPI_COMM,blockPreconditioner%DM,err,error,*999)
+                  CALL Petsc_DMSetDefaultSection(blockPreconditioner%DM,blockPreconditioner%section,err,error,*999)
+                  CALL Petsc_DMSetUp(blockPreconditioner%DM,err,error,*999)
+                  CALL Petsc_PCSetDM(preconditioner%PC,blockPreconditioner%DM,err,error,*999)
+                  CALL Petsc_PCSetType(preconditioner%PC,PETSC_PCFIELDSPLIT,err,error,*999)
+                  SELECT CASE(blockPreconditioner%blockPreconditionerType)
+                  CASE(BLOCK_PRECONDITIONER_ADDITIVE)
+                    CALL Petsc_PCFieldSplitSetType(preconditioner%PC,PETSC_PC_COMPOSITE_ADDITIVE,err,error,*999)
+                  CASE(BLOCK_PRECONDITIONER_MULTIPLICATIVE)
+                    CALL Petsc_PCFieldSplitSetType(preconditioner%PC,PETSC_PC_COMPOSITE_MULTIPLICATIVE,err,error,*999)
+                  CASE(BLOCK_PRECONDITIONER_SYMMETRIC_MULTIPLICATIVE)
+                    CALL Petsc_PCFieldSplitSetType(preconditioner%PC,PETSC_PC_COMPOSITE_SYM_MULTIPLICATIVE,err,error,*999)
+                  CASE(BLOCK_PRECONDITIONER_SCHUR)
+                    CALL Petsc_PCFieldSplitSetType(preconditioner%PC,PETSC_PC_COMPOSITE_SCHUR,err,error,*999)
+                  CASE DEFAULT
+                    localError="The block preconditioner type of "// &
+                      & TRIM(NumberToVString(blockPreconditioner%blockPreconditionerType,"*",err,error))//" is invalid."
+                    CALL FlagError(localError,err,error,*999)
+                  END SELECT
+                  SELECT CASE(blockPreconditioner%blockPreconditionerType)
+                  CASE(BLOCK_PRECONDITIONER_ADDITIVE)
+                    !Do nothing
+                  CASE(BLOCK_PRECONDITIONER_MULTIPLICATIVE)
+                    !Do nothing
+                  CASE(BLOCK_PRECONDITIONER_SYMMETRIC_MULTIPLICATIVE)
+                    !Do nothing
+                  CASE(BLOCK_PRECONDITIONER_SCHUR)
+                    SELECT CASE(blockPreconditioner%schurFactorisationType)
+                    CASE(BLOCK_PRECONDITIONER_SCHUR_FACT_DIAG)
+                      CALL Petsc_PCFieldSplitSetSchurFactType(preconditioner%PC, &
+                        & PETSC_PC_FIELDSPLIT_SCHUR_FACT_DIAG,err,error,*999)
+                    CASE(BLOCK_PRECONDITIONER_SCHUR_FACT_LOWER)
+                      CALL Petsc_PCFieldSplitSetSchurFactType(preconditioner%PC, &
+                        & PETSC_PC_FIELDSPLIT_SCHUR_FACT_LOWER,err,error,*999)
+                    CASE(BLOCK_PRECONDITIONER_SCHUR_FACT_UPPER)
+                      CALL Petsc_PCFieldSplitSetSchurFactType(preconditioner%PC, &
+                        & PETSC_PC_FIELDSPLIT_SCHUR_FACT_UPPER,err,error,*999)
+                    CASE(BLOCK_PRECONDITIONER_SCHUR_FACT_FULL)
+                      CALL Petsc_PCFieldSplitSetSchurFactType(preconditioner%PC, &
+                        & PETSC_PC_FIELDSPLIT_SCHUR_FACT_FULL,err,error,*999)
+                    CASE DEFAULT
+                      localError="The block preconditioner Schur factorisation type of "// &
+                        & TRIM(NumberToVString(blockPreconditioner%schurFactorisationType,"*",err,error))//" is invalid."
+                      CALL FlagError(localError,err,error,*999)
+                    END SELECT
+                    SELECT CASE(blockPreconditioner%schurPreType)
+                    CASE(BLOCK_PRECONDITIONER_SCHUR_PRE_SELF)
+                      CALL Petsc_PCFieldSplitSetSchurPre(preconditioner%PC,PETSC_PC_FIELDSPLIT_SCHUR_PRE_SELF,err,error,*999)
+                    CASE(BLOCK_PRECONDITIONER_SCHUR_PRE_SELFP)
+                      CALL Petsc_PCFieldSplitSetSchurPre(preconditioner%PC,PETSC_PC_FIELDSPLIT_SCHUR_PRE_SELFP,err,error,*999)
+                    CASE(BLOCK_PRECONDITIONER_SCHUR_PRE_A11)
+                      CALL Petsc_PCFieldSplitSetSchurPre(preconditioner%PC,PETSC_PC_FIELDSPLIT_SCHUR_PRE_A11,err,error,*999)
+                    CASE(BLOCK_PRECONDITIONER_SCHUR_PRE_FULL)
+                      CALL Petsc_PCFieldSplitSetSchurPre(preconditioner%PC,PETSC_PC_FIELDSPLIT_SCHUR_PRE_FULL,err,error,*999)
+                    CASE(BLOCK_PRECONDITIONER_SCHUR_PRE_USER)
+                      !SANDER
+                      !Finish preconditioner matrix here?
+                      !CALL Petsc_PCFieldSplitSetSchurPre(preconditioner%PC,PETSC_PC_FIELDSPLIT_SCHUR_PRE_USER, &
+                      !  & preconditioner%preconditionerMatrix%matrix%PETSC%MATRIX,err,error,*999)
+                    CASE DEFAULT
+                      localError="The block preconditioner Schur complement preconditioner type of "// &
+                        & TRIM(NumberToVString(blockPreconditioner%schurPreType,"*",err,error))//" is invalid."
+                      CALL FlagError(localError,err,error,*999)
+                    END SELECT
+                  CASE DEFAULT
+                    localError="The block preconditioner type of "// &
+                      & TRIM(NumberToVString(blockPreconditioner%blockPreconditionerType,"*",err,error))// &
+                      & " is invalid."
+                    CALL FlagError(localError,err,error,*999)
+                  END SELECT
+
+                  !Second finish the splits of the block preconditioner
+                  CALL BlockPreconditionerSplitsCreateFinish(blockPreconditioner,err,error,*999)
+                  ALLOCATE(subDM(blockPreconditioner%numberOfSplits),STAT=err)
+                  IF(err/=0) CALL FlagError("Could not allocate sub DM.",err,error,*999)
+                  ALLOCATE(subIS(blockPreconditioner%numberOfSplits),STAT=err)
+                  IF(err/=0) CALL FlagError("Could not allocate sub IS'.",err,error,*999)
+                  !Third inform PETSc which variables belong to which split/split
+                  DO splitIdx=1,blockPreconditioner%numberOfSplits
+                    blockPreconditionerSplit=>blockPreconditioner%splits(splitIdx)%ptr
+                    CALL Petsc_ISInitialise(subIS(splitIdx),err,error,*999)
+                    CALL Petsc_DMInitialise(subDM(splitIdx),err,error,*999)
+                    CALL Petsc_DMCreateSubDM(blockPreconditioner%DM,blockPreconditionerSplit%numberOfVariables, &
+                      & blockPreconditionerSplit%solverVariableIndices-1,subIS(splitIdx),subDM(splitIdx), &
+                      & err,error,*999)
+                    IF(splitIdx==1) CALL Petsc_ISSetBlockSize(subIS(splitIdx),3,err,error,*999)
+                    CALL Petsc_PCFieldSplitSetIS(preconditioner%PC,TRIM(NUMBER_TO_VSTRING(splitIdx-1,"*",err,error)), &
+                      & subIS(splitIdx),err,error,*999)
+                  END DO !splitIdx
+                  CALL Petsc_PCSetUp(preconditioner%PC,err,error,*999)
+                  !Fourth set up the sub ksp's
+                  DO splitIdx=1,blockPreconditioner%numberOfSplits
+                    blockPreconditionerSplit=>blockPreconditioner%splits(splitIdx)%ptr
+                    linearSolver=>blockPreconditioner%splits(splitIdx)%ptr%linearSolver%LINEAR_SOLVER
+                    SELECT CASE(linearSolver%LINEAR_SOLVE_TYPE)
+                    CASE(SOLVER_LINEAR_DIRECT_SOLVE_TYPE)
+                      directSolver=>linearSolver%DIRECT_SOLVER
+                      IF(ASSOCIATED(directSolver)) THEN
+                        CALL Petsc_PCFieldSplitGetSubKsp(preconditioner%PC,splitIdx,directSolver%KSP,err,error,*999)
+                        directSolver%isSubKsp=.TRUE.
+                        CALL Petsc_KSPSetDM(directSolver%KSP,subDM(splitIdx),err,error,*999)
+                        CALL Petsc_KSPSetDMActive(directSolver%KSP,PETSC_FALSE,err,error,*999)
+                        !Set the KSP type to preonly
+                        CALL Petsc_KSPSetType(directSolver%KSP,PETSC_KSPPREONLY,err,error,*999)
+                        !Get the pre-conditioner
+                        CALL Petsc_KSPGetPC(directSolver%KSP,directSolver%PC,err,error,*999)
+                        !Set the PC type to LU
+                        CALL Petsc_PCSetType(directSolver%PC,PETSC_PCLU,err,error,*999)
+                        SELECT CASE(directSolver%SOLVER_LIBRARY)
+                        CASE(SOLVER_MUMPS_LIBRARY)
+                          !Set the PC factorisation package to MUMPS
+                          CALL Petsc_PCFactorSetMatSolverPackage(directSolver%PC,PETSC_MAT_SOLVER_MUMPS,err,error,*999)
+                        CASE(SOLVER_SUPERLU_LIBRARY)
+                          !Set the PC factorisation package to SuperLU_DIST
+                          CALL Petsc_PCFactorSetMatSolverPackage(directSolver%PC,PETSC_MAT_SOLVER_SUPERLU_DIST, &
+                            & err,error,*999)
+                        CASE(SOLVER_LAPACK_LIBRARY)
+                          CALL FlagError("LAPACK not available in this version of PETSc.",err,error,*999)
+                        CASE(SOLVER_PASTIX_LIBRARY)
+                          !Set the PC factorisation package to PaStiX
+                          CALL Petsc_PCFactorSetMatSolverPackage(directSolver%PC,PETSC_MAT_SOLVER_PASTIX,err,error,*999)
+                        END SELECT
+                      ELSE
+                        CALL FlagError("Linear solver direct solver is not associated.",err,error,*999)
+                      ENDIF
+                    CASE(SOLVER_LINEAR_ITERATIVE_SOLVE_TYPE)
+                      iterativeSolver=>linearSolver%ITERATIVE_SOLVER
+                      IF(ASSOCIATED(iterativeSolver)) THEN
+                        CALL Petsc_PCFieldSplitGetSubKsp(preconditioner%PC,splitIdx,iterativeSolver%KSP,err,error,*999)
+                        iterativeSolver%isSubKsp=.TRUE.
+                        CALL Petsc_KSPSetDM(iterativeSolver%KSP,subDM(splitIdx),err,error,*999)
+                        CALL Petsc_KSPSetDMActive(iterativeSolver%KSP,PETSC_FALSE,err,error,*999)
+                        !Set the tolerances for the KSP solver
+                        CALL Petsc_KSPSetTolerances(iterativeSolver%KSP,iterativeSolver%RELATIVE_TOLERANCE, &
+                          & iterativeSolver%ABSOLUTE_TOLERANCE,iterativeSolver%DIVERGENCE_TOLERANCE, &
+                          & iterativeSolver%MAXIMUM_NUMBER_OF_ITERATIONS,err,error,*999)
+                        !Set the KSP type 
+                        SELECT CASE(iterativeSolver%ITERATIVE_SOLVER_TYPE)
+                        CASE(SOLVER_ITERATIVE_PRE_ONLY)
+                          CALL Petsc_KSPSetType(iterativeSolver%KSP,PETSC_KSPPREONLY,err,error,*999)
+                        CASE(SOLVER_ITERATIVE_RICHARDSON)
+                          CALL Petsc_KSPSetType(iterativeSolver%KSP,PETSC_KSPRICHARDSON,err,error,*999)
+                        CASE(SOLVER_ITERATIVE_CHEBYSHEV)
+                          CALL Petsc_KSPSetType(iterativeSolver%KSP,PETSC_KSPCHEBYSHEV,err,error,*999)
+                        CASE(SOLVER_ITERATIVE_CONJUGATE_GRADIENT)
+                          CALL Petsc_KSPSetType(iterativeSolver%KSP,PETSC_KSPCG,err,error,*999)
+                        CASE(SOLVER_ITERATIVE_BICONJUGATE_GRADIENT)
+                          CALL Petsc_KSPSetType(iterativeSolver%KSP,PETSC_KSPBICG,err,error,*999)
+                        CASE(SOLVER_ITERATIVE_GMRES)
+                          CALL Petsc_KSPSetType(iterativeSolver%KSP,PETSC_KSPGMRES,err,error,*999)
+                        CASE(SOLVER_ITERATIVE_FGMRES)
+                          CALL Petsc_KSPSetType(iterativeSolver%KSP,PETSC_KSPFGMRES,err,error,*999)
+                        CASE(SOLVER_ITERATIVE_BiCGSTAB)
+                          CALL Petsc_KSPSetType(iterativeSolver%KSP,PETSC_KSPBCGS,err,error,*999)
+                        CASE(SOLVER_ITERATIVE_CONJGRAD_SQUARED)
+                          CALL Petsc_KSPSetType(iterativeSolver%KSP,PETSC_KSPCGS,err,error,*999)
+                        CASE DEFAULT
+                          localError="The iterative solver type of "// &
+                            & TRIM(NumberToVString(iterativeSolver%ITERATIVE_SOLVER_TYPE,"*",err,error))// &
+                            & " is invalid."
+                          CALL FlagError(localError,err,error,*999)
+                        END SELECT
+                        !Finish the preconditioner
+                        CALL SolverLinearIterativePreconditionerCreateFinish(iterativeSolver,err,error,*999)
+                      ELSE
+                        CALL FlagError("Linear solver iterative solver is not associated.",err,error,*999)
+                      ENDIF
+                    CASE DEFAULT
+                      localError="The linear solver type of "// &
+                        & TRIM(NumberToVString(linearSolver%LINEAR_SOLVE_TYPE,"*",err,error))// &
+                        & " is invalid."
+                      CALL FlagError(localError,err,error,*999)
+                    END SELECT
+                    CALL Petsc_ISFinalise(subIS(splitIdx),err,error,*999)
+                    CALL Petsc_DMFinalise(subDM(splitIdx),err,error,*999)
+                  END DO !splitIdx
+                  IF(ASSOCIATED(subIS)) DEALLOCATE(subIS)
+                  IF(ASSOCIATED(subDM)) DEALLOCATE(subDM)
+                ELSE
+                  CALL FlagError("The block preconditioner preconditioner linear iterative solver linear solver solver &
+                    &solver equations mapping is not associated.",err,error,*999)
+                ENDIF
+              ELSE
+                CALL FlagError("The block preconditioner preconditioner linear iterative solver linear solver solver &
+                  &solver equations is not associated.",err,error,*999)
+              ENDIF
+            ELSE
+              CALL FlagError("The block preconditioner preconditioner linear iterative solver linear solver &
+                &solver is not associated.",err,error,*999)
+            ENDIF
+          ELSE
+            CALL FlagError("The block preconditioner preconditioner linear iterative solver linear solver is not associated.", &
+              & err,error,*999)
+          ENDIF
+        ELSE
+          CALL FlagError("The block preconditioner preconditioner linear iterative solver is not associated.",err,error,*999)
+        ENDIF
+      ELSE
+        CALL FlagError("The block preconditioner preconditioner is not associated.",err,error,*999)
+      ENDIF
+    ELSE
+      CALL FlagError("The block preconditioner is not associated.",err,error,*999)
+    ENDIF
+
+    EXITS("BlockPreconditionerCreateFinish")
+    RETURN
+999 ERRORSEXITS("BlockPreconditionerCreateFinish",err,error)
+    RETURN 1
+   
+  END SUBROUTINE BlockPreconditionerCreateFinish
+        
+  !
+  !================================================================================================================================
+  !
+
   !> Start the creation of the block preconditioner type.
   SUBROUTINE PreconditionerBlockPreconditionerCreateStart(preconditioner,err,error,*)
 
@@ -12465,6 +13052,8 @@ CONTAINS
           CALL Petsc_PCSetType(preconditioner%PC,PETSC_PCASM,err,error,*999)
         CASE(SOLVER_ITERATIVE_BLOCK_PRECONDITIONER)
           CALL BlockPreconditionerCreateFinish(preconditioner%blockPreconditioner,err,error,*999)
+        CASE(SOLVER_ITERATIVE_AMG_PRECONDITIONER)
+          CALL AMGPreconditionerCreateFinish(preconditioner%amgPreconditioner,err,error,*999)
         CASE DEFAULT
           localError="The iterative preconditioner type of "// &
             & TRIM(NUMBER_TO_VSTRING(preconditioner%preconditionerType,"*",err,error))//" is invalid."
@@ -12502,6 +13091,9 @@ CONTAINS
     ENTERS("PreconditionerFinalise",err,error,*999)
 
     IF(ASSOCIATED(preconditioner)) THEN
+      IF(ASSOCIATED(preconditioner%amgPreconditioner)) THEN
+        CALL AMGPreconditionerFinalise(preconditioner%amgPreconditioner,err,error,*999)
+      END IF
       IF(ASSOCIATED(preconditioner%blockPreconditioner)) THEN
         CALL BlockPreconditionerFinalise(preconditioner%blockPreconditioner,err,error,*999)
       END IF
@@ -12548,6 +13140,7 @@ CONTAINS
     IF(ASSOCIATED(preconditioner)) THEN
       !Initialise the preconditioner
       NULLIFY(preconditioner%linearIterativeSolver) 
+      NULLIFY(preconditioner%amgPreconditioner)
       NULLIFY(preconditioner%blockPreconditioner)
 !      NULLIFY(preconditioner%preconditionerMapping)
       NULLIFY(preconditioner%preconditionerMatrix)
@@ -12744,6 +13337,8 @@ CONTAINS
               !Do nothing
             CASE(SOLVER_ITERATIVE_BLOCK_PRECONDITIONER)
               CALL PreconditionerBlockPreconditionerCreateStart(preconditioner,err,error,*999)
+            CASE(SOLVER_ITERATIVE_AMG_PRECONDITIONER)
+              CALL PreconditionerAMGPreconditionerCreateStart(preconditioner,err,error,*999)
             CASE DEFAULT
               localError="The iterative preconditioner type of "// &
                 & TRIM(NUMBER_TO_VSTRING(iterativePreconditionerType,"*",err,error))//" is invalid."
@@ -12767,6 +13362,8 @@ CONTAINS
               !Do nothing
             CASE(SOLVER_ITERATIVE_BLOCK_PRECONDITIONER)
               CALL BlockPreconditionerFinalise(preconditioner%blockPreconditioner,err,error,*999)
+            CASE(SOLVER_ITERATIVE_AMG_PRECONDITIONER)
+              CALL AMGPreconditionerFinalise(preconditioner%amgPreconditioner,err,error,*999)
             CASE DEFAULT
               localError="The iterative preconditioner type of "// &
                 & TRIM(NUMBER_TO_VSTRING(iterativePreconditionerType,"*",err,error))//" is invalid."
@@ -13157,6 +13754,8 @@ CONTAINS
                   SELECT CASE(SOLVER%LINEAR_SOLVER%ITERATIVE_SOLVER%SOLVER_LIBRARY)
                   CASE(SOLVER_PETSC_LIBRARY)
                     SELECT CASE(ITERATIVE_SOLVER_TYPE)
+                    CASE(SOLVER_ITERATIVE_PRE_ONLY)
+                      SOLVER%LINEAR_SOLVER%ITERATIVE_SOLVER%ITERATIVE_SOLVER_TYPE=SOLVER_ITERATIVE_PRE_ONLY
                     CASE(SOLVER_ITERATIVE_RICHARDSON)
                       SOLVER%LINEAR_SOLVER%ITERATIVE_SOLVER%ITERATIVE_SOLVER_TYPE=SOLVER_ITERATIVE_RICHARDSON
                     CASE(SOLVER_ITERATIVE_CHEBYSHEV)
@@ -15227,8 +15826,8 @@ CONTAINS
       & equations_matrix_number,interface_row_number,equations_row_number,equations_row_number2,equations_set_idx, & 
       & interface_column_number,interface_condition_idx,interface_matrix_idx,LINEAR_VARIABLE_TYPE,rhs_boundary_condition, &
       & rhs_global_dof,equations_matrix_idx2,rhs_variable_dof,rhs_variable_type,variable_boundary_condition,solver_matrix_idx, &
-      & solver_row_idx,solver_row_number,variable_dof,variable_global_dof,variable_idx,variable_type,lagrange_variable_type, &
-      & dirichlet_idx,dirichlet_row,number_of_constraint_matrices,number_of_interface_matrices
+      & solver_row_idx,solver_row_number,variable_dof,variable_global_dof,variable_idx,variable_type, &
+      & lagrange_variable_type,dirichlet_idx,dirichlet_row,number_of_constraint_matrices,number_of_interface_matrices
     REAL(SP) :: SYSTEM_ELAPSED,SYSTEM_TIME1(1),SYSTEM_TIME2(1),USER_ELAPSED,USER_TIME1(1),USER_TIME2(1)
     REAL(DP) :: DEPENDENT_VALUE,LINEAR_VALUE,LINEAR_VALUE_SUM,MATRIX_VALUE,RESIDUAL_VALUE,RHS_VALUE,row_coupling_coefficient, &
       & SOURCE_VALUE,VALUE,RHS_INTEGRATED_VALUE
@@ -15295,260 +15894,307 @@ CONTAINS
     IF(ASSOCIATED(SOLVER)) THEN
       SOLVER_EQUATIONS=>SOLVER%SOLVER_EQUATIONS
       IF(ASSOCIATED(SOLVER_EQUATIONS)) THEN
-        SOLVER_MAPPING=>SOLVER_EQUATIONS%SOLVER_MAPPING
-        IF(ASSOCIATED(SOLVER_MAPPING)) THEN
-          SOLVER_MATRICES=>SOLVER_EQUATIONS%SOLVER_MATRICES
-          IF(ASSOCIATED(SOLVER_MATRICES)) THEN
-            !Assemble the solver matrices
-            NULLIFY(PREVIOUS_SOLVER_DISTRIBUTED_MATRIX)
-            IF(SELECTION_TYPE==SOLVER_MATRICES_ALL.OR. &
-              & SELECTION_TYPE==SOLVER_MATRICES_LINEAR_ONLY.OR. &
-              & SELECTION_TYPE==SOLVER_MATRICES_NONLINEAR_ONLY.OR. &
-              & SELECTION_TYPE==SOLVER_MATRICES_JACOBIAN_ONLY) THEN
-              !Assemble solver matrices
-              IF(SOLVER%OUTPUT_TYPE>=SOLVER_TIMING_OUTPUT) THEN
-                CALL CPU_TIMER(USER_CPU,USER_TIME1,ERR,ERROR,*999)
-                CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME1,ERR,ERROR,*999)
-              ENDIF
-              !Loop over the solver matrices
-              DO solver_matrix_idx=1,SOLVER_MAPPING%NUMBER_OF_SOLVER_MATRICES
-                SOLVER_MATRIX=>SOLVER_MATRICES%MATRICES(solver_matrix_idx)%PTR
-                IF(ASSOCIATED(SOLVER_MATRIX)) THEN
-                  IF(SOLVER_MATRIX%UPDATE_MATRIX) THEN
-                    SOLVER_DISTRIBUTED_MATRIX=>SOLVER_MATRIX%MATRIX
-                    IF(ASSOCIATED(SOLVER_DISTRIBUTED_MATRIX)) THEN
-                      !Initialise matrix to zero
-                      CALL DISTRIBUTED_MATRIX_ALL_VALUES_SET(SOLVER_DISTRIBUTED_MATRIX,0.0_DP,ERR,ERROR,*999)
-                      !Loop over the equations sets
-                      DO equations_set_idx=1,SOLVER_MAPPING%NUMBER_OF_EQUATIONS_SETS
-                        !First Loop over the linear equations matrices
-                        DO equations_matrix_idx=1,SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)% &
-                          & EQUATIONS_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%NUMBER_OF_LINEAR_EQUATIONS_MATRICES
-                          EQUATIONS_TO_SOLVER_MAP=>SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)% &
-                            & EQUATIONS_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%LINEAR_EQUATIONS_TO_SOLVER_MATRIX_MAPS( &
-                            & equations_matrix_idx)%PTR
-                          IF(ASSOCIATED(EQUATIONS_TO_SOLVER_MAP)) THEN
-                            EQUATIONS_MATRIX=>EQUATIONS_TO_SOLVER_MAP%EQUATIONS_MATRIX
-                            IF(ASSOCIATED(EQUATIONS_MATRIX)) THEN
-                              CALL SOLVER_MATRIX_EQUATIONS_MATRIX_ADD(SOLVER_MATRIX,equations_set_idx,1.0_DP,EQUATIONS_MATRIX, &
-                                & ERR,ERROR,*999)
-                            ELSE
-                              CALL FlagError("The equations matrix is not associated.",ERR,ERROR,*999)
-                            ENDIF
-                          ELSE
-                            CALL FlagError("The equations matrix equations to solver map is not associated.",ERR,ERROR,*999)
-                          ENDIF
-                        ENDDO !equations_matrix_idx
-                        IF(SELECTION_TYPE==SOLVER_MATRICES_ALL.OR. &
-                          & SELECTION_TYPE==SOLVER_MATRICES_NONLINEAR_ONLY.OR. &
-                          & SELECTION_TYPE==SOLVER_MATRICES_JACOBIAN_ONLY) THEN
-                          !Now set the values from the equations Jacobian
+        BOUNDARY_CONDITIONS=>SOLVER_EQUATIONS%BOUNDARY_CONDITIONS
+        IF(ASSOCIATED(BOUNDARY_CONDITIONS)) THEN
+          SOLVER_MAPPING=>SOLVER_EQUATIONS%SOLVER_MAPPING
+          IF(ASSOCIATED(SOLVER_MAPPING)) THEN
+            SOLVER_MATRICES=>SOLVER_EQUATIONS%SOLVER_MATRICES
+            IF(ASSOCIATED(SOLVER_MATRICES)) THEN
+              !Assemble the solver matrices
+              NULLIFY(PREVIOUS_SOLVER_DISTRIBUTED_MATRIX)
+              IF(SELECTION_TYPE==SOLVER_MATRICES_ALL.OR. &
+                & SELECTION_TYPE==SOLVER_MATRICES_LINEAR_ONLY.OR. &
+                & SELECTION_TYPE==SOLVER_MATRICES_NONLINEAR_ONLY.OR. &
+                & SELECTION_TYPE==SOLVER_MATRICES_JACOBIAN_ONLY) THEN
+                !Assemble solver matrices
+                IF(SOLVER%OUTPUT_TYPE>=SOLVER_TIMING_OUTPUT) THEN
+                  CALL CPU_TIMER(USER_CPU,USER_TIME1,ERR,ERROR,*999)
+                  CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME1,ERR,ERROR,*999)
+                ENDIF
+                !Loop over the solver matrices
+                DO solver_matrix_idx=1,SOLVER_MAPPING%NUMBER_OF_SOLVER_MATRICES
+                  SOLVER_MATRIX=>SOLVER_MATRICES%MATRICES(solver_matrix_idx)%PTR
+                  IF(ASSOCIATED(SOLVER_MATRIX)) THEN
+                    IF(SOLVER_MATRIX%UPDATE_MATRIX) THEN
+                      SOLVER_DISTRIBUTED_MATRIX=>SOLVER_MATRIX%MATRIX
+                      IF(ASSOCIATED(SOLVER_DISTRIBUTED_MATRIX)) THEN
+                        !Initialise matrix to zero
+                        CALL DISTRIBUTED_MATRIX_ALL_VALUES_SET(SOLVER_DISTRIBUTED_MATRIX,0.0_DP,ERR,ERROR,*999)
+                        !Loop over the equations sets
+                        DO equations_set_idx=1,SOLVER_MAPPING%NUMBER_OF_EQUATIONS_SETS
+                          !First Loop over the linear equations matrices
                           DO equations_matrix_idx=1,SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)% &
-                              & EQUATIONS_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%NUMBER_OF_EQUATIONS_JACOBIANS 
-                            JACOBIAN_TO_SOLVER_MAP=>SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)% &
-                              & EQUATIONS_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%JACOBIAN_TO_SOLVER_MATRIX_MAPS( &
+                            & EQUATIONS_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%NUMBER_OF_LINEAR_EQUATIONS_MATRICES
+                            EQUATIONS_TO_SOLVER_MAP=>SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)% &
+                              & EQUATIONS_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%LINEAR_EQUATIONS_TO_SOLVER_MATRIX_MAPS( &
                               & equations_matrix_idx)%PTR
-                            IF(ASSOCIATED(JACOBIAN_TO_SOLVER_MAP)) THEN
-                              JACOBIAN_MATRIX=>JACOBIAN_TO_SOLVER_MAP%JACOBIAN_MATRIX
-                              IF(ASSOCIATED(JACOBIAN_MATRIX)) THEN
-                                CALL SOLVER_MATRIX_JACOBIAN_MATRIX_ADD(SOLVER_MATRIX,equations_set_idx,1.0_DP,JACOBIAN_MATRIX, &
+                            IF(ASSOCIATED(EQUATIONS_TO_SOLVER_MAP)) THEN
+                              EQUATIONS_MATRIX=>EQUATIONS_TO_SOLVER_MAP%EQUATIONS_MATRIX
+                              IF(ASSOCIATED(EQUATIONS_MATRIX)) THEN
+                                CALL SOLVER_MATRIX_EQUATIONS_MATRIX_ADD(SOLVER_MATRIX,equations_set_idx,1.0_DP,EQUATIONS_MATRIX, &
                                   & ERR,ERROR,*999)
                               ELSE
-                                CALL FlagError("Jacobian matrix is not associated.",ERR,ERROR,*999)
+                                CALL FlagError("The equations matrix is not associated.",ERR,ERROR,*999)
                               ENDIF
                             ELSE
-                              LOCAL_ERROR="Jacobian to solver map is not associated for Jacobian number "// &
-                                & TRIM(NumberToVString(equations_matrix_idx,"*",ERR,ERROR))//"."
-                              CALL FlagError(LOCAL_ERROR,ERR,ERROR,*999)
+                              CALL FlagError("The equations matrix equations to solver map is not associated.",ERR,ERROR,*999)
                             ENDIF
-                          ENDDO
-                        ENDIF
-                      ENDDO !equations_set_idx
-                      DO constraint_condition_idx=1,SOLVER_MAPPING%NUMBER_OF_CONSTRAINT_CONDITIONS
-                        !First Loop over the linear constraint matrices
-                        DO constraint_matrix_idx=1,SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
-                          & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%NUMBER_OF_LINEAR_CONSTRAINT_MATRICES
-                          CONSTRAINT_TO_SOLVER_MAP=>SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
-                            & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%LINEAR_CONSTRAINT_TO_SOLVER_MATRIX_MAPS( &
-                            & constraint_matrix_idx)%PTR
-                          IF(ASSOCIATED(CONSTRAINT_TO_SOLVER_MAP)) THEN
-                            CONSTRAINT_LINEAR_MATRIX=>CONSTRAINT_TO_SOLVER_MAP%CONSTRAINT_MATRIX
-                            IF(ASSOCIATED(CONSTRAINT_LINEAR_MATRIX)) THEN
-                              CALL SOLVER_MATRIX_CONSTRAINT_MATRIX_ADD(SOLVER_MATRIX,constraint_condition_idx,1.0_DP, &
-                                & CONSTRAINT_LINEAR_MATRIX,ERR,ERROR,*999)
-                            ELSE
-                              CALL FlagError("The constraint matrix is not associated.",ERR,ERROR,*999)
-                            ENDIF
-                          ELSE
-                            CALL FlagError("The constraint matrix constraint to solver map is not associated.",ERR,ERROR,*999)
-                          ENDIF
-                        ENDDO !constraint_matrix_idx
-                        IF(SELECTION_TYPE==SOLVER_MATRICES_ALL.OR. &
-                          & SELECTION_TYPE==SOLVER_MATRICES_NONLINEAR_ONLY.OR. &
-                          & SELECTION_TYPE==SOLVER_MATRICES_JACOBIAN_ONLY) THEN
-                          !Now set the values from the constraint Jacobian
-                          DO constraint_matrix_idx=1,SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
-                              & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%NUMBER_OF_CONSTRAINT_JACOBIANS 
-                            CONSTRAINT_JACOBIAN_TO_SOLVER_MAP=>SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP( &
-                              & constraint_condition_idx)%CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
-                              & JACOBIAN_TO_SOLVER_MATRIX_MAPS(constraint_matrix_idx)%PTR
-                            IF(ASSOCIATED(CONSTRAINT_JACOBIAN_TO_SOLVER_MAP)) THEN
-                              CONSTRAINT_JACOBIAN=>CONSTRAINT_JACOBIAN_TO_SOLVER_MAP%CONSTRAINT_JACOBIAN
-                              IF(ASSOCIATED(CONSTRAINT_JACOBIAN)) THEN
-                                CALL SOLVER_MATRIX_CONSTRAINT_JACOBIAN_MATRIX_ADD(SOLVER_MATRIX,constraint_condition_idx,1.0_DP, &
-                                  & CONSTRAINT_JACOBIAN,ERR,ERROR,*999)
-                              ELSE
-                                CALL FlagError("Constraint Jacobian matrix is not associated.",ERR,ERROR,*999)
-                              ENDIF
-                            ELSE
-                              LOCAL_ERROR="Constraint Jacobian to solver map is not associated for Jacobian number "// &
-                                & TRIM(NUMBER_TO_VSTRING(constraint_matrix_idx,"*",ERR,ERROR))//"."
-                              CALL FlagError(LOCAL_ERROR,ERR,ERROR,*999)
-                            ENDIF
-                          ENDDO
-                        ENDIF
-                      ENDDO !constraint_condition_idx
-                      !Loop over any interface conditions
-                      DO interface_condition_idx=1,SOLVER_MAPPING%NUMBER_OF_INTERFACE_CONDITIONS
-                        !Loop over the interface matrices
-                        DO interface_matrix_idx=1,SOLVER_MAPPING%INTERFACE_CONDITION_TO_SOLVER_MAP(interface_condition_idx)% &
-                          & INTERFACE_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%NUMBER_OF_INTERFACE_MATRICES
-                          INTERFACE_TO_SOLVER_MAP=>SOLVER_MAPPING%INTERFACE_CONDITION_TO_SOLVER_MAP(interface_condition_idx)% &
-                            & INTERFACE_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%INTERFACE_EQUATIONS_TO_SOLVER_MATRIX_MAPS( &
-                            & interface_matrix_idx)%PTR
-                          IF(ASSOCIATED(INTERFACE_TO_SOLVER_MAP)) THEN
-                            INTERFACE_MATRIX=>INTERFACE_TO_SOLVER_MAP%INTERFACE_MATRIX
-                            IF(ASSOCIATED(INTERFACE_MATRIX)) THEN
-                              CALL SOLVER_MATRIX_INTERFACE_MATRIX_ADD(SOLVER_MATRIX,interface_condition_idx,(/1.0_DP,1.0_DP/), &
-                                & INTERFACE_MATRIX,ERR,ERROR,*999)
-                            ELSE
-                              CALL FlagError("The interface matrix is not associated.",ERR,ERROR,*999)
-                            ENDIF
-                          ELSE
-                            CALL FlagError("The interface matrix interface to solver map is not associated.",ERR,ERROR,*999)
-                          ENDIF
-                        ENDDO !interface_matrix_idx
-                      ENDDO !interface_condition_idx
-                      !Update the solver matrix values
-                      CALL DISTRIBUTED_MATRIX_UPDATE_START(SOLVER_DISTRIBUTED_MATRIX,ERR,ERROR,*999)
-                      IF(ASSOCIATED(PREVIOUS_SOLVER_DISTRIBUTED_MATRIX)) THEN
-                        CALL DISTRIBUTED_MATRIX_UPDATE_FINISH(PREVIOUS_SOLVER_DISTRIBUTED_MATRIX,ERR,ERROR,*999)
-                      ENDIF
-                      PREVIOUS_SOLVER_DISTRIBUTED_MATRIX=>SOLVER_DISTRIBUTED_MATRIX
-                    ELSE
-                      CALL FlagError("Solver matrix distributed matrix is not associated.",ERR,ERROR,*999)
-                    ENDIF
-                  ENDIF !Update matrix
-                ELSE
-                  CALL FlagError("Solver matrix is not associated.",ERR,ERROR,*999)
-                ENDIF
-              ENDDO !solver_matrix_idx
-              IF(ASSOCIATED(PREVIOUS_SOLVER_DISTRIBUTED_MATRIX)) THEN
-                CALL DISTRIBUTED_MATRIX_UPDATE_FINISH(PREVIOUS_SOLVER_DISTRIBUTED_MATRIX,ERR,ERROR,*999)
-              ENDIF
-              IF(SOLVER%OUTPUT_TYPE>=SOLVER_TIMING_OUTPUT) THEN
-                CALL CPU_TIMER(USER_CPU,USER_TIME2,ERR,ERROR,*999)
-                CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME2,ERR,ERROR,*999)
-                USER_ELAPSED=USER_TIME2(1)-USER_TIME1(1)
-                SYSTEM_ELAPSED=SYSTEM_TIME2(1)-SYSTEM_TIME1(1)
-                CALL WRITE_STRING(GENERAL_OUTPUT_TYPE,"",ERR,ERROR,*999)
-                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Total user time for solver matrices assembly = ",USER_ELAPSED, &
-                  & ERR,ERROR,*999)
-                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Total System time for solver matrices assembly = ",SYSTEM_ELAPSED, &
-                  & ERR,ERROR,*999)
-              ENDIF
-            ENDIF
-            !The solver matrices have only one residual vector
-            NULLIFY(SOLVER_RESIDUAL_VECTOR)
-            IF(SELECTION_TYPE==SOLVER_MATRICES_ALL.OR. &
-              & SELECTION_TYPE==SOLVER_MATRICES_NONLINEAR_ONLY.OR. &
-              & SELECTION_TYPE==SOLVER_MATRICES_RESIDUAL_ONLY.OR. &
-              & SELECTION_TYPE==SOLVER_MATRICES_RHS_RESIDUAL_ONLY) THEN
-              !Assemble residual vector
-              !We assemble residual vector before RHS vector, then when assembling the RHS vector we subtract
-              !the RHS terms for fixed BCs from the residual vector as this residual evaluation uses a matrix
-              !vector product of the full equations matrix rather than the reduced solver matrix
-              IF(SOLVER%OUTPUT_TYPE>=SOLVER_TIMING_OUTPUT) THEN
-                CALL CPU_TIMER(USER_CPU,USER_TIME1,ERR,ERROR,*999)
-                CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME1,ERR,ERROR,*999)
-              ENDIF
-              IF(SOLVER_MATRICES%UPDATE_RESIDUAL) THEN
-                SOLVER_RESIDUAL_VECTOR=>SOLVER_MATRICES%RESIDUAL
-                IF(ASSOCIATED(SOLVER_RESIDUAL_VECTOR)) THEN
-                  !Initialise the residual to zero
-                  CALL DISTRIBUTED_VECTOR_ALL_VALUES_SET(SOLVER_RESIDUAL_VECTOR,0.0_DP,ERR,ERROR,*999)
-                  !Loop over the equations sets
-                  DO equations_set_idx=1,SOLVER_MAPPING%NUMBER_OF_EQUATIONS_SETS
-                    EQUATIONS_SET=>SOLVER_MAPPING%EQUATIONS_SETS(equations_set_idx)%PTR
-                    IF(ASSOCIATED(EQUATIONS_SET)) THEN
-                      DEPENDENT_FIELD=>EQUATIONS_SET%DEPENDENT%DEPENDENT_FIELD
-                      IF(ASSOCIATED(DEPENDENT_FIELD)) THEN
-                        EQUATIONS=>EQUATIONS_SET%EQUATIONS
-                        IF(ASSOCIATED(EQUATIONS)) THEN
-                          EQUATIONS_MATRICES=>EQUATIONS%EQUATIONS_MATRICES
-                          IF(ASSOCIATED(EQUATIONS_MATRICES)) THEN
-                            EQUATIONS_MAPPING=>EQUATIONS%EQUATIONS_MAPPING
-                            IF(ASSOCIATED(EQUATIONS_MAPPING)) THEN
-                              !Calculate the contributions from any linear matrices
-                              LINEAR_MAPPING=>EQUATIONS_MAPPING%LINEAR_MAPPING
-                              IF(ASSOCIATED(LINEAR_MAPPING)) THEN
-                                LINEAR_MATRICES=>EQUATIONS_MATRICES%LINEAR_MATRICES
-                                IF(ASSOCIATED(LINEAR_MATRICES)) THEN
-                                  DO equations_matrix_idx=1,LINEAR_MATRICES%NUMBER_OF_LINEAR_MATRICES
-                                    LINEAR_MATRIX=>LINEAR_MATRICES%MATRICES(equations_matrix_idx)%PTR
-                                    IF(ASSOCIATED(LINEAR_MATRIX)) THEN
-                                      LINEAR_VARIABLE_TYPE=LINEAR_MAPPING%EQUATIONS_MATRIX_TO_VAR_MAPS(equations_matrix_idx)% &
-                                        & VARIABLE_TYPE
-                                      LINEAR_VARIABLE=>LINEAR_MAPPING%EQUATIONS_MATRIX_TO_VAR_MAPS(equations_matrix_idx)% &
-                                        & VARIABLE
-                                      IF(ASSOCIATED(LINEAR_VARIABLE)) THEN
-                                        LINEAR_TEMP_VECTOR=>LINEAR_MATRIX%TEMP_VECTOR
-                                        !Initialise the linear temporary vector to zero
-                                        CALL DISTRIBUTED_VECTOR_ALL_VALUES_SET(LINEAR_TEMP_VECTOR,0.0_DP,ERR,ERROR,*999)
-                                        NULLIFY(DEPENDENT_VECTOR)
-                                        CALL FIELD_PARAMETER_SET_VECTOR_GET(DEPENDENT_FIELD,LINEAR_VARIABLE_TYPE, &
-                                          & FIELD_VALUES_SET_TYPE,DEPENDENT_VECTOR,ERR,ERROR,*999)
-                                        CALL DISTRIBUTED_MATRIX_BY_VECTOR_ADD(DISTRIBUTED_MATRIX_VECTOR_NO_GHOSTS_TYPE,1.0_DP, &
-                                          & LINEAR_MATRIX%MATRIX,DEPENDENT_VECTOR,LINEAR_TEMP_VECTOR,ERR,ERROR,*999)
-                                      ELSE
-                                        CALL FlagError("Linear variable is not associated.",ERR,ERROR,*999)
-                                      ENDIF
-                                    ELSE
-                                      LOCAL_ERROR="Linear matrix is not associated for linear matrix number "// &
-                                        & TRIM(NumberToVString(equations_matrix_idx,"*",ERR,ERROR))//"."
-                                      CALL FlagError(LOCAL_ERROR,ERR,ERROR,*999)
-                                    ENDIF
-                                  ENDDO !equations_matrix_idx
+                          ENDDO !equations_matrix_idx
+                          IF(BOUNDARY_CONDITIONS%dirichletMethod==BOUNDARY_CONDITION_DIRICHLET_ZERO_ROWS.AND. &
+                            & SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)% &
+                            & EQUATIONS_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%NUMBER_OF_LINEAR_EQUATIONS_MATRICES>0) THEN
+                            !Only need to put a diagonal value for the diagonal matrix blocks
+                            CALL SolverMatrix_EquationsZeroRowsAdjust(SOLVER_MATRIX,equations_set_idx,1.0_DP,err,error,*999)
+                          END IF
+                          IF(SELECTION_TYPE==SOLVER_MATRICES_ALL.OR. &
+                            & SELECTION_TYPE==SOLVER_MATRICES_NONLINEAR_ONLY.OR. &
+                            & SELECTION_TYPE==SOLVER_MATRICES_JACOBIAN_ONLY) THEN
+                            !Now set the values from the equations Jacobian
+                            DO equations_matrix_idx=1,SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)% &
+                                & EQUATIONS_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%NUMBER_OF_EQUATIONS_JACOBIANS 
+                              JACOBIAN_TO_SOLVER_MAP=>SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)% &
+                                & EQUATIONS_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%JACOBIAN_TO_SOLVER_MATRIX_MAPS( &
+                                & equations_matrix_idx)%PTR
+                              IF(ASSOCIATED(JACOBIAN_TO_SOLVER_MAP)) THEN
+                                JACOBIAN_MATRIX=>JACOBIAN_TO_SOLVER_MAP%JACOBIAN_MATRIX
+                                IF(ASSOCIATED(JACOBIAN_MATRIX)) THEN
+                                  CALL SOLVER_MATRIX_JACOBIAN_MATRIX_ADD(SOLVER_MATRIX,equations_set_idx,1.0_DP,JACOBIAN_MATRIX, &
+                                    & ERR,ERROR,*999)
                                 ELSE
-                                  CALL FlagError("Equations matrices linear matrices is not associated.",ERR,ERROR,*999)
+                                  CALL FlagError("Jacobian matrix is not associated.",ERR,ERROR,*999)
                                 ENDIF
+                              ELSE
+                                LOCAL_ERROR="Jacobian to solver map is not associated for Jacobian number "// &
+                                  & TRIM(NumberToVString(equations_matrix_idx,"*",ERR,ERROR))//"."
+                                CALL FlagError(LOCAL_ERROR,ERR,ERROR,*999)
                               ENDIF
-                              !Calculate the solver residual
-                              NONLINEAR_MAPPING=>EQUATIONS_MAPPING%NONLINEAR_MAPPING
-                              IF(ASSOCIATED(NONLINEAR_MAPPING)) THEN
-                                NONLINEAR_MATRICES=>EQUATIONS_MATRICES%NONLINEAR_MATRICES
-                                IF(ASSOCIATED(NONLINEAR_MATRICES)) THEN
-                                  RESIDUAL_VECTOR=>NONLINEAR_MATRICES%RESIDUAL
-                                  !Loop over the rows in the equations set
+                            ENDDO
+                            IF(BOUNDARY_CONDITIONS%dirichletMethod==BOUNDARY_CONDITION_DIRICHLET_ZERO_ROWS.AND. &
+                              & SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)% &
+                                & EQUATIONS_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%NUMBER_OF_EQUATIONS_JACOBIANS>0) THEN
+                              !Only need to put a diagonal value for the diagonal matrix blocks
+                              CALL SolverMatrix_JacobianZeroRowsAdjust(SOLVER_MATRIX,equations_set_idx,1.0_DP,err,error,*999)
+                            END IF
+                          ENDIF
+                        ENDDO !equations_set_idx
+                        DO constraint_condition_idx=1,SOLVER_MAPPING%NUMBER_OF_CONSTRAINT_CONDITIONS
+                          !First Loop over the linear constraint matrices
+                          DO constraint_matrix_idx=1,SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                            & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%NUMBER_OF_LINEAR_CONSTRAINT_MATRICES
+                            CONSTRAINT_TO_SOLVER_MAP=>SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                              & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%LINEAR_CONSTRAINT_TO_SOLVER_MATRIX_MAPS( &
+                              & constraint_matrix_idx)%PTR
+                            IF(ASSOCIATED(CONSTRAINT_TO_SOLVER_MAP)) THEN
+                              CONSTRAINT_LINEAR_MATRIX=>CONSTRAINT_TO_SOLVER_MAP%CONSTRAINT_MATRIX
+                              IF(ASSOCIATED(CONSTRAINT_LINEAR_MATRIX)) THEN
+                                CALL SOLVER_MATRIX_CONSTRAINT_MATRIX_ADD(SOLVER_MATRIX,constraint_condition_idx,1.0_DP, &
+                                  & CONSTRAINT_LINEAR_MATRIX,ERR,ERROR,*999)
+                              ELSE
+                                CALL FlagError("The constraint matrix is not associated.",ERR,ERROR,*999)
+                              ENDIF
+                            ELSE
+                              CALL FlagError("The constraint matrix constraint to solver map is not associated.",ERR,ERROR,*999)
+                            ENDIF
+                          ENDDO !constraint_matrix_idx
+                          IF(SELECTION_TYPE==SOLVER_MATRICES_ALL.OR. &
+                            & SELECTION_TYPE==SOLVER_MATRICES_NONLINEAR_ONLY.OR. &
+                            & SELECTION_TYPE==SOLVER_MATRICES_JACOBIAN_ONLY) THEN
+                            !Now set the values from the constraint Jacobian
+                            DO constraint_matrix_idx=1,SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                                & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%NUMBER_OF_CONSTRAINT_JACOBIANS 
+                              CONSTRAINT_JACOBIAN_TO_SOLVER_MAP=>SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP( &
+                                & constraint_condition_idx)%CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
+                                & JACOBIAN_TO_SOLVER_MATRIX_MAPS(constraint_matrix_idx)%PTR
+                              IF(ASSOCIATED(CONSTRAINT_JACOBIAN_TO_SOLVER_MAP)) THEN
+                                CONSTRAINT_JACOBIAN=>CONSTRAINT_JACOBIAN_TO_SOLVER_MAP%CONSTRAINT_JACOBIAN
+                                IF(ASSOCIATED(CONSTRAINT_JACOBIAN)) THEN
+                                  CALL SOLVER_MATRIX_CONSTRAINT_JACOBIAN_MATRIX_ADD(SOLVER_MATRIX,constraint_condition_idx,1.0_DP, &
+                                    & CONSTRAINT_JACOBIAN,ERR,ERROR,*999)
+                                ELSE
+                                  CALL FlagError("Constraint Jacobian matrix is not associated.",ERR,ERROR,*999)
+                                ENDIF
+                              ELSE
+                                LOCAL_ERROR="Constraint Jacobian to solver map is not associated for Jacobian number "// &
+                                  & TRIM(NUMBER_TO_VSTRING(constraint_matrix_idx,"*",ERR,ERROR))//"."
+                                CALL FlagError(LOCAL_ERROR,ERR,ERROR,*999)
+                              ENDIF
+                            ENDDO
+                          ENDIF
+                        ENDDO !constraint_condition_idx
+                        !Loop over any interface conditions
+                        DO interface_condition_idx=1,SOLVER_MAPPING%NUMBER_OF_INTERFACE_CONDITIONS
+                          !Loop over the interface matrices
+                          DO interface_matrix_idx=1,SOLVER_MAPPING%INTERFACE_CONDITION_TO_SOLVER_MAP(interface_condition_idx)% &
+                            & INTERFACE_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%NUMBER_OF_INTERFACE_MATRICES
+                            INTERFACE_TO_SOLVER_MAP=>SOLVER_MAPPING%INTERFACE_CONDITION_TO_SOLVER_MAP(interface_condition_idx)% &
+                              & INTERFACE_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%INTERFACE_EQUATIONS_TO_SOLVER_MATRIX_MAPS( &
+                              & interface_matrix_idx)%PTR
+                            IF(ASSOCIATED(INTERFACE_TO_SOLVER_MAP)) THEN
+                              INTERFACE_MATRIX=>INTERFACE_TO_SOLVER_MAP%INTERFACE_MATRIX
+                              IF(ASSOCIATED(INTERFACE_MATRIX)) THEN
+                                CALL SOLVER_MATRIX_INTERFACE_MATRIX_ADD(SOLVER_MATRIX,interface_condition_idx,(/1.0_DP,1.0_DP/), &
+                                  & INTERFACE_MATRIX,ERR,ERROR,*999)
+                              ELSE
+                                CALL FlagError("The interface matrix is not associated.",ERR,ERROR,*999)
+                              ENDIF
+                            ELSE
+                              CALL FlagError("The interface matrix interface to solver map is not associated.",ERR,ERROR,*999)
+                            ENDIF
+                          ENDDO !interface_matrix_idx
+                        ENDDO !interface_condition_idx
+                        !Update the solver matrix values
+                        CALL DISTRIBUTED_MATRIX_UPDATE_START(SOLVER_DISTRIBUTED_MATRIX,ERR,ERROR,*999)
+                        IF(ASSOCIATED(PREVIOUS_SOLVER_DISTRIBUTED_MATRIX)) THEN
+                          CALL DISTRIBUTED_MATRIX_UPDATE_FINISH(PREVIOUS_SOLVER_DISTRIBUTED_MATRIX,ERR,ERROR,*999)
+                        ENDIF
+                        PREVIOUS_SOLVER_DISTRIBUTED_MATRIX=>SOLVER_DISTRIBUTED_MATRIX
+                      ELSE
+                        CALL FlagError("Solver matrix distributed matrix is not associated.",ERR,ERROR,*999)
+                      ENDIF
+                    ENDIF !Update matrix
+                  ELSE
+                    CALL FlagError("Solver matrix is not associated.",ERR,ERROR,*999)
+                  ENDIF
+                ENDDO !solver_matrix_idx
+                IF(ASSOCIATED(PREVIOUS_SOLVER_DISTRIBUTED_MATRIX)) THEN
+                  CALL DISTRIBUTED_MATRIX_UPDATE_FINISH(PREVIOUS_SOLVER_DISTRIBUTED_MATRIX,ERR,ERROR,*999)
+                ENDIF
+                IF(SOLVER%OUTPUT_TYPE>=SOLVER_TIMING_OUTPUT) THEN
+                  CALL CPU_TIMER(USER_CPU,USER_TIME2,ERR,ERROR,*999)
+                  CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME2,ERR,ERROR,*999)
+                  USER_ELAPSED=USER_TIME2(1)-USER_TIME1(1)
+                  SYSTEM_ELAPSED=SYSTEM_TIME2(1)-SYSTEM_TIME1(1)
+                  CALL WRITE_STRING(GENERAL_OUTPUT_TYPE,"",ERR,ERROR,*999)
+                  CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Total user time for solver matrices assembly = ",USER_ELAPSED, &
+                    & ERR,ERROR,*999)
+                  CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Total System time for solver matrices assembly = ",SYSTEM_ELAPSED, &
+                    & ERR,ERROR,*999)
+                ENDIF
+              ENDIF
+              !The solver matrices have only one residual vector
+              NULLIFY(SOLVER_RESIDUAL_VECTOR)
+              IF(SELECTION_TYPE==SOLVER_MATRICES_ALL.OR. &
+                & SELECTION_TYPE==SOLVER_MATRICES_NONLINEAR_ONLY.OR. &
+                & SELECTION_TYPE==SOLVER_MATRICES_RESIDUAL_ONLY.OR. &
+                & SELECTION_TYPE==SOLVER_MATRICES_RHS_RESIDUAL_ONLY) THEN
+                !Assemble residual vector
+                !We assemble residual vector before RHS vector, then when assembling the RHS vector we subtract
+                !the RHS terms for fixed BCs from the residual vector as this residual evaluation uses a matrix
+                !vector product of the full equations matrix rather than the reduced solver matrix
+                IF(SOLVER%OUTPUT_TYPE>=SOLVER_TIMING_OUTPUT) THEN
+                  CALL CPU_TIMER(USER_CPU,USER_TIME1,ERR,ERROR,*999)
+                  CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME1,ERR,ERROR,*999)
+                ENDIF
+                IF(SOLVER_MATRICES%UPDATE_RESIDUAL) THEN
+                  SOLVER_RESIDUAL_VECTOR=>SOLVER_MATRICES%RESIDUAL
+                  IF(ASSOCIATED(SOLVER_RESIDUAL_VECTOR)) THEN
+                    !Initialise the residual to zero
+                    CALL DISTRIBUTED_VECTOR_ALL_VALUES_SET(SOLVER_RESIDUAL_VECTOR,0.0_DP,ERR,ERROR,*999)
+                    !Loop over the equations sets
+                    DO equations_set_idx=1,SOLVER_MAPPING%NUMBER_OF_EQUATIONS_SETS
+                      EQUATIONS_SET=>SOLVER_MAPPING%EQUATIONS_SETS(equations_set_idx)%PTR
+                      IF(ASSOCIATED(EQUATIONS_SET)) THEN
+                        DEPENDENT_FIELD=>EQUATIONS_SET%DEPENDENT%DEPENDENT_FIELD
+                        IF(ASSOCIATED(DEPENDENT_FIELD)) THEN
+                          EQUATIONS=>EQUATIONS_SET%EQUATIONS
+                          IF(ASSOCIATED(EQUATIONS)) THEN
+                            EQUATIONS_MATRICES=>EQUATIONS%EQUATIONS_MATRICES
+                            IF(ASSOCIATED(EQUATIONS_MATRICES)) THEN
+                              EQUATIONS_MAPPING=>EQUATIONS%EQUATIONS_MAPPING
+                              IF(ASSOCIATED(EQUATIONS_MAPPING)) THEN
+                                !Calculate the contributions from any linear matrices
+                                LINEAR_MAPPING=>EQUATIONS_MAPPING%LINEAR_MAPPING
+                                IF(ASSOCIATED(LINEAR_MAPPING)) THEN
+                                  LINEAR_MATRICES=>EQUATIONS_MATRICES%LINEAR_MATRICES
+                                  IF(ASSOCIATED(LINEAR_MATRICES)) THEN
+                                    DO equations_matrix_idx=1,LINEAR_MATRICES%NUMBER_OF_LINEAR_MATRICES
+                                      LINEAR_MATRIX=>LINEAR_MATRICES%MATRICES(equations_matrix_idx)%PTR
+                                      IF(ASSOCIATED(LINEAR_MATRIX)) THEN
+                                        LINEAR_VARIABLE_TYPE=LINEAR_MAPPING%EQUATIONS_MATRIX_TO_VAR_MAPS(equations_matrix_idx)% &
+                                          & VARIABLE_TYPE
+                                        LINEAR_VARIABLE=>LINEAR_MAPPING%EQUATIONS_MATRIX_TO_VAR_MAPS(equations_matrix_idx)% &
+                                          & VARIABLE
+                                        IF(ASSOCIATED(LINEAR_VARIABLE)) THEN
+                                          LINEAR_TEMP_VECTOR=>LINEAR_MATRIX%TEMP_VECTOR
+                                          !Initialise the linear temporary vector to zero
+                                          CALL DISTRIBUTED_VECTOR_ALL_VALUES_SET(LINEAR_TEMP_VECTOR,0.0_DP,ERR,ERROR,*999)
+                                          NULLIFY(DEPENDENT_VECTOR)
+                                          CALL FIELD_PARAMETER_SET_VECTOR_GET(DEPENDENT_FIELD,LINEAR_VARIABLE_TYPE, &
+                                            & FIELD_VALUES_SET_TYPE,DEPENDENT_VECTOR,ERR,ERROR,*999)
+                                          CALL DISTRIBUTED_MATRIX_BY_VECTOR_ADD(DISTRIBUTED_MATRIX_VECTOR_NO_GHOSTS_TYPE,1.0_DP, &
+                                            & LINEAR_MATRIX%MATRIX,DEPENDENT_VECTOR,LINEAR_TEMP_VECTOR,ERR,ERROR,*999)
+                                        ELSE
+                                          CALL FlagError("Linear variable is not associated.",ERR,ERROR,*999)
+                                        ENDIF
+                                      ELSE
+                                        LOCAL_ERROR="Linear matrix is not associated for linear matrix number "// &
+                                          & TRIM(NumberToVString(equations_matrix_idx,"*",ERR,ERROR))//"."
+                                        CALL FlagError(LOCAL_ERROR,ERR,ERROR,*999)
+                                      ENDIF
+                                    ENDDO !equations_matrix_idx
+                                  ELSE
+                                    CALL FlagError("Equations matrices linear matrices is not associated.",ERR,ERROR,*999)
+                                  ENDIF
+                                ENDIF
+                                !Calculate the solver residual
+                                NONLINEAR_MAPPING=>EQUATIONS_MAPPING%NONLINEAR_MAPPING
+                                IF(ASSOCIATED(NONLINEAR_MAPPING)) THEN
+                                  NONLINEAR_MATRICES=>EQUATIONS_MATRICES%NONLINEAR_MATRICES
+                                  IF(ASSOCIATED(NONLINEAR_MATRICES)) THEN
+                                    RESIDUAL_VECTOR=>NONLINEAR_MATRICES%RESIDUAL
+                                    !Loop over the rows in the equations set
+                                    DO equations_row_number=1,EQUATIONS_MAPPING%TOTAL_NUMBER_OF_ROWS
+                                      IF(SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)% &
+                                        & EQUATIONS_ROW_TO_SOLVER_ROWS_MAPS(equations_row_number)% &
+                                        & NUMBER_OF_SOLVER_ROWS>0) THEN
+                                        !Get the equations residual contribution
+                                        CALL DISTRIBUTED_VECTOR_VALUES_GET(RESIDUAL_VECTOR,equations_row_number, &
+                                          & RESIDUAL_VALUE,ERR,ERROR,*999)
+                                        !Get the linear matrices contribution to the RHS values if there are any
+                                        IF(ASSOCIATED(LINEAR_MAPPING)) THEN
+                                          LINEAR_VALUE_SUM=0.0_DP
+                                          DO equations_matrix_idx2=1,LINEAR_MATRICES%NUMBER_OF_LINEAR_MATRICES
+                                            LINEAR_MATRIX=>LINEAR_MATRICES%MATRICES(equations_matrix_idx2)%PTR
+                                            LINEAR_TEMP_VECTOR=>LINEAR_MATRIX%TEMP_VECTOR
+                                            CALL DISTRIBUTED_VECTOR_VALUES_GET(LINEAR_TEMP_VECTOR,equations_row_number, &
+                                              & LINEAR_VALUE,ERR,ERROR,*999)
+                                            LINEAR_VALUE_SUM=LINEAR_VALUE_SUM+LINEAR_VALUE
+                                          ENDDO !equations_matrix_idx2
+                                          RESIDUAL_VALUE=RESIDUAL_VALUE+LINEAR_VALUE_SUM
+                                        ENDIF
+                                        !Loop over the solver rows associated with this equations set residual row
+                                        DO solver_row_idx=1,SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)% &
+                                          & EQUATIONS_ROW_TO_SOLVER_ROWS_MAPS(equations_row_number)%NUMBER_OF_SOLVER_ROWS
+                                          solver_row_number=SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)% &
+                                            & EQUATIONS_ROW_TO_SOLVER_ROWS_MAPS(equations_row_number)%SOLVER_ROWS( &
+                                            & solver_row_idx)
+                                          row_coupling_coefficient=SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP( &
+                                            & equations_set_idx)%EQUATIONS_ROW_TO_SOLVER_ROWS_MAPS(equations_row_number)% &
+                                            & COUPLING_COEFFICIENTS(solver_row_idx)
+                                          VALUE=RESIDUAL_VALUE*row_coupling_coefficient
+                                          !Add in nonlinear residual values
+                                          CALL DISTRIBUTED_VECTOR_VALUES_ADD(SOLVER_RESIDUAL_VECTOR,solver_row_number,VALUE, &
+                                            & ERR,ERROR,*999)
+                                        ENDDO !solver_row_idx
+                                      ENDIF
+                                    ENDDO !equations_row_number
+                                  ELSE
+                                    CALL FlagError("Equations matrices nonlinear matrices is not associated.",ERR,ERROR,*999)
+                                  ENDIF
+                                ELSE IF(ASSOCIATED(LINEAR_MAPPING)) THEN
                                   DO equations_row_number=1,EQUATIONS_MAPPING%TOTAL_NUMBER_OF_ROWS
                                     IF(SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)% &
-                                      & EQUATIONS_ROW_TO_SOLVER_ROWS_MAPS(equations_row_number)% &
-                                      & NUMBER_OF_SOLVER_ROWS>0) THEN
-                                      !Get the equations residual contribution
-                                      CALL DISTRIBUTED_VECTOR_VALUES_GET(RESIDUAL_VECTOR,equations_row_number, &
-                                        & RESIDUAL_VALUE,ERR,ERROR,*999)
-                                      !Get the linear matrices contribution to the RHS values if there are any
-                                      IF(ASSOCIATED(LINEAR_MAPPING)) THEN
-                                        LINEAR_VALUE_SUM=0.0_DP
-                                        DO equations_matrix_idx2=1,LINEAR_MATRICES%NUMBER_OF_LINEAR_MATRICES
-                                          LINEAR_MATRIX=>LINEAR_MATRICES%MATRICES(equations_matrix_idx2)%PTR
-                                          LINEAR_TEMP_VECTOR=>LINEAR_MATRIX%TEMP_VECTOR
-                                          CALL DISTRIBUTED_VECTOR_VALUES_GET(LINEAR_TEMP_VECTOR,equations_row_number, &
-                                            & LINEAR_VALUE,ERR,ERROR,*999)
-                                          LINEAR_VALUE_SUM=LINEAR_VALUE_SUM+LINEAR_VALUE
-                                        ENDDO !equations_matrix_idx2
-                                        RESIDUAL_VALUE=RESIDUAL_VALUE+LINEAR_VALUE_SUM
-                                      ENDIF
+                                        & EQUATIONS_ROW_TO_SOLVER_ROWS_MAPS(equations_row_number)% &
+                                        & NUMBER_OF_SOLVER_ROWS>0) THEN
+                                      LINEAR_VALUE_SUM=0.0_DP
+                                      DO equations_matrix_idx=1,LINEAR_MATRICES%NUMBER_OF_LINEAR_MATRICES
+                                        LINEAR_MATRIX=>LINEAR_MATRICES%MATRICES(equations_matrix_idx)%PTR
+                                        LINEAR_TEMP_VECTOR=>LINEAR_MATRIX%TEMP_VECTOR
+                                        CALL DISTRIBUTED_VECTOR_VALUES_GET(LINEAR_TEMP_VECTOR,equations_row_number, &
+                                          & LINEAR_VALUE,ERR,ERROR,*999)
+                                        LINEAR_VALUE_SUM=LINEAR_VALUE_SUM+LINEAR_VALUE
+                                      ENDDO !equations_matrix_idx
+                                      RESIDUAL_VALUE=LINEAR_VALUE_SUM
                                       !Loop over the solver rows associated with this equations set residual row
                                       DO solver_row_idx=1,SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)% &
                                         & EQUATIONS_ROW_TO_SOLVER_ROWS_MAPS(equations_row_number)%NUMBER_OF_SOLVER_ROWS
@@ -15565,173 +16211,179 @@ CONTAINS
                                       ENDDO !solver_row_idx
                                     ENDIF
                                   ENDDO !equations_row_number
-                                ELSE
-                                  CALL FlagError("Equations matrices nonlinear matrices is not associated.",ERR,ERROR,*999)
                                 ENDIF
-                              ELSE IF(ASSOCIATED(LINEAR_MAPPING)) THEN
-                                DO equations_row_number=1,EQUATIONS_MAPPING%TOTAL_NUMBER_OF_ROWS
-                                  IF(SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)% &
-                                      & EQUATIONS_ROW_TO_SOLVER_ROWS_MAPS(equations_row_number)% &
-                                      & NUMBER_OF_SOLVER_ROWS>0) THEN
-                                    LINEAR_VALUE_SUM=0.0_DP
-                                    DO equations_matrix_idx=1,LINEAR_MATRICES%NUMBER_OF_LINEAR_MATRICES
-                                      LINEAR_MATRIX=>LINEAR_MATRICES%MATRICES(equations_matrix_idx)%PTR
-                                      LINEAR_TEMP_VECTOR=>LINEAR_MATRIX%TEMP_VECTOR
-                                      CALL DISTRIBUTED_VECTOR_VALUES_GET(LINEAR_TEMP_VECTOR,equations_row_number, &
-                                        & LINEAR_VALUE,ERR,ERROR,*999)
-                                      LINEAR_VALUE_SUM=LINEAR_VALUE_SUM+LINEAR_VALUE
-                                    ENDDO !equations_matrix_idx
-                                    RESIDUAL_VALUE=LINEAR_VALUE_SUM
-                                    !Loop over the solver rows associated with this equations set residual row
-                                    DO solver_row_idx=1,SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)% &
-                                      & EQUATIONS_ROW_TO_SOLVER_ROWS_MAPS(equations_row_number)%NUMBER_OF_SOLVER_ROWS
-                                      solver_row_number=SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)% &
-                                        & EQUATIONS_ROW_TO_SOLVER_ROWS_MAPS(equations_row_number)%SOLVER_ROWS( &
-                                        & solver_row_idx)
-                                      row_coupling_coefficient=SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP( &
-                                        & equations_set_idx)%EQUATIONS_ROW_TO_SOLVER_ROWS_MAPS(equations_row_number)% &
-                                        & COUPLING_COEFFICIENTS(solver_row_idx)
-                                      VALUE=RESIDUAL_VALUE*row_coupling_coefficient
-                                      !Add in nonlinear residual values
-                                      CALL DISTRIBUTED_VECTOR_VALUES_ADD(SOLVER_RESIDUAL_VECTOR,solver_row_number,VALUE, &
-                                        & ERR,ERROR,*999)
-                                    ENDDO !solver_row_idx
-                                  ENDIF
-                                ENDDO !equations_row_number
+                              ELSE
+                                CALL FlagError("Equations equations mapping is not associated.",ERR,ERROR,*999)
                               ENDIF
                             ELSE
-                              CALL FlagError("Equations equations mapping is not associated.",ERR,ERROR,*999)
+                              CALL FlagError("Equations equations matrices is not associated.",ERR,ERROR,*999)
                             ENDIF
                           ELSE
-                            CALL FlagError("Equations equations matrices is not associated.",ERR,ERROR,*999)
+                            CALL FlagError("Equations set equations is not associated.",ERR,ERROR,*999)
                           ENDIF
                         ELSE
-                          CALL FlagError("Equations set equations is not associated.",ERR,ERROR,*999)
+                          CALL FlagError("Equations set dependent field is not associated.",ERR,ERROR,*999)
                         ENDIF
                       ELSE
-                        CALL FlagError("Equations set dependent field is not associated.",ERR,ERROR,*999)
+                        CALL FlagError("Equations set is not associated.",ERR,ERROR,*999)
                       ENDIF
-                    ELSE
-                      CALL FlagError("Equations set is not associated.",ERR,ERROR,*999)
-                    ENDIF
-                  ENDDO !equations_set_idx
-                  !Loop over the constraint conditions
-                  DO constraint_condition_idx=1,SOLVER_MAPPING%NUMBER_OF_CONSTRAINT_CONDITIONS
-                    CONSTRAINT_CONDITION=>SOLVER_MAPPING%CONSTRAINT_CONDITIONS(constraint_condition_idx)%PTR
-                    IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
-                      LAGRANGE_FIELD=>CONSTRAINT_CONDITION%LAGRANGE%LAGRANGE_FIELD
-                      IF(ASSOCIATED(LAGRANGE_FIELD)) THEN
-                        CONSTRAINT_EQUATIONS=>CONSTRAINT_CONDITION%CONSTRAINT_EQUATIONS
-                        IF(ASSOCIATED(CONSTRAINT_EQUATIONS)) THEN
-                          CONSTRAINT_MATRICES=>CONSTRAINT_EQUATIONS%CONSTRAINT_MATRICES
-                          IF(ASSOCIATED(CONSTRAINT_MATRICES)) THEN
-                            CONSTRAINT_MAPPING=>CONSTRAINT_EQUATIONS%CONSTRAINT_MAPPING
-                            IF(ASSOCIATED(CONSTRAINT_MAPPING)) THEN
-                              CONSTRAINT_LINEAR_MAPPING=>CONSTRAINT_MAPPING%LINEAR_MAPPING
-                              IF(ASSOCIATED(CONSTRAINT_LINEAR_MAPPING)) THEN
-                                CONSTRAINT_LINEAR_MATRICES=>CONSTRAINT_MATRICES%LINEAR_MATRICES
-                                IF(ASSOCIATED(CONSTRAINT_LINEAR_MATRICES)) THEN
-                                  !Calculate the contributions from any constraint matrices, including penalty matrices.
-                                  DO constraint_matrix_idx=1,CONSTRAINT_LINEAR_MAPPING%NUMBER_OF_LINEAR_CONSTRAINT_MATRICES
-                                    !Calculate the constraint matrix-Lagrange vector product residual contribution
-                                    CONSTRAINT_LINEAR_MATRIX=>CONSTRAINT_LINEAR_MATRICES%MATRICES(constraint_matrix_idx)%PTR
-                                    IF(ASSOCIATED(CONSTRAINT_LINEAR_MATRIX)) THEN
-                                      lagrange_variable_type=CONSTRAINT_MAPPING%LAGRANGE_VARIABLE_TYPE
-                                      LINEAR_TEMP_VECTOR=>CONSTRAINT_LINEAR_MATRIX%TEMP_VECTOR
-                                      !Initialise the linear temporary vector to zero
-                                      CALL DISTRIBUTED_VECTOR_ALL_VALUES_SET(LINEAR_TEMP_VECTOR,0.0_DP,ERR,ERROR,*999)
-                                      NULLIFY(LAGRANGE_VECTOR)
-                                      CALL FIELD_PARAMETER_SET_VECTOR_GET(LAGRANGE_FIELD,lagrange_variable_type, &
-                                        & FIELD_VALUES_SET_TYPE,LAGRANGE_VECTOR,ERR,ERROR,*999)
-                                      CALL DISTRIBUTED_MATRIX_BY_VECTOR_ADD(DISTRIBUTED_MATRIX_VECTOR_NO_GHOSTS_TYPE,1.0_DP, &
-                                        & CONSTRAINT_LINEAR_MATRIX%MATRIX,LAGRANGE_VECTOR,LINEAR_TEMP_VECTOR,ERR,ERROR,*999)
-                                      IF(CONSTRAINT_LINEAR_MATRIX%HAS_TRANSPOSE) THEN
-                                        dependent_variable_type=CONSTRAINT_LINEAR_MAPPING%VARIABLE_TYPE
-                                        LINEAR_TEMP_VECTOR=>CONSTRAINT_LINEAR_MATRIX%TEMP_TRANSPOSE_VECTOR
+                    ENDDO !equations_set_idx
+                    !Loop over the constraint conditions
+                    DO constraint_condition_idx=1,SOLVER_MAPPING%NUMBER_OF_CONSTRAINT_CONDITIONS
+                      CONSTRAINT_CONDITION=>SOLVER_MAPPING%CONSTRAINT_CONDITIONS(constraint_condition_idx)%PTR
+                      IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
+                        LAGRANGE_FIELD=>CONSTRAINT_CONDITION%LAGRANGE%LAGRANGE_FIELD
+                        IF(ASSOCIATED(LAGRANGE_FIELD)) THEN
+                          CONSTRAINT_EQUATIONS=>CONSTRAINT_CONDITION%CONSTRAINT_EQUATIONS
+                          IF(ASSOCIATED(CONSTRAINT_EQUATIONS)) THEN
+                            CONSTRAINT_MATRICES=>CONSTRAINT_EQUATIONS%CONSTRAINT_MATRICES
+                            IF(ASSOCIATED(CONSTRAINT_MATRICES)) THEN
+                              CONSTRAINT_MAPPING=>CONSTRAINT_EQUATIONS%CONSTRAINT_MAPPING
+                              IF(ASSOCIATED(CONSTRAINT_MAPPING)) THEN
+                                CONSTRAINT_LINEAR_MAPPING=>CONSTRAINT_MAPPING%LINEAR_MAPPING
+                                IF(ASSOCIATED(CONSTRAINT_LINEAR_MAPPING)) THEN
+                                  CONSTRAINT_LINEAR_MATRICES=>CONSTRAINT_MATRICES%LINEAR_MATRICES
+                                  IF(ASSOCIATED(CONSTRAINT_LINEAR_MATRICES)) THEN
+                                    !Calculate the contributions from any constraint matrices, including penalty matrices.
+                                    DO constraint_matrix_idx=1,CONSTRAINT_LINEAR_MAPPING%NUMBER_OF_LINEAR_CONSTRAINT_MATRICES
+                                      !Calculate the constraint matrix-Lagrange vector product residual contribution
+                                      CONSTRAINT_LINEAR_MATRIX=>CONSTRAINT_LINEAR_MATRICES%MATRICES(constraint_matrix_idx)%PTR
+                                      IF(ASSOCIATED(CONSTRAINT_LINEAR_MATRIX)) THEN
+                                        lagrange_variable_type=CONSTRAINT_MAPPING%LAGRANGE_VARIABLE_TYPE
+                                        LINEAR_TEMP_VECTOR=>CONSTRAINT_LINEAR_MATRIX%TEMP_VECTOR
                                         !Initialise the linear temporary vector to zero
                                         CALL DISTRIBUTED_VECTOR_ALL_VALUES_SET(LINEAR_TEMP_VECTOR,0.0_DP,ERR,ERROR,*999)
-                                        NULLIFY(DEPENDENT_VECTOR)
-                                        CALL FIELD_PARAMETER_SET_VECTOR_GET(DEPENDENT_FIELD,dependent_variable_type, &
-                                          & FIELD_VALUES_SET_TYPE,DEPENDENT_VECTOR,ERR,ERROR,*999)
+                                        NULLIFY(LAGRANGE_VECTOR)
+                                        CALL FIELD_PARAMETER_SET_VECTOR_GET(LAGRANGE_FIELD,lagrange_variable_type, &
+                                          & FIELD_VALUES_SET_TYPE,LAGRANGE_VECTOR,ERR,ERROR,*999)
                                         CALL DISTRIBUTED_MATRIX_BY_VECTOR_ADD(DISTRIBUTED_MATRIX_VECTOR_NO_GHOSTS_TYPE,1.0_DP, &
-                                          & CONSTRAINT_LINEAR_MATRIX%MATRIX_TRANSPOSE,DEPENDENT_VECTOR, &
-                                          & LINEAR_TEMP_VECTOR,ERR,ERROR,*999)
+                                          & CONSTRAINT_LINEAR_MATRIX%MATRIX,LAGRANGE_VECTOR,LINEAR_TEMP_VECTOR,ERR,ERROR,*999)
+                                        IF(CONSTRAINT_LINEAR_MATRIX%HAS_TRANSPOSE) THEN
+                                          dependent_variable_type=CONSTRAINT_LINEAR_MAPPING%VARIABLE_TYPE
+                                          LINEAR_TEMP_VECTOR=>CONSTRAINT_LINEAR_MATRIX%TEMP_TRANSPOSE_VECTOR
+                                          !Initialise the linear temporary vector to zero
+                                          CALL DISTRIBUTED_VECTOR_ALL_VALUES_SET(LINEAR_TEMP_VECTOR,0.0_DP,ERR,ERROR,*999)
+                                          NULLIFY(DEPENDENT_VECTOR)
+                                          CALL FIELD_PARAMETER_SET_VECTOR_GET(DEPENDENT_FIELD,dependent_variable_type, &
+                                            & FIELD_VALUES_SET_TYPE,DEPENDENT_VECTOR,ERR,ERROR,*999)
+                                          CALL DISTRIBUTED_MATRIX_BY_VECTOR_ADD(DISTRIBUTED_MATRIX_VECTOR_NO_GHOSTS_TYPE,1.0_DP, &
+                                            & CONSTRAINT_LINEAR_MATRIX%MATRIX_TRANSPOSE,DEPENDENT_VECTOR, &
+                                            & LINEAR_TEMP_VECTOR,ERR,ERROR,*999)
+                                        ENDIF
+                                      ELSE
+                                        LOCAL_ERROR="Constraint matrix is not associated for linear matrix number "// &
+                                          & TRIM(NUMBER_TO_VSTRING(constraint_matrix_idx,"*",ERR,ERROR))//"."
+                                        CALL FlagError(LOCAL_ERROR,ERR,ERROR,*999)
                                       ENDIF
-                                    ELSE
-                                      LOCAL_ERROR="Constraint matrix is not associated for linear matrix number "// &
-                                        & TRIM(NUMBER_TO_VSTRING(constraint_matrix_idx,"*",ERR,ERROR))//"."
-                                      CALL FlagError(LOCAL_ERROR,ERR,ERROR,*999)
-                                    ENDIF
+                                    ENDDO !constraint_matrix_idx
+                                  ELSE
+                                    CALL FlagError("Constraint matrices linear matrices is not associated.",ERR,ERROR,*999)
+                                  ENDIF
+                                  SELECT CASE(CONSTRAINT_CONDITION%METHOD)
+                                  CASE(CONSTRAINT_CONDITION_LAGRANGE_MULTIPLIERS_METHOD)
+                                    number_of_constraint_matrices=CONSTRAINT_LINEAR_MAPPING%NUMBER_OF_LINEAR_CONSTRAINT_MATRICES
+                                  CASE(CONSTRAINT_CONDITION_PENALTY_METHOD)
+                                    number_of_constraint_matrices=CONSTRAINT_LINEAR_MAPPING%NUMBER_OF_LINEAR_CONSTRAINT_MATRICES-1
+                                  ENDSELECT
+                                  DO constraint_matrix_idx=1,number_of_constraint_matrices
+                                    DO constraint_row_number=1,CONSTRAINT_LINEAR_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP( &
+                                      & constraint_matrix_idx)%NUMBER_OF_ROWS
+                                      IF(SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                                        & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_CM(constraint_matrix_idx)% &
+                                        & CONSTRAINT_ROW_TO_SOLVER_ROWS_MAP(constraint_row_number)% &
+                                        & NUMBER_OF_SOLVER_ROWS>0) THEN
+                                        CONSTRAINT_LINEAR_MATRIX=>CONSTRAINT_LINEAR_MATRICES%MATRICES(constraint_matrix_idx)%PTR
+                                        LINEAR_TEMP_VECTOR=>CONSTRAINT_LINEAR_MATRIX%TEMP_VECTOR
+                                        CALL DISTRIBUTED_VECTOR_VALUES_GET(LINEAR_TEMP_VECTOR,constraint_row_number, &
+                                          & RESIDUAL_VALUE,ERR,ERROR,*999)
+                                        !Loop over the solver rows associated with this constraint residual row
+                                        !Currently earch constraint matrix row has only one corresponding solver row number & coupling coefficient
+                                        solver_row_number=SOLVER_MAPPING% & 
+                                          & CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                                          & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_CM(constraint_matrix_idx)% &
+                                          & CONSTRAINT_ROW_TO_SOLVER_ROWS_MAP(constraint_row_number)%SOLVER_ROW
+                                        row_coupling_coefficient=SOLVER_MAPPING% &
+                                          & CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                                          & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_CM(constraint_matrix_idx)% &
+                                          & CONSTRAINT_ROW_TO_SOLVER_ROWS_MAP(constraint_row_number)%COUPLING_COEFFICIENT
+                                        VALUE=RESIDUAL_VALUE*row_coupling_coefficient
+                                        !Add in nonlinear residual values
+                                        CALL DISTRIBUTED_VECTOR_VALUES_ADD(SOLVER_RESIDUAL_VECTOR,solver_row_number,VALUE, &
+                                          & ERR,ERROR,*999)
+                                      ENDIF
+                                    ENDDO !constraint_row_number
                                   ENDDO !constraint_matrix_idx
-                                ELSE
-                                  CALL FlagError("Constraint matrices linear matrices is not associated.",ERR,ERROR,*999)
                                 ENDIF
-                                SELECT CASE(CONSTRAINT_CONDITION%METHOD)
-                                CASE(CONSTRAINT_CONDITION_LAGRANGE_MULTIPLIERS_METHOD)
-                                  number_of_constraint_matrices=CONSTRAINT_LINEAR_MAPPING%NUMBER_OF_LINEAR_CONSTRAINT_MATRICES
-                                CASE(CONSTRAINT_CONDITION_PENALTY_METHOD)
-                                  number_of_constraint_matrices=CONSTRAINT_LINEAR_MAPPING%NUMBER_OF_LINEAR_CONSTRAINT_MATRICES-1
-                                ENDSELECT
-                                DO constraint_matrix_idx=1,number_of_constraint_matrices
-                                  DO constraint_row_number=1,CONSTRAINT_LINEAR_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP( &
-                                    & constraint_matrix_idx)%NUMBER_OF_ROWS
-                                    IF(SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
-                                      & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_CM(constraint_matrix_idx)% &
-                                      & CONSTRAINT_ROW_TO_SOLVER_ROWS_MAP(constraint_row_number)% &
-                                      & NUMBER_OF_SOLVER_ROWS>0) THEN
-                                      CONSTRAINT_LINEAR_MATRIX=>CONSTRAINT_LINEAR_MATRICES%MATRICES(constraint_matrix_idx)%PTR
-                                      LINEAR_TEMP_VECTOR=>CONSTRAINT_LINEAR_MATRIX%TEMP_VECTOR
-                                      CALL DISTRIBUTED_VECTOR_VALUES_GET(LINEAR_TEMP_VECTOR,constraint_row_number, &
-                                        & RESIDUAL_VALUE,ERR,ERROR,*999)
-                                      !Loop over the solver rows associated with this constraint residual row
-                                      !Currently earch constraint matrix row has only one corresponding solver row number & coupling coefficient
-                                      solver_row_number=SOLVER_MAPPING% & 
-                                        & CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
-                                        & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_CM(constraint_matrix_idx)% &
-                                        & CONSTRAINT_ROW_TO_SOLVER_ROWS_MAP(constraint_row_number)%SOLVER_ROW
-                                      row_coupling_coefficient=SOLVER_MAPPING% &
-                                        & CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
-                                        & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_CM(constraint_matrix_idx)% &
-                                        & CONSTRAINT_ROW_TO_SOLVER_ROWS_MAP(constraint_row_number)%COUPLING_COEFFICIENT
-                                      VALUE=RESIDUAL_VALUE*row_coupling_coefficient
-                                      !Add in nonlinear residual values
-                                      CALL DISTRIBUTED_VECTOR_VALUES_ADD(SOLVER_RESIDUAL_VECTOR,solver_row_number,VALUE, &
-                                        & ERR,ERROR,*999)
-                                    ENDIF
-                                  ENDDO !constraint_row_number
-                                ENDDO !constraint_matrix_idx
-                              ENDIF
-                              CONSTRAINT_NONLINEAR_MAPPING=>CONSTRAINT_MAPPING%NONLINEAR_MAPPING
-                              IF(ASSOCIATED(CONSTRAINT_NONLINEAR_MAPPING)) THEN
-                                CONSTRAINT_NONLINEAR_MATRICES=>CONSTRAINT_MATRICES%NONLINEAR_MATRICES
-                                IF(ASSOCIATED(CONSTRAINT_NONLINEAR_MATRICES)) THEN
-                                  RESIDUAL_VECTOR=>CONSTRAINT_NONLINEAR_MATRICES%RESIDUAL
+                                CONSTRAINT_NONLINEAR_MAPPING=>CONSTRAINT_MAPPING%NONLINEAR_MAPPING
+                                IF(ASSOCIATED(CONSTRAINT_NONLINEAR_MAPPING)) THEN
+                                  CONSTRAINT_NONLINEAR_MATRICES=>CONSTRAINT_MATRICES%NONLINEAR_MATRICES
+                                  IF(ASSOCIATED(CONSTRAINT_NONLINEAR_MATRICES)) THEN
+                                    RESIDUAL_VECTOR=>CONSTRAINT_NONLINEAR_MATRICES%RESIDUAL
+                                    !Add constraint matrix residual contribution to the solver residual
+                                    DO constraint_column_number=1,CONSTRAINT_MAPPING%NUMBER_OF_COLUMNS
+                                      IF(SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                                        & CONSTRAINT_COLUMN_TO_SOLVER_ROWS_MAPS(constraint_column_number)% &
+                                        & NUMBER_OF_SOLVER_ROWS>0) THEN
+                                        !Get the constraint residual contribution
+                                        CALL DISTRIBUTED_VECTOR_VALUES_GET(RESIDUAL_VECTOR,constraint_column_number, &
+                                          & RESIDUAL_VALUE,ERR,ERROR,*999)
+                                        !Get the linear matrices contribution to the RHS values if there are any
+                                        IF(ASSOCIATED(CONSTRAINT_LINEAR_MAPPING)) THEN
+                                          LINEAR_VALUE_SUM=0.0_DP
+                                          DO constraint_matrix_idx=1,CONSTRAINT_LINEAR_MATRICES% &
+                                            & NUMBER_OF_LINEAR_MATRICES
+                                            CONSTRAINT_LINEAR_MATRIX=>CONSTRAINT_LINEAR_MATRICES% &
+                                              & MATRICES(constraint_matrix_idx)%PTR
+                                            IF(CONSTRAINT_LINEAR_MATRIX%HAS_TRANSPOSE) THEN
+                                              LINEAR_TEMP_VECTOR=>CONSTRAINT_LINEAR_MATRIX%TEMP_TRANSPOSE_VECTOR
+                                            ELSE !We have a penalty matrix
+                                              LINEAR_TEMP_VECTOR=>CONSTRAINT_LINEAR_MATRIX%TEMP_VECTOR
+                                            ENDIF
+                                              CALL DISTRIBUTED_VECTOR_VALUES_GET(LINEAR_TEMP_VECTOR, &
+                                                & constraint_column_number,LINEAR_VALUE,ERR,ERROR,*999)
+                                              LINEAR_VALUE_SUM=LINEAR_VALUE_SUM+LINEAR_VALUE
+                                          ENDDO !constraint_matrix_idx2
+                                          RESIDUAL_VALUE=RESIDUAL_VALUE+LINEAR_VALUE_SUM
+                                        ENDIF
+                                        !Loop over the solver rows associated with this constraint residual column
+                                        !Currently each constraint matrix column has only one corresponding solver row number & coupling coefficient
+                                        solver_row_number=SOLVER_MAPPING% & 
+                                          & CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                                          & CONSTRAINT_COLUMN_TO_SOLVER_ROWS_MAPS(constraint_column_number)%SOLVER_ROW
+                                        row_coupling_coefficient=SOLVER_MAPPING% &
+                                          & CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                                          & CONSTRAINT_COLUMN_TO_SOLVER_ROWS_MAPS(constraint_column_number)%COUPLING_COEFFICIENT
+                                        VALUE=RESIDUAL_VALUE*row_coupling_coefficient
+                                        !Add in nonlinear residual values
+                                        CALL DISTRIBUTED_VECTOR_VALUES_ADD(SOLVER_RESIDUAL_VECTOR,solver_row_number,VALUE, &
+                                          & ERR,ERROR,*999)
+                                      ENDIF
+                                    ENDDO !constraint_column_number
+                                  ELSE
+                                    CALL FlagError("Constraint matrices nonlinear matrices is not associated.",ERR,ERROR,*999)
+                                  ENDIF
+                                ELSE IF(ASSOCIATED(CONSTRAINT_LINEAR_MAPPING)) THEN
                                   !Add constraint matrix residual contribution to the solver residual
                                   DO constraint_column_number=1,CONSTRAINT_MAPPING%NUMBER_OF_COLUMNS
                                     IF(SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
                                       & CONSTRAINT_COLUMN_TO_SOLVER_ROWS_MAPS(constraint_column_number)% &
                                       & NUMBER_OF_SOLVER_ROWS>0) THEN
-                                      !Get the constraint residual contribution
-                                      CALL DISTRIBUTED_VECTOR_VALUES_GET(RESIDUAL_VECTOR,constraint_column_number, &
-                                        & RESIDUAL_VALUE,ERR,ERROR,*999)
                                       !Get the linear matrices contribution to the RHS values if there are any
-                                      IF(ASSOCIATED(CONSTRAINT_LINEAR_MAPPING)) THEN
-                                        LINEAR_VALUE_SUM=0.0_DP
-                                        DO constraint_matrix_idx=1,CONSTRAINT_LINEAR_MATRICES% &
-                                          & NUMBER_OF_LINEAR_MATRICES
-                                          CONSTRAINT_LINEAR_MATRIX=>CONSTRAINT_LINEAR_MATRICES% &
-                                            & MATRICES(constraint_matrix_idx)%PTR
-                                          IF(CONSTRAINT_LINEAR_MATRIX%HAS_TRANSPOSE) THEN
-                                            LINEAR_TEMP_VECTOR=>CONSTRAINT_LINEAR_MATRIX%TEMP_TRANSPOSE_VECTOR
-                                          ELSE !We have a penalty matrix
-                                            LINEAR_TEMP_VECTOR=>CONSTRAINT_LINEAR_MATRIX%TEMP_VECTOR
-                                          ENDIF
-                                            CALL DISTRIBUTED_VECTOR_VALUES_GET(LINEAR_TEMP_VECTOR, &
-                                              & constraint_column_number,LINEAR_VALUE,ERR,ERROR,*999)
-                                            LINEAR_VALUE_SUM=LINEAR_VALUE_SUM+LINEAR_VALUE
-                                        ENDDO !constraint_matrix_idx2
-                                        RESIDUAL_VALUE=RESIDUAL_VALUE+LINEAR_VALUE_SUM
-                                      ENDIF
+                                      LINEAR_VALUE_SUM=0.0_DP
+                                      DO constraint_matrix_idx=1,CONSTRAINT_LINEAR_MATRICES% &
+                                        & NUMBER_OF_LINEAR_MATRICES
+                                        CONSTRAINT_LINEAR_MATRIX=>CONSTRAINT_LINEAR_MATRICES% &
+                                          & MATRICES(constraint_matrix_idx)%PTR
+                                        IF(CONSTRAINT_LINEAR_MATRIX%HAS_TRANSPOSE) THEN
+                                          LINEAR_TEMP_VECTOR=>CONSTRAINT_LINEAR_MATRIX%TEMP_TRANSPOSE_VECTOR
+                                        ELSE !We have a penalty matrix
+                                          LINEAR_TEMP_VECTOR=>CONSTRAINT_LINEAR_MATRIX%TEMP_VECTOR
+                                        ENDIF
+                                          CALL DISTRIBUTED_VECTOR_VALUES_GET(LINEAR_TEMP_VECTOR, &
+                                            & constraint_column_number,LINEAR_VALUE,ERR,ERROR,*999)
+                                          LINEAR_VALUE_SUM=LINEAR_VALUE_SUM+LINEAR_VALUE
+                                      ENDDO !constraint_matrix_idx
+                                      RESIDUAL_VALUE=LINEAR_VALUE_SUM
                                       !Loop over the solver rows associated with this constraint residual column
                                       !Currently each constraint matrix column has only one corresponding solver row number & coupling coefficient
                                       solver_row_number=SOLVER_MAPPING% & 
@@ -15746,338 +16398,297 @@ CONTAINS
                                         & ERR,ERROR,*999)
                                     ENDIF
                                   ENDDO !constraint_column_number
-                                ELSE
-                                  CALL FlagError("Constraint matrices nonlinear matrices is not associated.",ERR,ERROR,*999)
                                 ENDIF
-                              ELSE IF(ASSOCIATED(CONSTRAINT_LINEAR_MAPPING)) THEN
-                                !Add constraint matrix residual contribution to the solver residual
-                                DO constraint_column_number=1,CONSTRAINT_MAPPING%NUMBER_OF_COLUMNS
-                                  IF(SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
-                                    & CONSTRAINT_COLUMN_TO_SOLVER_ROWS_MAPS(constraint_column_number)% &
-                                    & NUMBER_OF_SOLVER_ROWS>0) THEN
-                                    !Get the linear matrices contribution to the RHS values if there are any
-                                    LINEAR_VALUE_SUM=0.0_DP
-                                    DO constraint_matrix_idx=1,CONSTRAINT_LINEAR_MATRICES% &
-                                      & NUMBER_OF_LINEAR_MATRICES
-                                      CONSTRAINT_LINEAR_MATRIX=>CONSTRAINT_LINEAR_MATRICES% &
-                                        & MATRICES(constraint_matrix_idx)%PTR
-                                      IF(CONSTRAINT_LINEAR_MATRIX%HAS_TRANSPOSE) THEN
-                                        LINEAR_TEMP_VECTOR=>CONSTRAINT_LINEAR_MATRIX%TEMP_TRANSPOSE_VECTOR
-                                      ELSE !We have a penalty matrix
-                                        LINEAR_TEMP_VECTOR=>CONSTRAINT_LINEAR_MATRIX%TEMP_VECTOR
-                                      ENDIF
-                                        CALL DISTRIBUTED_VECTOR_VALUES_GET(LINEAR_TEMP_VECTOR, &
-                                          & constraint_column_number,LINEAR_VALUE,ERR,ERROR,*999)
-                                        LINEAR_VALUE_SUM=LINEAR_VALUE_SUM+LINEAR_VALUE
-                                    ENDDO !constraint_matrix_idx
-                                    RESIDUAL_VALUE=LINEAR_VALUE_SUM
-                                    !Loop over the solver rows associated with this constraint residual column
-                                    !Currently each constraint matrix column has only one corresponding solver row number & coupling coefficient
-                                    solver_row_number=SOLVER_MAPPING% & 
-                                      & CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
-                                      & CONSTRAINT_COLUMN_TO_SOLVER_ROWS_MAPS(constraint_column_number)%SOLVER_ROW
-                                    row_coupling_coefficient=SOLVER_MAPPING% &
-                                      & CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
-                                      & CONSTRAINT_COLUMN_TO_SOLVER_ROWS_MAPS(constraint_column_number)%COUPLING_COEFFICIENT
-                                    VALUE=RESIDUAL_VALUE*row_coupling_coefficient
-                                    !Add in nonlinear residual values
-                                    CALL DISTRIBUTED_VECTOR_VALUES_ADD(SOLVER_RESIDUAL_VECTOR,solver_row_number,VALUE, &
-                                      & ERR,ERROR,*999)
-                                  ENDIF
-                                ENDDO !constraint_column_number
+                              ELSE
+                                CALL FlagError("Constraint mapping is not associated.",ERR,ERROR,*999)
                               ENDIF
                             ELSE
-                              CALL FlagError("Constraint mapping is not associated.",ERR,ERROR,*999)
+                              CALL FlagError("Constraint matrices is not associated.",ERR,ERROR,*999)
                             ENDIF
                           ELSE
-                            CALL FlagError("Constraint matrices is not associated.",ERR,ERROR,*999)
+                            CALL FlagError("Constraint equations is not associated.",ERR,ERROR,*999)
                           ENDIF
                         ELSE
-                          CALL FlagError("Constraint equations is not associated.",ERR,ERROR,*999)
+                          CALL FlagError("Constraint Lagrange field is not associated.",ERR,ERROR,*999)
                         ENDIF
                       ELSE
-                        CALL FlagError("Constraint Lagrange field is not associated.",ERR,ERROR,*999)
+                        CALL FlagError("Constraint condition is not associated.",ERR,ERROR,*999)
                       ENDIF
-                    ELSE
-                      CALL FlagError("Constraint condition is not associated.",ERR,ERROR,*999)
-                    ENDIF
-                  ENDDO !constraint_condition_idx
-                  !Loop over the interface conditions
-                  DO interface_condition_idx=1,SOLVER_MAPPING%NUMBER_OF_INTERFACE_CONDITIONS
-                    INTERFACE_CONDITION=>SOLVER_MAPPING%INTERFACE_CONDITIONS(interface_condition_idx)%PTR
-                    IF(ASSOCIATED(INTERFACE_CONDITION)) THEN
-                      LAGRANGE_FIELD=>INTERFACE_CONDITION%LAGRANGE%LAGRANGE_FIELD
-                      IF(ASSOCIATED(LAGRANGE_FIELD)) THEN
-                        INTERFACE_EQUATIONS=>INTERFACE_CONDITION%INTERFACE_EQUATIONS
-                        IF(ASSOCIATED(INTERFACE_EQUATIONS)) THEN
-                          INTERFACE_MATRICES=>INTERFACE_EQUATIONS%INTERFACE_MATRICES
-                          IF(ASSOCIATED(INTERFACE_MATRICES)) THEN
-                            INTERFACE_MAPPING=>INTERFACE_EQUATIONS%INTERFACE_MAPPING
-                            IF(ASSOCIATED(INTERFACE_MAPPING)) THEN
-                              SELECT CASE(INTERFACE_CONDITION%METHOD)
-                              CASE(INTERFACE_CONDITION_LAGRANGE_MULTIPLIERS_METHOD)
-                                number_of_interface_matrices=INTERFACE_MAPPING%NUMBER_OF_INTERFACE_MATRICES
-                              CASE(INTERFACE_CONDITION_PENALTY_METHOD)
-                                number_of_interface_matrices=INTERFACE_MAPPING%NUMBER_OF_INTERFACE_MATRICES-1
-                              ENDSELECT
-                              !Calculate the contributions from any interface matrices
-                              DO interface_matrix_idx=1,number_of_interface_matrices
-                                !Calculate the interface matrix-Lagrange vector product residual contribution
-                                INTERFACE_MATRIX=>INTERFACE_MATRICES%MATRICES(interface_matrix_idx)%PTR
-                                IF(ASSOCIATED(INTERFACE_MATRIX)) THEN
-                                  interface_variable_type=INTERFACE_MAPPING%LAGRANGE_VARIABLE_TYPE
-                                  INTERFACE_VARIABLE=>INTERFACE_MAPPING%LAGRANGE_VARIABLE
-                                  IF(ASSOCIATED(INTERFACE_VARIABLE)) THEN
-                                    INTERFACE_TEMP_VECTOR=>INTERFACE_MATRIX%TEMP_VECTOR
-                                    !Initialise the linear temporary vector to zero
-                                    CALL DISTRIBUTED_VECTOR_ALL_VALUES_SET(INTERFACE_TEMP_VECTOR,0.0_DP,ERR,ERROR,*999)
-                                    NULLIFY(LAGRANGE_VECTOR)
-                                    CALL FIELD_PARAMETER_SET_VECTOR_GET(LAGRANGE_FIELD,interface_variable_type, &
-                                      & FIELD_VALUES_SET_TYPE,LAGRANGE_VECTOR,ERR,ERROR,*999)
-                                    CALL DISTRIBUTED_MATRIX_BY_VECTOR_ADD(DISTRIBUTED_MATRIX_VECTOR_NO_GHOSTS_TYPE,1.0_DP, &
-                                      & INTERFACE_MATRIX%MATRIX,LAGRANGE_VECTOR,INTERFACE_TEMP_VECTOR,ERR,ERROR,*999)
-                                    !Add interface matrix residual contribution to the solver residual
-                                    DO interface_row_number=1,INTERFACE_MATRIX%NUMBER_OF_ROWS
-                                      IF(SOLVER_MAPPING%INTERFACE_CONDITION_TO_SOLVER_MAP(interface_condition_idx)% &
-                                        & INTERFACE_TO_SOLVER_MATRIX_MAPS_IM(interface_matrix_idx)% &
-                                        & INTERFACE_ROW_TO_SOLVER_ROWS_MAP(interface_row_number)%NUMBER_OF_SOLVER_ROWS>0) THEN
-                                        !Loop over the solver rows associated with this interface residual row
-                                        !Currently earch interface matrix row has only one corresponding solver row number & coupling coefficient
-                                        solver_row_number=SOLVER_MAPPING% & 
-                                          & INTERFACE_CONDITION_TO_SOLVER_MAP(interface_condition_idx)% &
+                    ENDDO !constraint_condition_idx
+                    !Loop over the interface conditions
+                    DO interface_condition_idx=1,SOLVER_MAPPING%NUMBER_OF_INTERFACE_CONDITIONS
+                      INTERFACE_CONDITION=>SOLVER_MAPPING%INTERFACE_CONDITIONS(interface_condition_idx)%PTR
+                      IF(ASSOCIATED(INTERFACE_CONDITION)) THEN
+                        LAGRANGE_FIELD=>INTERFACE_CONDITION%LAGRANGE%LAGRANGE_FIELD
+                        IF(ASSOCIATED(LAGRANGE_FIELD)) THEN
+                          INTERFACE_EQUATIONS=>INTERFACE_CONDITION%INTERFACE_EQUATIONS
+                          IF(ASSOCIATED(INTERFACE_EQUATIONS)) THEN
+                            INTERFACE_MATRICES=>INTERFACE_EQUATIONS%INTERFACE_MATRICES
+                            IF(ASSOCIATED(INTERFACE_MATRICES)) THEN
+                              INTERFACE_MAPPING=>INTERFACE_EQUATIONS%INTERFACE_MAPPING
+                              IF(ASSOCIATED(INTERFACE_MAPPING)) THEN
+                                SELECT CASE(INTERFACE_CONDITION%METHOD)
+                                CASE(INTERFACE_CONDITION_LAGRANGE_MULTIPLIERS_METHOD)
+                                  number_of_interface_matrices=INTERFACE_MAPPING%NUMBER_OF_INTERFACE_MATRICES
+                                CASE(INTERFACE_CONDITION_PENALTY_METHOD)
+                                  number_of_interface_matrices=INTERFACE_MAPPING%NUMBER_OF_INTERFACE_MATRICES-1
+                                ENDSELECT
+                                !Calculate the contributions from any interface matrices
+                                DO interface_matrix_idx=1,number_of_interface_matrices
+                                  !Calculate the interface matrix-Lagrange vector product residual contribution
+                                  INTERFACE_MATRIX=>INTERFACE_MATRICES%MATRICES(interface_matrix_idx)%PTR
+                                  IF(ASSOCIATED(INTERFACE_MATRIX)) THEN
+                                    interface_variable_type=INTERFACE_MAPPING%LAGRANGE_VARIABLE_TYPE
+                                    INTERFACE_VARIABLE=>INTERFACE_MAPPING%LAGRANGE_VARIABLE
+                                    IF(ASSOCIATED(INTERFACE_VARIABLE)) THEN
+                                      INTERFACE_TEMP_VECTOR=>INTERFACE_MATRIX%TEMP_VECTOR
+                                      !Initialise the linear temporary vector to zero
+                                      CALL DISTRIBUTED_VECTOR_ALL_VALUES_SET(INTERFACE_TEMP_VECTOR,0.0_DP,ERR,ERROR,*999)
+                                      NULLIFY(LAGRANGE_VECTOR)
+                                      CALL FIELD_PARAMETER_SET_VECTOR_GET(LAGRANGE_FIELD,interface_variable_type, &
+                                        & FIELD_VALUES_SET_TYPE,LAGRANGE_VECTOR,ERR,ERROR,*999)
+                                      CALL DISTRIBUTED_MATRIX_BY_VECTOR_ADD(DISTRIBUTED_MATRIX_VECTOR_NO_GHOSTS_TYPE,1.0_DP, &
+                                        & INTERFACE_MATRIX%MATRIX,LAGRANGE_VECTOR,INTERFACE_TEMP_VECTOR,ERR,ERROR,*999)
+                                      !Add interface matrix residual contribution to the solver residual
+                                      DO interface_row_number=1,INTERFACE_MATRIX%NUMBER_OF_ROWS
+                                        IF(SOLVER_MAPPING%INTERFACE_CONDITION_TO_SOLVER_MAP(interface_condition_idx)% &
                                           & INTERFACE_TO_SOLVER_MATRIX_MAPS_IM(interface_matrix_idx)% &
-                                          & INTERFACE_ROW_TO_SOLVER_ROWS_MAP(interface_row_number)%SOLVER_ROW
-                                        row_coupling_coefficient=SOLVER_MAPPING% &
-                                          & INTERFACE_CONDITION_TO_SOLVER_MAP(interface_condition_idx)% &
-                                          & INTERFACE_TO_SOLVER_MATRIX_MAPS_IM(interface_matrix_idx)% &
-                                          & INTERFACE_ROW_TO_SOLVER_ROWS_MAP(interface_row_number)%COUPLING_COEFFICIENT
-                                        CALL DISTRIBUTED_VECTOR_VALUES_GET(INTERFACE_TEMP_VECTOR,interface_row_number, &
-                                          & RESIDUAL_VALUE,ERR,ERROR,*999)
-                                        VALUE=RESIDUAL_VALUE*row_coupling_coefficient
-                                        !Add in nonlinear residual values
-                                        CALL DISTRIBUTED_VECTOR_VALUES_ADD(SOLVER_RESIDUAL_VECTOR,solver_row_number,VALUE, &
-                                          & ERR,ERROR,*999)
-                                      ENDIF
-                                    ENDDO !interface_row_number
+                                          & INTERFACE_ROW_TO_SOLVER_ROWS_MAP(interface_row_number)%NUMBER_OF_SOLVER_ROWS>0) THEN
+                                          !Loop over the solver rows associated with this interface residual row
+                                          !Currently earch interface matrix row has only one corresponding solver row number & coupling coefficient
+                                          solver_row_number=SOLVER_MAPPING% & 
+                                            & INTERFACE_CONDITION_TO_SOLVER_MAP(interface_condition_idx)% &
+                                            & INTERFACE_TO_SOLVER_MATRIX_MAPS_IM(interface_matrix_idx)% &
+                                            & INTERFACE_ROW_TO_SOLVER_ROWS_MAP(interface_row_number)%SOLVER_ROW
+                                          row_coupling_coefficient=SOLVER_MAPPING% &
+                                            & INTERFACE_CONDITION_TO_SOLVER_MAP(interface_condition_idx)% &
+                                            & INTERFACE_TO_SOLVER_MATRIX_MAPS_IM(interface_matrix_idx)% &
+                                            & INTERFACE_ROW_TO_SOLVER_ROWS_MAP(interface_row_number)%COUPLING_COEFFICIENT
+                                          CALL DISTRIBUTED_VECTOR_VALUES_GET(INTERFACE_TEMP_VECTOR,interface_row_number, &
+                                            & RESIDUAL_VALUE,ERR,ERROR,*999)
+                                          VALUE=RESIDUAL_VALUE*row_coupling_coefficient
+                                          !Add in nonlinear residual values
+                                          CALL DISTRIBUTED_VECTOR_VALUES_ADD(SOLVER_RESIDUAL_VECTOR,solver_row_number,VALUE, &
+                                            & ERR,ERROR,*999)
+                                        ENDIF
+                                      ENDDO !interface_row_number
+                                    ELSE
+                                      CALL FlagError("Interface variable is not associated.",ERR,ERROR,*999)
+                                    ENDIF
+                                    !Calculate the transposed interface matrix-dependent variable product residual contribution
+                                    dependent_variable_type=INTERFACE_MAPPING% &
+                                      & INTERFACE_MATRIX_ROWS_TO_VAR_MAPS(interface_matrix_idx)%VARIABLE_TYPE
+                                    DEPENDENT_VARIABLE=>INTERFACE_MAPPING% &
+                                      & INTERFACE_MATRIX_ROWS_TO_VAR_MAPS(interface_matrix_idx)%VARIABLE
+                                    IF(ASSOCIATED(DEPENDENT_VARIABLE)) THEN
+                                      INTERFACE_TEMP_VECTOR=>INTERFACE_MATRIX%TEMP_TRANSPOSE_VECTOR
+                                      !Initialise the linear temporary vector to zero
+                                      CALL DISTRIBUTED_VECTOR_ALL_VALUES_SET(INTERFACE_TEMP_VECTOR,0.0_DP,ERR,ERROR,*999)
+                                      NULLIFY(DEPENDENT_VECTOR)
+                                      DEPENDENT_FIELD=>DEPENDENT_VARIABLE%FIELD
+                                      CALL FIELD_PARAMETER_SET_VECTOR_GET(DEPENDENT_FIELD,dependent_variable_type, &
+                                        & FIELD_VALUES_SET_TYPE,DEPENDENT_VECTOR,ERR,ERROR,*999)
+                                      CALL DISTRIBUTED_MATRIX_BY_VECTOR_ADD(DISTRIBUTED_MATRIX_VECTOR_NO_GHOSTS_TYPE,1.0_DP, &
+                                        & INTERFACE_MATRIX%MATRIX_TRANSPOSE,DEPENDENT_VECTOR,INTERFACE_TEMP_VECTOR,ERR,ERROR,*999)
+                                      !Add interface matrix residual contribution to the solver residual.
+                                      !The number of columns in the interface matrix is equivalent to the number of rows of the transposed interface matrices
+                                      DO interface_row_number=1,INTERFACE_MATRICES%NUMBER_OF_COLUMNS
+                                        IF(SOLVER_MAPPING%INTERFACE_CONDITION_TO_SOLVER_MAP(interface_condition_idx)% &
+                                          & INTERFACE_COLUMN_TO_SOLVER_ROWS_MAPS(interface_row_number)%NUMBER_OF_SOLVER_ROWS>0) THEN
+                                          !Loop over the solver rows associated with this interface residual row
+                                          !Currently earch interface matrix row has only one corresponding solver row number & coupling coefficient
+                                          solver_row_number=SOLVER_MAPPING% & 
+                                            & INTERFACE_CONDITION_TO_SOLVER_MAP(interface_condition_idx)% &
+                                            & INTERFACE_COLUMN_TO_SOLVER_ROWS_MAPS(interface_row_number)%SOLVER_ROW
+                                          row_coupling_coefficient=SOLVER_MAPPING% & 
+                                            & INTERFACE_CONDITION_TO_SOLVER_MAP(interface_condition_idx)% &
+                                            & INTERFACE_COLUMN_TO_SOLVER_ROWS_MAPS(interface_row_number)%COUPLING_COEFFICIENT
+                                          CALL DISTRIBUTED_VECTOR_VALUES_GET(INTERFACE_TEMP_VECTOR,interface_row_number, &
+                                            & RESIDUAL_VALUE,ERR,ERROR,*999)
+                                          VALUE=RESIDUAL_VALUE*row_coupling_coefficient
+                                          !Add in nonlinear residual values
+                                          CALL DISTRIBUTED_VECTOR_VALUES_ADD(SOLVER_RESIDUAL_VECTOR,solver_row_number,VALUE, &
+                                            & ERR,ERROR,*999)
+                                        ENDIF
+                                      ENDDO !interface_row_number
+                                    ELSE
+                                      CALL FlagError("Dependent variable is not associated.",ERR,ERROR,*999)
+                                    ENDIF
                                   ELSE
-                                    CALL FlagError("Interface variable is not associated.",ERR,ERROR,*999)
+                                    LOCAL_ERROR="Interface matrix is not associated for linear matrix number "// &
+                                      & TRIM(NumberToVString(equations_matrix_idx,"*",ERR,ERROR))//"."
+                                    CALL FlagError(LOCAL_ERROR,ERR,ERROR,*999)
                                   ENDIF
-                                  !Calculate the transposed interface matrix-dependent variable product residual contribution
-                                  dependent_variable_type=INTERFACE_MAPPING% &
-                                    & INTERFACE_MATRIX_ROWS_TO_VAR_MAPS(interface_matrix_idx)%VARIABLE_TYPE
-                                  DEPENDENT_VARIABLE=>INTERFACE_MAPPING% &
-                                    & INTERFACE_MATRIX_ROWS_TO_VAR_MAPS(interface_matrix_idx)%VARIABLE
-                                  IF(ASSOCIATED(DEPENDENT_VARIABLE)) THEN
-                                    INTERFACE_TEMP_VECTOR=>INTERFACE_MATRIX%TEMP_TRANSPOSE_VECTOR
-                                    !Initialise the linear temporary vector to zero
-                                    CALL DISTRIBUTED_VECTOR_ALL_VALUES_SET(INTERFACE_TEMP_VECTOR,0.0_DP,ERR,ERROR,*999)
-                                    NULLIFY(DEPENDENT_VECTOR)
-                                    DEPENDENT_FIELD=>DEPENDENT_VARIABLE%FIELD
-                                    CALL FIELD_PARAMETER_SET_VECTOR_GET(DEPENDENT_FIELD,dependent_variable_type, &
-                                      & FIELD_VALUES_SET_TYPE,DEPENDENT_VECTOR,ERR,ERROR,*999)
-                                    CALL DISTRIBUTED_MATRIX_BY_VECTOR_ADD(DISTRIBUTED_MATRIX_VECTOR_NO_GHOSTS_TYPE,1.0_DP, &
-                                      & INTERFACE_MATRIX%MATRIX_TRANSPOSE,DEPENDENT_VECTOR,INTERFACE_TEMP_VECTOR,ERR,ERROR,*999)
-                                    !Add interface matrix residual contribution to the solver residual.
-                                    !The number of columns in the interface matrix is equivalent to the number of rows of the transposed interface matrices
-                                    DO interface_row_number=1,INTERFACE_MATRICES%NUMBER_OF_COLUMNS
-                                      IF(SOLVER_MAPPING%INTERFACE_CONDITION_TO_SOLVER_MAP(interface_condition_idx)% &
-                                        & INTERFACE_COLUMN_TO_SOLVER_ROWS_MAPS(interface_row_number)%NUMBER_OF_SOLVER_ROWS>0) THEN
-                                        !Loop over the solver rows associated with this interface residual row
-                                        !Currently earch interface matrix row has only one corresponding solver row number & coupling coefficient
-                                        solver_row_number=SOLVER_MAPPING% & 
-                                          & INTERFACE_CONDITION_TO_SOLVER_MAP(interface_condition_idx)% &
-                                          & INTERFACE_COLUMN_TO_SOLVER_ROWS_MAPS(interface_row_number)%SOLVER_ROW
-                                        row_coupling_coefficient=SOLVER_MAPPING% & 
-                                          & INTERFACE_CONDITION_TO_SOLVER_MAP(interface_condition_idx)% &
-                                          & INTERFACE_COLUMN_TO_SOLVER_ROWS_MAPS(interface_row_number)%COUPLING_COEFFICIENT
-                                        CALL DISTRIBUTED_VECTOR_VALUES_GET(INTERFACE_TEMP_VECTOR,interface_row_number, &
-                                          & RESIDUAL_VALUE,ERR,ERROR,*999)
-                                        VALUE=RESIDUAL_VALUE*row_coupling_coefficient
-                                        !Add in nonlinear residual values
-                                        CALL DISTRIBUTED_VECTOR_VALUES_ADD(SOLVER_RESIDUAL_VECTOR,solver_row_number,VALUE, &
-                                          & ERR,ERROR,*999)
-                                      ENDIF
-                                    ENDDO !interface_row_number
-                                  ELSE
-                                    CALL FlagError("Dependent variable is not associated.",ERR,ERROR,*999)
-                                  ENDIF
-                                ELSE
-                                  LOCAL_ERROR="Interface matrix is not associated for linear matrix number "// &
-                                    & TRIM(NumberToVString(equations_matrix_idx,"*",ERR,ERROR))//"."
-                                  CALL FlagError(LOCAL_ERROR,ERR,ERROR,*999)
-                                ENDIF
-                              ENDDO !interface_matrix_idx
-                              SELECT CASE(INTERFACE_CONDITION%METHOD)
-                              CASE(INTERFACE_CONDITION_PENALTY_METHOD)
-                                interface_matrix_idx=INTERFACE_MAPPING%NUMBER_OF_INTERFACE_MATRICES
-                                !Calculate the Lagrange-Lagrange vector product residual contribution from the penalty term
-                                INTERFACE_MATRIX=>INTERFACE_MATRICES%MATRICES(interface_matrix_idx)%PTR
-                                IF(ASSOCIATED(INTERFACE_MATRIX)) THEN
-                                  interface_variable_type=INTERFACE_MAPPING%LAGRANGE_VARIABLE_TYPE
-                                  INTERFACE_VARIABLE=>INTERFACE_MAPPING%LAGRANGE_VARIABLE
-                                  IF(ASSOCIATED(INTERFACE_VARIABLE)) THEN
-                                    INTERFACE_TEMP_VECTOR=>INTERFACE_MATRIX%TEMP_VECTOR
-                                    !Initialise the linear temporary vector to zero
-                                    CALL DISTRIBUTED_VECTOR_ALL_VALUES_SET(INTERFACE_TEMP_VECTOR,0.0_DP,ERR,ERROR,*999)
-                                    NULLIFY(LAGRANGE_VECTOR)
-                                    CALL FIELD_PARAMETER_SET_VECTOR_GET(LAGRANGE_FIELD,interface_variable_type, &
-                                      & FIELD_VALUES_SET_TYPE,LAGRANGE_VECTOR,ERR,ERROR,*999)
-                                    CALL DISTRIBUTED_MATRIX_BY_VECTOR_ADD(DISTRIBUTED_MATRIX_VECTOR_NO_GHOSTS_TYPE,1.0_DP, &
-                                      & INTERFACE_MATRIX%MATRIX,LAGRANGE_VECTOR,INTERFACE_TEMP_VECTOR,ERR,ERROR,*999)
-                                    !Add interface matrix residual contribution to the solver residual
-                                    DO interface_row_number=1,INTERFACE_MATRIX%NUMBER_OF_ROWS
-                                      IF(SOLVER_MAPPING%INTERFACE_CONDITION_TO_SOLVER_MAP(interface_condition_idx)% &
-                                        & INTERFACE_TO_SOLVER_MATRIX_MAPS_IM(interface_matrix_idx)% &
-                                        & INTERFACE_ROW_TO_SOLVER_ROWS_MAP(interface_row_number)%NUMBER_OF_SOLVER_ROWS>0) THEN
-                                        !Loop over the solver rows associated with this interface residual row
-                                        !Currently earch interface matrix row has only one corresponding solver row number & coupling coefficient
-                                        solver_row_number=SOLVER_MAPPING% & 
-                                          & INTERFACE_CONDITION_TO_SOLVER_MAP(interface_condition_idx)% &
+                                ENDDO !interface_matrix_idx
+                                SELECT CASE(INTERFACE_CONDITION%METHOD)
+                                CASE(INTERFACE_CONDITION_PENALTY_METHOD)
+                                  interface_matrix_idx=INTERFACE_MAPPING%NUMBER_OF_INTERFACE_MATRICES
+                                  !Calculate the Lagrange-Lagrange vector product residual contribution from the penalty term
+                                  INTERFACE_MATRIX=>INTERFACE_MATRICES%MATRICES(interface_matrix_idx)%PTR
+                                  IF(ASSOCIATED(INTERFACE_MATRIX)) THEN
+                                    interface_variable_type=INTERFACE_MAPPING%LAGRANGE_VARIABLE_TYPE
+                                    INTERFACE_VARIABLE=>INTERFACE_MAPPING%LAGRANGE_VARIABLE
+                                    IF(ASSOCIATED(INTERFACE_VARIABLE)) THEN
+                                      INTERFACE_TEMP_VECTOR=>INTERFACE_MATRIX%TEMP_VECTOR
+                                      !Initialise the linear temporary vector to zero
+                                      CALL DISTRIBUTED_VECTOR_ALL_VALUES_SET(INTERFACE_TEMP_VECTOR,0.0_DP,ERR,ERROR,*999)
+                                      NULLIFY(LAGRANGE_VECTOR)
+                                      CALL FIELD_PARAMETER_SET_VECTOR_GET(LAGRANGE_FIELD,interface_variable_type, &
+                                        & FIELD_VALUES_SET_TYPE,LAGRANGE_VECTOR,ERR,ERROR,*999)
+                                      CALL DISTRIBUTED_MATRIX_BY_VECTOR_ADD(DISTRIBUTED_MATRIX_VECTOR_NO_GHOSTS_TYPE,1.0_DP, &
+                                        & INTERFACE_MATRIX%MATRIX,LAGRANGE_VECTOR,INTERFACE_TEMP_VECTOR,ERR,ERROR,*999)
+                                      !Add interface matrix residual contribution to the solver residual
+                                      DO interface_row_number=1,INTERFACE_MATRIX%NUMBER_OF_ROWS
+                                        IF(SOLVER_MAPPING%INTERFACE_CONDITION_TO_SOLVER_MAP(interface_condition_idx)% &
                                           & INTERFACE_TO_SOLVER_MATRIX_MAPS_IM(interface_matrix_idx)% &
-                                          & INTERFACE_ROW_TO_SOLVER_ROWS_MAP(interface_row_number)%SOLVER_ROW
-                                        row_coupling_coefficient=SOLVER_MAPPING% &
-                                          & INTERFACE_CONDITION_TO_SOLVER_MAP(interface_condition_idx)% &
-                                          & INTERFACE_TO_SOLVER_MATRIX_MAPS_IM(interface_matrix_idx)% &
-                                          & INTERFACE_ROW_TO_SOLVER_ROWS_MAP(interface_row_number)%COUPLING_COEFFICIENT
-                                        CALL DISTRIBUTED_VECTOR_VALUES_GET(INTERFACE_TEMP_VECTOR,interface_row_number, &
-                                          & RESIDUAL_VALUE,ERR,ERROR,*999)
-                                        VALUE=RESIDUAL_VALUE*row_coupling_coefficient
-                                        !Add in nonlinear residual values
-                                        CALL DISTRIBUTED_VECTOR_VALUES_ADD(SOLVER_RESIDUAL_VECTOR,solver_row_number,VALUE, &
-                                          & ERR,ERROR,*999)
-                                      ENDIF
-                                    ENDDO !interface_row_number
+                                          & INTERFACE_ROW_TO_SOLVER_ROWS_MAP(interface_row_number)%NUMBER_OF_SOLVER_ROWS>0) THEN
+                                          !Loop over the solver rows associated with this interface residual row
+                                          !Currently earch interface matrix row has only one corresponding solver row number & coupling coefficient
+                                          solver_row_number=SOLVER_MAPPING% & 
+                                            & INTERFACE_CONDITION_TO_SOLVER_MAP(interface_condition_idx)% &
+                                            & INTERFACE_TO_SOLVER_MATRIX_MAPS_IM(interface_matrix_idx)% &
+                                            & INTERFACE_ROW_TO_SOLVER_ROWS_MAP(interface_row_number)%SOLVER_ROW
+                                          row_coupling_coefficient=SOLVER_MAPPING% &
+                                            & INTERFACE_CONDITION_TO_SOLVER_MAP(interface_condition_idx)% &
+                                            & INTERFACE_TO_SOLVER_MATRIX_MAPS_IM(interface_matrix_idx)% &
+                                            & INTERFACE_ROW_TO_SOLVER_ROWS_MAP(interface_row_number)%COUPLING_COEFFICIENT
+                                          CALL DISTRIBUTED_VECTOR_VALUES_GET(INTERFACE_TEMP_VECTOR,interface_row_number, &
+                                            & RESIDUAL_VALUE,ERR,ERROR,*999)
+                                          VALUE=RESIDUAL_VALUE*row_coupling_coefficient
+                                          !Add in nonlinear residual values
+                                          CALL DISTRIBUTED_VECTOR_VALUES_ADD(SOLVER_RESIDUAL_VECTOR,solver_row_number,VALUE, &
+                                            & ERR,ERROR,*999)
+                                        ENDIF
+                                      ENDDO !interface_row_number
+                                    ELSE
+                                      CALL FlagError("Interface variable is not associated.",ERR,ERROR,*999)
+                                    ENDIF
                                   ELSE
-                                    CALL FlagError("Interface variable is not associated.",ERR,ERROR,*999)
+                                    LOCAL_ERROR="Interface matrix is not associated for linear matrix number "// &
+                                      & TRIM(NumberToVString(equations_matrix_idx,"*",ERR,ERROR))//"."
+                                    CALL FlagError(LOCAL_ERROR,ERR,ERROR,*999)
                                   ENDIF
-                                ELSE
-                                  LOCAL_ERROR="Interface matrix is not associated for linear matrix number "// &
-                                    & TRIM(NumberToVString(equations_matrix_idx,"*",ERR,ERROR))//"."
-                                  CALL FlagError(LOCAL_ERROR,ERR,ERROR,*999)
-                                ENDIF
-                              ENDSELECT
+                                ENDSELECT
+                              ELSE
+                                CALL FlagError("Interface mapping is not associated.",ERR,ERROR,*999)
+                              ENDIF
                             ELSE
-                              CALL FlagError("Interface mapping is not associated.",ERR,ERROR,*999)
+                              CALL FlagError("Interface matrices is not associated.",ERR,ERROR,*999)
                             ENDIF
                           ELSE
-                            CALL FlagError("Interface matrices is not associated.",ERR,ERROR,*999)
+                            CALL FlagError("Interface equations is not associated.",ERR,ERROR,*999)
                           ENDIF
                         ELSE
-                          CALL FlagError("Interface equations is not associated.",ERR,ERROR,*999)
+                          CALL FlagError("Interface Lagrange field is not associated.",ERR,ERROR,*999)
                         ENDIF
                       ELSE
-                        CALL FlagError("Interface Lagrange field is not associated.",ERR,ERROR,*999)
+                        CALL FlagError("Interface condition is not associated.",ERR,ERROR,*999)
                       ENDIF
-                    ELSE
-                      CALL FlagError("Interface condition is not associated.",ERR,ERROR,*999)
-                    ENDIF
-                  ENDDO !interface_condition_idx
-                  !Start the update the solver residual vector values
-                  CALL DISTRIBUTED_VECTOR_UPDATE_START(SOLVER_RESIDUAL_VECTOR,ERR,ERROR,*999)
-                ELSE
-                  CALL FlagError("The solver residual vector is not associated.",ERR,ERROR,*999)
+                    ENDDO !interface_condition_idx
+                    !Start the update the solver residual vector values
+                    CALL DISTRIBUTED_VECTOR_UPDATE_START(SOLVER_RESIDUAL_VECTOR,ERR,ERROR,*999)
+                  ELSE
+                    CALL FlagError("The solver residual vector is not associated.",ERR,ERROR,*999)
+                  ENDIF
+                ENDIF
+                IF(ASSOCIATED(SOLVER_RESIDUAL_VECTOR)) THEN
+                  CALL DISTRIBUTED_VECTOR_UPDATE_FINISH(SOLVER_RESIDUAL_VECTOR,ERR,ERROR,*999)
+                ENDIF
+                IF(SOLVER%OUTPUT_TYPE>=SOLVER_TIMING_OUTPUT) THEN
+                  CALL CPU_TIMER(USER_CPU,USER_TIME2,ERR,ERROR,*999)
+                  CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME2,ERR,ERROR,*999)
+                  USER_ELAPSED=USER_TIME2(1)-USER_TIME1(1)
+                  SYSTEM_ELAPSED=SYSTEM_TIME2(1)-SYSTEM_TIME1(1)
+                  CALL WRITE_STRING(GENERAL_OUTPUT_TYPE,"",ERR,ERROR,*999)
+                  CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Total user time for solver residual assembly = ",USER_ELAPSED, &
+                    & ERR,ERROR,*999)
+                  CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Total System time for solver residual assembly = ",SYSTEM_ELAPSED, &
+                    & ERR,ERROR,*999)
                 ENDIF
               ENDIF
-              IF(ASSOCIATED(SOLVER_RESIDUAL_VECTOR)) THEN
-                CALL DISTRIBUTED_VECTOR_UPDATE_FINISH(SOLVER_RESIDUAL_VECTOR,ERR,ERROR,*999)
-              ENDIF
-              IF(SOLVER%OUTPUT_TYPE>=SOLVER_TIMING_OUTPUT) THEN
-                CALL CPU_TIMER(USER_CPU,USER_TIME2,ERR,ERROR,*999)
-                CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME2,ERR,ERROR,*999)
-                USER_ELAPSED=USER_TIME2(1)-USER_TIME1(1)
-                SYSTEM_ELAPSED=SYSTEM_TIME2(1)-SYSTEM_TIME1(1)
-                CALL WRITE_STRING(GENERAL_OUTPUT_TYPE,"",ERR,ERROR,*999)
-                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Total user time for solver residual assembly = ",USER_ELAPSED, &
-                  & ERR,ERROR,*999)
-                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Total System time for solver residual assembly = ",SYSTEM_ELAPSED, &
-                  & ERR,ERROR,*999)
-              ENDIF
-            ENDIF
-            NULLIFY(SOLVER_RHS_VECTOR)
-            IF(SELECTION_TYPE==SOLVER_MATRICES_ALL.OR. &
-              & SELECTION_TYPE==SOLVER_MATRICES_LINEAR_ONLY.OR. &
-              & SELECTION_TYPE==SOLVER_MATRICES_NONLINEAR_ONLY.OR. &
-              & SELECTION_TYPE==SOLVER_MATRICES_RHS_ONLY.OR. &
-              & SELECTION_TYPE==SOLVER_MATRICES_RHS_RESIDUAL_ONLY) THEN
-              !Assemble rhs vector
-              IF(SOLVER%OUTPUT_TYPE>=SOLVER_TIMING_OUTPUT) THEN
-                CALL CPU_TIMER(USER_CPU,USER_TIME1,ERR,ERROR,*999)
-                CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME1,ERR,ERROR,*999)
-              ENDIF
-              IF(SOLVER_MATRICES%UPDATE_RHS_VECTOR) THEN
-                SOLVER_RHS_VECTOR=>SOLVER_MATRICES%RHS_VECTOR
-                IF(ASSOCIATED(SOLVER_RHS_VECTOR)) THEN
-                  !Initialise the RHS to zero
-                  CALL DISTRIBUTED_VECTOR_ALL_VALUES_SET(SOLVER_RHS_VECTOR,0.0_DP,ERR,ERROR,*999)
-                  NULLIFY(CHECK_DATA)
-                  CALL DISTRIBUTED_VECTOR_DATA_GET(SOLVER_RHS_VECTOR,CHECK_DATA,ERR,ERROR,*999)
-                  SUBTRACT_FIXED_BCS_FROM_RESIDUAL=.FALSE.
-                  IF(SELECTION_TYPE==SOLVER_MATRICES_ALL.OR. &
-                      & SELECTION_TYPE==SOLVER_MATRICES_NONLINEAR_ONLY.OR. &
-                      & SELECTION_TYPE==SOLVER_MATRICES_RHS_RESIDUAL_ONLY) THEN
-                    IF(SOLVER_MATRICES%UPDATE_RESIDUAL) THEN
-                      IF(ASSOCIATED(SOLVER_RESIDUAL_VECTOR)) THEN
-                        SUBTRACT_FIXED_BCS_FROM_RESIDUAL=.TRUE.
-                      ELSE
-                        CALL FlagError("The solver residual vector is not associated.",ERR,ERROR,*999)
+              NULLIFY(SOLVER_RHS_VECTOR)
+              IF(SELECTION_TYPE==SOLVER_MATRICES_ALL.OR. &
+                & SELECTION_TYPE==SOLVER_MATRICES_LINEAR_ONLY.OR. &
+                & SELECTION_TYPE==SOLVER_MATRICES_NONLINEAR_ONLY.OR. &
+                & SELECTION_TYPE==SOLVER_MATRICES_RHS_ONLY.OR. &
+                & SELECTION_TYPE==SOLVER_MATRICES_RHS_RESIDUAL_ONLY) THEN
+                !Assemble rhs vector
+                IF(SOLVER%OUTPUT_TYPE>=SOLVER_TIMING_OUTPUT) THEN
+                  CALL CPU_TIMER(USER_CPU,USER_TIME1,ERR,ERROR,*999)
+                  CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME1,ERR,ERROR,*999)
+                ENDIF
+                IF(SOLVER_MATRICES%UPDATE_RHS_VECTOR) THEN
+                  SOLVER_RHS_VECTOR=>SOLVER_MATRICES%RHS_VECTOR
+                  IF(ASSOCIATED(SOLVER_RHS_VECTOR)) THEN
+                    !Initialise the RHS to zero
+                    CALL DISTRIBUTED_VECTOR_ALL_VALUES_SET(SOLVER_RHS_VECTOR,0.0_DP,ERR,ERROR,*999)
+                    NULLIFY(CHECK_DATA)
+                    CALL DISTRIBUTED_VECTOR_DATA_GET(SOLVER_RHS_VECTOR,CHECK_DATA,ERR,ERROR,*999)
+                    SUBTRACT_FIXED_BCS_FROM_RESIDUAL=.FALSE.
+                    IF(SELECTION_TYPE==SOLVER_MATRICES_ALL.OR. &
+                        & SELECTION_TYPE==SOLVER_MATRICES_NONLINEAR_ONLY.OR. &
+                        & SELECTION_TYPE==SOLVER_MATRICES_RHS_RESIDUAL_ONLY) THEN
+                      IF(SOLVER_MATRICES%UPDATE_RESIDUAL) THEN
+                        IF(ASSOCIATED(SOLVER_RESIDUAL_VECTOR)) THEN
+                          SUBTRACT_FIXED_BCS_FROM_RESIDUAL=.TRUE.
+                        ELSE
+                          CALL FlagError("The solver residual vector is not associated.",ERR,ERROR,*999)
+                        ENDIF
                       ENDIF
                     ENDIF
-                  ENDIF
-                  !Loop over the equations sets
-                  DO equations_set_idx=1,SOLVER_MAPPING%NUMBER_OF_EQUATIONS_SETS
-                    EQUATIONS_SET=>SOLVER_MAPPING%EQUATIONS_SETS(equations_set_idx)%PTR
-                    IF(ASSOCIATED(EQUATIONS_SET)) THEN
-                      DEPENDENT_FIELD=>EQUATIONS_SET%DEPENDENT%DEPENDENT_FIELD
-                      IF(ASSOCIATED(DEPENDENT_FIELD)) THEN
-                        EQUATIONS=>EQUATIONS_SET%EQUATIONS
-                        IF(ASSOCIATED(EQUATIONS)) THEN
-                          EQUATIONS_MATRICES=>EQUATIONS%EQUATIONS_MATRICES
-                          IF(ASSOCIATED(EQUATIONS_MATRICES)) THEN
-                            EQUATIONS_MAPPING=>EQUATIONS%EQUATIONS_MAPPING
-                            IF(ASSOCIATED(EQUATIONS_MAPPING)) THEN
-                              SOURCE_MAPPING=>EQUATIONS_MAPPING%SOURCE_MAPPING
-                              IF(ASSOCIATED(SOURCE_MAPPING)) THEN
-                                SOURCE_VECTOR=>EQUATIONS_MATRICES%SOURCE_VECTOR
-                                IF(ASSOCIATED(SOURCE_VECTOR)) THEN
-                                  DISTRIBUTED_SOURCE_VECTOR=>SOURCE_VECTOR%VECTOR
-                                ELSE
-                                  CALL FlagError("Source vector vector is not associated.",ERR,ERROR,*999)
-                                ENDIF
-                              ENDIF
-                              RHS_MAPPING=>EQUATIONS_MAPPING%RHS_MAPPING
-                              IF(ASSOCIATED(RHS_MAPPING)) THEN
-                                NULLIFY(RHS_PARAMETERS)
-                                RHS_VARIABLE_TYPE=RHS_MAPPING%RHS_VARIABLE_TYPE
-                                CALL FIELD_PARAMETER_SET_DATA_GET(DEPENDENT_FIELD,RHS_VARIABLE_TYPE,FIELD_VALUES_SET_TYPE, &
-                                  & RHS_PARAMETERS,ERR,ERROR,*999)
-                                NULLIFY(CHECK_DATA)
-                                CALL DISTRIBUTED_VECTOR_DATA_GET(SOLVER_RHS_VECTOR,CHECK_DATA,ERR,ERROR,*999)    
-                                RHS_VECTOR=>EQUATIONS_MATRICES%RHS_VECTOR
-                                IF(ASSOCIATED(RHS_VECTOR)) THEN
-                                  LINEAR_MAPPING=>EQUATIONS_MAPPING%LINEAR_MAPPING
-                                  NONLINEAR_MAPPING=>EQUATIONS_MAPPING%NONLINEAR_MAPPING
-                                  IF(ASSOCIATED(LINEAR_MAPPING)) THEN
-                                    LINEAR_MATRICES=>EQUATIONS_MATRICES%LINEAR_MATRICES
-                                    IF(ASSOCIATED(LINEAR_MATRICES)) THEN
-                                      ALLOCATE(DEPENDENT_PARAMETERS(LINEAR_MAPPING%NUMBER_OF_LINEAR_MATRIX_VARIABLES),STAT=ERR)
-                                      IF(ERR/=0) CALL FlagError("Could not allocate dependent_parameters.",ERR,ERROR,*999)
-                                      DO variable_idx=1,LINEAR_MAPPING%NUMBER_OF_LINEAR_MATRIX_VARIABLES
-                                        variable_type=LINEAR_MAPPING%LINEAR_MATRIX_VARIABLE_TYPES(variable_idx)
-                                        NULLIFY(DEPENDENT_PARAMETERS(variable_idx)%PTR)
-                                        CALL FIELD_PARAMETER_SET_DATA_GET(DEPENDENT_FIELD,variable_type,FIELD_VALUES_SET_TYPE, &
-                                          & DEPENDENT_PARAMETERS(variable_idx)%PTR,ERR,ERROR,*999)
-                                      ENDDO !variable_idx
-                                    ELSE
-                                      CALL FlagError("Equations matrices linear matrices is not associated.",ERR,ERROR,*999)
-                                    ENDIF
+                    !Loop over the equations sets
+                    DO equations_set_idx=1,SOLVER_MAPPING%NUMBER_OF_EQUATIONS_SETS
+                      EQUATIONS_SET=>SOLVER_MAPPING%EQUATIONS_SETS(equations_set_idx)%PTR
+                      IF(ASSOCIATED(EQUATIONS_SET)) THEN
+                        DEPENDENT_FIELD=>EQUATIONS_SET%DEPENDENT%DEPENDENT_FIELD
+                        IF(ASSOCIATED(DEPENDENT_FIELD)) THEN
+                          EQUATIONS=>EQUATIONS_SET%EQUATIONS
+                          IF(ASSOCIATED(EQUATIONS)) THEN
+                            EQUATIONS_MATRICES=>EQUATIONS%EQUATIONS_MATRICES
+                            IF(ASSOCIATED(EQUATIONS_MATRICES)) THEN
+                              EQUATIONS_MAPPING=>EQUATIONS%EQUATIONS_MAPPING
+                              IF(ASSOCIATED(EQUATIONS_MAPPING)) THEN
+                                SOURCE_MAPPING=>EQUATIONS_MAPPING%SOURCE_MAPPING
+                                IF(ASSOCIATED(SOURCE_MAPPING)) THEN
+                                  SOURCE_VECTOR=>EQUATIONS_MATRICES%SOURCE_VECTOR
+                                  IF(ASSOCIATED(SOURCE_VECTOR)) THEN
+                                    DISTRIBUTED_SOURCE_VECTOR=>SOURCE_VECTOR%VECTOR
+                                  ELSE
+                                    CALL FlagError("Source vector vector is not associated.",ERR,ERROR,*999)
                                   ENDIF
-                                  BOUNDARY_CONDITIONS=>SOLVER_EQUATIONS%BOUNDARY_CONDITIONS
-                                  IF(ASSOCIATED(BOUNDARY_CONDITIONS)) THEN
-!!TODO: what if the equations set doesn't have a RHS vector???
+                                ENDIF
+                                RHS_MAPPING=>EQUATIONS_MAPPING%RHS_MAPPING
+                                IF(ASSOCIATED(RHS_MAPPING)) THEN
+                                  NULLIFY(RHS_PARAMETERS)
+                                  RHS_VARIABLE_TYPE=RHS_MAPPING%RHS_VARIABLE_TYPE
+                                  CALL FIELD_PARAMETER_SET_DATA_GET(DEPENDENT_FIELD,RHS_VARIABLE_TYPE,FIELD_VALUES_SET_TYPE, &
+                                    & RHS_PARAMETERS,ERR,ERROR,*999)
+                                  NULLIFY(CHECK_DATA)
+                                  CALL DISTRIBUTED_VECTOR_DATA_GET(SOLVER_RHS_VECTOR,CHECK_DATA,ERR,ERROR,*999)    
+                                  RHS_VECTOR=>EQUATIONS_MATRICES%RHS_VECTOR
+                                  IF(ASSOCIATED(RHS_VECTOR)) THEN
+                                    LINEAR_MAPPING=>EQUATIONS_MAPPING%LINEAR_MAPPING
+                                    NONLINEAR_MAPPING=>EQUATIONS_MAPPING%NONLINEAR_MAPPING
+                                    IF(ASSOCIATED(LINEAR_MAPPING)) THEN
+                                      LINEAR_MATRICES=>EQUATIONS_MATRICES%LINEAR_MATRICES
+                                      IF(ASSOCIATED(LINEAR_MATRICES)) THEN
+                                        ALLOCATE(DEPENDENT_PARAMETERS(LINEAR_MAPPING%NUMBER_OF_LINEAR_MATRIX_VARIABLES),STAT=ERR)
+                                        IF(ERR/=0) CALL FlagError("Could not allocate dependent_parameters.",ERR,ERROR,*999)
+                                        DO variable_idx=1,LINEAR_MAPPING%NUMBER_OF_LINEAR_MATRIX_VARIABLES
+                                          variable_type=LINEAR_MAPPING%LINEAR_MATRIX_VARIABLE_TYPES(variable_idx)
+                                          NULLIFY(DEPENDENT_PARAMETERS(variable_idx)%PTR)
+                                          CALL FIELD_PARAMETER_SET_DATA_GET(DEPENDENT_FIELD,variable_type,FIELD_VALUES_SET_TYPE, &
+                                            & DEPENDENT_PARAMETERS(variable_idx)%PTR,ERR,ERROR,*999)
+                                        ENDDO !variable_idx
+                                      ELSE
+                                        CALL FlagError("Equations matrices linear matrices is not associated.",ERR,ERROR,*999)
+                                      ENDIF
+                                    ENDIF
+  !!TODO: what if the equations set doesn't have a RHS vector???
                                     RHS_VARIABLE=>RHS_MAPPING%RHS_VARIABLE
                                     RHS_VARIABLE_TYPE=RHS_VARIABLE%VARIABLE_TYPE
                                     RHS_DOMAIN_MAPPING=>RHS_VARIABLE%DOMAIN_MAPPING
-                                    ! Check if there are any integrated values to add
+                                    !Check if there are any integrated values to add
                                     CALL FIELD_PARAMETER_SET_CREATED(RHS_VARIABLE%FIELD,RHS_VARIABLE_TYPE, &
                                       & FIELD_INTEGRATED_NEUMANN_SET_TYPE,HAS_INTEGRATED_VALUES,ERR,ERROR,*999)
                                     EQUATIONS_RHS_VECTOR=>RHS_VECTOR%VECTOR
@@ -16335,215 +16946,215 @@ CONTAINS
                                     ELSE
                                       CALL FlagError("RHS boundary conditions variable is not associated.",ERR,ERROR,*999)
                                     ENDIF
-                                  ELSE
-                                    CALL FlagError("Equations set boundary conditions is not associated.",ERR,ERROR,*999)
-                                  ENDIF
-                                  IF(ASSOCIATED(LINEAR_MAPPING)) THEN
-                                    DO variable_idx=1,LINEAR_MAPPING%NUMBER_OF_LINEAR_MATRIX_VARIABLES
-                                      variable_type=LINEAR_MAPPING%LINEAR_MATRIX_VARIABLE_TYPES(variable_idx)
-                                      CALL FIELD_PARAMETER_SET_DATA_RESTORE(DEPENDENT_FIELD,variable_type,FIELD_VALUES_SET_TYPE, &
-                                        & DEPENDENT_PARAMETERS(variable_idx)%PTR,ERR,ERROR,*999)
-                                    ENDDO !variable_idx
-                                    IF(ALLOCATED(DEPENDENT_PARAMETERS)) DEALLOCATE(DEPENDENT_PARAMETERS)
-                                  ENDIF
-                                ELSE
-                                  CALL FlagError("Equations matrices RHS vector is not associated.",ERR,ERROR,*999)
-                                ENDIF
-                                CALL FIELD_PARAMETER_SET_DATA_RESTORE(DEPENDENT_FIELD,RHS_VARIABLE_TYPE,FIELD_VALUES_SET_TYPE, &
-                                  & RHS_PARAMETERS,ERR,ERROR,*999)
-                              ELSE
-                                CALL FlagError("Equations mapping RHS mapping is not associated.",ERR,ERROR,*999)
-                              ENDIF
-                            ELSE
-                              CALL FlagError("Equations equations mapping is not associated.",ERR,ERROR,*999)
-                            ENDIF
-                          ELSE
-                            CALL FlagError("Equations equations matrices is not associated.",ERR,ERROR,*999)
-                          ENDIF
-                        ELSE
-                          CALL FlagError("Equations set equations is not associated.",ERR,ERROR,*999)
-                        ENDIF
-                      ELSE
-                        CALL FlagError("Equations set is not associated.",ERR,ERROR,*999)
-                      ENDIF
-                    ENDIF
-                  ENDDO !equations_set_idx
-                  !Add in any rows from any constraint conditions
-                  DO constraint_condition_idx=1,SOLVER_MAPPING%NUMBER_OF_CONSTRAINT_CONDITIONS
-                    CONSTRAINT_CONDITION=>SOLVER_MAPPING%CONSTRAINT_CONDITIONS(constraint_condition_idx)%PTR
-                    IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
-                      SELECT CASE(CONSTRAINT_CONDITION%METHOD)
-                      CASE(CONSTRAINT_CONDITION_LAGRANGE_MULTIPLIERS_METHOD,CONSTRAINT_CONDITION_PENALTY_METHOD)
-                        CONSTRAINT_EQUATIONS=>CONSTRAINT_CONDITION%CONSTRAINT_EQUATIONS
-                        IF(ASSOCIATED(CONSTRAINT_EQUATIONS)) THEN
-                          CONSTRAINT_MAPPING=>CONSTRAINT_EQUATIONS%CONSTRAINT_MAPPING
-                          IF(ASSOCIATED(CONSTRAINT_MAPPING)) THEN
-                            CONSTRAINT_LAGRANGE=>CONSTRAINT_CONDITION%LAGRANGE
-                            IF(ASSOCIATED(CONSTRAINT_LAGRANGE)) THEN
-                              LAGRANGE_FIELD=>CONSTRAINT_LAGRANGE%LAGRANGE_FIELD
-                              IF(ASSOCIATED(LAGRANGE_FIELD)) THEN
-                                CONSTRAINT_RHS_MAPPING=>CONSTRAINT_MAPPING%RHS_MAPPING
-                                IF(ASSOCIATED(CONSTRAINT_RHS_MAPPING)) THEN
-                                  CONSTRAINT_MATRICES=>CONSTRAINT_EQUATIONS%CONSTRAINT_MATRICES
-                                  IF(ASSOCIATED(CONSTRAINT_MATRICES)) THEN
-                                    CONSTRAINT_RHS_VECTOR=>CONSTRAINT_MATRICES%RHS_VECTOR
-                                    IF(ASSOCIATED(CONSTRAINT_RHS_VECTOR)) THEN
-                                      !Worry about BCs on the Lagrange variables later.
-                                      DO constraint_column_number=1,CONSTRAINT_MAPPING%NUMBER_OF_COLUMNS
-                                        CALL DISTRIBUTED_VECTOR_VALUES_GET(CONSTRAINT_RHS_VECTOR%RHS_VECTOR, &
-                                          & constraint_column_number,RHS_VALUE,ERR,ERROR,*999)
-                                      !Loop over the solver rows this constraint column is mapped to
-                                        solver_row_number=SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP( &
-                                          & constraint_condition_idx)%CONSTRAINT_COLUMN_TO_SOLVER_ROWS_MAPS( &
-                                          & constraint_column_number)%SOLVER_ROW
-                                        row_coupling_coefficient=SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP( &
-                                          & constraint_condition_idx)%CONSTRAINT_COLUMN_TO_SOLVER_ROWS_MAPS( &
-                                          & constraint_column_number)%COUPLING_COEFFICIENT
-                                        VALUE=RHS_VALUE*row_coupling_coefficient
-                                        CALL DISTRIBUTED_VECTOR_VALUES_ADD(SOLVER_RHS_VECTOR,solver_row_number,VALUE, &
-                                          & ERR,ERROR,*999)
-                                      ENDDO !constraint_column_idx
-                                    ELSE
-                                      CALL FlagError("Constraint matrices RHS vector is not associated.",ERR,ERROR,*999)
+                                    IF(ASSOCIATED(LINEAR_MAPPING)) THEN
+                                      DO variable_idx=1,LINEAR_MAPPING%NUMBER_OF_LINEAR_MATRIX_VARIABLES
+                                        variable_type=LINEAR_MAPPING%LINEAR_MATRIX_VARIABLE_TYPES(variable_idx)
+                                        CALL FIELD_PARAMETER_SET_DATA_RESTORE(DEPENDENT_FIELD,variable_type,FIELD_VALUES_SET_TYPE, &
+                                          & DEPENDENT_PARAMETERS(variable_idx)%PTR,ERR,ERROR,*999)
+                                      ENDDO !variable_idx
+                                      IF(ALLOCATED(DEPENDENT_PARAMETERS)) DEALLOCATE(DEPENDENT_PARAMETERS)
                                     ENDIF
                                   ELSE
-                                    CALL FlagError("Constraint equations constraint matrices is not associated.",ERR,ERROR,*999)
+                                    CALL FlagError("Equations matrices RHS vector is not associated.",ERR,ERROR,*999)
                                   ENDIF
+                                  CALL FIELD_PARAMETER_SET_DATA_RESTORE(DEPENDENT_FIELD,RHS_VARIABLE_TYPE,FIELD_VALUES_SET_TYPE, &
+                                    & RHS_PARAMETERS,ERR,ERROR,*999)
                                 ELSE
-                                  CALL FlagError("Constraint mapping RHS mapping is not associated.",ERR,ERROR,*999)
+                                  CALL FlagError("Equations mapping RHS mapping is not associated.",ERR,ERROR,*999)
                                 ENDIF
                               ELSE
-                                CALL FlagError("Constraint Lagrange field is not associated.",ERR,ERROR,*999)
+                                CALL FlagError("Equations equations mapping is not associated.",ERR,ERROR,*999)
                               ENDIF
                             ELSE
-                              CALL FlagError("Constraint Lagrange is not associated.",ERR,ERROR,*999)
+                              CALL FlagError("Equations equations matrices is not associated.",ERR,ERROR,*999)
                             ENDIF
                           ELSE
-                            CALL FlagError("Constraint equations constraint mapping is not associated.",ERR,ERROR,*999)
+                            CALL FlagError("Equations set equations is not associated.",ERR,ERROR,*999)
                           ENDIF
                         ELSE
-                          CALL FlagError("Constraint condition equations is not associated.",ERR,ERROR,*999)
+                          CALL FlagError("Equations set is not associated.",ERR,ERROR,*999)
                         ENDIF
-                      CASE(CONSTRAINT_CONDITION_AUGMENTED_LAGRANGE_METHOD)
-                        CALL FlagError("Not implemented.",ERR,ERROR,*999)
-                      CASE(CONSTRAINT_CONDITION_POINT_TO_POINT_METHOD)
-                        CALL FlagError("Not implemented.",ERR,ERROR,*999)
-                      CASE DEFAULT
-                        LOCAL_ERROR="The constraint condition method of "// &
-                          & TRIM(NUMBER_TO_VSTRING(CONSTRAINT_CONDITION%METHOD,"*",ERR,ERROR))// &
-                          & " is invalid."
-                        CALL FlagError(LOCAL_ERROR,ERR,ERROR,*999)
-                      END SELECT
-                    ELSE
-                      CALL FlagError("Constraint condition is not associated.",ERR,ERROR,*999)
-                    ENDIF
-                  ENDDO !constraint_condition_idx
-                  !Add in any rows from any interface conditions
-                  DO interface_condition_idx=1,SOLVER_MAPPING%NUMBER_OF_INTERFACE_CONDITIONS
-                    INTERFACE_CONDITION=>SOLVER_MAPPING%INTERFACE_CONDITIONS(interface_condition_idx)%PTR
-                    IF(ASSOCIATED(INTERFACE_CONDITION)) THEN
-                      SELECT CASE(INTERFACE_CONDITION%METHOD)
-                      CASE(INTERFACE_CONDITION_LAGRANGE_MULTIPLIERS_METHOD,INTERFACE_CONDITION_PENALTY_METHOD)
-                        INTERFACE_EQUATIONS=>INTERFACE_CONDITION%INTERFACE_EQUATIONS
-                        IF(ASSOCIATED(INTERFACE_EQUATIONS)) THEN
-                          INTERFACE_MAPPING=>INTERFACE_EQUATIONS%INTERFACE_MAPPING
-                          IF(ASSOCIATED(INTERFACE_MAPPING)) THEN
-                            INTERFACE_LAGRANGE=>INTERFACE_CONDITION%LAGRANGE
-                            IF(ASSOCIATED(INTERFACE_LAGRANGE)) THEN
-                              LAGRANGE_FIELD=>INTERFACE_LAGRANGE%LAGRANGE_FIELD
-                              IF(ASSOCIATED(LAGRANGE_FIELD)) THEN
-                                INTERFACE_RHS_MAPPING=>INTERFACE_MAPPING%RHS_MAPPING
-                                IF(ASSOCIATED(INTERFACE_RHS_MAPPING)) THEN
-                                  INTERFACE_MATRICES=>INTERFACE_EQUATIONS%INTERFACE_MATRICES
-                                  IF(ASSOCIATED(INTERFACE_MATRICES)) THEN
-                                    INTERFACE_RHS_VECTOR=>INTERFACE_MATRICES%RHS_VECTOR
-                                    IF(ASSOCIATED(INTERFACE_RHS_VECTOR)) THEN
-                                      !Worry about BCs on the Lagrange variables later.
-                                      DO interface_column_number=1,INTERFACE_MAPPING%TOTAL_NUMBER_OF_COLUMNS
-                                        CALL DISTRIBUTED_VECTOR_VALUES_GET(INTERFACE_RHS_VECTOR%RHS_VECTOR, &
-                                          & interface_column_number,RHS_VALUE,ERR,ERROR,*999)
-                                        !Loop over the solver rows this interface column is mapped to
-                                        DO solver_row_idx=1,SOLVER_MAPPING%INTERFACE_CONDITION_TO_SOLVER_MAP( &
-                                          & interface_condition_idx)%INTERFACE_COLUMN_TO_SOLVER_ROWS_MAPS( &
-                                          & interface_column_number)%NUMBER_OF_SOLVER_ROWS
-                                          solver_row_number=SOLVER_MAPPING%INTERFACE_CONDITION_TO_SOLVER_MAP( &
-                                            & interface_condition_idx)%INTERFACE_COLUMN_TO_SOLVER_ROWS_MAPS( &
-                                            & interface_column_number)%SOLVER_ROW
-                                          row_coupling_coefficient=SOLVER_MAPPING%INTERFACE_CONDITION_TO_SOLVER_MAP( &
-                                            & interface_condition_idx)%INTERFACE_COLUMN_TO_SOLVER_ROWS_MAPS( &
-                                            & interface_column_number)%COUPLING_COEFFICIENT
+                      ENDIF
+                    ENDDO !equations_set_idx
+                    !Add in any rows from any constraint conditions
+                    DO constraint_condition_idx=1,SOLVER_MAPPING%NUMBER_OF_CONSTRAINT_CONDITIONS
+                      CONSTRAINT_CONDITION=>SOLVER_MAPPING%CONSTRAINT_CONDITIONS(constraint_condition_idx)%PTR
+                      IF(ASSOCIATED(CONSTRAINT_CONDITION)) THEN
+                        SELECT CASE(CONSTRAINT_CONDITION%METHOD)
+                        CASE(CONSTRAINT_CONDITION_LAGRANGE_MULTIPLIERS_METHOD,CONSTRAINT_CONDITION_PENALTY_METHOD)
+                          CONSTRAINT_EQUATIONS=>CONSTRAINT_CONDITION%CONSTRAINT_EQUATIONS
+                          IF(ASSOCIATED(CONSTRAINT_EQUATIONS)) THEN
+                            CONSTRAINT_MAPPING=>CONSTRAINT_EQUATIONS%CONSTRAINT_MAPPING
+                            IF(ASSOCIATED(CONSTRAINT_MAPPING)) THEN
+                              CONSTRAINT_LAGRANGE=>CONSTRAINT_CONDITION%LAGRANGE
+                              IF(ASSOCIATED(CONSTRAINT_LAGRANGE)) THEN
+                                LAGRANGE_FIELD=>CONSTRAINT_LAGRANGE%LAGRANGE_FIELD
+                                IF(ASSOCIATED(LAGRANGE_FIELD)) THEN
+                                  CONSTRAINT_RHS_MAPPING=>CONSTRAINT_MAPPING%RHS_MAPPING
+                                  IF(ASSOCIATED(CONSTRAINT_RHS_MAPPING)) THEN
+                                    CONSTRAINT_MATRICES=>CONSTRAINT_EQUATIONS%CONSTRAINT_MATRICES
+                                    IF(ASSOCIATED(CONSTRAINT_MATRICES)) THEN
+                                      CONSTRAINT_RHS_VECTOR=>CONSTRAINT_MATRICES%RHS_VECTOR
+                                      IF(ASSOCIATED(CONSTRAINT_RHS_VECTOR)) THEN
+                                        !Worry about BCs on the Lagrange variables later.
+                                        DO constraint_column_number=1,CONSTRAINT_MAPPING%NUMBER_OF_COLUMNS
+                                          CALL DISTRIBUTED_VECTOR_VALUES_GET(CONSTRAINT_RHS_VECTOR%RHS_VECTOR, &
+                                            & constraint_column_number,RHS_VALUE,ERR,ERROR,*999)
+                                        !Loop over the solver rows this constraint column is mapped to
+                                          solver_row_number=SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP( &
+                                            & constraint_condition_idx)%CONSTRAINT_COLUMN_TO_SOLVER_ROWS_MAPS( &
+                                            & constraint_column_number)%SOLVER_ROW
+                                          row_coupling_coefficient=SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP( &
+                                            & constraint_condition_idx)%CONSTRAINT_COLUMN_TO_SOLVER_ROWS_MAPS( &
+                                            & constraint_column_number)%COUPLING_COEFFICIENT
                                           VALUE=RHS_VALUE*row_coupling_coefficient
                                           CALL DISTRIBUTED_VECTOR_VALUES_ADD(SOLVER_RHS_VECTOR,solver_row_number,VALUE, &
                                             & ERR,ERROR,*999)
-                                        ENDDO !solver_row_idx
-                                      ENDDO !interface_column_idx
+                                        ENDDO !constraint_column_idx
+                                      ELSE
+                                        CALL FlagError("Constraint matrices RHS vector is not associated.",ERR,ERROR,*999)
+                                      ENDIF
                                     ELSE
-                                      CALL FlagError("Interface matrices RHS vector is not associated.",ERR,ERROR,*999)
+                                      CALL FlagError("Constraint equations constraint matrices is not associated.",ERR,ERROR,*999)
                                     ENDIF
                                   ELSE
-                                    CALL FlagError("Interface equations interface matrices is not associated.",ERR,ERROR,*999)
+                                    CALL FlagError("Constraint mapping RHS mapping is not associated.",ERR,ERROR,*999)
                                   ENDIF
                                 ELSE
-                                  CALL FlagError("Interface mapping RHS mapping is not associated.",ERR,ERROR,*999)
+                                  CALL FlagError("Constraint Lagrange field is not associated.",ERR,ERROR,*999)
                                 ENDIF
                               ELSE
-                                CALL FlagError("Interface Lagrange field is not associated.",ERR,ERROR,*999)
+                                CALL FlagError("Constraint Lagrange is not associated.",ERR,ERROR,*999)
                               ENDIF
                             ELSE
-                              CALL FlagError("Interface Lagrange is not associated.",ERR,ERROR,*999)
+                              CALL FlagError("Constraint equations constraint mapping is not associated.",ERR,ERROR,*999)
                             ENDIF
                           ELSE
-                            CALL FlagError("Interface equations interface mapping is not associated.",ERR,ERROR,*999)
+                            CALL FlagError("Constraint condition equations is not associated.",ERR,ERROR,*999)
                           ENDIF
-                        ELSE
-                          CALL FlagError("Interface condition equations is not associated.",ERR,ERROR,*999)
-                        ENDIF
-                      CASE(INTERFACE_CONDITION_AUGMENTED_LAGRANGE_METHOD)
-                        CALL FlagError("Not implemented.",ERR,ERROR,*999)
-                      CASE(INTERFACE_CONDITION_POINT_TO_POINT_METHOD)
-                        CALL FlagError("Not implemented.",ERR,ERROR,*999)
-                      CASE DEFAULT
-                        LOCAL_ERROR="The interface condition method of "// &
-                          & TRIM(NumberToVString(INTERFACE_CONDITION%METHOD,"*",ERR,ERROR))// &
-                          & " is invalid."
-                        CALL FlagError(LOCAL_ERROR,ERR,ERROR,*999)
-                      END SELECT
-                    ELSE
-                      CALL FlagError("Interface condition is not associated.",ERR,ERROR,*999)
-                    ENDIF
-                  ENDDO !interface_condition_idx
-                  !Start the update the solver RHS vector values
-                  CALL DISTRIBUTED_VECTOR_UPDATE_START(SOLVER_RHS_VECTOR,ERR,ERROR,*999)
-                  NULLIFY(CHECK_DATA)
-                  CALL DISTRIBUTED_VECTOR_DATA_GET(SOLVER_RHS_VECTOR,CHECK_DATA,ERR,ERROR,*999)   
-                ELSE
-                  CALL FlagError("The solver RHS vector is not associated.",ERR,ERROR,*999)
+                        CASE(CONSTRAINT_CONDITION_AUGMENTED_LAGRANGE_METHOD)
+                          CALL FlagError("Not implemented.",ERR,ERROR,*999)
+                        CASE(CONSTRAINT_CONDITION_POINT_TO_POINT_METHOD)
+                          CALL FlagError("Not implemented.",ERR,ERROR,*999)
+                        CASE DEFAULT
+                          LOCAL_ERROR="The constraint condition method of "// &
+                            & TRIM(NUMBER_TO_VSTRING(CONSTRAINT_CONDITION%METHOD,"*",ERR,ERROR))// &
+                            & " is invalid."
+                          CALL FlagError(LOCAL_ERROR,ERR,ERROR,*999)
+                        END SELECT
+                      ELSE
+                        CALL FlagError("Constraint condition is not associated.",ERR,ERROR,*999)
+                      ENDIF
+                    ENDDO !constraint_condition_idx
+                    !Add in any rows from any interface conditions
+                    DO interface_condition_idx=1,SOLVER_MAPPING%NUMBER_OF_INTERFACE_CONDITIONS
+                      INTERFACE_CONDITION=>SOLVER_MAPPING%INTERFACE_CONDITIONS(interface_condition_idx)%PTR
+                      IF(ASSOCIATED(INTERFACE_CONDITION)) THEN
+                        SELECT CASE(INTERFACE_CONDITION%METHOD)
+                        CASE(INTERFACE_CONDITION_LAGRANGE_MULTIPLIERS_METHOD,INTERFACE_CONDITION_PENALTY_METHOD)
+                          INTERFACE_EQUATIONS=>INTERFACE_CONDITION%INTERFACE_EQUATIONS
+                          IF(ASSOCIATED(INTERFACE_EQUATIONS)) THEN
+                            INTERFACE_MAPPING=>INTERFACE_EQUATIONS%INTERFACE_MAPPING
+                            IF(ASSOCIATED(INTERFACE_MAPPING)) THEN
+                              INTERFACE_LAGRANGE=>INTERFACE_CONDITION%LAGRANGE
+                              IF(ASSOCIATED(INTERFACE_LAGRANGE)) THEN
+                                LAGRANGE_FIELD=>INTERFACE_LAGRANGE%LAGRANGE_FIELD
+                                IF(ASSOCIATED(LAGRANGE_FIELD)) THEN
+                                  INTERFACE_RHS_MAPPING=>INTERFACE_MAPPING%RHS_MAPPING
+                                  IF(ASSOCIATED(INTERFACE_RHS_MAPPING)) THEN
+                                    INTERFACE_MATRICES=>INTERFACE_EQUATIONS%INTERFACE_MATRICES
+                                    IF(ASSOCIATED(INTERFACE_MATRICES)) THEN
+                                      INTERFACE_RHS_VECTOR=>INTERFACE_MATRICES%RHS_VECTOR
+                                      IF(ASSOCIATED(INTERFACE_RHS_VECTOR)) THEN
+                                        !Worry about BCs on the Lagrange variables later.
+                                        DO interface_column_number=1,INTERFACE_MAPPING%TOTAL_NUMBER_OF_COLUMNS
+                                          CALL DISTRIBUTED_VECTOR_VALUES_GET(INTERFACE_RHS_VECTOR%RHS_VECTOR, &
+                                            & interface_column_number,RHS_VALUE,ERR,ERROR,*999)
+                                          !Loop over the solver rows this interface column is mapped to
+                                          DO solver_row_idx=1,SOLVER_MAPPING%INTERFACE_CONDITION_TO_SOLVER_MAP( &
+                                            & interface_condition_idx)%INTERFACE_COLUMN_TO_SOLVER_ROWS_MAPS( &
+                                            & interface_column_number)%NUMBER_OF_SOLVER_ROWS
+                                            solver_row_number=SOLVER_MAPPING%INTERFACE_CONDITION_TO_SOLVER_MAP( &
+                                              & interface_condition_idx)%INTERFACE_COLUMN_TO_SOLVER_ROWS_MAPS( &
+                                              & interface_column_number)%SOLVER_ROW
+                                            row_coupling_coefficient=SOLVER_MAPPING%INTERFACE_CONDITION_TO_SOLVER_MAP( &
+                                              & interface_condition_idx)%INTERFACE_COLUMN_TO_SOLVER_ROWS_MAPS( &
+                                              & interface_column_number)%COUPLING_COEFFICIENT
+                                            VALUE=RHS_VALUE*row_coupling_coefficient
+                                            CALL DISTRIBUTED_VECTOR_VALUES_ADD(SOLVER_RHS_VECTOR,solver_row_number,VALUE, &
+                                              & ERR,ERROR,*999)
+                                          ENDDO !solver_row_idx
+                                        ENDDO !interface_column_idx
+                                      ELSE
+                                        CALL FlagError("Interface matrices RHS vector is not associated.",ERR,ERROR,*999)
+                                      ENDIF
+                                    ELSE
+                                      CALL FlagError("Interface equations interface matrices is not associated.",ERR,ERROR,*999)
+                                    ENDIF
+                                  ELSE
+                                    CALL FlagError("Interface mapping RHS mapping is not associated.",ERR,ERROR,*999)
+                                  ENDIF
+                                ELSE
+                                  CALL FlagError("Interface Lagrange field is not associated.",ERR,ERROR,*999)
+                                ENDIF
+                              ELSE
+                                CALL FlagError("Interface Lagrange is not associated.",ERR,ERROR,*999)
+                              ENDIF
+                            ELSE
+                              CALL FlagError("Interface equations interface mapping is not associated.",ERR,ERROR,*999)
+                            ENDIF
+                          ELSE
+                            CALL FlagError("Interface condition equations is not associated.",ERR,ERROR,*999)
+                          ENDIF
+                        CASE(INTERFACE_CONDITION_AUGMENTED_LAGRANGE_METHOD)
+                          CALL FlagError("Not implemented.",ERR,ERROR,*999)
+                        CASE(INTERFACE_CONDITION_POINT_TO_POINT_METHOD)
+                          CALL FlagError("Not implemented.",ERR,ERROR,*999)
+                        CASE DEFAULT
+                          LOCAL_ERROR="The interface condition method of "// &
+                            & TRIM(NumberToVString(INTERFACE_CONDITION%METHOD,"*",ERR,ERROR))// &
+                            & " is invalid."
+                          CALL FlagError(LOCAL_ERROR,ERR,ERROR,*999)
+                        END SELECT
+                      ELSE
+                        CALL FlagError("Interface condition is not associated.",ERR,ERROR,*999)
+                      ENDIF
+                    ENDDO !interface_condition_idx
+                    !Start the update the solver RHS vector values
+                    CALL DISTRIBUTED_VECTOR_UPDATE_START(SOLVER_RHS_VECTOR,ERR,ERROR,*999)
+                    NULLIFY(CHECK_DATA)
+                    CALL DISTRIBUTED_VECTOR_DATA_GET(SOLVER_RHS_VECTOR,CHECK_DATA,ERR,ERROR,*999)   
+                  ELSE
+                    CALL FlagError("The solver RHS vector is not associated.",ERR,ERROR,*999)
+                  ENDIF
+                ENDIF
+                IF(SOLVER%OUTPUT_TYPE>=SOLVER_TIMING_OUTPUT) THEN
+                  CALL CPU_TIMER(USER_CPU,USER_TIME2,ERR,ERROR,*999)
+                  CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME2,ERR,ERROR,*999)
+                  USER_ELAPSED=USER_TIME2(1)-USER_TIME1(1)
+                  SYSTEM_ELAPSED=SYSTEM_TIME2(1)-SYSTEM_TIME1(1)
+                  CALL WRITE_STRING(GENERAL_OUTPUT_TYPE,"",ERR,ERROR,*999)
+                  CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Total user time for solver RHS assembly = ",USER_ELAPSED, &
+                    & ERR,ERROR,*999)
+                  CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Total System time for solver RHS assembly = ",SYSTEM_ELAPSED, &
+                    & ERR,ERROR,*999)
                 ENDIF
               ENDIF
-              IF(SOLVER%OUTPUT_TYPE>=SOLVER_TIMING_OUTPUT) THEN
-                CALL CPU_TIMER(USER_CPU,USER_TIME2,ERR,ERROR,*999)
-                CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME2,ERR,ERROR,*999)
-                USER_ELAPSED=USER_TIME2(1)-USER_TIME1(1)
-                SYSTEM_ELAPSED=SYSTEM_TIME2(1)-SYSTEM_TIME1(1)
-                CALL WRITE_STRING(GENERAL_OUTPUT_TYPE,"",ERR,ERROR,*999)
-                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Total user time for solver RHS assembly = ",USER_ELAPSED, &
-                  & ERR,ERROR,*999)
-                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Total System time for solver RHS assembly = ",SYSTEM_ELAPSED, &
-                  & ERR,ERROR,*999)
+              IF(ASSOCIATED(SOLVER_RHS_VECTOR)) THEN
+                CALL DISTRIBUTED_VECTOR_UPDATE_FINISH(SOLVER_RHS_VECTOR,ERR,ERROR,*999)
               ENDIF
-            ENDIF
-            IF(ASSOCIATED(SOLVER_RHS_VECTOR)) THEN
-              CALL DISTRIBUTED_VECTOR_UPDATE_FINISH(SOLVER_RHS_VECTOR,ERR,ERROR,*999)
-            ENDIF
-            !If required output the solver matrices
-            IF(SOLVER%OUTPUT_TYPE>=SOLVER_MATRIX_OUTPUT) THEN
-              CALL SOLVER_MATRICES_OUTPUT(GENERAL_OUTPUT_TYPE,SELECTION_TYPE,SOLVER_MATRICES,ERR,ERROR,*999)
+              !If required output the solver matrices
+              IF(SOLVER%OUTPUT_TYPE>=SOLVER_MATRIX_OUTPUT) THEN
+                CALL SOLVER_MATRICES_OUTPUT(GENERAL_OUTPUT_TYPE,SELECTION_TYPE,SOLVER_MATRICES,ERR,ERROR,*999)
+              ENDIF
+            ELSE
+              CALL FlagError("Solver solver matrices is not associated.",ERR,ERROR,*999)
             ENDIF
           ELSE
-            CALL FlagError("Solver solver matrices is not associated.",ERR,ERROR,*999)
+            CALL FlagError("Solver matrices solution mapping is not associated.",ERR,ERROR,*999)
           ENDIF
         ELSE
-          CALL FlagError("Solver matrices solution mapping is not associated.",ERR,ERROR,*999)
+          CALL FlagError("Solver solver equations boundary conditions is not associated.",ERR,ERROR,*999)
         ENDIF
       ELSE
         CALL FlagError("Solver solver equations is not associated.",ERR,ERROR,*999)

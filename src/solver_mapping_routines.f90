@@ -148,15 +148,17 @@ CONTAINS
       & solver_matrix_idx,solver_variable_idx,TOTAL_NUMBER_OF_LOCAL_SOLVER_DOFS,variable_idx, &
       & VARIABLE_LIST_ITEM(3),variable_position_idx,variable_type, &
       & numberRowEquationsRows,numberColEquationsCols,rowEquationsRowIdx,colEquationsColIdx, &
-      & globalDofCouplingNumber,equationsRow,eqnLocalDof,NUMBER_OF_EQUATIONS
+      & globalDofCouplingNumber,equationsRow,eqnLocalDof,NUMBER_OF_EQUATIONS,boundaryConditionDofType, &
+      & numberOfZeroRows,zeroRowIdx
     INTEGER(INTG) :: temp_offset, solver_variable_idx_temp
     INTEGER(INTG), ALLOCATABLE :: EQUATIONS_SET_VARIABLES(:,:),EQUATIONS_VARIABLES(:,:),CONSTRAINT_EQUATIONS_LIST(:,:), &
       & CONSTRAINT_VARIABLES(:,:),INTERFACE_EQUATIONS_LIST(:,:),INTERFACE_VARIABLES(:,:),RANK_GLOBAL_ROWS_LIST(:,:), &
       & RANK_GLOBAL_COLS_LIST(:,:),solver_local_dof(:),VARIABLES_LIST(:,:)
     INTEGER(INTG), ALLOCATABLE :: NUMBER_OF_VARIABLE_GLOBAL_SOLVER_DOFS(:),NUMBER_OF_VARIABLE_LOCAL_SOLVER_DOFS(:), &
-      & TOTAL_NUMBER_OF_VARIABLE_LOCAL_SOLVER_DOFS(:),SUB_MATRIX_INFORMATION(:,:,:),SUB_MATRIX_LIST(:,:,:),VARIABLE_TYPES(:)
+      & TOTAL_NUMBER_OF_VARIABLE_LOCAL_SOLVER_DOFS(:), &
+      & SUB_MATRIX_INFORMATION(:,:,:),SUB_MATRIX_LIST(:,:,:),VARIABLE_TYPES(:)
     REAL(DP) :: couplingCoefficient
-    LOGICAL :: FOUND,INCLUDE_COLUMN,INCLUDE_ROW,CONSTRAINED_DOF
+    LOGICAL :: FOUND,INCLUDE_COLUMN,INCLUDE_ROW,CONSTRAINED_DOF,zeroColumn,zeroRow
     LOGICAL, ALLOCATABLE :: VARIABLE_PROCESSED(:),VARIABLE_RANK_PROCESSED(:,:)
     TYPE(BOUNDARY_CONDITIONS_TYPE), POINTER :: BOUNDARY_CONDITIONS
     TYPE(BOUNDARY_CONDITIONS_VARIABLE_TYPE), POINTER :: BOUNDARY_CONDITIONS_VARIABLE
@@ -427,6 +429,7 @@ CONTAINS
           myrank=COMPUTATIONAL_ENVIRONMENT%MY_COMPUTATIONAL_NODE_NUMBER
           NUMBER_OF_GLOBAL_SOLVER_ROWS=0
           NUMBER_OF_LOCAL_SOLVER_ROWS=0
+          
           !Add in the rows from any equations sets that have been added to the solver equations
           !Presort the row numbers by rank.
           !
@@ -587,10 +590,9 @@ CONTAINS
                               !This is wrong as we only have the mappings for the local rank not the global ranks.
                               !For now assume 1-1 mapping between rows and dofs.
                               global_dof=global_row
-                              INCLUDE_ROW=INCLUDE_ROW.AND.(BOUNDARY_CONDITIONS_VARIABLE%DOF_TYPES(global_dof)== &
-                                & BOUNDARY_CONDITION_DOF_FREE)
-                              CONSTRAINED_DOF=CONSTRAINED_DOF.OR.(BOUNDARY_CONDITIONS_VARIABLE%DOF_TYPES(global_dof)== &
-                                & BOUNDARY_CONDITION_DOF_CONSTRAINED)
+                              boundaryConditionDofType=BOUNDARY_CONDITIONS_VARIABLE%DOF_TYPES(global_dof)
+                              INCLUDE_ROW=INCLUDE_ROW.AND.boundaryConditionDofType==BOUNDARY_CONDITION_DOF_FREE
+                              CONSTRAINED_DOF=CONSTRAINED_DOF.OR.boundaryConditionDofType==BOUNDARY_CONDITION_DOF_CONSTRAINED
                               IF(ASSOCIATED(BOUNDARY_CONDITIONS_VARIABLE%dofConstraints)) THEN
                                 dofConstraints=>BOUNDARY_CONDITIONS_VARIABLE%dofConstraints
                                 IF(dofConstraints%numberOfConstraints>0) THEN
@@ -620,10 +622,9 @@ CONTAINS
                                 & BOUNDARY_CONDITIONS_VARIABLE,ERR,ERROR,*999)
                             IF(ASSOCIATED(BOUNDARY_CONDITIONS_VARIABLE)) THEN
                               global_dof=global_row
-                              INCLUDE_ROW=INCLUDE_ROW.AND.(BOUNDARY_CONDITIONS_VARIABLE%DOF_TYPES(global_dof)== &
-                                & BOUNDARY_CONDITION_DOF_FREE)
-                              CONSTRAINED_DOF=CONSTRAINED_DOF.OR.(BOUNDARY_CONDITIONS_VARIABLE%DOF_TYPES(global_dof)== &
-                                & BOUNDARY_CONDITION_DOF_CONSTRAINED)
+                              boundaryConditionDofType=BOUNDARY_CONDITIONS_VARIABLE%DOF_TYPES(global_dof)
+                              INCLUDE_ROW=INCLUDE_ROW.AND.(boundaryConditionDofType==BOUNDARY_CONDITION_DOF_FREE)
+                              CONSTRAINED_DOF=CONSTRAINED_DOF.OR.boundaryConditionDofType==BOUNDARY_CONDITION_DOF_CONSTRAINED
                               IF(ASSOCIATED(BOUNDARY_CONDITIONS_VARIABLE%dofConstraints)) THEN
                                 dofConstraints=>BOUNDARY_CONDITIONS_VARIABLE%dofConstraints
                                 IF(dofConstraints%numberOfConstraints>0) THEN
@@ -654,10 +655,9 @@ CONTAINS
                                 !\todo This is wrong as we only have the mappings for the local rank not the global ranks. See below
                                 !\todo For now assume 1-1 mapping between rows and dofs.
                                 global_dof=global_row
-                                INCLUDE_ROW=INCLUDE_ROW.AND.(BOUNDARY_CONDITIONS_VARIABLE%DOF_TYPES(global_dof)== &
-                                  & BOUNDARY_CONDITION_DOF_FREE)
-                                CONSTRAINED_DOF=CONSTRAINED_DOF.OR.(BOUNDARY_CONDITIONS_VARIABLE%DOF_TYPES(global_dof)== &
-                                  & BOUNDARY_CONDITION_DOF_CONSTRAINED)
+                                boundaryConditionDofType=BOUNDARY_CONDITIONS_VARIABLE%DOF_TYPES(global_dof)
+                                INCLUDE_ROW=INCLUDE_ROW.AND.boundaryConditionDofType==BOUNDARY_CONDITION_DOF_FREE
+                                CONSTRAINED_DOF=CONSTRAINED_DOF.OR.(boundaryConditionDofType==BOUNDARY_CONDITION_DOF_CONSTRAINED)
                                 IF(ASSOCIATED(BOUNDARY_CONDITIONS_VARIABLE%dofConstraints)) THEN
                                   dofConstraints=>BOUNDARY_CONDITIONS_VARIABLE%dofConstraints
                                   IF(dofConstraints%numberOfConstraints>0) THEN
@@ -688,7 +688,23 @@ CONTAINS
                           ELSE IF(CONSTRAINED_DOF) THEN
                             ROW_LIST_ITEM(3)=2
                           ELSE
-                            ROW_LIST_ITEM(3)=0
+                            SELECT CASE(BOUNDARY_CONDITIONS%dirichletMethod)
+                            CASE(BOUNDARY_CONDITION_DIRICHLET_CONDENSATION)
+                              ROW_LIST_ITEM(3)=0
+                            CASE(BOUNDARY_CONDITION_DIRICHLET_ZERO_ROWS)
+                              ROW_LIST_ITEM(3)=3
+                              NUMBER_OF_GLOBAL_SOLVER_ROWS=NUMBER_OF_GLOBAL_SOLVER_ROWS+1
+                              !Don't need to worry about ghosted rows.
+                              IF(ROW_RANK==myrank) THEN
+                                SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)%numberOfZeroRows= &
+                                & SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)%numberOfZeroRows+1 
+                                NUMBER_OF_LOCAL_SOLVER_ROWS=NUMBER_OF_LOCAL_SOLVER_ROWS+1 !1-1 mapping
+                              END IF
+                            CASE DEFAULT
+                              LOCAL_ERROR="The boundary condition Dirichlet method of "// &
+                                & TRIM(NUMBER_TO_VSTRING(BOUNDARY_CONDITIONS%dirichletMethod,"*",ERR,ERROR))//" is invalid."
+                              CALL FlagError(LOCAL_ERROR,ERR,ERROR,*999)
+                            END SELECT
                           ENDIF !include row
                           CALL LIST_ITEM_ADD(RANK_GLOBAL_ROWS_LISTS(equations_idx,ROW_RANK)%PTR,ROW_LIST_ITEM,ERR,ERROR,*999)
                         ELSE
@@ -751,8 +767,8 @@ CONTAINS
                                 !\todo This is wrong as we only have the mappings for the local rank not the global ranks. See above
                                 !\todo For now assume 1-1 mapping between rows and dofs.
                                 global_dof=global_column
-                                INCLUDE_COLUMN=INCLUDE_COLUMN.AND.(BOUNDARY_CONDITIONS_VARIABLE%DOF_TYPES(global_dof)== &
-                                  & BOUNDARY_CONDITION_DOF_FREE)
+                                boundaryConditionDofType=BOUNDARY_CONDITIONS_VARIABLE%DOF_TYPES(global_dof)
+                                INCLUDE_COLUMN=INCLUDE_COLUMN.AND.boundaryConditionDofType==BOUNDARY_CONDITION_DOF_FREE
                                 ROW_LIST_ITEM(1)=global_column
                                 ROW_LIST_ITEM(2)=local_column
                                 IF(INCLUDE_COLUMN) THEN
@@ -840,8 +856,8 @@ CONTAINS
                                 !\todo This is wrong as we only have the mappings for the local rank not the global ranks. See above
                                 !\todo For now assume 1-1 mapping between rows and dofs.
                                 global_dof=global_column
-                                INCLUDE_COLUMN=INCLUDE_COLUMN.AND.(BOUNDARY_CONDITIONS_VARIABLE%DOF_TYPES(global_dof)== &
-                                  & BOUNDARY_CONDITION_DOF_FREE)
+                                boundaryConditionDofType=BOUNDARY_CONDITIONS_VARIABLE%DOF_TYPES(global_dof)
+                                INCLUDE_COLUMN=INCLUDE_COLUMN.AND.boundaryConditionDofType==BOUNDARY_CONDITION_DOF_FREE
                                 ROW_LIST_ITEM(1)=global_column
                                 ROW_LIST_ITEM(2)=local_column
                                 IF(INCLUDE_COLUMN) THEN
@@ -928,6 +944,14 @@ CONTAINS
             EQUATIONS_SET=>SOLVER_MAPPING%EQUATIONS_SETS(equations_set_idx)%PTR
             EQUATIONS=>EQUATIONS_SET%EQUATIONS
             EQUATIONS_MAPPING=>EQUATIONS%EQUATIONS_MAPPING
+
+            IF(BOUNDARY_CONDITIONS%dirichletMethod==BOUNDARY_CONDITION_DIRICHLET_ZERO_ROWS) THEN
+              !Allocate the equations set to solver maps zero rows
+              numberOfZeroRows=SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)%numberOfZeroRows
+              ALLOCATE(SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)%zeroRows(numberOfZeroRows),STAT=ERR)
+              IF(ERR/=0) CALL FlagError("Could not allocate equations set to solver mapping zero rows.",ERR,ERROR,*999)
+              SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)%zeroRows=0
+            END IF
             
             !Allocate the equations set to solver maps for solver matrix (sm) indexing
             ALLOCATE(SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)%EQUATIONS_TO_SOLVER_MATRIX_MAPS_SM( &
@@ -1172,6 +1196,7 @@ CONTAINS
             !Calculate the solver row <-> equations row & constraint & interface row mappings.
             equations_idx=0
             DO equations_set_idx=1,SOLVER_MAPPING%NUMBER_OF_EQUATIONS_SETS
+              zeroRowIdx=0
               equations_idx=equations_idx+1
 
               !Get rows list
@@ -1193,6 +1218,7 @@ CONTAINS
                 local_row=RANK_GLOBAL_ROWS_LIST(2,global_row_idx)
                 INCLUDE_ROW=RANK_GLOBAL_ROWS_LIST(3,global_row_idx)==1
                 CONSTRAINED_DOF=RANK_GLOBAL_ROWS_LIST(3,global_row_idx)==2
+                zeroRow=RANK_GLOBAL_ROWS_LIST(3,global_row_idx)==3
                 globalDofCouplingNumber=RANK_GLOBAL_ROWS_LIST(4,global_row_idx)
                 IF(globalDofCouplingNumber>0) THEN
                   rowEquationRows=>rowCouplings%dofCouplings(globalDofCouplingNumber)%ptr
@@ -1210,7 +1236,7 @@ CONTAINS
                   rowEquationRows=>dummyDofCoupling
                 END IF
 
-                IF(INCLUDE_ROW) THEN
+                IF(INCLUDE_ROW.OR.zeroRow) THEN
                   NUMBER_OF_GLOBAL_SOLVER_ROWS=NUMBER_OF_GLOBAL_SOLVER_ROWS+1
                   NUMBER_OF_LOCAL_SOLVER_ROWS=NUMBER_OF_LOCAL_SOLVER_ROWS+1
                   !Set up the row domain mappings.
@@ -1233,6 +1259,10 @@ CONTAINS
                   ROW_DOMAIN_MAPPING%GLOBAL_TO_LOCAL_MAP(NUMBER_OF_GLOBAL_SOLVER_ROWS)%LOCAL_TYPE(1)=DOMAIN_LOCAL_INTERNAL
                   IF(rank==myrank) THEN
                     !If this is my rank then set up the solver->equations and equations->solver row mappings
+                    IF(zeroRow) THEN
+                      zeroRowIdx=zeroRowIdx+1
+                      SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP%zeroRows(zeroRowIdx)=local_row
+                    END IF
                     
                     !Set up the solver row -> equations row mappings. Will need to look
                     !At the interface conditions for this equations set later.
@@ -1280,8 +1310,13 @@ CONTAINS
                       IF(ERR/=0) CALL FlagError("Could not allocate equations row to solver rows maps solver rows.", &
                         & ERR,ERROR,*999)
                       !Set the mappings
-                      SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)%EQUATIONS_ROW_TO_SOLVER_ROWS_MAPS( &
-                        & equationsRow)%NUMBER_OF_SOLVER_ROWS=1
+                      IF(zeroRow) THEN
+                        SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)%EQUATIONS_ROW_TO_SOLVER_ROWS_MAPS( &
+                          & equationsRow)%NUMBER_OF_SOLVER_ROWS=0
+                      ELSE
+                        SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)%EQUATIONS_ROW_TO_SOLVER_ROWS_MAPS( &
+                          & equationsRow)%NUMBER_OF_SOLVER_ROWS=1
+                      END IF
                       SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)%EQUATIONS_ROW_TO_SOLVER_ROWS_MAPS( &
                         & equationsRow)%SOLVER_ROWS(1)=NUMBER_OF_LOCAL_SOLVER_ROWS
                       SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)%EQUATIONS_ROW_TO_SOLVER_ROWS_MAPS( &
@@ -1301,9 +1336,15 @@ CONTAINS
                           & EQUATIONS_TO_SOLVER_MATRIX_MAPS_CONSTRAINT(constraint_condition_idx)%CONSTRAINT_MATRIX_NUMBER
                         !Set the mappings
                         IF(ASSOCIATED(CONSTRAINT_NONLINEAR_MAPPING)) THEN
-                          SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx2)% &
-                            & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_JM(constraint_matrix_idx)% &
-                            & CONSTRAINT_JACOBIAN_ROW_TO_SOLVER_ROWS_MAP(equationsRow)%NUMBER_OF_SOLVER_ROWS=1
+                          IF(zeroRow) THEN
+                            SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx2)% &
+                              & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_JM(constraint_matrix_idx)% &
+                              & CONSTRAINT_JACOBIAN_ROW_TO_SOLVER_ROWS_MAP(equationsRow)%NUMBER_OF_SOLVER_ROWS=0
+                          ELSE
+                            SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx2)% &
+                              & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_JM(constraint_matrix_idx)% &
+                              & CONSTRAINT_JACOBIAN_ROW_TO_SOLVER_ROWS_MAP(equationsRow)%NUMBER_OF_SOLVER_ROWS=1
+                          END IF
                           SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx2)% &
                             & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_JM(constraint_matrix_idx)% &
                             & CONSTRAINT_JACOBIAN_ROW_TO_SOLVER_ROWS_MAP(equationsRow)%SOLVER_ROW= &
@@ -1313,9 +1354,15 @@ CONTAINS
                             & CONSTRAINT_JACOBIAN_ROW_TO_SOLVER_ROWS_MAP(equationsRow)%COUPLING_COEFFICIENT= &
                             & rowEquationRows%coefficients(rowEquationsRowIdx)
                         ELSE
-                          SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx2)% &
-                            & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_CM(constraint_matrix_idx)%CONSTRAINT_ROW_TO_SOLVER_ROWS_MAP( &
-                            & equationsRow)%NUMBER_OF_SOLVER_ROWS=1
+                          IF(zeroRow) THEN
+                            SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx2)% &
+                              & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_CM(constraint_matrix_idx)%CONSTRAINT_ROW_TO_SOLVER_ROWS_MAP( &
+                              & equationsRow)%NUMBER_OF_SOLVER_ROWS=0
+                          ELSE
+                            SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx2)% &
+                              & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_CM(constraint_matrix_idx)%CONSTRAINT_ROW_TO_SOLVER_ROWS_MAP( &
+                              & equationsRow)%NUMBER_OF_SOLVER_ROWS=1
+                          END IF
                           SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx2)% &
                             & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_CM(constraint_matrix_idx)%CONSTRAINT_ROW_TO_SOLVER_ROWS_MAP( &
                             & equationsRow)%SOLVER_ROW=NUMBER_OF_LOCAL_SOLVER_ROWS
@@ -1332,9 +1379,15 @@ CONTAINS
                         interface_matrix_idx=SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)% &
                           & EQUATIONS_TO_SOLVER_MATRIX_MAPS_INTERFACE(interface_condition_idx)%INTERFACE_MATRIX_NUMBER
                         !Set the mappings
-                        SOLVER_MAPPING%INTERFACE_CONDITION_TO_SOLVER_MAP(interface_condition_idx2)% &
-                          & INTERFACE_TO_SOLVER_MATRIX_MAPS_IM(interface_matrix_idx)%INTERFACE_ROW_TO_SOLVER_ROWS_MAP( &
-                          & equationsRow)%NUMBER_OF_SOLVER_ROWS=1
+                        IF(zeroRow) THEN
+                          SOLVER_MAPPING%INTERFACE_CONDITION_TO_SOLVER_MAP(interface_condition_idx2)% &
+                            & INTERFACE_TO_SOLVER_MATRIX_MAPS_IM(interface_matrix_idx)%INTERFACE_ROW_TO_SOLVER_ROWS_MAP( &
+                            & equationsRow)%NUMBER_OF_SOLVER_ROWS=0
+                        ELSE
+                          SOLVER_MAPPING%INTERFACE_CONDITION_TO_SOLVER_MAP(interface_condition_idx2)% &
+                            & INTERFACE_TO_SOLVER_MATRIX_MAPS_IM(interface_matrix_idx)%INTERFACE_ROW_TO_SOLVER_ROWS_MAP( &
+                            & equationsRow)%NUMBER_OF_SOLVER_ROWS=1
+                        END IF
                         SOLVER_MAPPING%INTERFACE_CONDITION_TO_SOLVER_MAP(interface_condition_idx2)% &
                           & INTERFACE_TO_SOLVER_MATRIX_MAPS_IM(interface_matrix_idx)%INTERFACE_ROW_TO_SOLVER_ROWS_MAP( &
                           & equationsRow)%SOLVER_ROW=NUMBER_OF_LOCAL_SOLVER_ROWS
@@ -1343,7 +1396,6 @@ CONTAINS
                           & equationsRow)%COUPLING_COEFFICIENT=rowEquationRows%coefficients(rowEquationsRowIdx)
                       ENDDO !interface_condition_idx
                     END DO
-                    
                   ENDIF !rank==my rank
                 ELSE IF(CONSTRAINED_DOF) THEN
                   !Do nothing, the row mapping for this equations row will be set up with
@@ -1860,7 +1912,7 @@ CONTAINS
             !SUB_MATRIX_INFORMATION(1,equations_idx,variable_idx) = The equations type, see SOLVER_MAPPING_EquationsTypes
             !SUB_MATRIX_INFORMATION(2,equations_idx,variable_idx) = The equations set or constraint or interface condition index
             !SUB_MATRIX_INFORMATION(3,equations_idx,variable_idx) = The interface or constraint matrix index, or 0 for an equations set matrix
-            !equations_idx goes from 1 to the number of equations sets + interface conditions
+            !equations_idx goes from 1 to the number of equations sets + constraint conditions + interface conditions
             !variable_idx goes from 1 to the number of variables mapped to this solver matrix
             ALLOCATE(SUB_MATRIX_INFORMATION(3,SOLVER_MAPPING%NUMBER_OF_EQUATIONS_SETS+ &
               & SOLVER_MAPPING%NUMBER_OF_CONSTRAINT_CONDITIONS+SOLVER_MAPPING%NUMBER_OF_INTERFACE_CONDITIONS, &
@@ -2049,8 +2101,9 @@ CONTAINS
                             local_dof=COL_DOFS_MAPPING%GLOBAL_TO_LOCAL_MAP(global_dof)%LOCAL_NUMBER(rank_idx)
                             dof_type=COL_DOFS_MAPPING%GLOBAL_TO_LOCAL_MAP(global_dof)%LOCAL_TYPE(rank_idx)
                             COLUMN_RANK=COL_DOFS_MAPPING%GLOBAL_TO_LOCAL_MAP(global_dof)%DOMAIN_NUMBER(rank_idx)
-                            INCLUDE_COLUMN=BOUNDARY_CONDITIONS_VARIABLE%DOF_TYPES(global_dof)==BOUNDARY_CONDITION_DOF_FREE
-                            CONSTRAINED_DOF=BOUNDARY_CONDITIONS_VARIABLE%DOF_TYPES(global_dof)==BOUNDARY_CONDITION_DOF_CONSTRAINED
+                            boundaryConditionDofType=BOUNDARY_CONDITIONS_VARIABLE%DOF_TYPES(global_dof)
+                            INCLUDE_COLUMN=boundaryConditionDofType==BOUNDARY_CONDITION_DOF_FREE
+                            CONSTRAINED_DOF=boundaryConditionDofType==BOUNDARY_CONDITION_DOF_CONSTRAINED
                             globalDofCouplingNumber=0
                             IF(ASSOCIATED(BOUNDARY_CONDITIONS_VARIABLE%dofConstraints)) THEN
                               dofConstraints=>BOUNDARY_CONDITIONS_VARIABLE%dofConstraints
@@ -2086,7 +2139,26 @@ CONTAINS
                               ELSE IF(CONSTRAINED_DOF) THEN
                                 COLUMN_LIST_ITEM(3)=2
                               ELSE
-                                COLUMN_LIST_ITEM(3)=0
+                                SELECT CASE(BOUNDARY_CONDITIONS%dirichletMethod)
+                                CASE(BOUNDARY_CONDITION_DIRICHLET_CONDENSATION)
+                                  COLUMN_LIST_ITEM(3)=0
+                                CASE(BOUNDARY_CONDITION_DIRICHLET_ZERO_ROWS)
+                                  COLUMN_LIST_ITEM(3)=3
+                                  IF(.NOT.VARIABLE_PROCESSED(variable_position_idx)) THEN
+                                    NUMBER_OF_VARIABLE_GLOBAL_SOLVER_DOFS(variable_position_idx)= &
+                                      & NUMBER_OF_VARIABLE_GLOBAL_SOLVER_DOFS(variable_position_idx)+1
+                                    IF(COLUMN_RANK==myrank) THEN
+                                      NUMBER_OF_VARIABLE_LOCAL_SOLVER_DOFS(variable_position_idx)= &
+                                        & NUMBER_OF_VARIABLE_LOCAL_SOLVER_DOFS(variable_position_idx)+1
+                                      TOTAL_NUMBER_OF_VARIABLE_LOCAL_SOLVER_DOFS(variable_position_idx)= &
+                                        & TOTAL_NUMBER_OF_VARIABLE_LOCAL_SOLVER_DOFS(variable_position_idx)+1
+                                    ENDIF
+                                  ENDIF
+                                CASE DEFAULT
+                                  LOCAL_ERROR="The boundary condition Dirichlet method of "// &
+                                    & TRIM(NUMBER_TO_VSTRING(BOUNDARY_CONDITIONS%dirichletMethod,"*",ERR,ERROR))//" is invalid."
+                                  CALL FlagError(LOCAL_ERROR,ERR,ERROR,*999)
+                                END SELECT
                               ENDIF
                               COLUMN_LIST_ITEM(4)=variable_idx
                               CALL LIST_ITEM_ADD(RANK_GLOBAL_COLS_LISTS(1,equations_idx,variable_position_idx,COLUMN_RANK)%PTR, &
@@ -2102,7 +2174,22 @@ CONTAINS
                               ELSE IF(CONSTRAINED_DOF) THEN
                                 COLUMN_LIST_ITEM(3)=2
                               ELSE
-                                COLUMN_LIST_ITEM(3)=0
+                                SELECT CASE(BOUNDARY_CONDITIONS%dirichletMethod)
+                                CASE(BOUNDARY_CONDITION_DIRICHLET_CONDENSATION)
+                                  COLUMN_LIST_ITEM(3)=0
+                                CASE(BOUNDARY_CONDITION_DIRICHLET_ZERO_ROWS)
+                                  COLUMN_LIST_ITEM(3)=3
+                                  IF(.NOT.VARIABLE_PROCESSED(variable_position_idx)) THEN
+                                    IF(COLUMN_RANK==myrank) THEN 
+                                      TOTAL_NUMBER_OF_VARIABLE_LOCAL_SOLVER_DOFS(variable_position_idx)= &
+                                      & TOTAL_NUMBER_OF_VARIABLE_LOCAL_SOLVER_DOFS(variable_position_idx)+1
+                                    END IF
+                                  ENDIF
+                                CASE DEFAULT
+                                  LOCAL_ERROR="The boundary condition Dirichlet method of "// &
+                                    & TRIM(NUMBER_TO_VSTRING(BOUNDARY_CONDITIONS%dirichletMethod,"*",ERR,ERROR))//" is invalid."
+                                  CALL FlagError(LOCAL_ERROR,ERR,ERROR,*999)
+                                END SELECT
                               ENDIF
                               COLUMN_LIST_ITEM(4)=variable_idx
                               CALL LIST_ITEM_ADD(RANK_GLOBAL_COLS_LISTS(2,equations_idx,variable_position_idx,COLUMN_RANK)%PTR, &
@@ -2231,7 +2318,8 @@ CONTAINS
                               local_dof=COL_DOFS_MAPPING%GLOBAL_TO_LOCAL_MAP(global_dof)%LOCAL_NUMBER(rank_idx)
                               dof_type=COL_DOFS_MAPPING%GLOBAL_TO_LOCAL_MAP(global_dof)%LOCAL_TYPE(rank_idx)
                               COLUMN_RANK=COL_DOFS_MAPPING%GLOBAL_TO_LOCAL_MAP(global_dof)%DOMAIN_NUMBER(rank_idx)
-                              INCLUDE_COLUMN=BOUNDARY_CONDITIONS_VARIABLE%DOF_TYPES(global_dof)==BOUNDARY_CONDITION_DOF_FREE
+                              boundaryConditionDofType=BOUNDARY_CONDITIONS_VARIABLE%DOF_TYPES(global_dof)
+                              INCLUDE_COLUMN=boundaryConditionDofType==BOUNDARY_CONDITION_DOF_FREE
                               COLUMN_LIST_ITEM(1)=global_dof
                               COLUMN_LIST_ITEM(2)=local_dof
                               IF(dof_type/=DOMAIN_LOCAL_GHOST) THEN
@@ -2249,7 +2337,26 @@ CONTAINS
                                     ENDIF
                                   ENDIF
                                 ELSE
-                                  COLUMN_LIST_ITEM(3)=0
+                                  SELECT CASE(BOUNDARY_CONDITIONS%dirichletMethod)
+                                  CASE(BOUNDARY_CONDITION_DIRICHLET_CONDENSATION)
+                                    COLUMN_LIST_ITEM(3)=0
+                                  CASE(BOUNDARY_CONDITION_DIRICHLET_ZERO_ROWS)
+                                    COLUMN_LIST_ITEM(3)=3
+                                    IF(.NOT.VARIABLE_PROCESSED(variable_position_idx)) THEN
+                                      NUMBER_OF_VARIABLE_GLOBAL_SOLVER_DOFS(variable_position_idx)= &
+                                        & NUMBER_OF_VARIABLE_GLOBAL_SOLVER_DOFS(variable_position_idx)+1
+                                      IF(COLUMN_RANK==myrank) THEN
+                                        NUMBER_OF_VARIABLE_LOCAL_SOLVER_DOFS(variable_position_idx)= &
+                                          & NUMBER_OF_VARIABLE_LOCAL_SOLVER_DOFS(variable_position_idx)+1
+                                        TOTAL_NUMBER_OF_VARIABLE_LOCAL_SOLVER_DOFS(variable_position_idx)= &
+                                          & TOTAL_NUMBER_OF_VARIABLE_LOCAL_SOLVER_DOFS(variable_position_idx)+1
+                                      ENDIF
+                                    ENDIF
+                                  CASE DEFAULT
+                                    LOCAL_ERROR="The boundary condition Dirichlet method of "// &
+                                      & TRIM(NUMBER_TO_VSTRING(BOUNDARY_CONDITIONS%dirichletMethod,"*",ERR,ERROR))//" is invalid."
+                                    CALL FlagError(LOCAL_ERROR,ERR,ERROR,*999)
+                                  END SELECT
                                 ENDIF
                                 COLUMN_LIST_ITEM(4)=variable_idx
                                 CALL LIST_ITEM_ADD(RANK_GLOBAL_COLS_LISTS(1,equations_set_idx,variable_position_idx, &
@@ -2263,7 +2370,22 @@ CONTAINS
                                       & TOTAL_NUMBER_OF_VARIABLE_LOCAL_SOLVER_DOFS(variable_position_idx)+1
                                   ENDIF
                                 ELSE
-                                  COLUMN_LIST_ITEM(3)=0
+                                  SELECT CASE(BOUNDARY_CONDITIONS%dirichletMethod)
+                                  CASE(BOUNDARY_CONDITION_DIRICHLET_CONDENSATION)
+                                    COLUMN_LIST_ITEM(3)=0
+                                  CASE(BOUNDARY_CONDITION_DIRICHLET_ZERO_ROWS)
+                                    COLUMN_LIST_ITEM(3)=3
+                                    IF(.NOT.VARIABLE_PROCESSED(variable_position_idx)) THEN
+                                      IF(COLUMN_RANK==myrank) THEN
+                                        TOTAL_NUMBER_OF_VARIABLE_LOCAL_SOLVER_DOFS(variable_position_idx)= &
+                                        & TOTAL_NUMBER_OF_VARIABLE_LOCAL_SOLVER_DOFS(variable_position_idx)+1
+                                      END IF
+                                    ENDIF
+                                  CASE DEFAULT
+                                    LOCAL_ERROR="The boundary condition Dirichlet method of "// &
+                                      & TRIM(NUMBER_TO_VSTRING(BOUNDARY_CONDITIONS%dirichletMethod,"*",ERR,ERROR))//" is invalid."
+                                    CALL FlagError(LOCAL_ERROR,ERR,ERROR,*999)
+                                  END SELECT
                                 ENDIF
                                 COLUMN_LIST_ITEM(4)=variable_idx
                                 CALL LIST_ITEM_ADD(RANK_GLOBAL_COLS_LISTS(2,equations_set_idx,variable_position_idx, &
@@ -2353,9 +2475,9 @@ CONTAINS
                                 local_dof=COL_DOFS_MAPPING%GLOBAL_TO_LOCAL_MAP(global_dof)%LOCAL_NUMBER(rank_idx)
                                 dof_type=COL_DOFS_MAPPING%GLOBAL_TO_LOCAL_MAP(global_dof)%LOCAL_TYPE(rank_idx)
                                 COLUMN_RANK=COL_DOFS_MAPPING%GLOBAL_TO_LOCAL_MAP(global_dof)%DOMAIN_NUMBER(rank_idx)
-                                INCLUDE_COLUMN=BOUNDARY_CONDITIONS_VARIABLE%DOF_TYPES(global_dof)==BOUNDARY_CONDITION_DOF_FREE
-                                CONSTRAINED_DOF=BOUNDARY_CONDITIONS_VARIABLE%DOF_TYPES(global_dof)== &
-                                  & BOUNDARY_CONDITION_DOF_CONSTRAINED
+                                boundaryConditionDofType=BOUNDARY_CONDITIONS_VARIABLE%DOF_TYPES(global_dof)
+                                INCLUDE_COLUMN=boundaryConditionDofType==BOUNDARY_CONDITION_DOF_FREE
+                                CONSTRAINED_DOF=boundaryConditionDofType==BOUNDARY_CONDITION_DOF_CONSTRAINED
                                 globalDofCouplingNumber=0
                                 IF(ASSOCIATED(BOUNDARY_CONDITIONS_VARIABLE%dofConstraints)) THEN
                                   dofConstraints=>BOUNDARY_CONDITIONS_VARIABLE%dofConstraints
@@ -2391,7 +2513,26 @@ CONTAINS
                                   ELSE IF(CONSTRAINED_DOF) THEN
                                     COLUMN_LIST_ITEM(3)=2
                                   ELSE
-                                    COLUMN_LIST_ITEM(3)=0
+                                    SELECT CASE(BOUNDARY_CONDITIONS%dirichletMethod)
+                                    CASE(BOUNDARY_CONDITION_DIRICHLET_CONDENSATION)
+                                      COLUMN_LIST_ITEM(3)=0
+                                    CASE(BOUNDARY_CONDITION_DIRICHLET_ZERO_ROWS)
+                                      COLUMN_LIST_ITEM(3)=3
+                                      IF(.NOT.VARIABLE_PROCESSED(variable_position_idx)) THEN
+                                        NUMBER_OF_VARIABLE_GLOBAL_SOLVER_DOFS(variable_position_idx)= &
+                                          & NUMBER_OF_VARIABLE_GLOBAL_SOLVER_DOFS(variable_position_idx)+1
+                                        IF(COLUMN_RANK==myrank) THEN
+                                          NUMBER_OF_VARIABLE_LOCAL_SOLVER_DOFS(variable_position_idx)= &
+                                            & NUMBER_OF_VARIABLE_LOCAL_SOLVER_DOFS(variable_position_idx)+1
+                                          TOTAL_NUMBER_OF_VARIABLE_LOCAL_SOLVER_DOFS(variable_position_idx)= &
+                                            & TOTAL_NUMBER_OF_VARIABLE_LOCAL_SOLVER_DOFS(variable_position_idx)+1
+                                        ENDIF
+                                      ENDIF
+                                    CASE DEFAULT
+                                      LOCAL_ERROR="The boundary condition Dirichlet method of "// &
+                                        & TRIM(NUMBER_TO_VSTRING(BOUNDARY_CONDITIONS%dirichletMethod,"*",ERR,ERROR))//" is invalid."
+                                      CALL FlagError(LOCAL_ERROR,ERR,ERROR,*999)
+                                    END SELECT
                                   ENDIF
                                   COLUMN_LIST_ITEM(4)=variable_idx
                                   CALL LIST_ITEM_ADD(RANK_GLOBAL_COLS_LISTS(1,equations_idx,variable_position_idx, &
@@ -2407,7 +2548,22 @@ CONTAINS
                                   ELSE IF(CONSTRAINED_DOF) THEN
                                     COLUMN_LIST_ITEM(3)=2
                                   ELSE
-                                    COLUMN_LIST_ITEM(3)=0
+                                    SELECT CASE(BOUNDARY_CONDITIONS%dirichletMethod)
+                                    CASE(BOUNDARY_CONDITION_DIRICHLET_CONDENSATION)
+                                      COLUMN_LIST_ITEM(3)=0
+                                    CASE(BOUNDARY_CONDITION_DIRICHLET_ZERO_ROWS)
+                                      COLUMN_LIST_ITEM(3)=3
+                                      IF(.NOT.VARIABLE_PROCESSED(variable_position_idx)) THEN
+                                        IF(COLUMN_RANK==myrank) THEN
+                                          TOTAL_NUMBER_OF_VARIABLE_LOCAL_SOLVER_DOFS(variable_position_idx)= &
+                                          & TOTAL_NUMBER_OF_VARIABLE_LOCAL_SOLVER_DOFS(variable_position_idx)+1
+                                        END IF
+                                      ENDIF
+                                    CASE DEFAULT
+                                      LOCAL_ERROR="The boundary condition Dirichlet method of "// &
+                                        & TRIM(NUMBER_TO_VSTRING(BOUNDARY_CONDITIONS%dirichletMethod,"*",ERR,ERROR))//" is invalid."
+                                      CALL FlagError(LOCAL_ERROR,ERR,ERROR,*999)
+                                    END SELECT
                                   ENDIF
                                   COLUMN_LIST_ITEM(4)=variable_idx
                                   CALL LIST_ITEM_ADD(RANK_GLOBAL_COLS_LISTS(2,equations_idx,variable_position_idx, &
@@ -2537,7 +2693,8 @@ CONTAINS
                               local_dof=COL_DOFS_MAPPING%GLOBAL_TO_LOCAL_MAP(global_dof)%LOCAL_NUMBER(rank_idx)
                               dof_type=COL_DOFS_MAPPING%GLOBAL_TO_LOCAL_MAP(global_dof)%LOCAL_TYPE(rank_idx)
                               COLUMN_RANK=COL_DOFS_MAPPING%GLOBAL_TO_LOCAL_MAP(global_dof)%DOMAIN_NUMBER(rank_idx)
-                              INCLUDE_COLUMN=BOUNDARY_CONDITIONS_VARIABLE%DOF_TYPES(global_dof)==BOUNDARY_CONDITION_DOF_FREE
+                              boundaryConditionDofType=BOUNDARY_CONDITIONS_VARIABLE%DOF_TYPES(global_dof)
+                              INCLUDE_COLUMN=boundaryConditionDofType==BOUNDARY_CONDITION_DOF_FREE
                               COLUMN_LIST_ITEM(1)=global_dof
                               COLUMN_LIST_ITEM(2)=local_dof
                               IF(dof_type/=DOMAIN_LOCAL_GHOST) THEN
@@ -2555,7 +2712,26 @@ CONTAINS
                                     ENDIF
                                   ENDIF
                                 ELSE
-                                  COLUMN_LIST_ITEM(3)=0
+                                  SELECT CASE(BOUNDARY_CONDITIONS%dirichletMethod)
+                                  CASE(BOUNDARY_CONDITION_DIRICHLET_CONDENSATION)
+                                    COLUMN_LIST_ITEM(3)=0
+                                  CASE(BOUNDARY_CONDITION_DIRICHLET_ZERO_ROWS)
+                                    COLUMN_LIST_ITEM(3)=3
+                                    IF(.NOT.VARIABLE_PROCESSED(variable_position_idx)) THEN
+                                      NUMBER_OF_VARIABLE_GLOBAL_SOLVER_DOFS(variable_position_idx)= &
+                                        & NUMBER_OF_VARIABLE_GLOBAL_SOLVER_DOFS(variable_position_idx)+1
+                                      IF(COLUMN_RANK==myrank) THEN
+                                        NUMBER_OF_VARIABLE_LOCAL_SOLVER_DOFS(variable_position_idx)= &
+                                          & NUMBER_OF_VARIABLE_LOCAL_SOLVER_DOFS(variable_position_idx)+1
+                                        TOTAL_NUMBER_OF_VARIABLE_LOCAL_SOLVER_DOFS(variable_position_idx)= &
+                                          & TOTAL_NUMBER_OF_VARIABLE_LOCAL_SOLVER_DOFS(variable_position_idx)+1
+                                      ENDIF
+                                    ENDIF
+                                  CASE DEFAULT
+                                    LOCAL_ERROR="The boundary condition Dirichlet method of "// &
+                                      & TRIM(NUMBER_TO_VSTRING(BOUNDARY_CONDITIONS%dirichletMethod,"*",ERR,ERROR))//" is invalid."
+                                    CALL FlagError(LOCAL_ERROR,ERR,ERROR,*999)
+                                  END SELECT
                                 ENDIF
                                 COLUMN_LIST_ITEM(4)=variable_idx
                                 CALL LIST_ITEM_ADD(RANK_GLOBAL_COLS_LISTS(1,equations_set_idx,variable_position_idx, &
@@ -2569,7 +2745,22 @@ CONTAINS
                                       & TOTAL_NUMBER_OF_VARIABLE_LOCAL_SOLVER_DOFS(variable_position_idx)+1
                                   ENDIF
                                 ELSE
-                                  COLUMN_LIST_ITEM(3)=0
+                                  SELECT CASE(BOUNDARY_CONDITIONS%dirichletMethod)
+                                  CASE(BOUNDARY_CONDITION_DIRICHLET_CONDENSATION)
+                                    COLUMN_LIST_ITEM(3)=0
+                                  CASE(BOUNDARY_CONDITION_DIRICHLET_ZERO_ROWS)
+                                    COLUMN_LIST_ITEM(3)=3
+                                    IF(.NOT.VARIABLE_PROCESSED(variable_position_idx)) THEN
+                                      IF(COLUMN_RANK==myrank) THEN
+                                        TOTAL_NUMBER_OF_VARIABLE_LOCAL_SOLVER_DOFS(variable_position_idx)= &
+                                        & TOTAL_NUMBER_OF_VARIABLE_LOCAL_SOLVER_DOFS(variable_position_idx)+1
+                                      END IF
+                                    ENDIF
+                                  CASE DEFAULT
+                                    LOCAL_ERROR="The boundary condition Dirichlet method of "// &
+                                      & TRIM(NUMBER_TO_VSTRING(BOUNDARY_CONDITIONS%dirichletMethod,"*",ERR,ERROR))//" is invalid."
+                                    CALL FlagError(LOCAL_ERROR,ERR,ERROR,*999)
+                                  END SELECT
                                 ENDIF
                                 COLUMN_LIST_ITEM(4)=variable_idx
                                 CALL LIST_ITEM_ADD(RANK_GLOBAL_COLS_LISTS(2,equations_set_idx,variable_position_idx, &
@@ -2651,9 +2842,9 @@ CONTAINS
                                 local_dof=COL_DOFS_MAPPING%GLOBAL_TO_LOCAL_MAP(global_dof)%LOCAL_NUMBER(rank_idx)
                                 dof_type=COL_DOFS_MAPPING%GLOBAL_TO_LOCAL_MAP(global_dof)%LOCAL_TYPE(rank_idx)
                                 COLUMN_RANK=COL_DOFS_MAPPING%GLOBAL_TO_LOCAL_MAP(global_dof)%DOMAIN_NUMBER(rank_idx)
-                                INCLUDE_COLUMN=BOUNDARY_CONDITIONS_VARIABLE%DOF_TYPES(global_dof)==BOUNDARY_CONDITION_DOF_FREE
-                                CONSTRAINED_DOF=BOUNDARY_CONDITIONS_VARIABLE%DOF_TYPES(global_dof)== &
-                                  & BOUNDARY_CONDITION_DOF_CONSTRAINED
+                                boundaryConditionDofType=BOUNDARY_CONDITIONS_VARIABLE%DOF_TYPES(global_dof)
+                                INCLUDE_COLUMN=boundaryConditionDofType==BOUNDARY_CONDITION_DOF_FREE
+                                CONSTRAINED_DOF=boundaryConditionDofType==BOUNDARY_CONDITION_DOF_CONSTRAINED
                                 globalDofCouplingNumber=0
                                 IF(ASSOCIATED(BOUNDARY_CONDITIONS_VARIABLE%dofConstraints)) THEN
                                   dofConstraints=>BOUNDARY_CONDITIONS_VARIABLE%dofConstraints
@@ -2689,7 +2880,26 @@ CONTAINS
                                   ELSE IF(CONSTRAINED_DOF) THEN
                                     COLUMN_LIST_ITEM(3)=2
                                   ELSE
-                                    COLUMN_LIST_ITEM(3)=0
+                                    SELECT CASE(BOUNDARY_CONDITIONS%dirichletMethod)
+                                    CASE(BOUNDARY_CONDITION_DIRICHLET_CONDENSATION)
+                                      COLUMN_LIST_ITEM(3)=0
+                                    CASE(BOUNDARY_CONDITION_DIRICHLET_ZERO_ROWS)
+                                      COLUMN_LIST_ITEM(3)=3
+                                      IF(.NOT.VARIABLE_PROCESSED(variable_position_idx)) THEN
+                                        NUMBER_OF_VARIABLE_GLOBAL_SOLVER_DOFS(variable_position_idx)= &
+                                          & NUMBER_OF_VARIABLE_GLOBAL_SOLVER_DOFS(variable_position_idx)+1
+                                        IF(COLUMN_RANK==myrank) THEN
+                                          NUMBER_OF_VARIABLE_LOCAL_SOLVER_DOFS(variable_position_idx)= &
+                                            & NUMBER_OF_VARIABLE_LOCAL_SOLVER_DOFS(variable_position_idx)+1
+                                          TOTAL_NUMBER_OF_VARIABLE_LOCAL_SOLVER_DOFS(variable_position_idx)= &
+                                            & TOTAL_NUMBER_OF_VARIABLE_LOCAL_SOLVER_DOFS(variable_position_idx)+1
+                                        ENDIF
+                                      ENDIF
+                                    CASE DEFAULT
+                                      LOCAL_ERROR="The boundary condition Dirichlet method of "// &
+                                        & TRIM(NUMBER_TO_VSTRING(BOUNDARY_CONDITIONS%dirichletMethod,"*",ERR,ERROR))//" is invalid."
+                                      CALL FlagError(LOCAL_ERROR,ERR,ERROR,*999)
+                                    END SELECT
                                   ENDIF
                                   COLUMN_LIST_ITEM(4)=variable_idx
                                   CALL LIST_ITEM_ADD(RANK_GLOBAL_COLS_LISTS(1,equations_idx,variable_position_idx, &
@@ -2705,7 +2915,22 @@ CONTAINS
                                   ELSE IF(CONSTRAINED_DOF) THEN
                                     COLUMN_LIST_ITEM(3)=2
                                   ELSE
-                                    COLUMN_LIST_ITEM(3)=0
+                                    SELECT CASE(BOUNDARY_CONDITIONS%dirichletMethod)
+                                    CASE(BOUNDARY_CONDITION_DIRICHLET_CONDENSATION)
+                                      COLUMN_LIST_ITEM(3)=0
+                                    CASE(BOUNDARY_CONDITION_DIRICHLET_ZERO_ROWS)
+                                      COLUMN_LIST_ITEM(3)=3
+                                      IF(.NOT.VARIABLE_PROCESSED(variable_position_idx)) THEN
+                                        IF(COLUMN_RANK==myrank) THEN
+                                          TOTAL_NUMBER_OF_VARIABLE_LOCAL_SOLVER_DOFS(variable_position_idx)= &
+                                          & TOTAL_NUMBER_OF_VARIABLE_LOCAL_SOLVER_DOFS(variable_position_idx)+1
+                                        END IF
+                                      ENDIF
+                                    CASE DEFAULT
+                                      LOCAL_ERROR="The boundary condition Dirichlet method of "// &
+                                        & TRIM(NUMBER_TO_VSTRING(BOUNDARY_CONDITIONS%dirichletMethod,"*",ERR,ERROR))//" is invalid."
+                                      CALL FlagError(LOCAL_ERROR,ERR,ERROR,*999)
+                                    END SELECT
                                   ENDIF
                                   COLUMN_LIST_ITEM(4)=variable_idx
                                   CALL LIST_ITEM_ADD(RANK_GLOBAL_COLS_LISTS(2,equations_idx,variable_position_idx, &
@@ -3102,7 +3327,7 @@ CONTAINS
                   & constraint_condition_idx)%SOLVER_COL_TO_CONSTRAINT_EQUATIONS_MAPS(NUMBER_OF_COLUMNS),STAT=ERR)
                 IF(ERR/=0) CALL FlagError("Could not allocate solver columns to constraint equations map.",ERR,ERROR,*999)
 
-                NUMBER_OF_CONSTRAINT_COLUMNS=CONSTRAINT_MAPPING%NUMBER_OF_COLUMNS
+                NUMBER_OF_CONSTRAINT_COLUMNS=CONSTRAINT_MAPPING%NUMBER_OF_GLOBAL_COLUMNS
                 ALLOCATE(SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
                   & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%CONSTRAINT_COL_TO_SOLVER_COLS_MAP( &
                   & NUMBER_OF_CONSTRAINT_COLUMNS),STAT=ERR)
@@ -3152,7 +3377,7 @@ CONTAINS
                       & constraint_matrix_idx)%PTR%CONSTRAINT_MATRIX=>CONSTRAINT_DYNAMIC_MAPPING% &
                       & CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(constraint_matrix_idx)%CONSTRAINT_MATRIX
                     NUMBER_OF_CONSTRAINT_ROWS=CONSTRAINT_DYNAMIC_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP( &
-                      & constraint_matrix_idx)%NUMBER_OF_ROWS
+                      & constraint_matrix_idx)%NUMBER_OF_GLOBAL_ROWS
                     ALLOCATE(SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
                       & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%DYNAMIC_CONSTRAINT_TO_SOLVER_MATRIX_MAPS( &
                       & constraint_matrix_idx)%PTR%CONSTRAINT_ROW_TO_SOLVER_COLS_MAP(NUMBER_OF_CONSTRAINT_ROWS),STAT=ERR)
@@ -3200,7 +3425,7 @@ CONTAINS
                         & constraint_matrix_idx)%PTR%CONSTRAINT_JACOBIAN=>CONSTRAINT_NONLINEAR_MAPPING% &
                         & CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAP(constraint_matrix_idx)%CONSTRAINT_JACOBIAN
                       NUMBER_OF_CONSTRAINT_ROWS=CONSTRAINT_NONLINEAR_MAPPING%CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAP( &
-                        & constraint_matrix_idx)%NUMBER_OF_ROWS
+                        & constraint_matrix_idx)%NUMBER_OF_GLOBAL_ROWS
                       ALLOCATE(SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
                         & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%JACOBIAN_TO_SOLVER_MATRIX_MAPS( &
                         & constraint_matrix_idx)%PTR%CONSTRAINT_ROW_TO_SOLVER_COLS_MAP(NUMBER_OF_CONSTRAINT_ROWS),STAT=ERR)
@@ -3252,7 +3477,7 @@ CONTAINS
                         & constraint_matrix_idx)%PTR%CONSTRAINT_MATRIX=>CONSTRAINT_LINEAR_MAPPING% &
                         & CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(constraint_matrix_idx)%CONSTRAINT_MATRIX
                       NUMBER_OF_CONSTRAINT_ROWS=CONSTRAINT_LINEAR_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP( &
-                        & constraint_matrix_idx)%NUMBER_OF_ROWS
+                        & constraint_matrix_idx)%NUMBER_OF_GLOBAL_ROWS
                       ALLOCATE(SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
                         & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%LINEAR_CONSTRAINT_TO_SOLVER_MATRIX_MAPS( &
                         & constraint_matrix_idx)%PTR%CONSTRAINT_ROW_TO_SOLVER_COLS_MAP(NUMBER_OF_CONSTRAINT_ROWS),STAT=ERR)
@@ -3300,7 +3525,7 @@ CONTAINS
                         & constraint_matrix_idx)%PTR%CONSTRAINT_JACOBIAN=>CONSTRAINT_NONLINEAR_MAPPING% &
                         & CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAP(constraint_matrix_idx)%CONSTRAINT_JACOBIAN
                       NUMBER_OF_CONSTRAINT_ROWS=CONSTRAINT_NONLINEAR_MAPPING%CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAP( &
-                        & constraint_matrix_idx)%NUMBER_OF_ROWS
+                        & constraint_matrix_idx)%NUMBER_OF_GLOBAL_ROWS
                       ALLOCATE(SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
                         & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%JACOBIAN_TO_SOLVER_MATRIX_MAPS( &
                         & constraint_matrix_idx)%PTR%CONSTRAINT_ROW_TO_SOLVER_COLS_MAP(NUMBER_OF_CONSTRAINT_ROWS),STAT=ERR)
@@ -3423,37 +3648,16 @@ CONTAINS
             solver_local_dof=0
             DO dof_type=1,2
               DO rank=0,COMPUTATIONAL_ENVIRONMENT%NUMBER_COMPUTATIONAL_NODES-1
-                
                 DO solver_variable_idx=1,SOLVER_MAPPING%VARIABLES_LIST(solver_matrix_idx)%NUMBER_OF_VARIABLES
-
-                  IF (SOLVER_MAPPING%NUMBER_OF_CONSTRAINT_CONDITIONS>0) THEN
-                    ! Ensure that the dof_offset is calculated as a sum of the number of dofs in the diagonal entries of the solver
-                    ! matrix (ie the sum of the number of solver dofs in each equation set).
-                    ! Note that this may not work when running problems in parallel, however, note that constraints can not currently
-                    ! be used in parallel either, and the following code only executes if there are constraint conditions present.
-                    temp_offset = 0
-                    DO solver_variable_idx_temp=1,solver_variable_idx
-                      DO global_dof=1,SIZE(DOF_MAP(solver_variable_idx_temp)%PTR)
-                        IF (DOF_MAP(solver_variable_idx_temp)%PTR(global_dof)>0) THEN
-                          temp_offset=temp_offset+1
-                        ENDIF
-                      ENDDO
-                    ENDDO
-                    GLOBAL_DOFS_OFFSET=temp_offset
-                    LOCAL_DOFS_OFFSET=temp_offset
-                  ELSE
-                    GLOBAL_DOFS_OFFSET=solver_global_dof
-                    LOCAL_DOFS_OFFSET=solver_local_dof(rank)
-                  ENDIF
-                  IF (SOLVER_MAPPING%NUMBER_OF_INTERFACE_CONDITIONS>0) THEN
+                  IF(SOLVER_MAPPING%NUMBER_OF_INTERFACE_CONDITIONS>0) THEN
                     ! Ensure that the dof_offset is calculated as a sum of the number of dofs in the diagonal entries of the solver
                     ! matrix (ie the sum of the number of solver dofs in each equation set).
                     ! Note that this may not work when running problems in parallel, however, note that interfaces can not currently
                     ! be used in parallel either, and the following code only executes if there are interface conditions present.
-                    temp_offset = 0
+                    temp_offset=0
                     DO solver_variable_idx_temp=1,solver_variable_idx
                       DO global_dof=1,SIZE(DOF_MAP(solver_variable_idx_temp)%PTR)
-                        IF (DOF_MAP(solver_variable_idx_temp)%PTR(global_dof)>0) THEN
+                        IF(DOF_MAP(solver_variable_idx_temp)%PTR(global_dof)>0) THEN
                           temp_offset=temp_offset+1
                         ENDIF
                       ENDDO
@@ -3514,6 +3718,7 @@ CONTAINS
                           !dof_type=RANK_GLOBAL_COLS_LIST(3,global_dof_idx)
                           INCLUDE_COLUMN=RANK_GLOBAL_COLS_LIST(3,global_dof_idx)==1
                           CONSTRAINED_DOF=RANK_GLOBAL_COLS_LIST(3,global_dof_idx)==2
+                          zeroColumn=RANK_GLOBAL_COLS_LIST(3,global_dof_idx)==3
                           variable_idx=RANK_GLOBAL_COLS_LIST(4,global_dof_idx)
                           globalDofCouplingNumber=RANK_GLOBAL_COLS_LIST(5,global_dof_idx)
                           IF(globalDofCouplingNumber>0) THEN
@@ -3532,7 +3737,7 @@ CONTAINS
                             colEquationCols=>dummyDofCoupling
                           END IF
 
-                          IF(INCLUDE_COLUMN) THEN
+                          IF(INCLUDE_COLUMN.OR.zeroColumn) THEN
                             !DOF is not fixed so map the variable/equation dof to a new solver dof
                             
                             IF(dof_type==2) THEN
@@ -3545,9 +3750,7 @@ CONTAINS
                             solver_local_dof(rank)=solver_local_dof(rank)+1
                             
                             IF(rank==myrank) THEN
-                              
                               IF(.NOT.VARIABLE_RANK_PROCESSED(solver_variable_idx,rank)) THEN
-                                
                                 !Set up the column domain mappings.
                                 CALL DOMAIN_MAPPINGS_MAPPING_GLOBAL_INITIALISE(COL_DOMAIN_MAPPING%GLOBAL_TO_LOCAL_MAP( &
                                   & solver_global_dof),ERR,ERROR,*999)
@@ -3667,10 +3870,17 @@ CONTAINS
                                       IF(ERR/=0) &
                                         & CALL FlagError("Could not allocate dynamic equations column to solver columns map "// &
                                         & "coupling coefficients.",ERR,ERROR,*999)
-                                      SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)% &
-                                        & EQUATIONS_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
-                                        & DYNAMIC_EQUATIONS_TO_SOLVER_MATRIX_MAPS(equations_matrix_idx)%PTR% &
-                                        & EQUATIONS_COL_TO_SOLVER_COLS_MAP(equations_column)%NUMBER_OF_SOLVER_COLS=1
+                                      IF(zeroColumn) THEN
+                                        SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)% &
+                                          & EQUATIONS_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
+                                          & DYNAMIC_EQUATIONS_TO_SOLVER_MATRIX_MAPS(equations_matrix_idx)%PTR% &
+                                          & EQUATIONS_COL_TO_SOLVER_COLS_MAP(equations_column)%NUMBER_OF_SOLVER_COLS=0
+                                      ELSE
+                                        SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)% &
+                                          & EQUATIONS_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
+                                          & DYNAMIC_EQUATIONS_TO_SOLVER_MATRIX_MAPS(equations_matrix_idx)%PTR% &
+                                          & EQUATIONS_COL_TO_SOLVER_COLS_MAP(equations_column)%NUMBER_OF_SOLVER_COLS=1
+                                      END IF
                                       SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)% &
                                         & EQUATIONS_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
                                         & DYNAMIC_EQUATIONS_TO_SOLVER_MATRIX_MAPS(equations_matrix_idx)%PTR% &
@@ -3704,10 +3914,17 @@ CONTAINS
                                       IF(ERR/=0) &
                                         & CALL FlagError("Could not allocate linear equations column to solver columns map "// &
                                         & "coupling coefficients.",ERR,ERROR,*999)
-                                      SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)% &
-                                        & EQUATIONS_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
-                                        & LINEAR_EQUATIONS_TO_SOLVER_MATRIX_MAPS(equations_matrix_idx)%PTR% &
-                                        & EQUATIONS_COL_TO_SOLVER_COLS_MAP(equations_column)%NUMBER_OF_SOLVER_COLS=1
+                                      IF(zeroColumn) THEN
+                                        SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)% &
+                                          & EQUATIONS_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
+                                          & LINEAR_EQUATIONS_TO_SOLVER_MATRIX_MAPS(equations_matrix_idx)%PTR% &
+                                          & EQUATIONS_COL_TO_SOLVER_COLS_MAP(equations_column)%NUMBER_OF_SOLVER_COLS=0
+                                      ELSE
+                                        SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)% &
+                                          & EQUATIONS_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
+                                          & LINEAR_EQUATIONS_TO_SOLVER_MATRIX_MAPS(equations_matrix_idx)%PTR% &
+                                          & EQUATIONS_COL_TO_SOLVER_COLS_MAP(equations_column)%NUMBER_OF_SOLVER_COLS=1
+                                      END IF 
                                       SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)% &
                                         & EQUATIONS_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
                                         & LINEAR_EQUATIONS_TO_SOLVER_MATRIX_MAPS(equations_matrix_idx)%PTR% &
@@ -3742,10 +3959,17 @@ CONTAINS
                                       LOCAL_ERROR="Could not allocate Jacobian column to solver columns map coupling coefficients."
                                       CALL FlagError(LOCAL_ERROR,ERR,ERROR,*999)
                                     ENDIF
-                                    SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)% &
-                                      & EQUATIONS_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%JACOBIAN_TO_SOLVER_MATRIX_MAPS( &
-                                      & equations_matrix_idx)%PTR%JACOBIAN_COL_TO_SOLVER_COLS_MAP(jacobian_column)% &
-                                      & NUMBER_OF_SOLVER_COLS=1
+                                    IF(zeroColumn) THEN
+                                      SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)% &
+                                        & EQUATIONS_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%JACOBIAN_TO_SOLVER_MATRIX_MAPS( &
+                                        & equations_matrix_idx)%PTR%JACOBIAN_COL_TO_SOLVER_COLS_MAP(jacobian_column)% &
+                                        & NUMBER_OF_SOLVER_COLS=0
+                                    ELSE
+                                      SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)% &
+                                        & EQUATIONS_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%JACOBIAN_TO_SOLVER_MATRIX_MAPS( &
+                                        & equations_matrix_idx)%PTR%JACOBIAN_COL_TO_SOLVER_COLS_MAP(jacobian_column)% &
+                                        & NUMBER_OF_SOLVER_COLS=1
+                                    END IF
                                     SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)% &
                                       & EQUATIONS_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%JACOBIAN_TO_SOLVER_MATRIX_MAPS( &
                                       & equations_matrix_idx)%PTR%JACOBIAN_COL_TO_SOLVER_COLS_MAP(jacobian_column)%SOLVER_COLS(1)= &
@@ -3764,9 +3988,7 @@ CONTAINS
                                 ENDDO !matrix_type_idx
                               END DO !colEquationsColIdx
                             ELSE !rank /= myrank
-                              
                               IF(.NOT.VARIABLE_RANK_PROCESSED(solver_variable_idx,rank)) THEN
-                                
                                 !Set up the column domain mappings.
                                 CALL DOMAIN_MAPPINGS_MAPPING_GLOBAL_INITIALISE(COL_DOMAIN_MAPPING%GLOBAL_TO_LOCAL_MAP( &
                                   & solver_global_dof),ERR,ERROR,*999)
@@ -3788,9 +4010,7 @@ CONTAINS
                                   & solver_local_dof(rank)
                                 COL_DOMAIN_MAPPING%GLOBAL_TO_LOCAL_MAP(solver_global_dof)%DOMAIN_NUMBER(1)=rank
                                 COL_DOMAIN_MAPPING%GLOBAL_TO_LOCAL_MAP(solver_global_dof)%LOCAL_TYPE(1)=DOMAIN_LOCAL_INTERNAL
-
                               ENDIF
-                              
                             ENDIF !rank == myrank
                           ELSE IF(CONSTRAINED_DOF) THEN
                             !Do nothing, this is set up above
@@ -3854,7 +4074,6 @@ CONTAINS
                         ENDDO !global_dof
 
                       CASE(SOLVER_MAPPING_EQUATIONS_CONSTRAINT_CONDITION,SOLVER_MAPPING_EQUATIONS_CONSTRAINT_TRANSPOSE)
-                        
                         !Now handle the constraint condition rows and columns
                         
                         constraint_condition_idx=SUB_MATRIX_INFORMATION(2,equations_idx,solver_variable_idx)
@@ -3894,6 +4113,7 @@ CONTAINS
                             !dof_type=RANK_GLOBAL_COLS_LIST(3,global_dof_idx)
                             INCLUDE_COLUMN=RANK_GLOBAL_COLS_LIST(3,global_dof_idx)==1
                             CONSTRAINED_DOF=RANK_GLOBAL_COLS_LIST(3,global_dof_idx)==2
+                            zeroColumn=RANK_GLOBAL_COLS_LIST(3,global_dof_idx)==3
                             globalDofCouplingNumber=RANK_GLOBAL_COLS_LIST(5,global_dof_idx)
  
                             IF(globalDofCouplingNumber>0) THEN
@@ -3912,9 +4132,8 @@ CONTAINS
                               colEquationCols=>dummyDofCoupling
                             END IF
  
-                            IF(INCLUDE_COLUMN) THEN
+                            IF(INCLUDE_COLUMN.OR.zeroColumn) THEN
                               !DOF is not fixed so map the variable/equation dof to a new solver dof
-                              
                               IF(dof_type==2) THEN
                                 !Ghosted, reuse global dof
                                 solver_global_dof=DOF_MAP(solver_variable_idx)%PTR(global_dof)
@@ -3922,13 +4141,12 @@ CONTAINS
                                 solver_global_dof=solver_global_dof+1
                                 DOF_MAP(solver_variable_idx)%PTR(global_dof)=solver_global_dof
                               ENDIF
-                              
+
                               solver_local_dof(rank)=solver_local_dof(rank)+1
                               
                               IF(rank==myrank) THEN
                               
                                 IF(.NOT.VARIABLE_RANK_PROCESSED(solver_variable_idx,rank)) THEN
-                                
                                   !Set up the column domain mappings.
                                   CALL DOMAIN_MAPPINGS_MAPPING_GLOBAL_INITIALISE(COL_DOMAIN_MAPPING%GLOBAL_TO_LOCAL_MAP( &
                                     & solver_global_dof),ERR,ERROR,*999)
@@ -4017,48 +4235,52 @@ CONTAINS
                                   eqnLocalDof=colEquationCols%localDofs(colEquationsColIdx)
                                   couplingCoefficient=colEquationCols%coefficients(colEquationsColIdx)
                                   IF(equation_type==SOLVER_MAPPING_EQUATIONS_CONSTRAINT_CONDITION) THEN
-                                    IF(.NOT.VARIABLE_RANK_PROCESSED(solver_variable_idx,rank)) THEN
-                                      !Set up the equations variables -> solver columns mapping
-                                      !No coupling yet so the mapping is 1-1
-                                      SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                                    !Set up the equations variables -> solver columns mapping
+                                    !No coupling yet so the mapping is 1-1
+                                    SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                                    & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
+                                    & LAGRANGE_VARIABLE_TO_SOLVER_COL_MAP%COLUMN_NUMBERS(eqnLocalDof)=solver_global_dof
+                                    SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                                    & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
+                                    & LAGRANGE_VARIABLE_TO_SOLVER_COL_MAP%COUPLING_COEFFICIENTS(eqnLocalDof)=couplingCoefficient
+                                    SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                                    & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
+                                    & LAGRANGE_VARIABLE_TO_SOLVER_COL_MAP%ADDITIVE_CONSTANTS(eqnLocalDof)=0.0_DP
+                                    !Set up the equations columns -> solver columns mapping
+                                    IF(ASSOCIATED(CONSTRAINT_DYNAMIC_MAPPING)) THEN
+                                      constraint_column=CONSTRAINT_DYNAMIC_MAPPING%LAGRANGE_DOF_TO_COLUMN_MAP(local_dof)
+                                    ELSE IF(ASSOCIATED(CONSTRAINT_LINEAR_MAPPING)) THEN
+                                      constraint_column=CONSTRAINT_LINEAR_MAPPING%LAGRANGE_DOF_TO_COLUMN_MAP(local_dof)
+                                    ELSE IF(ASSOCIATED(CONSTRAINT_NONLINEAR_MAPPING)) THEN
+                                      constraint_column=CONSTRAINT_NONLINEAR_MAPPING%LAGRANGE_DOF_TO_COLUMN_MAP(local_dof)
+                                    ENDIF
+                                    !Allocate the equation to solver map column items.
+                                    ALLOCATE(SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
                                       & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
-                                      & LAGRANGE_VARIABLE_TO_SOLVER_COL_MAP%COLUMN_NUMBERS(eqnLocalDof)=solver_global_dof
-                                      SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                                      & CONSTRAINT_COL_TO_SOLVER_COLS_MAP(constraint_column)%SOLVER_COLS(1),STAT=ERR)
+                                    IF(ERR/=0) CALL  FlagError("Could not allocate constraint column to solver columns map "// &
+                                      & "solver colums.",ERR,ERROR,*999)
+                                    ALLOCATE(SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
                                       & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
-                                      & LAGRANGE_VARIABLE_TO_SOLVER_COL_MAP%COUPLING_COEFFICIENTS(eqnLocalDof)=couplingCoefficient
+                                      & CONSTRAINT_COL_TO_SOLVER_COLS_MAP(constraint_column)%COUPLING_COEFFICIENTS(1),STAT=ERR)
+                                    IF(ERR/=0) CALL FlagError("Could not allocate constraint column to solver columns map "// &
+                                      & "coupling coefficients.",ERR,ERROR,*999)
+                                    IF(zeroColumn) THEN
                                       SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
-                                      & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
-                                      & LAGRANGE_VARIABLE_TO_SOLVER_COL_MAP%ADDITIVE_CONSTANTS(eqnLocalDof)=0.0_DP
-                                      !Set up the equations columns -> solver columns mapping
-                                      IF(ASSOCIATED(CONSTRAINT_DYNAMIC_MAPPING)) THEN
-                                        constraint_column=CONSTRAINT_DYNAMIC_MAPPING%LAGRANGE_DOF_TO_COLUMN_MAP(local_dof)
-                                      ELSE IF(ASSOCIATED(CONSTRAINT_LINEAR_MAPPING)) THEN
-                                        constraint_column=CONSTRAINT_LINEAR_MAPPING%LAGRANGE_DOF_TO_COLUMN_MAP(local_dof)
-                                      ELSE IF(ASSOCIATED(CONSTRAINT_NONLINEAR_MAPPING)) THEN
-                                        constraint_column=CONSTRAINT_NONLINEAR_MAPPING%LAGRANGE_DOF_TO_COLUMN_MAP(local_dof)
-                                      ENDIF
-                                      !Allocate the equation to solver map column items.
-                                      ALLOCATE(SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
                                         & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
-                                        & CONSTRAINT_COL_TO_SOLVER_COLS_MAP(constraint_column)%SOLVER_COLS(1),STAT=ERR)
-                                      IF(ERR/=0) CALL  FlagError("Could not allocate constraint column to solver columns map "// &
-                                        & "solver colums.",ERR,ERROR,*999)
-                                      ALLOCATE(SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
-                                        & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
-                                        & CONSTRAINT_COL_TO_SOLVER_COLS_MAP(constraint_column)%COUPLING_COEFFICIENTS(1),STAT=ERR)
-                                      IF(ERR/=0) CALL FlagError("Could not allocate constraint column to solver columns map "// &
-                                        & "coupling coefficients.",ERR,ERROR,*999)
+                                        & CONSTRAINT_COL_TO_SOLVER_COLS_MAP(constraint_column)%NUMBER_OF_SOLVER_COLS=0
+                                    ELSE
                                       SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
                                         & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
                                         & CONSTRAINT_COL_TO_SOLVER_COLS_MAP(constraint_column)%NUMBER_OF_SOLVER_COLS=1
-                                      SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
-                                        & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
-                                        & CONSTRAINT_COL_TO_SOLVER_COLS_MAP(constraint_column)%SOLVER_COLS(1)=solver_global_dof
-                                      SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
-                                        & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
-                                        & CONSTRAINT_COL_TO_SOLVER_COLS_MAP(constraint_column)%COUPLING_COEFFICIENTS(1)= &
-                                        & couplingCoefficient
-                                    ENDIF
+                                    END IF
+                                    SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                                      & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
+                                      & CONSTRAINT_COL_TO_SOLVER_COLS_MAP(constraint_column)%SOLVER_COLS(1)=solver_global_dof
+                                    SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                                      & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
+                                      & CONSTRAINT_COL_TO_SOLVER_COLS_MAP(constraint_column)%COUPLING_COEFFICIENTS(1)= &
+                                      & couplingCoefficient
                                   ELSE
                                     !Set up the equations variables -> solver columns mapping
                                     SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
@@ -4092,10 +4314,17 @@ CONTAINS
                                       IF(ERR/=0) &
                                         & CALL FlagError("Could not allocate constraint equations row to solver columns map "// &
                                         & "coupling coefficients.",ERR,ERROR,*999)
-                                      SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
-                                        & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
-                                        & DYNAMIC_CONSTRAINT_TO_SOLVER_MATRIX_MAPS(constraint_matrix_idx)%PTR% &
-                                        & CONSTRAINT_ROW_TO_SOLVER_COLS_MAP(constraint_row)%NUMBER_OF_SOLVER_COLS=1
+                                      IF(zeroColumn) THEN
+                                        SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                                          & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
+                                          & DYNAMIC_CONSTRAINT_TO_SOLVER_MATRIX_MAPS(constraint_matrix_idx)%PTR% &
+                                          & CONSTRAINT_ROW_TO_SOLVER_COLS_MAP(constraint_row)%NUMBER_OF_SOLVER_COLS=0
+                                      ELSE
+                                        SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                                          & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
+                                          & DYNAMIC_CONSTRAINT_TO_SOLVER_MATRIX_MAPS(constraint_matrix_idx)%PTR% &
+                                          & CONSTRAINT_ROW_TO_SOLVER_COLS_MAP(constraint_row)%NUMBER_OF_SOLVER_COLS=1
+                                      END IF
                                       SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
                                         & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
                                         & DYNAMIC_CONSTRAINT_TO_SOLVER_MATRIX_MAPS(constraint_matrix_idx)%PTR% &
@@ -4124,10 +4353,17 @@ CONTAINS
                                       IF(ERR/=0) &
                                         & CALL FlagError("Could not allocate constraint equations row to solver columns map "// &
                                         & "coupling coefficients.",ERR,ERROR,*999)
-                                      SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
-                                        & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
-                                        & LINEAR_CONSTRAINT_TO_SOLVER_MATRIX_MAPS(constraint_matrix_idx)%PTR% &
-                                        & CONSTRAINT_ROW_TO_SOLVER_COLS_MAP(constraint_row)%NUMBER_OF_SOLVER_COLS=1
+                                      IF(zeroColumn) THEN
+                                        SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                                          & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
+                                          & LINEAR_CONSTRAINT_TO_SOLVER_MATRIX_MAPS(constraint_matrix_idx)%PTR% &
+                                          & CONSTRAINT_ROW_TO_SOLVER_COLS_MAP(constraint_row)%NUMBER_OF_SOLVER_COLS=0
+                                      ELSE
+                                        SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                                          & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
+                                          & LINEAR_CONSTRAINT_TO_SOLVER_MATRIX_MAPS(constraint_matrix_idx)%PTR% &
+                                          & CONSTRAINT_ROW_TO_SOLVER_COLS_MAP(constraint_row)%NUMBER_OF_SOLVER_COLS=1
+                                      END IF
                                       SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
                                         & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
                                         & LINEAR_CONSTRAINT_TO_SOLVER_MATRIX_MAPS(constraint_matrix_idx)%PTR% &
@@ -4156,10 +4392,17 @@ CONTAINS
                                       IF(ERR/=0) &
                                         & CALL FlagError("Could not allocate constraint equations row to solver columns map "// &
                                         & "coupling coefficients.",ERR,ERROR,*999)
-                                      SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
-                                        & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
-                                        & JACOBIAN_TO_SOLVER_MATRIX_MAPS(constraint_matrix_idx)%PTR% &
-                                        & CONSTRAINT_ROW_TO_SOLVER_COLS_MAP(constraint_row)%NUMBER_OF_SOLVER_COLS=1
+                                      IF(zeroColumn) THEN
+                                        SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                                          & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
+                                          & JACOBIAN_TO_SOLVER_MATRIX_MAPS(constraint_matrix_idx)%PTR% &
+                                          & CONSTRAINT_ROW_TO_SOLVER_COLS_MAP(constraint_row)%NUMBER_OF_SOLVER_COLS=0
+                                      ELSE
+                                        SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                                          & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
+                                          & JACOBIAN_TO_SOLVER_MATRIX_MAPS(constraint_matrix_idx)%PTR% &
+                                          & CONSTRAINT_ROW_TO_SOLVER_COLS_MAP(constraint_row)%NUMBER_OF_SOLVER_COLS=1
+                                      END IF
                                       SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
                                         & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
                                         & JACOBIAN_TO_SOLVER_MATRIX_MAPS(constraint_matrix_idx)%PTR% &
@@ -4175,7 +4418,6 @@ CONTAINS
                                 END DO
                               ELSE !rank /= myrank
                                 IF(.NOT.VARIABLE_RANK_PROCESSED(solver_variable_idx,rank)) THEN
-                                  
                                   !Set up the column domain mappings.
                                   CALL DOMAIN_MAPPINGS_MAPPING_GLOBAL_INITIALISE(COL_DOMAIN_MAPPING%GLOBAL_TO_LOCAL_MAP( &
                                     & solver_global_dof),ERR,ERROR,*999)
@@ -4200,7 +4442,6 @@ CONTAINS
                                     & solver_local_dof(rank)
                                   COL_DOMAIN_MAPPING%GLOBAL_TO_LOCAL_MAP(solver_global_dof)%DOMAIN_NUMBER(1)=rank
                                   COL_DOMAIN_MAPPING%GLOBAL_TO_LOCAL_MAP(solver_global_dof)%LOCAL_TYPE(1)=DOMAIN_LOCAL_INTERNAL
-                                  
                                 ENDIF
                               ENDIF !rank == myrank
                             ELSE IF(CONSTRAINED_DOF) THEN
@@ -4306,6 +4547,7 @@ CONTAINS
                             !dof_type=RANK_GLOBAL_COLS_LIST(3,global_dof_idx)
                             INCLUDE_COLUMN=RANK_GLOBAL_COLS_LIST(3,global_dof_idx)==1
                             CONSTRAINED_DOF=RANK_GLOBAL_COLS_LIST(3,global_dof_idx)==2
+                            zeroColumn=RANK_GLOBAL_COLS_LIST(3,global_dof_idx)==3
                             globalDofCouplingNumber=RANK_GLOBAL_COLS_LIST(5,global_dof_idx)
 
                             IF(globalDofCouplingNumber>0) THEN
@@ -4324,7 +4566,7 @@ CONTAINS
                               colEquationCols=>dummyDofCoupling
                             END IF
 
-                            IF(INCLUDE_COLUMN) THEN
+                            IF(INCLUDE_COLUMN.OR.zeroColumn) THEN
                               !DOF is not fixed so map the variable/equation dof to a new solver dof
                               
                               IF(dof_type==2) THEN
@@ -4340,7 +4582,6 @@ CONTAINS
                               IF(rank==myrank) THEN
                               
                                 IF(.NOT.VARIABLE_RANK_PROCESSED(solver_variable_idx,rank)) THEN
-                                
                                   !Set up the column domain mappings.
                                   CALL DOMAIN_MAPPINGS_MAPPING_GLOBAL_INITIALISE(COL_DOMAIN_MAPPING%GLOBAL_TO_LOCAL_MAP( &
                                     & solver_global_dof),ERR,ERROR,*999)
@@ -4454,9 +4695,15 @@ CONTAINS
                                         & interface_column)%COUPLING_COEFFICIENTS(1),STAT=ERR)
                                       IF(ERR/=0) CALL FlagError("Could not allocate interface column to solver columns map "// &
                                         & "coupling coefficients.",ERR,ERROR,*999)
-                                      SOLVER_MAPPING%INTERFACE_CONDITION_TO_SOLVER_MAP(interface_condition_idx)% &
-                                        & INTERFACE_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%INTERFACE_COL_TO_SOLVER_COLS_MAP( &
-                                        & interface_column)%NUMBER_OF_SOLVER_COLS=1
+                                      IF(zeroColumn) THEN
+                                        SOLVER_MAPPING%INTERFACE_CONDITION_TO_SOLVER_MAP(interface_condition_idx)% &
+                                          & INTERFACE_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%INTERFACE_COL_TO_SOLVER_COLS_MAP( &
+                                          & interface_column)%NUMBER_OF_SOLVER_COLS=0
+                                      ELSE
+                                        SOLVER_MAPPING%INTERFACE_CONDITION_TO_SOLVER_MAP(interface_condition_idx)% &
+                                          & INTERFACE_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%INTERFACE_COL_TO_SOLVER_COLS_MAP( &
+                                          & interface_column)%NUMBER_OF_SOLVER_COLS=1
+                                      END IF
                                       SOLVER_MAPPING%INTERFACE_CONDITION_TO_SOLVER_MAP(interface_condition_idx)% &
                                         & INTERFACE_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%INTERFACE_COL_TO_SOLVER_COLS_MAP( &
                                         & interface_column)%SOLVER_COLS(1)=solver_global_dof
@@ -4493,10 +4740,17 @@ CONTAINS
                                     IF(ERR/=0) &
                                       & CALL FlagError("Could not allocate interface equations row to solver columns map "// &
                                       & "coupling coefficients.",ERR,ERROR,*999)
-                                    SOLVER_MAPPING%INTERFACE_CONDITION_TO_SOLVER_MAP(interface_condition_idx)% &
-                                      & INTERFACE_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
-                                      & INTERFACE_EQUATIONS_TO_SOLVER_MATRIX_MAPS(interface_matrix_idx)%PTR% &
-                                      & INTERFACE_ROW_TO_SOLVER_COLS_MAP(interface_row)%NUMBER_OF_SOLVER_COLS=1
+                                    IF(zeroColumn) THEN
+                                      SOLVER_MAPPING%INTERFACE_CONDITION_TO_SOLVER_MAP(interface_condition_idx)% &
+                                        & INTERFACE_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
+                                        & INTERFACE_EQUATIONS_TO_SOLVER_MATRIX_MAPS(interface_matrix_idx)%PTR% &
+                                        & INTERFACE_ROW_TO_SOLVER_COLS_MAP(interface_row)%NUMBER_OF_SOLVER_COLS=0
+                                    ELSE
+                                      SOLVER_MAPPING%INTERFACE_CONDITION_TO_SOLVER_MAP(interface_condition_idx)% &
+                                        & INTERFACE_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
+                                        & INTERFACE_EQUATIONS_TO_SOLVER_MATRIX_MAPS(interface_matrix_idx)%PTR% &
+                                        & INTERFACE_ROW_TO_SOLVER_COLS_MAP(interface_row)%NUMBER_OF_SOLVER_COLS=1
+                                    END IF
                                     SOLVER_MAPPING%INTERFACE_CONDITION_TO_SOLVER_MAP(interface_condition_idx)% &
                                       & INTERFACE_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
                                       & INTERFACE_EQUATIONS_TO_SOLVER_MATRIX_MAPS(interface_matrix_idx)%PTR% &
@@ -5048,7 +5302,7 @@ CONTAINS
             & NUMBER_OF_EQUATION_DOFS>0) THEN
             CALL WRITE_STRING_VECTOR(DIAGNOSTIC_OUTPUT_TYPE,1,1,SOLVER_MAPPING%SOLVER_COL_TO_EQUATIONS_COLS_MAP( &
               & solver_matrix_idx)%SOLVER_DOF_TO_VARIABLE_MAPS(dof_idx)%NUMBER_OF_EQUATION_DOFS,5,5,SOLVER_MAPPING% &
-              & SOLVER_COL_TO_EQUATIONS_COLS_MAP(solver_matrix_idx)%SOLVER_DOF_TO_VARIABLE_MAPS(dof_idx)%EQUATIONS_INDICES, &
+              & SOLVER_COL_TO_EQUATIONS_COLS_MAP(solver_matrix_idx)%SOLVER_DOF_TO_VARIABLE_MAPS(dof_idx)%EQUATIONS_TYPES, &
               & '("        Equations types       :",5(X,I13))','(31X,5(X,I13))',ERR,ERROR,*999)
             CALL WRITE_STRING_VECTOR(DIAGNOSTIC_OUTPUT_TYPE,1,1,SOLVER_MAPPING%SOLVER_COL_TO_EQUATIONS_COLS_MAP( &
               & solver_matrix_idx)%SOLVER_DOF_TO_VARIABLE_MAPS(dof_idx)%NUMBER_OF_EQUATION_DOFS,5,5,SOLVER_MAPPING% &
@@ -5111,6 +5365,14 @@ CONTAINS
               & '("          Coupling coefficients :",5(X,E13.6))','(33X,5(X,E13.6))',ERR,ERROR,*999)
           ENDIF
         ENDDO !row_idx
+        IF(SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)%numberOfZeroRows>0) THEN
+          CALL WRITE_STRING(DIAGNOSTIC_OUTPUT_TYPE,"    Equations set zero rows : ",ERR,ERROR,*999)
+          CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"        Number of local zero rows : ", &
+            & SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)%numberOfZeroRows,ERR,ERROR,*999)
+          CALL WRITE_STRING_VECTOR(DIAGNOSTIC_OUTPUT_TYPE,1,1,SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)% &
+            & numberOfZeroRows,5,5,SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)%zeroRows, &
+            & '("          Equations local zero rows    :",5(X,I13))','(33X,5(X,I13))',ERR,ERROR,*999)
+        END IF
         CALL WRITE_STRING(DIAGNOSTIC_OUTPUT_TYPE,"      Solver matrix indexing:",ERR,ERROR,*999)
         DO solver_matrix_idx=1,SOLVER_MAPPING%NUMBER_OF_SOLVER_MATRICES
           CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"        Solver matrix : ",solver_matrix_idx,ERR,ERROR,*999)
@@ -5469,7 +5731,8 @@ CONTAINS
                     & CONSTRAINT_TO_SOLVER_MAP%CONSTRAINT_MATRIX_NUMBER,ERR,ERROR,*999)
                   CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"            Solver matrix number   = ",CONSTRAINT_TO_SOLVER_MAP% &
                     & SOLVER_MATRIX_NUMBER,ERR,ERROR,*999)
-                  DO row_idx=1,CONSTRAINT_DYNAMIC_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(constraint_matrix_idx)%NUMBER_OF_ROWS
+                  DO row_idx=1,CONSTRAINT_DYNAMIC_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(constraint_matrix_idx)% &
+                    & NUMBER_OF_GLOBAL_ROWS
                     CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"            Constraint matrix row : ",row_idx, &
                       & ERR,ERROR,*999)
                     CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"              Number of solver columns mapped to = ", &
@@ -5505,7 +5768,8 @@ CONTAINS
                     CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"            Solver matrix number   = ", &
                       & CONSTRAINT_TO_SOLVER_MAP% &
                       & SOLVER_MATRIX_NUMBER,ERR,ERROR,*999)
-                    DO row_idx=1,CONSTRAINT_LINEAR_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(constraint_matrix_idx)%NUMBER_OF_ROWS
+                    DO row_idx=1,CONSTRAINT_LINEAR_MAPPING%CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(constraint_matrix_idx)% &
+                      & NUMBER_OF_GLOBAL_ROWS
                       CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"            Constraint matrix row : ",row_idx, &
                         & ERR,ERROR,*999)
                       CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"              Number of solver columns mapped to = ", &
@@ -5525,6 +5789,50 @@ CONTAINS
                 ENDIF
                 IF(ASSOCIATED(CONSTRAINT_NONLINEAR_MAPPING)) THEN
                   CALL WRITE_STRING(DIAGNOSTIC_OUTPUT_TYPE, &
+                    & "        Nonlinear constraint equations matrix columns to solver matrix columns:",ERR,ERROR,*999)
+                  CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"          Number of nonlinear constraint matrices = ", &
+                    & SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                    & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%NUMBER_OF_CONSTRAINT_JACOBIANS,ERR,ERROR,*999)
+                  DO constraint_matrix_idx=1,SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                    & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%NUMBER_OF_CONSTRAINT_JACOBIANS
+                    CONSTRAINT_JACOBIAN_TO_SOLVER_MAP=>SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP( &
+                      & constraint_condition_idx)% &
+                      & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%JACOBIAN_TO_SOLVER_MATRIX_MAPS( &
+                      & constraint_matrix_idx)%PTR
+                    CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"          Constraint matrix index : ",constraint_matrix_idx, &
+                      & ERR,ERROR,*999)
+                    CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"            Constraint matrix number = ", &
+                      & CONSTRAINT_JACOBIAN_TO_SOLVER_MAP%CONSTRAINT_MATRIX_NUMBER,ERR,ERROR,*999)
+                    CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"            Solver matrix number   = ", &
+                      & CONSTRAINT_JACOBIAN_TO_SOLVER_MAP% &
+                      & SOLVER_MATRIX_NUMBER,ERR,ERROR,*999)
+                    DO column_idx=1,CONSTRAINT_MAPPING%NUMBER_OF_GLOBAL_COLUMNS
+                      CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"            Constraint matrix column : ",column_idx, &
+                        & ERR,ERROR,*999)
+                      CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"              Number of solver columns mapped to = ", &
+                        & SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                        & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%CONSTRAINT_COL_TO_SOLVER_COLS_MAP(column_idx)% &
+                        & NUMBER_OF_SOLVER_COLS,ERR,ERROR,*999)
+                      IF(SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                        & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%CONSTRAINT_COL_TO_SOLVER_COLS_MAP(column_idx)% &
+                        & NUMBER_OF_SOLVER_COLS>0) THEN
+                        CALL WRITE_STRING_VECTOR(DIAGNOSTIC_OUTPUT_TYPE,1,1,SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP( &
+                          & constraint_condition_idx)%CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
+                          & CONSTRAINT_COL_TO_SOLVER_COLS_MAP(column_idx)%NUMBER_OF_SOLVER_COLS,5,5, &
+                          & SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                          & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%CONSTRAINT_COL_TO_SOLVER_COLS_MAP(column_idx)% &
+                          & SOLVER_COLS,'("              Solver columns         :",5(X,I13))','(38X,5(X,I13))',ERR,ERROR,*999)
+                        CALL WRITE_STRING_VECTOR(DIAGNOSTIC_OUTPUT_TYPE,1,1,SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP( &
+                          & constraint_condition_idx)%CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)% &
+                          & CONSTRAINT_COL_TO_SOLVER_COLS_MAP(column_idx)%NUMBER_OF_SOLVER_COLS,5,5, &
+                          & SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
+                          & CONSTRAINT_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx)%CONSTRAINT_COL_TO_SOLVER_COLS_MAP(column_idx)% &
+                          & COUPLING_COEFFICIENTS, &
+                          & '("              Coupling coefficients  :",5(X,E13.6))','(38X,5(X,E13.6))',ERR,ERROR,*999)
+                      ENDIF
+                    ENDDO !column_idx
+                  ENDDO !constraint_matrix_idx
+                  CALL WRITE_STRING(DIAGNOSTIC_OUTPUT_TYPE, &
                     & "        Nonlinear constraint equations matrix rows to solver matrix columns:",ERR,ERROR,*999)
                   CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"          Number of nonlinear constraint matrices = ", &
                     & SOLVER_MAPPING%CONSTRAINT_CONDITION_TO_SOLVER_MAP(constraint_condition_idx)% &
@@ -5543,7 +5851,7 @@ CONTAINS
                       & CONSTRAINT_JACOBIAN_TO_SOLVER_MAP% &
                       & SOLVER_MATRIX_NUMBER,ERR,ERROR,*999)
                     DO row_idx=1,CONSTRAINT_NONLINEAR_MAPPING%CONSTRAINT_JACOBIAN_ROWS_TO_VAR_MAP(constraint_matrix_idx)% &
-                      & NUMBER_OF_ROWS
+                      & NUMBER_OF_GLOBAL_ROWS
                       CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"            Constraint matrix row : ",row_idx, &
                         & ERR,ERROR,*999)
                       CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"              Number of solver columns mapped to = ", &
@@ -7113,6 +7421,7 @@ CONTAINS
       ENDDO !row_idx
       DEALLOCATE(EQUATIONS_SET_TO_SOLVER_MAP%EQUATIONS_ROW_TO_SOLVER_ROWS_MAPS)
     ENDIF
+    IF(ALLOCATED(EQUATIONS_SET_TO_SOLVER_MAP%zeroRows)) DEALLOCATE(EQUATIONS_SET_TO_SOLVER_MAP%zeroRows)
         
     EXITS("SolverMapping_EquationsSetToSolverMapFinalise")
     RETURN
@@ -7140,7 +7449,9 @@ CONTAINS
     EQUATIONS_SET_TO_SOLVER_MAP%EQUATIONS_SET_INDEX=0
     NULLIFY(EQUATIONS_SET_TO_SOLVER_MAP%SOLVER_MAPPING)
     NULLIFY(EQUATIONS_SET_TO_SOLVER_MAP%EQUATIONS)
+    EQUATIONS_SET_TO_SOLVER_MAP%NUMBER_OF_CONSTRAINT_CONDITIONS=0
     EQUATIONS_SET_TO_SOLVER_MAP%NUMBER_OF_INTERFACE_CONDITIONS=0
+    EQUATIONS_SET_TO_SOLVER_MAP%numberOfZeroRows=0
 
     EXITS("SolverMapping_EquationsSetToSolverMapInitialise")
     RETURN

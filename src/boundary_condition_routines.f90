@@ -122,6 +122,12 @@ MODULE BOUNDARY_CONDITIONS_ROUTINES
   INTEGER(INTG), PARAMETER :: BOUNDARY_CONDITION_FULL_MATRICES=2 !<The matrices are stored as full matrices.
   !>@}
 
+  !> \addtogroup BOUNDARY_CONDITIONS_ROUTINES_DirichletMethodTypes BOUNDARY_CONDITIONS_ROUTINES::DirichletMethodTypes
+  !> \brief The types for Dirichlet boundary conditions methods.
+  !>@{
+  INTEGER(INTG), PARAMETER :: BOUNDARY_CONDITION_DIRICHLET_CONDENSATION=1 !<The dof rows and columns corresponding to Dirichlet BC's are eliminated from the matrix. \see BOUNDARY_CONDITIONS_ROUTINES_BoundaryConditions,BOUNDARY_CONDITIONS_ROUTINES
+  INTEGER(INTG), PARAMETER :: BOUNDARY_CONDITION_DIRICHLET_ZERO_ROWS=2 !<The dof rows and columns corresponding to Dirichlet BC's are zeroed (except for the diagonal) in the matrix. \see BOUNDARY_CONDITIONS_ROUTINES_BoundaryConditions,BOUNDARY_CONDITIONS_ROUTINES
+  !>@}
   !Module types
 
   !Module variables
@@ -153,6 +159,8 @@ MODULE BOUNDARY_CONDITIONS_ROUTINES
 
   PUBLIC BOUNDARY_CONDITION_SPARSE_MATRICES,BOUNDARY_CONDITION_FULL_MATRICES
 
+  PUBLIC BOUNDARY_CONDITION_DIRICHLET_CONDENSATION,BOUNDARY_CONDITION_DIRICHLET_ZERO_ROWS
+
   PUBLIC BOUNDARY_CONDITIONS_CREATE_FINISH,BOUNDARY_CONDITIONS_CREATE_START,BOUNDARY_CONDITIONS_DESTROY
   
   PUBLIC BOUNDARY_CONDITIONS_ADD_CONSTANT,BOUNDARY_CONDITIONS_ADD_LOCAL_DOF,BOUNDARY_CONDITIONS_ADD_ELEMENT, &
@@ -162,6 +170,8 @@ MODULE BOUNDARY_CONDITIONS_ROUTINES
     & BOUNDARY_CONDITIONS_SET_NODE,BoundaryConditions_NeumannIntegrate,BoundaryConditions_NeumannSparsityTypeSet
 
   PUBLIC BoundaryConditions_ConstrainNodeDofsEqual
+
+  PUBLIC BoundaryConditions_DirichletMethodTypeSet
 
 CONTAINS  
 
@@ -736,6 +746,43 @@ CONTAINS
   !================================================================================================================================
   !
 
+  !>Sets/changes the sparsity type for the Neumann integration matrices
+  SUBROUTINE BoundaryConditions_DirichletMethodTypeSet(boundaryConditions,dirichletMethodType,err,error,*)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: dirichletMethodType !<The Dirichlet method type to be set \see BOUNDARY_CONDITIONS_ROUTINES_DirichletMethodTypes,BOUNDARY_CONDITIONS
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+    TYPE(BOUNDARY_CONDITIONS_TYPE), POINTER :: boundaryConditions
+
+    ENTERS("BoundaryConditions_DirichletMethodTypeSet",ERR,ERROR,*999)
+
+    IF(ASSOCIATED(boundaryConditions)) THEN
+      SELECT CASE(dirichletMethodType)
+      CASE(BOUNDARY_CONDITION_DIRICHLET_CONDENSATION)
+        boundaryConditions%dirichletMethod=BOUNDARY_CONDITION_DIRICHLET_CONDENSATION
+      CASE(BOUNDARY_CONDITION_DIRICHLET_ZERO_ROWS)
+        boundaryConditions%dirichletMethod=BOUNDARY_CONDITION_DIRICHLET_ZERO_ROWS
+      CASE DEFAULT
+        CALL FlagError("The specified Dirichlet method type of "// &
+          & TRIM(NUMBER_TO_VSTRING(dirichletMethodType,"*",err,error))//" is invalid.",err,error,*999)
+      END SELECT
+    ELSE
+      CALL FlagError("Boundary conditions are not associated.",err,error,*999)
+    END IF
+
+    EXITS("BoundaryConditions_DirichletMethodTypeSet")
+    RETURN
+999 ERRORSEXITS("BoundaryConditions_DirichletMethodTypeSet",err,error)
+    RETURN 1
+
+  END SUBROUTINE BoundaryConditions_DirichletMethodTypeSet
+
+  !
+  !================================================================================================================================
+  !
+
   !>Finalise the boundary conditions and deallocate all memory.
   SUBROUTINE BOUNDARY_CONDITIONS_FINALISE(BOUNDARY_CONDITIONS,ERR,ERROR,*)
 
@@ -819,6 +866,7 @@ CONTAINS
           SOLVER_EQUATIONS%BOUNDARY_CONDITIONS%NUMBER_OF_BOUNDARY_CONDITIONS_VARIABLES=0
           SOLVER_EQUATIONS%BOUNDARY_CONDITIONS%SOLVER_EQUATIONS=>SOLVER_EQUATIONS
           SOLVER_EQUATIONS%BOUNDARY_CONDITIONS%neumannMatrixSparsity=BOUNDARY_CONDITION_SPARSE_MATRICES
+          SOLVER_EQUATIONS%BOUNDARY_CONDITIONS%dirichletMethod=BOUNDARY_CONDITION_DIRICHLET_CONDENSATION
           DO equations_set_idx=1,SOLVER_EQUATIONS%SOLVER_MAPPING%NUMBER_OF_EQUATIONS_SETS
             EQUATIONS_SET=>SOLVER_EQUATIONS%SOLVER_MAPPING%EQUATIONS_SETS(equations_set_idx)%PTR
             IF(ASSOCIATED(EQUATIONS_SET)) THEN

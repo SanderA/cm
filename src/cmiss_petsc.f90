@@ -183,7 +183,7 @@ MODULE CmissPetsc
   MatOption, PARAMETER :: PETSC_MAT_NEW_DIAGONALS = MAT_NEW_DIAGONALS
   MatOption, PARAMETER :: PETSC_MAT_IGNORE_OFF_PROC_ENTRIES = MAT_IGNORE_OFF_PROC_ENTRIES !<Any entries that are for other processors will be dropped
   MatOption, PARAMETER :: PETSC_MAT_NEW_NONZERO_LOCATION_ERR = MAT_NEW_NONZERO_LOCATION_ERR !<Any addition or insertion that will generate a new nonzero location will produce an error
-  MatOption, PARAMETER :: PETSC_MAT_NEW_NONZERO_ALLOCATION_ERR = MAT_NEW_NONZERO_ALLOCATION_ERR !<Any addition or insertion tat would generate a new entry that has not been preallocated will produce an error
+  MatOption, PARAMETER :: PETSC_MAT_NEW_NONZERO_ALLOCATION_ERR = MAT_NEW_NONZERO_ALLOCATION_ERR !<Any addition or insertion that would generate a new entry that has not been preallocated will produce an error
   MatOption, PARAMETER :: PETSC_MAT_USE_HASH_TABLE = MAT_USE_HASH_TABLE !<Use a hash table for matrix assembly in order to improve matrix searches
   MatOption, PARAMETER :: PETSC_MAT_KEEP_NONZERO_PATTERN = MAT_KEEP_NONZERO_PATTERN !<When MatZeroRows is called the zeroed entries are kept in the nonzero strucutre
   MatOption, PARAMETER :: PETSC_MAT_IGNORE_ZERO_ENTRIES = MAT_IGNORE_ZERO_ENTRIES !<Stop zero values from creating a zero location in the matrix 
@@ -318,6 +318,12 @@ MODULE CmissPetsc
   PCFieldSplitSchurPreType, PARAMETER :: PETSC_PC_FIELDSPLIT_SCHUR_PRE_A11 = PC_FIELDSPLIT_SCHUR_PRE_A11
   PCFieldSplitSchurPreType, PARAMETER :: PETSC_PC_FIELDSPLIT_SCHUR_PRE_USER = PC_FIELDSPLIT_SCHUR_PRE_USER
   PCFieldSplitSchurPreType, PARAMETER :: PETSC_PC_FIELDSPLIT_SCHUR_PRE_FULL = PC_FIELDSPLIT_SCHUR_PRE_FULL
+
+  !PCGAMG types
+  PCGAMGType, PARAMETER :: PETSC_PC_GAMG_AGG = PCGAMGAGG
+  PCGAMGType, PARAMETER :: PETSC_PC_GAMG_GEO = PCGAMGGEO
+  !Comment the following line, because it's not yet defined in the PETSc fortran bindings
+!  PCGAMGType, PARAMETER :: PETSC_PC_GAMG_CLASSICAL = PCGAMGCLASSICAL
 
   !SNES converged types
   SNESConvergedReason, PARAMETER :: PETSC_SNES_CONVERGED_FNORM_ABS = SNES_CONVERGED_FNORM_ABS
@@ -1645,6 +1651,11 @@ MODULE CmissPetsc
     MODULE PROCEDURE Petsc_PCFieldSplitSetSchurPreWithMatrix
   END INTERFACE Petsc_PCFieldSplitSetSchurPre
 
+  INTERFACE Petsc_PCGetOperators
+    MODULE PROCEDURE Petsc_PCGetOperatorsWithoutPmat
+    MODULE PROCEDURE Petsc_PCGetOperatorsWithPmat
+  END INTERFACE Petsc_PCGetOperators
+
   INTERFACE Petsc_SnesGetJacobian
     MODULE PROCEDURE Petsc_SnesGetJacobianSolver
     MODULE PROCEDURE Petsc_SnesGetJacobianSpecial
@@ -1694,6 +1705,8 @@ MODULE CmissPetsc
   !IS routines
 
   PUBLIC Petsc_ISInitialise,Petsc_ISFinalise
+
+  PUBLIC Petsc_ISSetBlockSize
 
   PUBLIC Petsc_ISDestroy
   
@@ -1765,9 +1778,13 @@ MODULE CmissPetsc
     & Petsc_MatCreateSeqAIJ,Petsc_MatCreateSeqDense,Petsc_MatDenseGetArrayF90,Petsc_MatDenseRestoreArrayF90, &
     & Petsc_MatDestroy,Petsc_MatGetInfo,Petsc_MatGetOwnershipRange,Petsc_MatGetRow,Petsc_MatGetValues, &
     & Petsc_MatMumpsSetIcntl,Petsc_MatMumpsSetCntl,Petsc_MatRestoreRow,Petsc_MatSeqAIJGetArrayF90, &
-    & Petsc_MatSeqAIJGetMaxRowNonzeros,Petsc_MatSeqAIJRestoreArrayF90,Petsc_MatSetLocalToGlobalMapping, &
-    & Petsc_MatSetOption,Petsc_MatSetSizes,Petsc_MatSetValue,Petsc_MatSetValues,Petsc_MatSetValueLocal, &
-    & Petsc_MatSetValuesLocal,Petsc_MatView,Petsc_MatZeroEntries
+    & Petsc_MatSeqAIJGetMaxRowNonzeros,Petsc_MatSeqAIJRestoreArrayF90,Petsc_MatSetBlockSize,Petsc_MatSetLocalToGlobalMapping, &
+    & Petsc_MatSetNearNullSpace,Petsc_MatSetOption,Petsc_MatSetSizes,Petsc_MatSetValue,Petsc_MatSetValues, &
+    & Petsc_MatSetValueLocal,Petsc_MatSetValuesLocal,Petsc_MatView,Petsc_MatZeroEntries,Petsc_MatZeroRowsColumns
+
+  PUBLIC Petsc_MatNullSpaceInitialise,Petsc_MatNullSpaceFinalise
+
+  PUBLIC Petsc_MatNullSpaceCreate,Petsc_MatNullSpaceDestroy,Petsc_MatNullSpaceView
 
   !Matrix coloring routines and constants
   
@@ -1803,13 +1820,17 @@ MODULE CmissPetsc
 
   PUBLIC PETSC_PC_FIELDSPLIT_SCHUR_PRE_SELF,PETSC_PC_FIELDSPLIT_SCHUR_PRE_SELFP,PETSC_PC_FIELDSPLIT_SCHUR_PRE_A11, &
     & PETSC_PC_FIELDSPLIT_SCHUR_PRE_USER,PETSC_PC_FIELDSPLIT_SCHUR_PRE_FULL
-  
+ 
+  PUBLIC PETSC_PC_GAMG_AGG,PETSC_PC_GAMG_GEO 
+  !,PETSC_PC_GAMG_CLASSICAL
+
   PUBLIC Petsc_PCInitialise,Petsc_PCFinalise
 
   PUBLIC Petsc_PCFactorGetMatrix,Petsc_PCFactorSetMatSolverPackage,Petsc_PCFactorSetUpMatSolverPackage, &
     & Petsc_PCFieldSplitSetIS,Petsc_PCFieldSplitSetType,Petsc_PCFieldSplitSetSchurFactType,Petsc_PCFieldSplitSetSchurPre, &
-    & Petsc_PCFieldSplitGetIS,Petsc_PCFieldSplitGetSubKSP,Petsc_PCSetDM,Petsc_PCSetFromOptions, &
-    & Petsc_PCSetReusePreconditioner,Petsc_PCSetType,Petsc_PCSetUp
+    & Petsc_PCFieldSplitGetIS,Petsc_PCFieldSplitGetSubKSP,Petsc_PCGAMGSetType,Petsc_PCGAMGSetNSmooths, &
+    & Petsc_PCGetOperators,Petsc_PCSetCoordinates,Petsc_PCSetDM,Petsc_PCSetFromOptions,Petsc_PCSetReusePreconditioner, &
+    & Petsc_PCSetType,Petsc_PCSetUp
 
   !PetscSection routines
 
@@ -1886,12 +1907,12 @@ MODULE CmissPetsc
 
   PUBLIC Petsc_VecInitialise,Petsc_VecFinalise
 
-  PUBLIC Petsc_VecAssemblyBegin,Petsc_VecAssemblyEnd,Petsc_VecCopy,Petsc_VecCreate,Petsc_VecCreateGhost, &
+  PUBLIC Petsc_VecAssemblyBegin,Petsc_VecAssemblyEnd,Petsc_VecAXPY,Petsc_VecCopy,Petsc_VecCreate,Petsc_VecCreateGhost, &
     & Petsc_VecCreateGhostWithArray,Petsc_VecCreateMPI,Petsc_VecCreateMPIWithArray,Petsc_VecCreateSeq, &
     & Petsc_VecCreateSeqWithArray,Petsc_VecDestroy,Petsc_VecDuplicate,Petsc_VecDot,Petsc_VecGetArrayF90, &
     & Petsc_VecGetArrayReadF90,Petsc_VecGetLocalSize,Petsc_VecGetOwnershipRange,Petsc_VecGetSize,Petsc_VecGetValues, &
-    & Petsc_VecNorm,Petsc_VecRestoreArrayF90,Petsc_VecRestoreArrayReadF90,Petsc_VecScale,Petsc_VecSet,Petsc_VecSetFromOptions, &
-    & Petsc_VecSetLocalToGlobalMapping,Petsc_VecSetSizes,Petsc_VecSetValues,Petsc_VecView
+    & Petsc_VecNorm,Petsc_VecNormalize,Petsc_VecRestoreArrayF90,Petsc_VecRestoreArrayReadF90,Petsc_VecScale,Petsc_VecSet, &
+    & Petsc_VecSetFromOptions,Petsc_VecSetLocalToGlobalMapping,Petsc_VecSetSizes,Petsc_VecSetValues,Petsc_VecView
   
 CONTAINS
 
@@ -2371,6 +2392,35 @@ CONTAINS
   END SUBROUTINE Petsc_ISDestroy
     
   !
+  !================================================================================================================================
+  !
+    
+  !>Buffer routine to the PETSc ISSetBlockSize routine.
+  SUBROUTINE Petsc_ISSetBlockSize(is,blockSize,err,error,*)
+    !Argument Variables
+    TYPE(PetscISType), INTENT(INOUT) :: is !<The index set
+    INTEGER(INTG), INTENT(IN) :: blockSize !<The block size
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+
+    ENTERS("Petsc_ISSetBlockSize",err,error,*999)
+
+    CALL ISSetBlockSize(is%is,blockSize,err)
+    IF(err/=0) THEN
+      IF(petscHandleError) THEN
+        CHKERRQ(err)
+      ENDIF
+      CALL FlagError("PETSc error in ISSetBlockSize.",err,error,*999)
+    ENDIF
+        
+    EXITS("Petsc_ISSetBlockSize")
+    RETURN
+999 ERRORSEXITS("Petsc_ISSetBlockSize",err,error)
+    RETURN 1
+    
+  END SUBROUTINE Petsc_ISSetBlockSize
+    
   !
   !================================================================================================================================
   !
@@ -2460,7 +2510,7 @@ CONTAINS
   SUBROUTINE Petsc_ISLocalToGlobalMappingFinalise(isLocalToGlobalMapping,err,error,*)
 
     !Argument Variables
-    TYPE(PetscISLocalToGloabalMappingType), INTENT(INOUT) :: isLocalToGlobalMapping !<The ISLocalToGlobalMapping to finalise
+    TYPE(PetscISLocalToGlobalMappingType), INTENT(INOUT) :: isLocalToGlobalMapping !<The ISLocalToGlobalMapping to finalise
     INTEGER(INTG), INTENT(OUT) :: err !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
     !Local Variables
@@ -2486,7 +2536,7 @@ CONTAINS
   SUBROUTINE Petsc_ISLocalToGlobalMappingInitialise(isLocalToGlobalMapping,err,error,*)
 
     !Argument Variables
-    TYPE(PetscISLocalToGloabalMappingType), INTENT(INOUT) :: isLocalToGlobalMapping !<The ISLocalToGlobalMapping to initialise
+    TYPE(PetscISLocalToGlobalMappingType), INTENT(INOUT) :: isLocalToGlobalMapping !<The ISLocalToGlobalMapping to initialise
     INTEGER(INTG), INTENT(OUT) :: err !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
     !Local Variables
@@ -2510,7 +2560,7 @@ CONTAINS
   SUBROUTINE Petsc_ISLocalToGlobalMappingApply(isLocalToGlobalMapping,n,idxIn,idxOut,err,error,*)
 
     !Argument Variables
-    TYPE(PetscISLocalToGloabalMappingType), INTENT(INOUT) :: isLocalToGlobalMapping !<The local to global mapping to apply
+    TYPE(PetscISLocalToGlobalMappingType), INTENT(INOUT) :: isLocalToGlobalMapping !<The local to global mapping to apply
     INTEGER(INTG), INTENT(IN) :: n !<The number of indicies
     INTEGER(INTG), INTENT(IN) :: idxIn(:)
     INTEGER(INTG), INTENT(OUT) :: idxOut(:)
@@ -2544,7 +2594,7 @@ CONTAINS
   SUBROUTINE Petsc_ISLocalToGlobalMappingApplyIS(isLocalToGlobalMapping,isIn,isOut,err,error,*)
 
     !Argument Variables
-    TYPE(PetscISLocalToGloabalMappingType), INTENT(IN) :: isLocalToGlobalMapping !<The local to global mapping to apply
+    TYPE(PetscISLocalToGlobalMappingType), INTENT(IN) :: isLocalToGlobalMapping !<The local to global mapping to apply
     TYPE(PetscISType), INTENT(IN) :: isIn
     TYPE(PetscISType), INTENT(OUT) :: isOut
     INTEGER(INTG), INTENT(OUT) :: err !<The error code
@@ -2581,7 +2631,7 @@ CONTAINS
     INTEGER(INTG), INTENT(IN) :: n !<The number of local indices divided by the block size (or the number of block indices)
     INTEGER(INTG), INTENT(IN) :: indices(:) !<The global index for each local element
     PetscCopyMode, INTENT(IN) :: mode !<The copy mode
-    TYPE(PetscISLocalToGloabalMappingType), INTENT(INOUT) :: isLocalToGlobalMapping !<On exit, the local to global mapping context
+    TYPE(PetscISLocalToGlobalMappingType), INTENT(INOUT) :: isLocalToGlobalMapping !<On exit, the local to global mapping context
     INTEGER(INTG), INTENT(OUT) :: err !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
     !Local Variables
@@ -2611,7 +2661,7 @@ CONTAINS
   SUBROUTINE Petsc_ISLocalToGlobalMappingDestroy(isLocalToGlobalMapping,err,error,*)
 
     !Argument Variables
-    TYPE(PetscISLocalToGloabalMappingType), INTENT(INOUT) :: isLocalToGlobalMapping !<The local to global mapping context
+    TYPE(PetscISLocalToGlobalMappingType), INTENT(INOUT) :: isLocalToGlobalMapping !<The local to global mapping context
     INTEGER(INTG), INTENT(OUT) :: err !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
     !Local Variables
@@ -3933,7 +3983,38 @@ CONTAINS
     RETURN 1
     
   END SUBROUTINE Petsc_MatSeqAIJRestoreArrayF90
-  
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Buffer routine to the PETSc MatSetBlockSize routine.
+  SUBROUTINE Petsc_MatSetBlockSize(a,blockSize,err,error,*)
+
+    !Argument Variables
+    TYPE(PetscMatType), INTENT(INOUT) :: a !<The matrix to set the block size for
+    INTEGER(INTG), INTENT(IN) :: blockSize !<The block size
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+
+    ENTERS("Petsc_MatSetBlockSize",err,error,*999)
+
+    CALL MatSetBlockSize(a%mat,blockSize,err)
+    IF(err/=0) THEN
+      IF(petscHandleError) THEN
+        CHKERRQ(err)
+      ENDIF
+      CALL FlagError("PETSc error in MatSetBlockSize.",err,error,*999)
+    ENDIF
+    
+    EXITS("Petsc_MatSetBlockSize")
+    RETURN
+999 ERRORSEXITS("Petsc_MatSetBlockSize",err,error)
+    RETURN 1
+    
+  END SUBROUTINE Petsc_MatSetBlockSize
+    
   !
   !================================================================================================================================
   !
@@ -3943,7 +4024,7 @@ CONTAINS
 
     !Argument Variables
     TYPE(PetscMatType), INTENT(INOUT) :: a !<The matrix to set the local to global mapping for
-    TYPE(PetscISLocalToGloabalMappingType), INTENT(IN) :: isLocalToGlobalMapping !<The local to global mapping context
+    TYPE(PetscISLocalToGlobalMappingType), INTENT(IN) :: isLocalToGlobalMapping !<The local to global mapping context
     INTEGER(INTG), INTENT(OUT) :: err !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
     !Local Variables
@@ -3964,6 +4045,37 @@ CONTAINS
     RETURN 1
     
   END SUBROUTINE Petsc_MatSetLocalToGlobalMapping
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Buffer routine to the PETSc MatSetNearNullSpace routine.
+  SUBROUTINE Petsc_MatSetNearNullSpace(a,nullSpace,err,error,*)
+
+    !Argument Variables
+    TYPE(PetscMatType), INTENT(INOUT) :: a !<The matrix to set the near null space for
+    TYPE(PetscMatNullSpaceType), INTENT(INOUT) :: nullSpace !<The near null space to set
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+
+    ENTERS("Petsc_MatSetNearNullSpace",err,error,*999)
+
+    CALL MatSetNearNullSpace(a%mat,nullSpace%matNullSpace,err)
+    IF(err/=0) THEN
+      IF(petscHandleError) THEN
+        CHKERRQ(err)
+      ENDIF
+      CALL FlagError("PETSc error in MatSetNearNullSpace.",err,error,*999)
+    ENDIF
+    
+    EXITS("Petsc_MatSetNearNullSpace")
+    RETURN
+999 ERRORSEXITS("Petsc_MatSetNearNullSpace",err,error)
+    RETURN 1
+    
+  END SUBROUTINE Petsc_MatSetNearNullSpace
     
   !
   !================================================================================================================================
@@ -4266,6 +4378,39 @@ CONTAINS
     RETURN 1
     
   END SUBROUTINE Petsc_MatZeroEntries
+    
+  !
+  !================================================================================================================================
+  !
+
+  !>Buffer routine to the PETSc MatZeroRowsColumns routine.
+  SUBROUTINE Petsc_MatZeroRowsColumns(mat,numRows,rows,diag,err,error,*)
+
+    !Argument Variables
+    TYPE(PetscMatType), INTENT(INOUT) :: mat !<The matrix to zero the rows and columns of
+    INTEGER(INTG), INTENT(IN) :: numRows !<The number of rows to remove
+    INTEGER(INTG), INTENT(IN) :: rows(:) !<The global row indices
+    REAL(DP), INTENT(IN) :: diag !<Value put in diagonal of eliminated rows
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+
+    ENTERS("Petsc_MatZeroRowsColumns",err,error,*999)
+
+    CALL MatZeroRowsColumns(mat%mat,numRows,rows,diag,PETSC_NULL_OBJECT,PETSC_NULL_OBJECT,err)
+    IF(err/=0) THEN
+      IF(petscHandleError) THEN
+        CHKERRQ(err)
+      ENDIF
+      CALL FlagError("PETSc error in MatZeroRowsColumns.",err,error,*999)
+    ENDIF
+    
+    EXITS("Petsc_MatZeroRowsColumns")
+    RETURN
+999 ERRORSEXITS("Petsc_MatZeroRowsColumns",err,error)
+    RETURN 1
+    
+  END SUBROUTINE Petsc_MatZeroRowsColumns
     
   !
   !================================================================================================================================
@@ -4715,6 +4860,161 @@ CONTAINS
   !================================================================================================================================
   !
 
+  !Finalise the PETSc MatNullSpace structure
+  SUBROUTINE Petsc_MatNullSpaceFinalise(nullSpace,err,error,*)
+
+    !Argument Variables
+    TYPE(PetscMatNullSpaceType), INTENT(INOUT) :: nullSpace !<The null space to finalise
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+
+    ENTERS("Petsc_MatNullSpaceFinalise",err,error,*999)
+
+    IF(nullSpace%matNullSpace/=PETSC_NULL_OBJECT) THEN
+      CALL Petsc_MatNullSpaceDestroy(nullSpace,err,error,*999)
+    ENDIF
+    
+    EXITS("Petsc_MatNullSpaceFinalise")
+    RETURN
+999 ERRORSEXITS("Petsc_MatNullSpaceFinalise",err,error)
+    RETURN 1
+    
+  END SUBROUTINE Petsc_MatNullSpaceFinalise
+    
+  !
+  !================================================================================================================================
+  !
+
+  !Initialise the PETSc MatNullSpace structure
+  SUBROUTINE Petsc_MatNullSpaceInitialise(nullSpace,err,error,*)
+
+    !Argument Variables
+    TYPE(PetscMatNullSpaceType), INTENT(INOUT) :: nullSpace !<The null space to initialise
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+
+    ENTERS("Petsc_MatNullSpaceInitialise",err,error,*999)
+
+    nullSpace%matNullSpace=PETSC_NULL_OBJECT
+     
+    EXITS("Petsc_MatNullSpaceInitialise")
+    RETURN
+999 ERRORSEXITS("Petsc_MatNullSpaceInitialise",err,error)
+    RETURN 1
+    
+  END SUBROUTINE Petsc_MatNullSpaceInitialise
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Buffer routine to the PETSc MatNullSpaceCreate routine.
+  SUBROUTINE Petsc_MatNullSpaceCreate(communicator,hasConstantNullSpace,n,vecs,nullSpace,err,error,*)
+
+    !Argument Variables
+    MPI_Comm, INTENT(IN) :: communicator !<The MPI communicator
+    LOGICAL, INTENT(IN) :: hasConstantNullSpace !<True/false
+    INTEGER(INTG), INTENT(IN) :: n !<Number of vectors (excluding the constant vector) in the null space
+    TYPE(PetscVecType), INTENT(IN) :: vecs(:) !<The orthonormal vectors spanning the null space (excluding the constant vector)
+    TYPE(PetscMatNullSpaceType), INTENT(INOUT) :: nullSpace !<The null space to destroy
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+    INTEGER(INTG) :: i
+    Vec :: tempVecs(n)
+
+    ENTERS("Petsc_MatNullSpaceCreate",err,error,*999)
+
+    DO i=1,n
+      tempVecs(i)=vecs(i)%vec
+    END DO
+    IF(hasConstantNullSpace) THEN
+      CALL MatNullSpaceCreate(communicator,PETSC_TRUE,n,tempVecs,nullSpace%matNullSpace,err)
+    ELSE
+      CALL MatNullSpaceCreate(communicator,PETSC_FALSE,n,tempVecs,nullSpace%matNullSpace,err)
+    END IF
+    IF(err/=0) THEN
+      IF(petscHandleError) THEN
+        CHKERRQ(err)
+      ENDIF
+      CALL FlagError("PETSc error in MatNullSpaceCreate.",err,error,*999)
+    ENDIF
+     
+    EXITS("Petsc_MatNullSpaceCreate")
+    RETURN
+999 ERRORSEXITS("Petsc_MatNullSpaceCreate",err,error)
+    RETURN 1
+    
+  END SUBROUTINE Petsc_MatNullSpaceCreate
+    
+  !
+  !================================================================================================================================
+  !
+
+  !>Buffer routine to the PETSc MatNullSpaceView routine.
+  SUBROUTINE Petsc_MatNullSpaceView(nullSpace,viewer,err,error,*)
+
+    !Argument Variables
+    TYPE(PetscMatNullSpaceType), INTENT(INOUT) :: nullSpace !<The null space to view
+    PetscViewer, INTENT(IN) :: viewer !<The viewer
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+
+    ENTERS("Petsc_MatNullSpaceView",err,error,*999)
+
+    CALL MatNullSpaceView(nullSpace%matNullSpace,viewer,err)
+    IF(err/=0) THEN
+      IF(petscHandleError) THEN
+        CHKERRQ(err)
+      ENDIF
+      CALL FlagError("PETSc error in MatNullSpaceView.",err,error,*999)
+    ENDIF
+     
+    EXITS("Petsc_MatNullSpaceView")
+    RETURN
+999 ERRORSEXITS("Petsc_MatNullSpaceView",err,error)
+    RETURN 1
+    
+  END SUBROUTINE Petsc_MatNullSpaceView
+    
+  !
+  !================================================================================================================================
+  !
+
+  !>Buffer routine to the PETSc MatNullSpaceDestroy routine.
+  SUBROUTINE Petsc_MatNullSpaceDestroy(nullSpace,err,error,*)
+
+    !Argument Variables
+    TYPE(PetscMatNullSpaceType), INTENT(INOUT) :: nullSpace !<The null space to destroy
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+
+    ENTERS("Petsc_MatNullSpaceDestroy",err,error,*999)
+
+    CALL MatNullSpaceDestroy(nullSpace%matNullSpace,err)
+    IF(err/=0) THEN
+      IF(petscHandleError) THEN
+        CHKERRQ(err)
+      ENDIF
+      CALL FlagError("PETSc error in MatNullSpaceDestroy.",err,error,*999)
+    ENDIF
+    nullSpace%matNullSpace=PETSC_NULL_OBJECT
+     
+    EXITS("Petsc_MatNullSpaceDestroy")
+    RETURN
+999 ERRORSEXITS("Petsc_MatNullSpaceDestroy",err,error)
+    RETURN 1
+    
+  END SUBROUTINE Petsc_MatNullSpaceDestroy
+    
+  !
+  !================================================================================================================================
+  !
+
   !>Buffer routine to the PETSc PCFieldSplitGetSubKSP
   SUBROUTINE Petsc_PCFieldSplitGetSubKSP(pc,n,subksp,err,error,*)
 
@@ -4941,6 +5241,68 @@ CONTAINS
 999 ERRORSEXITS("Petsc_PCFieldSplitSetSchurPreWithoutMatrix",err,error)
     RETURN 1
   END SUBROUTINE Petsc_PCFieldSplitSetSchurPreWithoutMatrix
+
+  !
+  !================================================================================================================================
+  !
+
+  !Buffer routine to the PETSc PCGAMGSetNSmooths routine
+  SUBROUTINE Petsc_PCGAMGSetNSmooths(pc,n,err,error,*)
+
+    !Argument Variables
+    TYPE(PetscPCType), INTENT(INOUT) :: pc !<The preconditioner to set the number of smoothing steps for
+    INTEGER(INTG), INTENT(IN) :: n !<The number of smoothing steps
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+
+    ENTERS("Petsc_PCGAMGSetNSmooths",err,error,*999)
+    
+    CALL PCGAMGSetNSmooths(pc%pc,n,err)
+    IF(err/=0) THEN
+      IF(petscHandleError) THEN
+        CHKERRQ(err)
+      ENDIF
+      CALL FlagError("PETSc error in PCGAMGSetNSmooths",err,error,*999)
+    ENDIF
+
+    EXITS("Petsc_PCGAMGSetNSmooths")
+    RETURN
+999 ERRORSEXITS("Petsc_PCGAMGSetNSmooths",err,error)
+    RETURN 1
+  END SUBROUTINE Petsc_PCGAMGSetNSmooths
+    
+  !
+  !================================================================================================================================
+  !
+    
+  !Buffer routine to the PETSc PCGAMGSetType routine
+  SUBROUTINE Petsc_PCGAMGSetType(pc,gamgType,err,error,*)
+
+    !Argument Variables
+    TYPE(PetscPCType), INTENT(INOUT) :: pc !<The preconditioner to set the GAMG type for
+    PCGAMGType, INTENT(IN) :: gamgType !<The gamg type
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+
+    ENTERS("Petsc_PCGAMGSetType",err,error,*999)
+    
+    write(*,*) gamgType
+    CALL PCGAMGSetType(pc%pc,gamgType,err)
+    write(*,*) "worked"
+    IF(err/=0) THEN
+      IF(petscHandleError) THEN
+        CHKERRQ(err)
+      ENDIF
+      CALL FlagError("PETSc error in PCGAMGSetType",err,error,*999)
+    ENDIF
+
+    EXITS("Petsc_PCGAMGSetType")
+    RETURN
+999 ERRORSEXITS("Petsc_PCGAMGSetType",err,error)
+    RETURN 1
+  END SUBROUTINE Petsc_PCGAMGSetType
     
   !
   !================================================================================================================================
@@ -5083,6 +5445,99 @@ CONTAINS
     RETURN 1
     
   END SUBROUTINE Petsc_PCFactorSetUpMatSolverPackage
+
+  !
+  !================================================================================================================================
+  !
+
+  !Buffer routine to the PETSc PCGetOperatorsWithPmat routine
+  SUBROUTINE Petsc_PCGetOperatorsWithPmat(pc,a,p,err,error,*)
+
+    !Argument Variables
+    TYPE(PetscPCType), INTENT(INOUT) :: pc !<The preconditioner to set get the operators for
+    TYPE(PetscMatType), INTENT(INOUT) :: a !The matrix defining the linear system
+    TYPE(PetscMatType), INTENT(INOUT) :: p !The matrix which is used in creating the preconditioner
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+
+    ENTERS("Petsc_PCGetOperatorsWithPmat",err,error,*999)
+    
+    CALL PCGetOperators(pc%pc,a%mat,p%mat,err)
+    IF(err/=0) THEN
+      IF(petscHandleError) THEN
+        CHKERRQ(err)
+      ENDIF
+      CALL FlagError("PETSc error in PCGetOperatorsWithPmat",err,error,*999)
+    ENDIF
+
+    EXITS("Petsc_PCGetOperatorsWithPmat")
+    RETURN
+999 ERRORSEXITS("Petsc_PCGetOperatorsWithPmat",err,error)
+    RETURN 1
+  END SUBROUTINE Petsc_PCGetOperatorsWithPmat
+
+  !
+  !================================================================================================================================
+  !
+
+  !Buffer routine to the PETSc PCGetOperatorsWithoutPmat routine
+  SUBROUTINE Petsc_PCGetOperatorsWithoutPmat(pc,a,err,error,*)
+
+    !Argument Variables
+    TYPE(PetscPCType), INTENT(INOUT) :: pc !<The preconditioner to set get the operators for
+    TYPE(PetscMatType), INTENT(INOUT) :: a !The matrix defining the linear system
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+
+    ENTERS("Petsc_PCGetOperatorsWithoutPmat",err,error,*999)
+    
+    CALL PCGetOperators(pc%pc,a%mat,PETSC_NULL_OBJECT,err)
+    IF(err/=0) THEN
+      IF(petscHandleError) THEN
+        CHKERRQ(err)
+      ENDIF
+      CALL FlagError("PETSc error in PCGetOperatorsWithoutPmat",err,error,*999)
+    ENDIF
+
+    EXITS("Petsc_PCGetOperatorsWithoutPmat")
+    RETURN
+999 ERRORSEXITS("Petsc_PCGetOperatorsWithoutPmat",err,error)
+    RETURN 1
+  END SUBROUTINE Petsc_PCGetOperatorsWithoutPmat
+
+  !
+  !================================================================================================================================
+  !
+
+  !Buffer routine to the PETSc PCSetCoordinates routine
+  SUBROUTINE Petsc_PCSetCoordinates(pc,numberOfDimensions,numberOfLocalNodes,localCoordinates,err,error,*)
+
+    !Argument Variables
+    TYPE(PetscPCType), INTENT(INOUT) :: pc !<The preconditioner to set the coordinates for
+    INTEGER(INTG), INTENT(IN) :: numberOfDimensions !<The number of dimensions
+    INTEGER(INTG), INTENT(IN) :: numberOfLocalNodes !<The number of local nodes
+    REAL(DP), INTENT(IN) :: localCoordinates(:) !<The local coordinates
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+
+    ENTERS("Petsc_PCSetCoordinates",err,error,*999)
+    
+    CALL PCSetCoordinates(pc%pc,numberOfDimensions,numberOfLocalNodes,localCoordinates,err)
+    IF(err/=0) THEN
+      IF(petscHandleError) THEN
+        CHKERRQ(err)
+      ENDIF
+      CALL FlagError("PETSc error in PCSetCoordinates",err,error,*999)
+    ENDIF
+
+    EXITS("Petsc_PCSetCoordinates")
+    RETURN
+999 ERRORSEXITS("Petsc_PCSetCoordinates",err,error)
+    RETURN 1
+  END SUBROUTINE Petsc_PCSetCoordinates
 
   !
   !================================================================================================================================
@@ -7665,6 +8120,38 @@ CONTAINS
   !================================================================================================================================
   !
 
+  !>Buffer routine to the PETSc VecAXPY routine.
+  SUBROUTINE Petsc_VecAXPY(y,alpha,x,err,error,*)
+
+    !Argument Variables
+    TYPE(PetscVecType), INTENT(INOUT) :: y !<The y vector
+    REAL(DP), INTENT(IN) :: alpha !<The scalar
+    TYPE(PetscVecType), INTENT(IN) :: x !<The x vector
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+
+    ENTERS("Petsc_VecAXPY",err,error,*999)
+
+    CALL VecAXPY(y%vec,alpha,x%vec,err)
+    IF(err/=0) THEN
+      IF(petscHandleError) THEN
+        CHKERRQ(err)
+      ENDIF
+      CALL FlagError("PETSc error in VecAXPY.",err,error,*999)
+    ENDIF
+    
+    EXITS("Petsc_VecAXPY")
+    RETURN
+999 ERRORSEXITS("Petsc_VecAXPY",err,error)
+    RETURN 1
+    
+  END SUBROUTINE Petsc_VecAXPY
+    
+  !
+  !================================================================================================================================
+  !
+
   !>Buffer routine to the PETSc VecCopy routine.
   SUBROUTINE Petsc_VecCopy(x,y,err,error,*)
 
@@ -8379,6 +8866,37 @@ CONTAINS
   !================================================================================================================================
   !
 
+  !>Buffer routine to the PETSc VecNormalize routine.
+  SUBROUTINE Petsc_VecNormalize(x,oldNorm,err,error,*)
+
+    !Argument Variables
+    TYPE(PetscVecType), INTENT(INOUT) :: x !<The vector x to normalise
+    REAL(DP), INTENT(OUT) :: oldNorm !<On exit, the old vector norm
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+    
+    ENTERS("Petsc_VecNormalize",err,error,*999)
+    
+    CALL VecNormalize(x%vec,oldNorm,err)
+    IF(err/=0) THEN
+      IF(petscHandleError) THEN
+        CHKERRQ(err)
+      ENDIF
+      CALL FlagError("PETSc error in VecNormalize.",err,error,*999)
+    ENDIF
+
+    EXITS("Petsc_VecNormalize")
+    RETURN
+999 ERRORSEXITS("Petsc_VecNormalize",err,error)
+    RETURN 1
+    
+  END SUBROUTINE Petsc_VecNormalize
+
+  !
+  !================================================================================================================================
+  !
+
   !>Buffer routine to the PETSc VecRestoreArrayF90 routine.
   SUBROUTINE Petsc_VecRestoreArrayF90(x,array,err,error,*)
 
@@ -8538,7 +9056,7 @@ CONTAINS
 
     !Argument Variables
     TYPE(PetscVecType), INTENT(INOUT) :: x !<The vector to set the local to global mapping for
-    TYPE(PetscISLocalToGloabalMappingType), INTENT(IN) :: isLocalToGlobalMapping !<The local to global mapping context
+    TYPE(PetscISLocalToGlobalMappingType), INTENT(IN) :: isLocalToGlobalMapping !<The local to global mapping context
     INTEGER(INTG), INTENT(OUT) :: err !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
     !Local Variables

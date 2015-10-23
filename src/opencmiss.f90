@@ -119,6 +119,12 @@ MODULE OPENCMISS
     TYPE(BASIS_TYPE), POINTER :: BASIS
   END TYPE CMISSBasisType
 
+  !>Contains information for an algebraic multigrid preconditioner.
+  TYPE CMISSAMGPreconditionerType
+    PRIVATE
+    TYPE(AMGPreconditionerType), POINTER :: amgPreconditioner
+  END TYPE CMISSAMGPreconditionerType
+
   !>Contains information for a block preconditioner.
   TYPE CMISSBlockPreconditionerType
     PRIVATE
@@ -358,6 +364,8 @@ MODULE OPENCMISS
   PUBLIC CMISSFinalise,CMISSInitialise
 
   PUBLIC CMISSBasisType,CMISSBasisTypesCopy,CMISSBasis_Finalise,CMISSBasis_Initialise
+
+  PUBLIC CMISSAMGPreconditionerType,CMISSAMGPreconditioner_Finalise,CMISSAMGPreconditioner_Initialise
 
   PUBLIC CMISSBlockPreconditionerType,CMISSBlockPreconditioner_Finalise,CMISSBlockPreconditioner_Initialise
 
@@ -858,6 +866,49 @@ MODULE OPENCMISS
 
 !!==================================================================================================================================
 !!
+!! AMG_PRECONDITIONER_ROUTINES
+!!
+!!==================================================================================================================================
+
+  !Module parameters
+  !> \addtogroup OPENCMISS_AMGPreconditionerTypes OPENCMISS::AMGPreconditioner::AMGPreconditionerTypes
+  !> \brief The types of algebraic multigrid preconditioners
+  !> \see OPENCMISS::AMGPreconditioner::Constants,OPENCMISS
+  !>@{
+  INTEGER(INTG), PARAMETER :: CMISS_AMG_PRECONDITIONER_SMOOTHED_AGGREGATION=AMG_PRECONDITIONER_SMOOTHED_AGGREGATION !<Smoothed aggregation algebraic multigrid preconditioner type \see OPENCMISS_AMGPreconditionerTypes,OPENCMISS
+  INTEGER(INTG), PARAMETER :: CMISS_AMG_PRECONDITIONER_UNSMOOTHED_AGGREGATION=AMG_PRECONDITIONER_UNSMOOTHED_AGGREGATION !<Unsmoothed aggregation algebraic multigrid preconditioner type \see OPENCMISS_AMGPreconditionerTypes,OPENCMISS
+!  INTEGER(INTG), PARAMETER :: CMISS_AMG_PRECONDITIONER_CLASSICAL=AMG_PRECONDITIONER_CLASSICAL !<Classical algebraic multigrid preconditioner type \see OPENCMISS_AMGPreconditionerTypes,OPENCMISS
+  !>@}
+
+  !Module types
+
+  !Module variables
+
+  !Interfaces
+
+  !>Add an equations set  to the algebraic multigrid preconditioner. \see OPENCMISS::CMISSAMGPreconditioner_EquationsSetAdd
+  INTERFACE CMISSAMGPreconditioner_EquationsSetAdd
+    MODULE PROCEDURE CMISSAMGPreconditioner_EquationsSetAddNumber0
+    MODULE PROCEDURE CMISSAMGPreconditioner_EquationsSetAddNumber1
+    MODULE PROCEDURE CMISSAMGPreconditioner_EquationsSetAddObj
+  END INTERFACE !CMISSAMGPreconditioner_EquationsSetAdd
+
+  !>Set the type of algebraic multigrid preconditioner. \see OPENCMISS::CMISSAMGPreconditioner_TypeSet
+  INTERFACE CMISSAMGPreconditioner_TypeSet
+    MODULE PROCEDURE CMISSAMGPreconditioner_TypeSetNumber0
+    MODULE PROCEDURE CMISSAMGPreconditioner_TypeSetNumber1
+    MODULE PROCEDURE CMISSAMGPreconditioner_TypeSetObj
+  END INTERFACE !CMISSAMGPreconditioner_TypeSet
+
+  PUBLIC CMISS_AMG_PRECONDITIONER_SMOOTHED_AGGREGATION,CMISS_AMG_PRECONDITIONER_UNSMOOTHED_AGGREGATION
+    !,CMISS_AMG_PRECONDITIONER_CLASSICAL
+
+  PUBLIC CMISSAMGPreconditioner_EquationsSetAdd
+
+  PUBLIC CMISSAMGPreconditioner_TypeSet
+
+!!==================================================================================================================================
+!!
 !! BLOCK_PRECONDITIONER_ROUTINES
 !!
 !!==================================================================================================================================
@@ -1014,6 +1065,13 @@ MODULE OPENCMISS
   INTEGER(INTG), PARAMETER :: CMISS_BOUNDARY_CONDITION_SPARSE_MATRICES = BOUNDARY_CONDITION_SPARSE_MATRICES
   INTEGER(INTG), PARAMETER :: CMISS_BOUNDARY_CONDITION_FULL_MATRICES = BOUNDARY_CONDITION_FULL_MATRICES
   !>@}
+  !> \addtogroup OPENCMISS_BoundaryConditionDirichletMethodTypes OPENCMISS::BoundaryConditions::DirichletMethodTypes
+  !> \brief Dirichlet method types for enforcing Dirichlet boundary conditions.
+  !> \see OPENCMISS::BoundaryConditions,OPENCMISS
+  !>@{
+  INTEGER(INTG), PARAMETER :: CMISS_BOUNDARY_CONDITION_DIRICHLET_CONDENSATION = BOUNDARY_CONDITION_DIRICHLET_CONDENSATION
+  INTEGER(INTG), PARAMETER :: CMISS_BOUNDARY_CONDITION_DIRICHLET_ZERO_ROWS = BOUNDARY_CONDITION_DIRICHLET_ZERO_ROWS
+  !>@}
   !>@}
 
   !Module types
@@ -1066,6 +1124,13 @@ MODULE OPENCMISS
     MODULE PROCEDURE CMISSBoundaryConditions_SetNodeObj
   END INTERFACE !CMISSBoundaryConditions_SetNode
 
+  !>Sets the Dirichlet method type for enforcing Dirichlet boundary conditions.
+  INTERFACE CMISSBoundaryConditions_DirichletMethodTypeSet
+    MODULE PROCEDURE CMISSBoundaryConditions_DirichletMethodTypeSetNumber0
+    MODULE PROCEDURE CMISSBoundaryConditions_DirichletMethodTypeSetNumber1
+    MODULE PROCEDURE CMISSBoundaryConditions_DirichletMethodTypeSetObj
+  END INTERFACE !CMISSBoundaryConditions_DirichletMethodTypeSet
+
   !>Sets the matrix sparsity type for Neumann integration matrices, used when integrating Neumann point values.
   INTERFACE CMISSBoundaryConditions_NeumannSparsityTypeSet
     MODULE PROCEDURE CMISSBoundaryConditions_NeumannSparsityTypeSetNumber0
@@ -1093,6 +1158,8 @@ MODULE OPENCMISS
 
   PUBLIC CMISS_BOUNDARY_CONDITION_SPARSE_MATRICES,CMISS_BOUNDARY_CONDITION_FULL_MATRICES
 
+  PUBLIC CMISS_BOUNDARY_CONDITION_DIRICHLET_CONDENSATION,CMISS_BOUNDARY_CONDITION_DIRICHLET_ZERO_ROWS
+
   PUBLIC CMISSBoundaryConditions_Destroy
 
   PUBLIC CMISSBoundaryConditions_AddConstant,CMISSBoundaryConditions_SetConstant
@@ -1100,6 +1167,8 @@ MODULE OPENCMISS
   PUBLIC CMISSBoundaryConditions_AddElement,CMISSBoundaryConditions_SetElement
 
   PUBLIC CMISSBoundaryConditions_AddNode,CMISSBoundaryConditions_SetNode
+
+  PUBLIC CMISSBoundaryConditions_DirichletMethodTypeSet
 
   PUBLIC CMISSBoundaryConditions_NeumannSparsityTypeSet
 
@@ -5688,6 +5757,13 @@ MODULE OPENCMISS
 
   !Interfaces
 
+  !> Get the algrebraic multigrid preconditioner. \see OPENCMISS::CMISSPreconditioner_AMGPreconditionerGet
+  INTERFACE CMISSPreconditioner_AMGPreconditionerGet
+    MODULE PROCEDURE CMISSPreconditioner_AMGPreconditionerGetNumber0
+    MODULE PROCEDURE CMISSPreconditioner_AMGPreconditionerGetNumber1
+    MODULE PROCEDURE CMISSPreconditioner_AMGPreconditionerGetObj
+  END INTERFACE !CMISSPreconditioner_AMGPreconditionerGet
+
   !> Get the block preconditioner. \see OPENCMISS::CMISSPreconditioner_BlockPreconditionerGet
   INTERFACE CMISSPreconditioner_BlockPreconditionerGet
     MODULE PROCEDURE CMISSPreconditioner_BlockPreconditionerGetNumber0
@@ -5702,7 +5778,7 @@ MODULE OPENCMISS
     MODULE PROCEDURE CMISSPreconditioner_TypeSetObj
   END INTERFACE !CMISSPreconditioner_TypeSet
 
-  PUBLIC CMISSPreconditioner_BlockPreconditionerGet
+  PUBLIC CMISSPreconditioner_AMGPreconditionerGet,CMISSPreconditioner_BlockPreconditionerGet
 
   PUBLIC CMISSPreconditioner_TypeSet
 
@@ -6376,6 +6452,7 @@ MODULE OPENCMISS
   !> \brief The types of iterative linear solvers.
   !> \see OPENCMISS::Solver::Constants,OPENCMISS
   !>@{
+  INTEGER(INTG), PARAMETER :: CMISS_SOLVER_ITERATIVE_PRE_ONLY = SOLVER_ITERATIVE_PRE_ONLY !<Precondition only solver type. \see  OPENCMISS_IterativeLinearSolverTypes,OPENCMISS
   INTEGER(INTG), PARAMETER :: CMISS_SOLVER_ITERATIVE_RICHARDSON = SOLVER_ITERATIVE_RICHARDSON !<Richardson iterative solver type. \see  OPENCMISS_IterativeLinearSolverTypes,OPENCMISS
   INTEGER(INTG), PARAMETER :: CMISS_SOLVER_ITERATIVE_CHEBYSHEV = SOLVER_ITERATIVE_CHEBYSHEV !<Chebychev iterative solver type. \see OPENCMISS_IterativeLinearSolverTypes,OPENCMISS
   INTEGER(INTG), PARAMETER :: CMISS_SOLVER_ITERATIVE_CONJUGATE_GRADIENT = SOLVER_ITERATIVE_CONJUGATE_GRADIENT !<Conjugate gradient iterative solver type. \see OPENCMISS_IterativeLinearSolverTypes,OPENCMISS
@@ -6399,6 +6476,7 @@ MODULE OPENCMISS
   INTEGER(INTG), PARAMETER :: CMISS_SOLVER_ITERATIVE_ADDITIVE_SCHWARZ_PRECONDITIONER =  &
     & SOLVER_ITERATIVE_ADDITIVE_SCHWARZ_PRECONDITIONER !<Additive Schwarz preconditioner type. \see OPENCMISS_IterativePreconditionerTypes,OPENCMISS
   INTEGER(INTG), PARAMETER :: CMISS_SOLVER_ITERATIVE_BLOCK_PRECONDITIONER = SOLVER_ITERATIVE_BLOCK_PRECONDITIONER !<Block preconditioner type. \see OPENCMISS_IterativePreconditionerTypes,OPENCMISS
+  INTEGER(INTG), PARAMETER :: CMISS_SOLVER_ITERATIVE_AMG_PRECONDITIONER = SOLVER_ITERATIVE_AMG_PRECONDITIONER !<Algebraic multigrid preconditioner type. \see OPENCMISS_IterativePreconditionerTypes,OPENCMISS
   !>@}
   !> \addtogroup OPENCMISS_NonlinearSolverTypes OPENCMISS::Solver::NonlinearSolverTypes
   !> \brief The types of nonlinear solvers.
@@ -7200,14 +7278,15 @@ MODULE OPENCMISS
 
   !PUBLIC CMISS_SOLVER_ITERATIVE_RICHARDSON,CMISS_SOLVER_ITERATIVE_CHEBYCHEV,CMISS_SOLVER_ITERATIVE_CONJUGATE_GRADIENT, &
   !################################
-  PUBLIC CMISS_SOLVER_ITERATIVE_RICHARDSON,CMISS_SOLVER_ITERATIVE_CONJUGATE_GRADIENT,CMISS_SOLVER_ITERATIVE_CHEBYSHEV, &
-    & CMISS_SOLVER_ITERATIVE_BICONJUGATE_GRADIENT,CMISS_SOLVER_ITERATIVE_GMRES,CMISS_SOLVER_ITERATIVE_FGMRES, &
-    & CMISS_SOLVER_ITERATIVE_BiCGSTAB,CMISS_SOLVER_ITERATIVE_CONJGRAD_SQUARED
+  PUBLIC CMISS_SOLVER_ITERATIVE_PRE_ONLY,CMISS_SOLVER_ITERATIVE_RICHARDSON,CMISS_SOLVER_ITERATIVE_CONJUGATE_GRADIENT, &
+    & CMISS_SOLVER_ITERATIVE_CHEBYSHEV,CMISS_SOLVER_ITERATIVE_BICONJUGATE_GRADIENT,CMISS_SOLVER_ITERATIVE_GMRES, &
+    & CMISS_SOLVER_ITERATIVE_FGMRES,CMISS_SOLVER_ITERATIVE_BiCGSTAB,CMISS_SOLVER_ITERATIVE_CONJGRAD_SQUARED
 
   PUBLIC CMISS_SOLVER_ITERATIVE_NO_PRECONDITIONER,CMISS_SOLVER_ITERATIVE_JACOBI_PRECONDITIONER, &
     & CMISS_SOLVER_ITERATIVE_BLOCK_JACOBI_PRECONDITIONER,CMISS_SOLVER_ITERATIVE_SOR_PRECONDITIONER, &
     & CMISS_SOLVER_ITERATIVE_INCOMPLETE_CHOLESKY_PRECONDITIONER,CMISS_SOLVER_ITERATIVE_INCOMPLETE_LU_PRECONDITIONER, &
-    & CMISS_SOLVER_ITERATIVE_ADDITIVE_SCHWARZ_PRECONDITIONER,CMISS_SOLVER_ITERATIVE_BLOCK_PRECONDITIONER
+    & CMISS_SOLVER_ITERATIVE_ADDITIVE_SCHWARZ_PRECONDITIONER,CMISS_SOLVER_ITERATIVE_BLOCK_PRECONDITIONER, &
+    & CMISS_SOLVER_ITERATIVE_AMG_PRECONDITIONER
 
   PUBLIC CMISS_SOLVER_NONLINEAR_NEWTON,CMISS_SOLVER_NONLINEAR_BFGS_INVERSE,CMISS_SOLVER_NONLINEAR_SQP
   
@@ -7749,6 +7828,55 @@ CONTAINS
     RETURN
 
   END SUBROUTINE CMISSBasis_Initialise
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Finalises a CMISSAMGPreconditionerType object.
+  SUBROUTINE CMISSAMGPreconditioner_Finalise(CMISSAMGPreconditioner,err)
+
+    !Argument variables
+    TYPE(CMISSAMGPreconditionerType), INTENT(OUT) :: CMISSAMGPreconditioner !<The CMISSAMGPreconditionerType object to finalise.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    ENTERS("CMISSAMGPreconditioner_Finalise",err,error,*999)
+
+    IF(ASSOCIATED(CMISSAMGPreconditioner%amgPreconditioner))  &
+      & CALL AMGPreconditionerDestroy(CMISSAMGPreconditioner%amgPreconditioner,err,error,*999)
+
+    EXITS("CMISSAMGPreconditioner_Finalise")
+    RETURN
+999 ERRORSEXITS("CMISSAMGPreconditioner_Finalise",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSAMGPreconditioner_Finalise
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Initialises a CMISSAMGPreconditionerType object.
+  SUBROUTINE CMISSAMGPreconditioner_Initialise(CMISSAMGPreconditioner,err)
+
+    !Argument variables
+    TYPE(CMISSAMGPreconditionerType), INTENT(OUT) :: CMISSAMGPreconditioner !<The CMISSAMGPreconditionerType object to initialise.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    ENTERS("CMISSAMGPreconditioner_Initialise",err,error,*999)
+
+    NULLIFY(CMISSAMGPreconditioner%amgPreconditioner)
+
+    EXITS("CMISSAMGPreconditioner_Initialise")
+    RETURN
+999 ERRORSEXITS("CMISSAMGPreconditioner_Initialise",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSAMGPreconditioner_Initialise
 
   !
   !================================================================================================================================
@@ -12427,6 +12555,308 @@ CONTAINS
 
 !!==================================================================================================================================
 !!
+!! AMG_PRECONDITIONER_ROUTINES
+!!
+!!==================================================================================================================================
+  
+  !>Add an equations set to the algebraic multigrid preconditioner identified by a user number.
+  SUBROUTINE CMISSAMGPreconditioner_EquationsSetAddNumber0(problemUserNumber,controlLoopIdentifier,solverIndex, &
+      & regionUserNumber,equationsSetUserNumber,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: problemUserNumber !<The user number of the problem number with the iterative linear solver to add the algebraic multigrid preconditioner's field variable to.
+    INTEGER(INTG), INTENT(IN) :: controlLoopIdentifier !<The control loop identifier with the iterative linear solver to add the algebraic multigrid preconditioner's field variable to.
+    INTEGER(INTG), INTENT(IN) :: solverIndex !<The solver index to get the algebraic multigrid preconditioner from.
+    INTEGER(INTG), INTENT(IN) :: regionUserNumber !<The region user number.
+    INTEGER(INTG), INTENT(IN) :: equationsSetUserNumber !<The user number of the equations set.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(AMGPreconditionerType), POINTER :: amgPreconditioner
+    TYPE(PreconditionerType), POINTER :: preconditioner
+    TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET
+    TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
+    TYPE(REGION_TYPE), POINTER :: REGION
+    TYPE(SOLVER_TYPE), POINTER :: SOLVER
+    TYPE(VARYING_STRING) :: localError
+
+    ENTERS("CMISSAMGPreconditioner_EquationsSetAddNumber0",err,error,*999)
+
+    NULLIFY(amgPreconditioner)
+    NULLIFY(preconditioner)
+    NULLIFY(EQUATIONS_SET)
+    NULLIFY(PROBLEM)
+    NULLIFY(REGION)
+    NULLIFY(SOLVER)
+    CALL PROBLEM_USER_NUMBER_FIND(problemUserNumber,PROBLEM,err,error,*999)
+    IF(ASSOCIATED(PROBLEM)) THEN
+      CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
+      IF(ASSOCIATED(SOLVER)) THEN
+        CALL REGION_USER_NUMBER_FIND(regionUserNumber,REGION,err,error,*999)
+        IF(ASSOCIATED(REGION)) THEN
+          CALL EQUATIONS_SET_USER_NUMBER_FIND(equationsSetUserNumber,REGION,EQUATIONS_SET,err,error,*999)
+          IF(ASSOCIATED(EQUATIONS_SET)) THEN
+            CALL SolverLinearIterativePreconditionerGet(SOLVER,preconditioner,err,error,*999)
+            CALL PreconditionerAMGPreconditionerGet(preconditioner,amgPreconditioner,err,error,*999)
+            CALL AMGPreconditionerEquationsSetAdd(amgPreconditioner,EQUATIONS_SET,err,error,*999)
+          ELSE
+            localError="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
+              & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
+            CALL FlagError(localError,err,error,*999)
+          END IF
+        ELSE
+          localError="A region with a user number of "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))// &
+            & " does not exist."
+          CALL FlagError(localError,err,error,*999)
+        END IF 
+      ELSE
+        localError="A solver with a solver index of "//TRIM(NUMBER_TO_VSTRING(solverIndex,"*",err,error))// &
+          & " does not exist."
+        CALL FlagError(localError,err,error,*999)
+      END IF 
+    ELSE
+      localError="A problem with an user number of "//TRIM(NUMBER_TO_VSTRING(problemUserNumber,"*",err,error))// &
+        & " does not exist."
+      CALL FlagError(localError,err,error,*999)
+    END IF
+
+    EXITS("CMISSAMGPreconditioner_EquationsSetAddNumber0")
+    RETURN
+999 ERRORSEXITS("CMISSAMGPreconditioner_EquationsSetAddNumber0",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSAMGPreconditioner_EquationsSetAddNumber0
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Add an equations set to the algebraic multigrid preconditioner identified by a user number.
+  SUBROUTINE CMISSAMGPreconditioner_EquationsSetAddNumber1(problemUserNumber,controlLoopIdentifiers,solverIndex, &
+      & regionUserNumber,equationsSetUserNumber,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: problemUserNumber !<The user number of the problem number with the iterative linear solver to add the algebraic multigrid preconditioner's field variable to.
+    INTEGER(INTG), INTENT(IN) :: controlLoopIdentifiers(:) !<The control loop identifier with the iterative linear solver to add the algebraic multigrid preconditioner's field variable to.
+    INTEGER(INTG), INTENT(IN) :: solverIndex !<The solver index to get the algebraic multigrid preconditioner from.
+    INTEGER(INTG), INTENT(IN) :: regionUserNumber !<The region user number.
+    INTEGER(INTG), INTENT(IN) :: equationsSetUserNumber !<The user number of the equations set.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(AMGPreconditionerType), POINTER :: amgPreconditioner
+    TYPE(PreconditionerType), POINTER :: preconditioner
+    TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET
+    TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
+    TYPE(REGION_TYPE), POINTER :: REGION
+    TYPE(SOLVER_TYPE), POINTER :: SOLVER
+    TYPE(VARYING_STRING) :: localError
+
+    ENTERS("CMISSAMGPreconditioner_EquationsSetAddNumber1",err,error,*999)
+
+    NULLIFY(amgPreconditioner)
+    NULLIFY(preconditioner)
+    NULLIFY(EQUATIONS_SET)
+    NULLIFY(PROBLEM)
+    NULLIFY(REGION)
+    NULLIFY(SOLVER)
+    CALL PROBLEM_USER_NUMBER_FIND(problemUserNumber,PROBLEM,err,error,*999)
+    IF(ASSOCIATED(PROBLEM)) THEN
+      CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers(:),solverIndex,SOLVER,err,error,*999)
+      IF(ASSOCIATED(SOLVER)) THEN
+        CALL REGION_USER_NUMBER_FIND(regionUserNumber,REGION,err,error,*999)
+        IF(ASSOCIATED(REGION)) THEN
+          CALL EQUATIONS_SET_USER_NUMBER_FIND(equationsSetUserNumber,REGION,EQUATIONS_SET,err,error,*999)
+          IF(ASSOCIATED(EQUATIONS_SET)) THEN
+            CALL SolverLinearIterativePreconditionerGet(SOLVER,preconditioner,err,error,*999)
+            CALL PreconditionerAMGPreconditionerGet(preconditioner,amgPreconditioner,err,error,*999)
+            CALL AMGPreconditionerEquationsSetAdd(amgPreconditioner,EQUATIONS_SET,err,error,*999)
+          ELSE
+            localError="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
+              & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
+            CALL FlagError(localError,err,error,*999)
+          END IF
+        ELSE
+          localError="A region with a user number of "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))// &
+            & " does not exist."
+          CALL FlagError(localError,err,error,*999)
+        END IF 
+      ELSE
+        localError="A solver with a solver index of "//TRIM(NUMBER_TO_VSTRING(solverIndex,"*",err,error))// &
+          & " does not exist."
+        CALL FlagError(localError,err,error,*999)
+      END IF 
+    ELSE
+      localError="A problem with an user number of "//TRIM(NUMBER_TO_VSTRING(problemUserNumber,"*",err,error))// &
+        & " does not exist."
+      CALL FlagError(localError,err,error,*999)
+    END IF
+
+    EXITS("CMISSAMGPreconditioner_EquationsSetAddNumber1")
+    RETURN
+999 ERRORSEXITS("CMISSAMGPreconditioner_EquationsSetAddNumber1",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSAMGPreconditioner_EquationsSetAddNumber1
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Add an equations set to the algebraic multigrid preconditioner identified by an object.
+  SUBROUTINE CMISSAMGPreconditioner_EquationsSetAddObj(amgPreconditioner,equationsSet,err)
+
+    !Argument variables
+    TYPE(CMISSAMGPreconditionerType), INTENT(IN) :: amgPreconditioner !<The algebraic multigrid preconditioner/.
+    TYPE(CMISSEquationsSetType), INTENT(IN) :: equationsSet !<The equations set to add to the algebraic multigrid preconditioner.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    ENTERS("CMISSAMGPreconditioner_EquationsSetAddObj",err,error,*999)
+
+    CALL AMGPreconditionerEquationsSetAdd(amgPreconditioner%amgPreconditioner,equationsSet%EQUATIONS_SET,err,error,*999)
+
+    EXITS("CMISSAMGPreconditioner_EquationsSetAddObj")
+    RETURN
+999 ERRORSEXITS("CMISSAMGPreconditioner_EquationsSetAddObj",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSAMGPreconditioner_EquationsSetAddObj
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Sets/changes the algebraic multigrid preconditioner type for a algebraic multigrid preconditioner identified by an user number.
+  SUBROUTINE CMISSAMGPreconditioner_TypeSetNumber0(problemUserNumber,controlLoopIdentifier,solverIndex, &
+      & amgType,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: problemUserNumber !<The user number of the problem number with the iterative linear solver to set the algebraic multigrid preconditioner's algebraic multigrid preconditioner type for.
+    INTEGER(INTG), INTENT(IN) :: controlLoopIdentifier !<The control loop identifier with the iterative linear solver to set the algebraic multigrid preconditioner's algebraic multigrid preconditioner type for.
+    INTEGER(INTG), INTENT(IN) :: solverIndex !<The solver index to set the algebraic multigrid preconditioner type for.
+    INTEGER(INTG), INTENT(IN) :: amgType !<The algebraic multigrid preconditioner type to set. \see OPENCMISS_AMGPreconditionerTypes
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(AMGPreconditionerType), POINTER :: amgPreconditioner
+    TYPE(PreconditionerType), POINTER :: preconditioner
+    TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
+    TYPE(SOLVER_TYPE), POINTER :: SOLVER
+    TYPE(VARYING_STRING) :: localError
+
+    ENTERS("CMISSAMGPreconditioner_TypeSetNumber0",err,error,*999)
+
+    NULLIFY(amgPreconditioner)
+    NULLIFY(preconditioner)
+    NULLIFY(PROBLEM)
+    NULLIFY(SOLVER)
+    CALL PROBLEM_USER_NUMBER_FIND(problemUserNumber,PROBLEM,err,error,*999)
+    IF(ASSOCIATED(PROBLEM)) THEN
+      CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
+      IF(ASSOCIATED(SOLVER)) THEN
+        CALL SolverLinearIterativePreconditionerGet(SOLVER,preconditioner,err,error,*999)
+        CALL PreconditionerAMGPreconditionerGet(preconditioner,amgPreconditioner,err,error,*999)
+        CALL AMGPreconditionerTypeSet(amgPreconditioner,amgType,err,error,*999)
+      ELSE
+        localError="A solver with a solver index of "//TRIM(NUMBER_TO_VSTRING(solverIndex,"*",err,error))// &
+          & " does not exist."
+        CALL FlagError(localError,err,error,*999)
+      END IF 
+    ELSE
+      localError="A problem with an user number of "//TRIM(NUMBER_TO_VSTRING(problemUserNumber,"*",err,error))// &
+        & " does not exist."
+      CALL FlagError(localError,err,error,*999)
+    END IF
+
+    EXITS("CMISSAMGPreconditioner_TypeSetNumber0")
+    RETURN
+999 ERRORSEXITS("CMISSAMGPreconditioner_TypeSetNumber0",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSAMGPreconditioner_TypeSetNumber0
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Sets/changes the algebraic multigrid preconditioner type for a algebraic multigrid preconditioner identified by an user number.
+  SUBROUTINE CMISSAMGPreconditioner_TypeSetNumber1(problemUserNumber,controlLoopIdentifiers,solverIndex, &
+      & amgType,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: problemUserNumber !<The user number of the problem number with the iterative linear solver to set the algebraic multigrid preconditioner's algebraic multigrid preconditioner type for.
+    INTEGER(INTG), INTENT(IN) :: controlLoopIdentifiers(:) !<The control loop identifier with the iterative linear solver to set the algebraic multigrid preconditioner's algebraic multigrid preconditioner type for.
+    INTEGER(INTG), INTENT(IN) :: solverIndex !<The solver index to set the algebraic multigrid preconditioner type for.
+    INTEGER(INTG), INTENT(IN) :: amgType !<The algebraic multigrid preconditioner type to set. \see OPENCMISS_AMGPreconditionerTypes
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(AMGPreconditionerType), POINTER :: amgPreconditioner
+    TYPE(PreconditionerType), POINTER :: preconditioner
+    TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
+    TYPE(SOLVER_TYPE), POINTER :: SOLVER
+    TYPE(VARYING_STRING) :: localError
+
+    ENTERS("CMISSAMGPreconditioner_TypeSetNumber1",err,error,*999)
+
+    NULLIFY(amgPreconditioner)
+    NULLIFY(preconditioner)
+    NULLIFY(PROBLEM)
+    NULLIFY(SOLVER)
+    CALL PROBLEM_USER_NUMBER_FIND(problemUserNumber,PROBLEM,err,error,*999)
+    IF(ASSOCIATED(PROBLEM)) THEN
+      CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers(:),solverIndex,SOLVER,err,error,*999)
+      IF(ASSOCIATED(SOLVER)) THEN
+        CALL SolverLinearIterativePreconditionerGet(SOLVER,preconditioner,err,error,*999)
+        CALL PreconditionerAMGPreconditionerGet(preconditioner,amgPreconditioner,err,error,*999)
+        CALL AMGPreconditionerTypeSet(amgPreconditioner,amgType,err,error,*999)
+      ELSE
+        localError="A solver with a solver index of "//TRIM(NUMBER_TO_VSTRING(solverIndex,"*",err,error))// &
+          & " does not exist."
+        CALL FlagError(localError,err,error,*999)
+      END IF 
+    ELSE
+      localError="A problem with an user number of "//TRIM(NUMBER_TO_VSTRING(problemUserNumber,"*",err,error))// &
+        & " does not exist."
+      CALL FlagError(localError,err,error,*999)
+    END IF
+
+    EXITS("CMISSAMGPreconditioner_TypeSetNumber1")
+    RETURN
+999 ERRORSEXITS("CMISSAMGPreconditioner_TypeSetNumber1",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSAMGPreconditioner_TypeSetNumber1
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Sets/changes the algebraic multigrid preconditioner type identified by an object.
+  SUBROUTINE CMISSAMGPreconditioner_TypeSetObj(amgPreconditioner,amgType,err)
+
+    !Argument variables
+    TYPE(CMISSAMGPreconditionerType), INTENT(IN) :: amgPreconditioner !<The algebraic multigrid preconditioner to set the algebraic multigrid preconditioner type for.
+    INTEGER(INTG), INTENT(IN) :: amgType !<The algebraic multigrid preconditioner type to set. \see OPENCMISS_AMGPreconditionerTypes
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    ENTERS("CMISSAMGPreconditioner_TypeSetObj",err,error,*999)
+
+    CALL AMGPreconditionerTypeSet(amgPreconditioner%amgPreconditioner,amgType,err,error,*999)
+
+    EXITS("CMISSAMGPreconditioner_TypeSetObj")
+    RETURN
+999 ERRORSEXITS("CMISSAMGPreconditioner_TypeSetObj",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSAMGPreconditioner_TypeSetObj
+
+!!==================================================================================================================================
+!!
 !! BLOCK_PRECONDITIONER_ROUTINES
 !!
 !!==================================================================================================================================
@@ -14140,6 +14570,140 @@ CONTAINS
     RETURN
 
   END SUBROUTINE CMISSBoundaryConditions_SetNodeObj
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Sets the Dirichlet method type for the boundary conditions identified by a control loop identifier.
+  SUBROUTINE CMISSBoundaryConditions_DirichletMethodTypeSetNumber0( &
+      & problemUserNumber,controlLoopIdentifier,solverIndex,dirichletMethodType,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: problemUserNumber !<The user number of the problem containing the solver equations.
+    INTEGER(INTG), INTENT(IN) :: controlLoopIdentifier !<The control loop identifier of the solver equations containing the boundary conditions.
+    INTEGER(INTG), INTENT(IN) :: solverIndex !<The solver index to get the solver equations boundary conditions for.
+    INTEGER(INTG), INTENT(IN) :: dirichletMethodType !<The Dirichlet method type for enforcing Dirichlet boundary conditions. \see OPENCMISS_BoundaryConditionDirichletMethodTypes,OPENCMISS
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(PROBLEM_TYPE), POINTER :: problem
+    TYPE(SOLVER_EQUATIONS_TYPE), POINTER :: solverEquations
+    TYPE(BOUNDARY_CONDITIONS_TYPE), POINTER :: boundaryConditions
+    TYPE(VARYING_STRING) :: localError
+
+    ENTERS("CMISSBoundaryConditions_DirichletMethodTypeSetNumber0",err,error,*999)
+
+    NULLIFY(problem)
+    NULLIFY(solverEquations)
+    NULLIFY(boundaryConditions)
+    CALL PROBLEM_USER_NUMBER_FIND(problemUserNumber,problem,err,error,*999)
+    IF(ASSOCIATED(problem)) THEN
+      CALL PROBLEM_SOLVER_EQUATIONS_GET(problem,controlLoopIdentifier,solverIndex,solverEquations,err,error,*999)
+      IF(ASSOCIATED(solverEquations)) THEN
+        CALL SOLVER_EQUATIONS_BOUNDARY_CONDITIONS_GET(solverEquations,boundaryConditions,err,error,*999)
+        IF(ASSOCIATED(boundaryConditions)) THEN
+          CALL BoundaryConditions_DirichletMethodTypeSet(boundaryConditions,dirichletMethodType,err,error,*999)
+        ELSE
+          localError="Solver equations boundary conditions is not associated."
+          CALL FlagError(localError,err,error,*999)
+        END IF
+      ELSE
+        localError="Solver equations with the given solver index and control loop identifier do not exist."
+        CALL FlagError(localError,err,error,*999)
+      END IF
+    ELSE
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
+    END IF
+
+    EXITS("CMISSBoundaryConditions_DirichletMethodTypeSetNumber0")
+    RETURN
+999 ERRORS("CMISSBoundaryConditions_DirichletMethodTypeSetNumber0",err,error)
+    EXITS("CMISSBoundaryConditions_DirichletMethodTypeSetNumber0")
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSBoundaryConditions_DirichletMethodTypeSetNumber0
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Sets the Dirichlet method type for the boundary conditions identified by a control loop identifier.
+  SUBROUTINE CMISSBoundaryConditions_DirichletMethodTypeSetNumber1( &
+      & problemUserNumber,controlLoopIdentifiers,solverIndex,dirichletMethodType,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: problemUserNumber !<The user number of the problem containing the solver equations.
+    INTEGER(INTG), INTENT(IN) :: controlLoopIdentifiers(:) !<controlLoopIdentifiers(i). The i'th control loop identifier to get the solver equations boundary conditions for.
+    INTEGER(INTG), INTENT(IN) :: solverIndex !<The solver index to get the solver equations for.
+    INTEGER(INTG), INTENT(IN) :: dirichletMethodType !<The Dirichlet method type for enforcing Dirichlet boundary conditions. \see OPENCMISS_BoundaryConditionDirichletMethodTypes,OPENCMISS
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(PROBLEM_TYPE), POINTER :: problem
+    TYPE(SOLVER_EQUATIONS_TYPE), POINTER :: solverEquations
+    TYPE(BOUNDARY_CONDITIONS_TYPE), POINTER :: boundaryConditions
+    TYPE(VARYING_STRING) :: localError
+
+    ENTERS("CMISSBoundaryConditions_DirichletMethodTypeSetNumber1",err,error,*999)
+
+    NULLIFY(problem)
+    NULLIFY(solverEquations)
+    NULLIFY(boundaryConditions)
+    CALL PROBLEM_USER_NUMBER_FIND(problemUserNumber,problem,err,error,*999)
+    IF(ASSOCIATED(problem)) THEN
+      CALL PROBLEM_SOLVER_EQUATIONS_GET(problem,controlLoopIdentifiers,solverIndex,solverEquations,err,error,*999)
+      IF(ASSOCIATED(solverEquations)) THEN
+        CALL SOLVER_EQUATIONS_BOUNDARY_CONDITIONS_GET(solverEquations,boundaryConditions,err,error,*999)
+        IF(ASSOCIATED(boundaryConditions)) THEN
+          CALL BoundaryConditions_DirichletMethodTypeSet(boundaryConditions,dirichletMethodType,err,error,*999)
+        ELSE
+          localError="Solver equations boundary conditions is not associated."
+          CALL FlagError(localError,err,error,*999)
+        END IF
+      ELSE
+        localError="Solver equations with the given solver index and control loop identifier do not exist."
+        CALL FlagError(localError,err,error,*999)
+      END IF
+    ELSE
+      localError="A problem with an user number of "//TRIM(NumberToVString(problemUserNumber,"*",err,error))//" does not exist."
+      CALL FlagError(localError,err,error,*999)
+    END IF
+
+    EXITS("CMISSBoundaryConditions_DirichletMethodTypeSetNumber1")
+    RETURN
+999 ERRORS("CMISSBoundaryConditions_DirichletMethodTypeSetNumber1",err,error)
+    EXITS("CMISSBoundaryConditions_DirichletMethodTypeSetNumber1")
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSBoundaryConditions_DirichletMethodTypeSetNumber1
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Sets the Dirichlet method type for the boundary conditions.
+  SUBROUTINE CMISSBoundaryConditions_DirichletMethodTypeSetObj(boundaryConditions,dirichletMethodType,err)
+
+    !Argument variables
+    TYPE(CMISSBoundaryConditionsType), INTENT(INOUT) :: boundaryConditions !<The boundary conditions
+    INTEGER(INTG), INTENT(IN) :: dirichletMethodType !<The Dirichlet method type for enforcing Dirichlet boundary conditions. \see OPENCMISS_BoundaryConditionDirichletMethodTypes,OPENCMISS
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    ENTERS("CMISSBoundaryConditions_DirichletMethodTypeSetObj",err,error,*999)
+
+    CALL BoundaryConditions_DirichletMethodTypeSet(boundaryConditions%BOUNDARY_CONDITIONS,dirichletMethodType,err,error,*999)
+
+    EXITS("CMISSBoundaryConditions_DirichletMethodTypeSetObj")
+    RETURN
+999 ERRORS("CMISSBoundaryConditions_DirichletMethodTypeSetObj",err,error)
+    EXITS("CMISSBoundaryConditions_DirichletMethodTypeSetObj")
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSBoundaryConditions_DirichletMethodTypeSetObj
 
   !
   !================================================================================================================================
@@ -48902,6 +49466,131 @@ CONTAINS
 !!
 !!==================================================================================================================================
 
+  !>Get the algebraic multigrid preconditioner type for a preconditioner identified by an user number.
+  SUBROUTINE CMISSPreconditioner_AMGPreconditionerGetNumber0(problemUserNumber,controlLoopIdentifier,solverIndex, &
+      & amgPreconditioner,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: problemUserNumber !<The user number of the problem number with the iterative linear solver to set the preconditioner's preconditioner type for.
+    INTEGER(INTG), INTENT(IN) :: controlLoopIdentifier !<The control loop identifier with the iterative linear solver to set the preconditioner's preconditioner type for.
+    INTEGER(INTG), INTENT(IN) :: solverIndex !<The solver index to set the preconditioner type for.
+    TYPE(CMISSAMGPreconditionerType), INTENT(INOUT) :: amgPreconditioner !<The algebraic multigrid preconditioner to get.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(PreconditionerType), POINTER :: preconditioner
+    TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
+    TYPE(SOLVER_TYPE), POINTER :: SOLVER
+    TYPE(VARYING_STRING) :: localError
+
+    ENTERS("CMISSPreconditioner_AMGPreconditionerGetNumber0",err,error,*999)
+
+    NULLIFY(preconditioner)
+    NULLIFY(PROBLEM)
+    NULLIFY(SOLVER)
+    CALL PROBLEM_USER_NUMBER_FIND(problemUserNumber,PROBLEM,err,error,*999)
+    IF(ASSOCIATED(PROBLEM)) THEN
+      CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
+      IF(ASSOCIATED(SOLVER)) THEN
+        CALL SolverLinearIterativePreconditionerGet(SOLVER,preconditioner,err,error,*999)
+        CALL PreconditionerAMGPreconditionerGet(preconditioner,amgPreconditioner%amgPreconditioner,err,error,*999)
+      ELSE
+        localError="A solver with a solver index of "//TRIM(NUMBER_TO_VSTRING(solverIndex,"*",err,error))// &
+          & " does not exist."
+        CALL FlagError(localError,err,error,*999)
+      END IF 
+    ELSE
+      localError="A problem with an user number of "//TRIM(NUMBER_TO_VSTRING(problemUserNumber,"*",err,error))// &
+        & " does not exist."
+      CALL FlagError(localError,err,error,*999)
+    END IF
+
+    EXITS("CMISSPreconditioner_AMGPreconditionerGetNumber0")
+    RETURN
+999 ERRORSEXITS("CMISSPreconditioner_AMGPreconditionerGetNumber0",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSPreconditioner_AMGPreconditionerGetNumber0
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Get the algebraic multigrid preconditioner type for a preconditioner identified by an user number.
+  SUBROUTINE CMISSPreconditioner_AMGPreconditionerGetNumber1(problemUserNumber,controlLoopIdentifiers,solverIndex, &
+      & amgPreconditioner,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: problemUserNumber !<The user number of the problem number with the iterative linear solver to set the preconditioner's preconditioner type for.
+    INTEGER(INTG), INTENT(IN) :: controlLoopIdentifiers(:) !<The control loop identifier with the iterative linear solver to set the preconditioner's preconditioner type for.
+    INTEGER(INTG), INTENT(IN) :: solverIndex !<The solver index to set the preconditioner type for.
+    TYPE(CMISSAMGPreconditionerType), INTENT(INOUT) :: amgPreconditioner !<The algebraic multigrid preconditioner to get.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(PreconditionerType), POINTER :: preconditioner
+    TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
+    TYPE(SOLVER_TYPE), POINTER :: SOLVER
+    TYPE(VARYING_STRING) :: localError
+
+    ENTERS("CMISSPreconditioner_AMGPreconditionerGetNumber1",err,error,*999)
+
+    NULLIFY(preconditioner)
+    NULLIFY(PROBLEM)
+    NULLIFY(SOLVER)
+    CALL PROBLEM_USER_NUMBER_FIND(problemUserNumber,PROBLEM,err,error,*999)
+    IF(ASSOCIATED(PROBLEM)) THEN
+      CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers(:),solverIndex,SOLVER,err,error,*999)
+      IF(ASSOCIATED(SOLVER)) THEN
+        CALL SolverLinearIterativePreconditionerGet(SOLVER,preconditioner,err,error,*999)
+        CALL PreconditionerAMGPreconditionerGet(preconditioner,amgPreconditioner%amgPreconditioner,err,error,*999)
+      ELSE
+        localError="A solver with a solver index of "//TRIM(NUMBER_TO_VSTRING(solverIndex,"*",err,error))// &
+          & " does not exist."
+        CALL FlagError(localError,err,error,*999)
+      END IF 
+    ELSE
+      localError="A problem with an user number of "//TRIM(NUMBER_TO_VSTRING(problemUserNumber,"*",err,error))// &
+        & " does not exist."
+      CALL FlagError(localError,err,error,*999)
+    END IF
+
+    EXITS("CMISSPreconditioner_AMGPreconditionerGetNumber1")
+    RETURN
+999 ERRORSEXITS("CMISSPreconditioner_AMGPreconditionerGetNumber1",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSPreconditioner_AMGPreconditionerGetNumber1
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Get the algebraic multigrid preconditioner type identified by an object.
+  SUBROUTINE CMISSPreconditioner_AMGPreconditionerGetObj(preconditioner,amgPreconditioner,err)
+
+    !Argument variables
+    TYPE(CMISSPreconditionerType), INTENT(IN) :: preconditioner !<The preconditioner to get the algebraic multigrid preconditioner from.
+    TYPE(CMISSAMGPreconditionerType), INTENT(INOUT) :: amgPreconditioner !<The algebraic multigrid preconditioner to get.
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    ENTERS("CMISSPreconditioner_AMGPreconditionerGetObj",err,error,*999)
+
+    CALL PreconditionerAMGPreconditionerGet(preconditioner%preconditioner,amgPreconditioner%amgPreconditioner,err,error,*999)
+
+    EXITS("CMISSPreconditioner_AMGPreconditionerGetObj")
+    RETURN
+999 ERRORSEXITS("CMISSPreconditioner_AMGPreconditionerGetObj",err,error)
+    CALL CmissHandleError(err,error)
+    RETURN
+
+  END SUBROUTINE CMISSPreconditioner_AMGPreconditionerGetObj
+
+  !
+  !================================================================================================================================
+  !
+
   !>Get the block preconditioner type for a preconditioner identified by an user number.
   SUBROUTINE CMISSPreconditioner_BlockPreconditionerGetNumber0(problemUserNumber,controlLoopIdentifier,solverIndex, &
       & blockPreconditioner,err)
@@ -49002,7 +49691,7 @@ CONTAINS
   !================================================================================================================================
   !
 
-  !>Sets/changes the preconditioner type identified by an object.
+  !>Get the block preconditioner type identified by an object.
   SUBROUTINE CMISSPreconditioner_BlockPreconditionerGetObj(preconditioner,blockPreconditioner,err)
 
     !Argument variables
