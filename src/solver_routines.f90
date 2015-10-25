@@ -11602,7 +11602,7 @@ CONTAINS
           !\todo: implement these near null space calculations properly in the corresponding equations class routines. This could be
           !done by returning n near null space vectors and then (if solver library is petsc) calling Petsc_MatCreateNullSpace and Petsc_MatSetNearNullSpace.
           !Also don't forget to set the block size for the matrix.
-          SELECT CASE(equationsSet%CLASS)
+          SELECT CASE(equationsSet%SPECIFICATION(1))
           CASE(EQUATIONS_SET_ELASTICITY_CLASS)
             !The near null space consists of the rigid body modes.
             !Have to use the geometric field, because the dependent field already has the boundary conditions set.
@@ -11770,7 +11770,8 @@ CONTAINS
           CASE(EQUATIONS_SET_MULTI_PHYSICS_CLASS)
             !Needs to be implemented
           CASE DEFAULT
-            localError="Equations set class "//TRIM(NUMBER_TO_VSTRING(equationsSet%CLASS,"*",err,error))//" is not valid."
+            localError="Equations set class "//TRIM(NUMBER_TO_VSTRING(equationsSet%SPECIFICATION(1),"*",err,error))// &
+              & " is not valid."
             CALL FlagError(localError,err,error,*999)
           END SELECT
         ELSE
