@@ -1574,10 +1574,9 @@ CONTAINS
       CALL FlagError("Equations set is not associated.",err,error,*999)
     END IF
 
-    CALL Exits("Laplace_EquationsSetSpecificationSet")
+    EXITS("Laplace_EquationsSetSpecificationSet")
     RETURN
-999 CALL Errors("Laplace_EquationsSetSpecificationSet",err,error)
-    CALL Exits("Laplace_EquationsSetSpecificationSet")
+999 ERRORSEXITS("Laplace_EquationsSetSpecificationSet",err,error)
     RETURN 1
     
   END SUBROUTINE Laplace_EquationsSetSpecificationSet

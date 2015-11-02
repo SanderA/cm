@@ -1301,7 +1301,7 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     INTEGER(INTG) :: DATA_TYPE !<The data type of the field variable.  \see FIELD_ROUTINES_DataTypes,FIELD_ROUTINES
     INTEGER(INTG) :: DOF_ORDER_TYPE !<The order of the DOF's in the field variable \see FIELD_ROUTINES_DOFOrderTypes,FIELD_ROUTINES
     INTEGER(INTG) :: maxNumberElementInterpolationParameters !<The maximum number of interpolation parameters in an element for a field variable. 
-    INTEGER(INTG) :: maxNumberNodeInterpolationParameters !<The maximum number of interpolation parameters in an element for a field variable. 
+    INTEGER(INTG) :: maxNumberNodeInterpolationParameters !<The maximum number of interpolation parameters in a node for a field variable. 
     INTEGER(INTG) :: NUMBER_OF_DOFS !<Number of local degress of freedom for this field variable (excluding ghosted dofs). Old CMISS name NYNR(0,0,nc,nr,nx).
     INTEGER(INTG) :: TOTAL_NUMBER_OF_DOFS !<Number of local degrees of freedom for this field variable (including ghosted dofs). Old CMISS name NYNR(0,0,nc,nr,nx).
     INTEGER(INTG) :: NUMBER_OF_GLOBAL_DOFS !<Number of global degrees of freedom for this field variable. Old CMISS name NYNR(0,0,nc,nr,nx).
@@ -2026,8 +2026,6 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     LOGICAL :: HAS_TRANSPOSE !<.TRUE. if the Jacobian matrix has a tranpose, .FALSE. if not.  
     TYPE(DISTRIBUTED_MATRIX_TYPE), POINTER :: JACOBIAN !<A pointer to the distributed jacobian matrix data
     TYPE(DISTRIBUTED_MATRIX_TYPE), POINTER :: JACOBIAN_TRANSPOSE !<A pointer to the distributed jacobian matrix transpose data
-    TYPE(DISTRIBUTED_VECTOR_TYPE), POINTER :: TEMP_VECTOR !<Temporary vector used for assembly. 
-    TYPE(DISTRIBUTED_VECTOR_TYPE), POINTER :: TEMP_TRANSPOSE_VECTOR !<Temporary vector used for assembly. 
     TYPE(ELEMENT_MATRIX_TYPE) :: ELEMENT_JACOBIAN !<The element matrix for this Jacobian matrix. This is not used if the Jacobian is not supplied.
   END TYPE CONSTRAINT_JACOBIAN_TYPE
 
@@ -2817,17 +2815,12 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
   TYPE SOLVER_EQUATIONS_TYPE
     TYPE(SOLVER_TYPE), POINTER :: SOLVER !<A pointer to the solver
     LOGICAL :: SOLVER_EQUATIONS_FINISHED !<Is .TRUE. if the solver equations have finished being created, .FALSE. if not.
-
     INTEGER(INTG) :: LINEARITY !<The linearity type of the solver equations
     INTEGER(INTG) :: TIME_DEPENDENCE !<The time dependence type of the solver equations
-
     INTEGER(INTG) :: SPARSITY_TYPE !<The type of sparsity to use in the solver matrices \see SOLVER_ROUTINES_SparsityTypes,SOLVER_ROUTINES
-
     TYPE(SOLVER_MAPPING_TYPE), POINTER :: SOLVER_MAPPING !<A pointer to the solver mapping
     TYPE(SOLVER_MATRICES_TYPE), POINTER :: SOLVER_MATRICES !<A pointer to the solver matrices for the problem
-
     TYPE(BOUNDARY_CONDITIONS_TYPE), POINTER :: BOUNDARY_CONDITIONS !<A pointer to the boundary condition information for the solver equations.
-
   END TYPE SOLVER_EQUATIONS_TYPE
 
   !
@@ -2858,7 +2851,7 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     INTEGER(INTG) :: LINEARITY !<The linearity type of the dynamic solver \see SOLVER_ROUTINES_DynamicLinearityTypes,SOLVER_ROUTINES
     INTEGER(INTG) :: ORDER !<The order of the dynamic solve \see SOLVER_ROUTINES_DynamicOrderTypes,SOLVER_ROUTINES
     INTEGER(INTG) :: DEGREE !<The degree of the time interpolation polynomial \see SOLVER_ROUTINES_DynamicDegreeTypes,SOLVER_ROUTINES
-    INTEGER(INTG) :: SCHEME !<The dyanamic solver scheme \see SOLVER_ROUTINES_DynamicSchemeTypes,SOLVER_ROUTINES
+    INTEGER(INTG) :: SCHEME !<The dynamic solver scheme \see SOLVER_ROUTINES_DynamicSchemeTypes,SOLVER_ROUTINES
     REAL(DP), ALLOCATABLE :: THETA(:) !<THETA(degree_idx). The theta value for the degree_idx'th polynomial in the dynamic solver
     LOGICAL :: EXPLICIT !<Is .TRUE. if the dynamic scheme is an explicit scheme, .FALSE. if not.
     LOGICAL :: RESTART !<Is .TRUE. if the dynamic scheme is to be restarted (i.e., recalculate values at the current time step), .FALSE. if not.
@@ -2951,16 +2944,20 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     TYPE(EXTERNAL_DAE_SOLVER_TYPE), POINTER :: EXTERNAL_SOLVER !<A pointer to information for an external solver
   END TYPE DAE_SOLVER_TYPE
   
-  !>Contains information on an interface mapping. TODO: Generalise to non-Lagrange multipler mappings
+  !>Contains information on a preconditioner mapping.
   TYPE PreconditionerMappingType  
-    LOGICAL :: PreconditionerMappingFinished !<Is .TRUE. if the interface mapping has finished being created, .FALSE. if not.
+    LOGICAL :: preconditionerMappingFinished !<Is .TRUE. if the interface mapping has finished being created, .FALSE. if not.
     !Row mappings
     INTEGER(INTG) :: numberOfRows !<The number of local rows (excluding ghost rows) in the equations matrices
-    INTEGER(INTG) :: totalNumberOfRows !<The number of local rows (including ghost rows) in the equations matrices
-    INTEGER(INTG) :: numberOfGlobalRows !<The number of global rows in the equations matrices
+    INTEGER(INTG) :: totalNumberOfRows!<The number of local rows (including ghost rows) in the equations matrices
+    INTEGER(INTG) :: numberOfColumns !<The number of global rows in the equations matrices
     TYPE(DOMAIN_MAPPING_TYPE), POINTER :: rowDofsMapping !<The domain mapping for the equations rows
-    INTEGER(INTG) :: numberOfVariables !<The number of dependent variables involved in the linear equations matrix mapping
-    TYPE(FIELD_VARIABLE_PTR_TYPE), ALLOCATABLE :: variables(:) !<variables(variableIdx)%ptr contains information on the variableIdx'th variable in this mapping
+    TYPE(DOMAIN_MAPPING_TYPE), POINTER :: columnDofsMapping !<The domain mapping for the equations rows
+    !Only one variable is allowed in the preconditioner mapping. This means only one preconditioner matrix per variable, which also
+    !means that we only allow a preconditioner matrix for the diagonal blocks in a block matrix. This is not a restriction because a
+    !preconditioner should be easy to invert and we can always use a block preconditioner to further split up if there is more than
+    !one variable.
+    TYPE(FIELD_VARIABLE_TYPE), POINTER :: variable !<Contains information on the variable in this mapping
   END TYPE PreconditionerMappingType
 
   !>Contains information about a preconditioner matrix.
@@ -2971,7 +2968,7 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     TYPE(PreconditionerMappingType), POINTER :: preconditionerMapping !<A pointer to the preconditioner mapping
     INTEGER(INTG) :: numberOfRows !<The number of local rows (excluding ghost rows) in the distributed preconditioner matrix
     INTEGER(INTG) :: totalNumberOfRows !<The number of local rows (including ghost rows) in the distributed preconditioner matrix
-    INTEGER(INTG) :: numberOfGlobalRows !<The number of global rows in the distributed preconditioner matrix
+    INTEGER(INTG) :: numberOfColumns !<The number of columns in the distributed preconditioner matrix
     LOGICAL :: updateMatrix !<Is .TRUE. if this preconditioner matrix is to be updated
     LOGICAL :: firstAssembly !<Is .TRUE. if this preconditioner matrix has not been assembled
     TYPE(DISTRIBUTED_MATRIX_TYPE), POINTER :: matrix !<A pointer to the distributed preconditioner matrix data
@@ -2982,7 +2979,7 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
   TYPE AMGPreconditionerType
     TYPE(PreconditionerType), POINTER :: preconditioner !<A pointer to the preconditioner
     INTEGER(INTG) :: amgType !<The type of amg preconditioner \see SOLVER_ROUTINES_AMGPreconditionerTypes,SOLVER_ROUTINES
-    !Need to somehow inform the AMG preconditioner about the blocksize and null space, for which it needs information about the
+    !Need to somehow inform the AMG preconditioner about the blocksize and near null space, for which it needs information about the
     !variables or equations.
     INTEGER(INTG) :: numberOfEquationsSets !<The number of equations sets associated to this algebraic multigrid preconditioner
     TYPE(EQUATIONS_SET_PTR_TYPE), ALLOCATABLE :: equationsSets(:) !<The list of equations sets that are associated to this algebraic multigrid preconditioner
@@ -2994,7 +2991,7 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     TYPE(SOLVER_TYPE), POINTER :: linearSolver !<A pointer to the linear solver to use (invert the preconditioner) for this split.
     INTEGER(INTG) :: numberOfVariables !<The number of variables in this split of the block preconditioner.
     TYPE(FIELD_VARIABLE_PTR_TYPE), ALLOCATABLE :: variables(:) !<The variables per split
-    INTEGER(INTG), ALLOCATABLE :: solverVariableIndices(:) !<The solver variable indices
+    INTEGER(INTG), ALLOCATABLE :: variableIndices(:) !<The variable indices
   END TYPE BlockPreconditionerSplitType
 
   !Contains a pointer to the BlockPreconditionerSplitType 
@@ -3010,8 +3007,6 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     INTEGER(INTG) :: schurPreType !<The type of Schur complement preconditioner \see SOLVER_ROUTINES_BlockPreconditionerSchurPreTypes,SOLVER_ROUTINES
     INTEGER(INTG) :: numberOfSplits !<The number of splits
     TYPE(BlockPreconditionerSplitPtrType), ALLOCATABLE :: splits(:) !<Pointer to the splits of the block preconditioner, which defines the blocks.
-    TYPE(PetscDMType) :: DM !<The PETSc DM (distributed mesh) type, used for defining the blocks for this block preconditioner
-    TYPE(PetscPetscSectionType) :: section !<The PETSc section type, used for setting up the DM
   END TYPE BlockPreconditionerType
 
   !Contains information for a preconditioner type
@@ -3020,8 +3015,11 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     INTEGER(INTG) :: preconditionerType !<The type of preconditioner \see SOLVER_ROUTINES_IterativePreconditionerTypes,SOLVER_ROUTINES
     TYPE(AMGPreconditionerType), POINTER :: amgPreconditioner !<Pointer to an algebraic mulitigrid preconditioner
     TYPE(BlockPreconditionerType), POINTER :: blockPreconditioner !<Pointer to a block preconditioner
+    INTEGER(INTG) :: numberOfVariables !<The number of variables belonging to this preconditioner
+    TYPE(FIELD_VARIABLE_PTR_TYPE), ALLOCATABLE :: variables(:) !<The variables belonging to this preconditioner 
+    INTEGER(INTG) :: preconditionerMatrixType !<The type of preconditioner matrix type \see SOLVER_ROUTINES_PreconditionerMatrixTypes,SOLVER_ROUTINES
     TYPE(PreconditionerMatrixType), POINTER :: preconditionerMatrix !<A user defined preconditioner matrix if it exists or NULL.
-!    TYPE(PreconditionerMappingType), POINTER :: preconditionerMapping !<A mapping from the solver variables to the preconditioner matrix if it exists, or NULL.
+    TYPE(PreconditionerMappingType), POINTER :: preconditionerMapping !<A mapping from the solver variables to the preconditioner matrix if it exists, or NULL.
     TYPE(PetscPCType) :: PC !<The PETSc preconditioner object
   END TYPE PreconditionerType
 
@@ -3033,7 +3031,6 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     INTEGER(INTG) :: DIRECT_SOLVER_TYPE !<The type of direct linear solver
     TYPE(PetscPCType) :: PC !<The PETSc preconditioner object
     TYPE(PetscKspType) :: KSP !<The PETSc solver object
-    LOGICAL :: isSubKsp !<Is .TRUE. if this ksp is obtained from Petsc_FieldSplitGetSubKsp
   END TYPE LINEAR_DIRECT_SOLVER_TYPE
 
   !>Contains information for an iterative linear solver
@@ -3049,7 +3046,6 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     REAL(DP) :: DIVERGENCE_TOLERANCE !<The absolute tolerance of the residual norm
     INTEGER(INTG) :: GMRES_RESTART !<The GMRES restart iterations size
     TYPE(PetscKspType) :: KSP !<The PETSc solver object
-    LOGICAL :: isSubKsp !<Is .TRUE. if this ksp is obtained from Petsc_FieldSplitGetSubKsp
     TYPE(PreconditionerType), POINTER :: preconditioner
   END TYPE LINEAR_ITERATIVE_SOLVER_TYPE
   
@@ -3057,7 +3053,7 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
   TYPE LINEAR_SOLVER_TYPE
     TYPE(SOLVER_TYPE), POINTER :: SOLVER !<A pointer to the solver
     INTEGER(INTG) :: LINEAR_SOLVE_TYPE !<The type of linear solver \see SOLVER_ROUTINES_LinearSolverTypes,SOLVER_ROUTINES
-    LOGICAL :: LINKED_NEWTON_PETSC_SOLVER !<Is .TRUE. if this linear solver has been linked from a PETSc Newton solver, .FALSE. if not.
+    LOGICAL :: LINKED_PETSC_SOLVER !<Is .TRUE. if this linear solver has been linked from a PETSc solver, .FALSE. if not.
     TYPE(LINEAR_DIRECT_SOLVER_TYPE), POINTER :: DIRECT_SOLVER !<A pointer to the direct solver information
     TYPE(LINEAR_ITERATIVE_SOLVER_TYPE), POINTER :: ITERATIVE_SOLVER !<A pointer to the iterative solver information
   END TYPE LINEAR_SOLVER_TYPE
@@ -3220,7 +3216,6 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     TYPE(SOLVER_TYPE), POINTER :: LINKING_SOLVER !<A pointer to any solver that is linking to this solver
     INTEGER(INTG) :: NUMBER_OF_LINKED_SOLVERS !<The number of linked solvers
     TYPE(SOLVER_PTR_TYPE), ALLOCATABLE :: LINKED_SOLVERS(:) !<LINKED_SOLVERS(linked_solver_idx). A pointer to the linked solvers
-    TYPE(SOLVER_PTR_TYPE), ALLOCATABLE :: LINKED_SOLVER_TYPE_MAP(:) !<LINKED_SOLVER_TYPE_MAP(linked_solver_idx). The map from the available linked solver types to the linked solver types that are defined for the solver. linked_solver_idx varies from 1 to SOLVER_ROUTINES::SOLVER_NUMBER_OF_SOLVER_TYPES. If the particular linked solver type has not been defined on the solver then the LINKED_SOLVER_TYPE_MAP will be NULL. \see SOLVER_ROUTINES_SolverTypes
     LOGICAL :: SOLVER_FINISHED !<Is .TRUE. if the solver has finished being created, .FALSE. if not.
     TYPE(VARYING_STRING) :: LABEL !<A user defined label for the solver.
     INTEGER(INTG) :: OUTPUT_TYPE !<The type of output required \see SOLVER_ROUTINES_OutputTypes,SOLVER_ROUTINES

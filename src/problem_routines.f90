@@ -1397,15 +1397,17 @@ CONTAINS
                   CALL SOLVER_VARIABLES_DYNAMIC_NONLINEAR_UPDATE(SOLVER,ERR,ERROR,*999)
                 !check for a linked CellML solver 
 !!TODO: This should be generalised for nonlinear solvers in general and not just Newton solvers.
-                  NEWTON_SOLVER=>SOLVER%NONLINEAR_SOLVER%NEWTON_SOLVER
-                  IF(ASSOCIATED(NEWTON_SOLVER)) THEN
-                    CELLML_SOLVER=>NEWTON_SOLVER%CELLML_EVALUATOR_SOLVER
-                    IF(ASSOCIATED(CELLML_SOLVER)) THEN
-                      CALL SOLVER_SOLVE(CELLML_SOLVER,ERR,ERROR,*999)
-                    ENDIF
-                  ELSE
-                    CALL FlagError("Nonlinear solver Newton solver is not associated.",ERR,ERROR,*999)
-                  ENDIF
+                  SELECT CASE(SOLVER%NONLINEAR_SOLVER%NONLINEAR_SOLVE_TYPE)
+                  CASE(SOLVER_NONLINEAR_NEWTON)
+                    CELLML_SOLVER=>SOLVER%NONLINEAR_SOLVER%NEWTON_SOLVER%CELLML_EVALUATOR_SOLVER
+                  CASE(SOLVER_NONLINEAR_QUASI_NEWTON)
+                    CELLML_SOLVER=>SOLVER%NONLINEAR_SOLVER%QUASI_NEWTON_SOLVER%CELLML_EVALUATOR_SOLVER
+                  CASE DEFAULT
+                    LOCAL_ERROR="Linked CellML solver is not implemented for nonlinear solver type " &
+                      & //TRIM(NUMBER_TO_VSTRING(SOLVER%NONLINEAR_SOLVER%NONLINEAR_SOLVE_TYPE,"*",ERR,ERROR))//"."
+                    CALL FlagError(LOCAL_ERROR,ERR,ERROR,*999)
+                  END SELECT
+                  IF(ASSOCIATED(CELLML_SOLVER)) CALL SOLVER_SOLVE(CELLML_SOLVER,ERR,ERROR,*999)
                   !Calculate the Jacobian
                   DO equations_set_idx=1,SOLVER_MAPPING%NUMBER_OF_EQUATIONS_SETS
                     EQUATIONS_SET=>SOLVER_MAPPING%EQUATIONS_SETS(equations_set_idx)%PTR
@@ -1423,15 +1425,17 @@ CONTAINS
                 CALL SOLVER_VARIABLES_FIELD_UPDATE(SOLVER,ERR,ERROR,*999)
                 !check for a linked CellML solver 
 !!TODO: This should be generalised for nonlinear solvers in general and not just Newton solvers.
-                NEWTON_SOLVER=>SOLVER%NONLINEAR_SOLVER%NEWTON_SOLVER
-                IF(ASSOCIATED(NEWTON_SOLVER)) THEN
-                  CELLML_SOLVER=>NEWTON_SOLVER%CELLML_EVALUATOR_SOLVER
-                  IF(ASSOCIATED(CELLML_SOLVER)) THEN
-                    CALL SOLVER_SOLVE(CELLML_SOLVER,ERR,ERROR,*999)
-                  ENDIF
-                ELSE
-                  CALL FlagError("Nonlinear solver Newton solver is not associated.",ERR,ERROR,*999)
-                ENDIF
+                SELECT CASE(SOLVER%NONLINEAR_SOLVER%NONLINEAR_SOLVE_TYPE)
+                CASE(SOLVER_NONLINEAR_NEWTON)
+                  CELLML_SOLVER=>SOLVER%NONLINEAR_SOLVER%NEWTON_SOLVER%CELLML_EVALUATOR_SOLVER
+                CASE(SOLVER_NONLINEAR_QUASI_NEWTON)
+                  CELLML_SOLVER=>SOLVER%NONLINEAR_SOLVER%QUASI_NEWTON_SOLVER%CELLML_EVALUATOR_SOLVER
+                CASE DEFAULT
+                  LOCAL_ERROR="Linked CellML solver is not implemented for nonlinear solver type " &
+                    & //TRIM(NUMBER_TO_VSTRING(SOLVER%NONLINEAR_SOLVER%NONLINEAR_SOLVE_TYPE,"*",ERR,ERROR))//"."
+                  CALL FlagError(LOCAL_ERROR,ERR,ERROR,*999)
+                END SELECT
+                IF(ASSOCIATED(CELLML_SOLVER)) CALL SOLVER_SOLVE(CELLML_SOLVER,ERR,ERROR,*999)
                 !Calculate the Jacobian
                 DO equations_set_idx=1,SOLVER_MAPPING%NUMBER_OF_EQUATIONS_SETS
                   EQUATIONS_SET=>SOLVER_MAPPING%EQUATIONS_SETS(equations_set_idx)%PTR
@@ -4232,9 +4236,7 @@ SUBROUTINE Problem_SolverJacobianEvaluatePetsc(snes,x,A,B,ctx,err)
             solverVector=>solverMatrix%SOLVER_VECTOR
             IF(ASSOCIATED(solverVector)) THEN
               CALL DISTRIBUTED_VECTOR_OVERRIDE_SET_ON(solverVector,x,err,error,*999)
-              
               CALL PROBLEM_SOLVER_JACOBIAN_EVALUATE(ctx,err,error,*999)
-              
               CALL DISTRIBUTED_VECTOR_OVERRIDE_SET_OFF(solverVector,err,error,*999)
             ELSE
               CALL FlagError("Solver vector is not associated.",err,error,*998)              
@@ -4459,78 +4461,68 @@ SUBROUTINE Problem_SolverResidualEvaluatePetsc(snes,x,f,ctx,err)
   TYPE(VARYING_STRING) :: dummyError,error,localError
 
   IF(ASSOCIATED(ctx)) THEN
-    nonlinearSolver=>ctx%NONLINEAR_SOLVER
-    IF(ASSOCIATED(nonlinearSolver)) THEN
-      newtonSolver=>nonlinearSolver%NEWTON_SOLVER
-      IF(ASSOCIATED(newtonSolver)) THEN
-        solverEquations=>ctx%SOLVER_EQUATIONS
-        IF(ASSOCIATED(solverEquations)) THEN
-          solverMatrices=>solverEquations%SOLVER_MATRICES
-          IF(ASSOCIATED(solverMatrices)) THEN
-            IF(solverMatrices%NUMBER_OF_MATRICES==1) THEN
-              solverMatrix=>solverMatrices%MATRICES(1)%PTR
-              IF(ASSOCIATED(solverMatrix)) THEN
-                solverVector=>solverMatrix%SOLVER_VECTOR
-                IF(ASSOCIATED(solverVector)) THEN
-                  residualVector=>solverMatrices%RESIDUAL
-                  IF(ASSOCIATED(residualVector)) THEN
-                    CALL DISTRIBUTED_VECTOR_OVERRIDE_SET_ON(solverVector,X,err,error,*999)
-                    CALL DISTRIBUTED_VECTOR_OVERRIDE_SET_ON(residualVector,F,err,error,*999)                
-                    
-                    CALL PROBLEM_SOLVER_RESIDUAL_EVALUATE(ctx,err,error,*999)
-                    
-                    CALL DISTRIBUTED_VECTOR_OVERRIDE_SET_OFF(solverVector,err,error,*999)
-                    CALL DISTRIBUTED_VECTOR_OVERRIDE_SET_OFF(residualVector,err,error,*999)                
-                  ELSE
-                    CALL FlagError("Residual vector is not associated.",err,error,*997)                
-                  ENDIF
-                ELSE
-                  CALL FlagError("Solver vector is not associated.",err,error,*997)
-                ENDIF
+    solverEquations=>ctx%SOLVER_EQUATIONS
+    IF(ASSOCIATED(solverEquations)) THEN
+      solverMatrices=>solverEquations%SOLVER_MATRICES
+      IF(ASSOCIATED(solverMatrices)) THEN
+        IF(solverMatrices%NUMBER_OF_MATRICES==1) THEN
+          solverMatrix=>solverMatrices%MATRICES(1)%PTR
+          IF(ASSOCIATED(solverMatrix)) THEN
+            solverVector=>solverMatrix%SOLVER_VECTOR
+            IF(ASSOCIATED(solverVector)) THEN
+              residualVector=>solverMatrices%RESIDUAL
+              IF(ASSOCIATED(residualVector)) THEN
+                CALL DISTRIBUTED_VECTOR_OVERRIDE_SET_ON(solverVector,X,err,error,*999)
+                CALL DISTRIBUTED_VECTOR_OVERRIDE_SET_ON(residualVector,F,err,error,*999)                
+                
+                CALL PROBLEM_SOLVER_RESIDUAL_EVALUATE(ctx,err,error,*999)
+                
+                CALL DISTRIBUTED_VECTOR_OVERRIDE_SET_OFF(solverVector,err,error,*999)
+                CALL DISTRIBUTED_VECTOR_OVERRIDE_SET_OFF(residualVector,err,error,*999)                
               ELSE
-                CALL FlagError("Solver matrix is not associated.",err,error,*997)
+                CALL FlagError("Residual vector is not associated.",err,error,*997)                
               ENDIF
             ELSE
-              localError="The number of solver matrices of "// &
-                & TRIM(NumberToVString(solverMatrices%NUMBER_OF_MATRICES,"*",err,error))// &
-                & " is invalid. There should be 1 solver matrix."
-              CALL FlagError(localError,err,error,*997)          
+              CALL FlagError("Solver vector is not associated.",err,error,*997)
             ENDIF
           ELSE
-            CALL FlagError("Solver equations solver matrices is not associated.",err,error,*997)
+            CALL FlagError("Solver matrix is not associated.",err,error,*997)
           ENDIF
         ELSE
-          CALL FlagError("Solver solver equations is not associated.",err,error,*997)
-        ENDIF
-!!TODO: move this to PROBLEM_SOLVER_RESIDUAL_EVALUATE or elsewhere?
-        nonLinearSolver=>ctx%NONLINEAR_SOLVER
-        IF(ASSOCIATED(nonlinearSolver)) THEN
-          SELECT CASE(nonLinearSolver%NONLINEAR_SOLVE_TYPE)
-          CASE(SOLVER_NONLINEAR_NEWTON)
-            newtonSolver=>nonlinearSolver%NEWTON_SOLVER
-            IF(ASSOCIATED(newtonSolver)) THEN
-              newtonSolver%TOTAL_NUMBER_OF_FUNCTION_EVALUATIONS=newtonSolver%TOTAL_NUMBER_OF_FUNCTION_EVALUATIONS+1
-            ELSE
-              CALL FlagError("Newton solver is not associated.",err,error,*997)
-            ENDIF
-          CASE(SOLVER_NONLINEAR_QUASI_NEWTON)
-            quasiNewtonSolver=>nonLinearSolver%QUASI_NEWTON_SOLVER
-            IF(ASSOCIATED(quasiNewtonSolver)) THEN
-              quasiNewtonSolver%TOTAL_NUMBER_OF_FUNCTION_EVALUATIONS=quasiNewtonSolver%TOTAL_NUMBER_OF_FUNCTION_EVALUATIONS+1
-            ELSE
-              CALL FlagError("Quasi-Newton solver is not associated.",err,error,*997)
-            ENDIF
-          CASE DEFAULT
-            !Do nothing?
-          END SELECT
-        ELSE
-          CALL FlagError("Nonlinear solve is not associated.", err,error,*997)
+          localError="The number of solver matrices of "// &
+            & TRIM(NumberToVString(solverMatrices%NUMBER_OF_MATRICES,"*",err,error))// &
+            & " is invalid. There should be 1 solver matrix."
+          CALL FlagError(localError,err,error,*997)          
         ENDIF
       ELSE
-        CALL FlagError("Nonlinear solver Newton solver is not associated.",err,error,*997)
+        CALL FlagError("Solver equations solver matrices is not associated.",err,error,*997)
       ENDIF
     ELSE
-      CALL FlagError("Solver nonlinear solver is not associated.",err,error,*997)
+      CALL FlagError("Solver solver equations is not associated.",err,error,*997)
+    ENDIF
+  !!TODO: move this to PROBLEM_SOLVER_RESIDUAL_EVALUATE or elsewhere?
+    nonLinearSolver=>ctx%NONLINEAR_SOLVER
+    IF(ASSOCIATED(nonlinearSolver)) THEN
+      SELECT CASE(nonLinearSolver%NONLINEAR_SOLVE_TYPE)
+      CASE(SOLVER_NONLINEAR_NEWTON)
+        newtonSolver=>nonlinearSolver%NEWTON_SOLVER
+        IF(ASSOCIATED(newtonSolver)) THEN
+          newtonSolver%TOTAL_NUMBER_OF_FUNCTION_EVALUATIONS=newtonSolver%TOTAL_NUMBER_OF_FUNCTION_EVALUATIONS+1
+        ELSE
+          CALL FlagError("Newton solver is not associated.",err,error,*997)
+        ENDIF
+      CASE(SOLVER_NONLINEAR_QUASI_NEWTON)
+        quasiNewtonSolver=>nonLinearSolver%QUASI_NEWTON_SOLVER
+        IF(ASSOCIATED(quasiNewtonSolver)) THEN
+          quasiNewtonSolver%TOTAL_NUMBER_OF_FUNCTION_EVALUATIONS=quasiNewtonSolver%TOTAL_NUMBER_OF_FUNCTION_EVALUATIONS+1
+        ELSE
+          CALL FlagError("Quasi-Newton solver is not associated.",err,error,*997)
+        ENDIF
+      CASE DEFAULT
+        !Do nothing?
+      END SELECT
+    ELSE
+      CALL FlagError("Solver nonlinear solver is not associated.", err,error,*997)
     ENDIF
   ELSE
     CALL FlagError("Solver context is not associated.",err,error,*997)

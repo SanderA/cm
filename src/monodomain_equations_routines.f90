@@ -280,10 +280,9 @@ CONTAINS
       CALL FlagError("Equations set is not associated",err,error,*999)
     END IF
 
-    CALL Exits("Monodomain_EquationsSetSpecificationSet")
+    EXITS("Monodomain_EquationsSetSpecificationSet")
     RETURN
-999 CALL Errors("Monodomain_EquationsSetSpecificationSet",err,error)
-    CALL Exits("Monodomain_EquationsSetSpecificationSet")
+999 ERRORSEXITS("Monodomain_EquationsSetSpecificationSet",err,error)
     RETURN 1
     
   END SUBROUTINE Monodomain_EquationsSetSpecificationSet
@@ -304,7 +303,7 @@ CONTAINS
     TYPE(VARYING_STRING) :: localError
     INTEGER(INTG) :: problemType,problemSubtype
 
-    CALL Enters("Monodomain_ProblemSpecificationSet",err,error,*999)
+    ENTERS("Monodomain_ProblemSpecificationSet",err,error,*999)
 
     IF(ASSOCIATED(problem)) THEN
       IF(SIZE(problemSpecification,1)>=3) THEN
@@ -340,10 +339,9 @@ CONTAINS
       CALL FlagError("Problem is not associated",err,error,*999)
     END IF
 
-    CALL Exits("Monodomain_ProblemSpecificationSet")
+    EXITS("Monodomain_ProblemSpecificationSet")
     RETURN
-999 CALL Errors("Monodomain_ProblemSpecificationSet",err,error)
-    CALL Exits("Monodomain_ProblemSpecificationSet")
+999 ERRORSEXITS("Monodomain_ProblemSpecificationSet",err,error)
     RETURN 1
     
   END SUBROUTINE Monodomain_ProblemSpecificationSet

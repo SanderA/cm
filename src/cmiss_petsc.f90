@@ -1699,8 +1699,8 @@ MODULE CmissPetsc
 
   !DM routines
   
-  PUBLIC Petsc_DMInitialise,Petsc_DMCreateSubDM,Petsc_DMShellCreate,Petsc_DMSetDefaultSection,Petsc_DMSetUp,Petsc_DMView, &
-    & Petsc_DMFinalise
+  PUBLIC Petsc_DMInitialise,Petsc_DMCreateSubDM,Petsc_DMShellCreate,Petsc_DMGetDefaultSection,Petsc_DMSetDefaultSection, &
+    & Petsc_DMSetUp,Petsc_DMView,Petsc_DMFinalise
 
   !IS routines
 
@@ -1742,7 +1742,7 @@ MODULE CmissPetsc
 
   PUBLIC Petsc_KSPCreate,Petsc_KSPDestroy,Petsc_KSPGetConvergedReason,Petsc_KSPGetIterationNumber,Petsc_KSPGetPC, &
     & Petsc_KSPGetResidualNorm,Petsc_KSPGMRESSetRestart,Petsc_KSPSetDM,Petsc_KSPSetDMActive, &
-    & Petsc_KSPSetFromOptions,Petsc_KSPSetInitialGuessNonZero,Petsc_KSPSetOperators, &
+    & Petsc_KSPSetFromOptions,Petsc_KSPSetInitialGuessNonZero,Petsc_KSPGetOperators,Petsc_KSPSetOperators, &
     & Petsc_KSPSetReusePreconditioner,Petsc_KSPSetTolerances,Petsc_KSPSetType,Petsc_KSPSetUp,Petsc_KSPSolve
 
   !Matrix routines and constants
@@ -1829,8 +1829,8 @@ MODULE CmissPetsc
   PUBLIC Petsc_PCFactorGetMatrix,Petsc_PCFactorSetMatSolverPackage,Petsc_PCFactorSetUpMatSolverPackage, &
     & Petsc_PCFieldSplitSetIS,Petsc_PCFieldSplitSetType,Petsc_PCFieldSplitSetSchurFactType,Petsc_PCFieldSplitSetSchurPre, &
     & Petsc_PCFieldSplitGetIS,Petsc_PCFieldSplitGetSubKSP,Petsc_PCGAMGSetType,Petsc_PCGAMGSetNSmooths, &
-    & Petsc_PCGetOperators,Petsc_PCSetCoordinates,Petsc_PCSetDM,Petsc_PCSetFromOptions,Petsc_PCSetReusePreconditioner, &
-    & Petsc_PCSetType,Petsc_PCSetUp
+    & Petsc_PCGetOperators,Petsc_PCSetCoordinates,Petsc_PCGetDM,Petsc_PCSetDM,Petsc_PCSetFromOptions, &
+    & Petsc_PCSetReusePreconditioner,Petsc_PCSetType,Petsc_PCSetUp
 
   !PetscSection routines
 
@@ -2079,6 +2079,36 @@ CONTAINS
 999 ERRORSEXITS("Petsc_DMFinalise",err,error)
     RETURN 1
   END SUBROUTINE Petsc_DMFinalise
+
+  !
+  !================================================================================================================================
+  !
+
+  !Get the default section of the PETSc DM structure
+  SUBROUTINE Petsc_DMGetDefaultSection(dm,section,err,error,*)
+
+    !Argument Variables
+    TYPE(PetscDMType), INTENT(INOUT) :: dm !<The DM type to get the default section for 
+    TYPE(PetscPetscSectionType), INTENT(INOUT) :: section !<The section type to get 
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+
+    ENTERS("Petsc_DMGetDefaultSection",err,error,*999)
+    
+    CALL DMGetDefaultSection(dm%dm,section%petscSection,err)
+    IF(err/=0) THEN
+      IF(petscHandleError) THEN
+        CHKERRQ(err)
+      ENDIF
+      CALL FlagError("PETSc error in DMGetDefaultSection",err,error,*999)
+    ENDIF
+
+    EXITS("Petsc_DMGetDefaultSection")
+    RETURN
+999 ERRORSEXITS("Petsc_DMGetDefaultSection",err,error)
+    RETURN 1
+  END SUBROUTINE Petsc_DMGetDefaultSection
     
   !
   !================================================================================================================================
@@ -3073,6 +3103,38 @@ CONTAINS
     RETURN 1
     
   END SUBROUTINE Petsc_KSPSetInitialGuessNonZero
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Buffer routine to the PETSc KSPGetOperators routine
+  SUBROUTINE Petsc_KSPGetOperators(ksp,amat,pmat,err,error,*)
+
+    !Argument Variables
+    TYPE(PetscKspType), INTENT(INOUT) :: ksp !<The Ksp to get the operators for
+    TYPE(PetscMatType), INTENT(INOUT) :: amat !<The matrix associated with the linear system
+    TYPE(PetscMatType), INTENT(INOUT) :: pmat !<The matrix to be used in constructing the preconditioner
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+
+    ENTERS("Petsc_KSPGetOperators",err,error,*999)
+
+    CALL KSPGetOperators(ksp%ksp,amat%mat,pmat%mat,err)
+    IF(err/=0) THEN
+      IF(petscHandleError) THEN
+        CHKERRQ(err)
+      ENDIF
+      CALL FlagError("PETSc error in KSPGetFromOperators.",err,error,*999)
+    ENDIF
+    
+    EXITS("Petsc_KSPGetOperators")
+    RETURN
+999 ERRORSEXITS("Petsc_KSPGetOperators",err,error)
+    RETURN 1
+    
+  END SUBROUTINE Petsc_KSPGetOperators
     
   !
   !================================================================================================================================
@@ -5538,6 +5600,36 @@ CONTAINS
 999 ERRORSEXITS("Petsc_PCSetCoordinates",err,error)
     RETURN 1
   END SUBROUTINE Petsc_PCSetCoordinates
+
+  !
+  !================================================================================================================================
+  !
+
+  !Gets the dm that may be used for the preconditioner
+  SUBROUTINE Petsc_PCGetDM(pc,dm,err,error,*)
+
+    !Argument Variables
+    TYPE(PetscPCType), INTENT(INOUT) :: pc !<The preconditioner to get the DM for
+    TYPE(PetscDMType), INTENT(INOUT) :: dm !<The DM type
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+
+    ENTERS("Petsc_PCGetDM",err,error,*999)
+    
+    CALL PCGetDM(pc%pc,dm%dm,err)
+    IF(err/=0) THEN
+      IF(petscHandleError) THEN
+        CHKERRQ(err)
+      ENDIF
+      CALL FlagError("PETSc error in PCGetDM",err,error,*999)
+    ENDIF
+
+    EXITS("Petsc_PCGetDM")
+    RETURN
+999 ERRORSEXITS("Petsc_PCGetDM",err,error)
+    RETURN 1
+  END SUBROUTINE Petsc_PCGetDM
 
   !
   !================================================================================================================================

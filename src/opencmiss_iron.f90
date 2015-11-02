@@ -939,7 +939,7 @@ MODULE OpenCMISS_Iron
   INTEGER(INTG), PARAMETER :: CMFE_BLOCK_PRECONDITIONER_SCHUR_PRE_SELF=BLOCK_PRECONDITIONER_SCHUR_PRE_SELF !<The preconditioner for the Schur complement is generated from the Schur complement matrix itself. \see OPENCMISS_BlockPreconditionerSchurPreTypes,OPENCMISS
   INTEGER(INTG), PARAMETER :: CMFE_BLOCK_PRECONDITIONER_SCHUR_PRE_SELFP=BLOCK_PRECONDITIONER_SCHUR_PRE_SELFP  !<The preconditioner for the Schur complement is assembled as A11 - A10 inv(diag(A00)) A01. \see OPENCMISS_BlockPreconditionerSchurPreTypes,OPENCMISS
   INTEGER(INTG), PARAMETER :: CMFE_BLOCK_PRECONDITIONER_SCHUR_PRE_A11=BLOCK_PRECONDITIONER_SCHUR_PRE_A11 !<Uses the lower diagonal block as a preconditioner for the Schur complement. \see OPENCMISS_BlockPreconditionerSchurPreTypes,OPENCMISS
-  INTEGER(INTG), PARAMETER :: CMFE_BLOCK_PRECONDITIONER_SCHUR_PRE_USER=BLOCK_PRECONDITIONER_SCHUR_PRE_USER !<The user provides a matrix as a preconditioner for the Schur complement. \see OPENCMISS_BlockPreconditionerSchurPreTypes,OPENCMISS
+  INTEGER(INTG), PARAMETER :: CMFE_BLOCK_PRECONDITIONER_SCHUR_PRE_USER=BLOCK_PRECONDITIONER_SCHUR_PRE_USER !<Uses a user defined matrix as a preconditioner for the Schur complement. \see OPENCMISS_BlockPreconditionerSchurPreTypes,OPENCMISS
   INTEGER(INTG), PARAMETER :: CMFE_BLOCK_PRECONDITIONER_SCHUR_PRE_FULL=BLOCK_PRECONDITIONER_SCHUR_PRE_FULL !<The preconditioner for the Schur complement is exact. \see OPENCMISS_BlockPreconditionerSchurPreTypes,OPENCMISS
   !>@}
 
@@ -7786,7 +7786,7 @@ CONTAINS
     ENTERS("cmfe_AMGPreconditioner_Finalise",err,error,*999)
 
     IF(ASSOCIATED(cmfe_AMGPreconditioner%amgPreconditioner))  &
-      & CALL AMGPreconditionerDestroy(cmfe_AMGPreconditioner%amgPreconditioner,err,error,*999)
+      & CALL AMGPreconditioner_Destroy(cmfe_AMGPreconditioner%amgPreconditioner,err,error,*999)
 
     EXITS("cmfe_AMGPreconditioner_Finalise")
     RETURN
@@ -7835,7 +7835,7 @@ CONTAINS
     ENTERS("cmfe_BlockPreconditioner_Finalise",err,error,*999)
 
     IF(ASSOCIATED(cmfe_BlockPreconditioner%blockPreconditioner))  &
-      & CALL BlockPreconditionerDestroy(cmfe_BlockPreconditioner%blockPreconditioner,err,error,*999)
+      & CALL BlockPreconditioner_Destroy(cmfe_BlockPreconditioner%blockPreconditioner,err,error,*999)
 
     EXITS("cmfe_BlockPreconditioner_Finalise")
     RETURN
@@ -9248,7 +9248,7 @@ CONTAINS
     ENTERS("cmfe_Preconditioner_Finalise",err,error,*999)
 
     IF(ASSOCIATED(cmfe_Preconditioner%preconditioner))  &
-      & CALL PreconditionerDestroy(cmfe_Preconditioner%preconditioner,err,error,*999)
+      & CALL Preconditioner_Destroy(cmfe_Preconditioner%preconditioner,err,error,*999)
 
     EXITS("cmfe_Preconditioner_Finalise")
     RETURN
@@ -12523,8 +12523,8 @@ CONTAINS
           CALL EQUATIONS_SET_USER_NUMBER_FIND(equationsSetUserNumber,REGION,EQUATIONS_SET,err,error,*999)
           IF(ASSOCIATED(EQUATIONS_SET)) THEN
             CALL SolverLinearIterativePreconditionerGet(SOLVER,preconditioner,err,error,*999)
-            CALL PreconditionerAMGPreconditionerGet(preconditioner,amgPreconditioner,err,error,*999)
-            CALL AMGPreconditionerEquationsSetAdd(amgPreconditioner,EQUATIONS_SET,err,error,*999)
+            CALL Preconditioner_AMGPreconditionerGet(preconditioner,amgPreconditioner,err,error,*999)
+            CALL AMGPreconditioner_EquationsSetAdd(amgPreconditioner,EQUATIONS_SET,err,error,*999)
           ELSE
             localError="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
               & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
@@ -12595,8 +12595,8 @@ CONTAINS
           CALL EQUATIONS_SET_USER_NUMBER_FIND(equationsSetUserNumber,REGION,EQUATIONS_SET,err,error,*999)
           IF(ASSOCIATED(EQUATIONS_SET)) THEN
             CALL SolverLinearIterativePreconditionerGet(SOLVER,preconditioner,err,error,*999)
-            CALL PreconditionerAMGPreconditionerGet(preconditioner,amgPreconditioner,err,error,*999)
-            CALL AMGPreconditionerEquationsSetAdd(amgPreconditioner,EQUATIONS_SET,err,error,*999)
+            CALL Preconditioner_AMGPreconditionerGet(preconditioner,amgPreconditioner,err,error,*999)
+            CALL AMGPreconditioner_EquationsSetAdd(amgPreconditioner,EQUATIONS_SET,err,error,*999)
           ELSE
             localError="An equations set with an user number of "//TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
               & " does not exist on region number "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
@@ -12641,7 +12641,7 @@ CONTAINS
 
     ENTERS("cmfe_AMGPreconditioner_EquationsSetAddObj",err,error,*999)
 
-    CALL AMGPreconditionerEquationsSetAdd(amgPreconditioner%amgPreconditioner,equationsSet%equationsSet,err,error,*999)
+    CALL AMGPreconditioner_EquationsSetAdd(amgPreconditioner%amgPreconditioner,equationsSet%equationsSet,err,error,*999)
 
     EXITS("cmfe_AMGPreconditioner_EquationsSetAddObj")
     RETURN
@@ -12683,8 +12683,8 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       IF(ASSOCIATED(SOLVER)) THEN
         CALL SolverLinearIterativePreconditionerGet(SOLVER,preconditioner,err,error,*999)
-        CALL PreconditionerAMGPreconditionerGet(preconditioner,amgPreconditioner,err,error,*999)
-        CALL AMGPreconditionerTypeSet(amgPreconditioner,amgType,err,error,*999)
+        CALL Preconditioner_AMGPreconditionerGet(preconditioner,amgPreconditioner,err,error,*999)
+        CALL AMGPreconditioner_TypeSet(amgPreconditioner,amgType,err,error,*999)
       ELSE
         localError="A solver with a solver index of "//TRIM(NUMBER_TO_VSTRING(solverIndex,"*",err,error))// &
           & " does not exist."
@@ -12736,8 +12736,8 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers(:),solverIndex,SOLVER,err,error,*999)
       IF(ASSOCIATED(SOLVER)) THEN
         CALL SolverLinearIterativePreconditionerGet(SOLVER,preconditioner,err,error,*999)
-        CALL PreconditionerAMGPreconditionerGet(preconditioner,amgPreconditioner,err,error,*999)
-        CALL AMGPreconditionerTypeSet(amgPreconditioner,amgType,err,error,*999)
+        CALL Preconditioner_AMGPreconditionerGet(preconditioner,amgPreconditioner,err,error,*999)
+        CALL AMGPreconditioner_TypeSet(amgPreconditioner,amgType,err,error,*999)
       ELSE
         localError="A solver with a solver index of "//TRIM(NUMBER_TO_VSTRING(solverIndex,"*",err,error))// &
           & " does not exist."
@@ -12772,7 +12772,7 @@ CONTAINS
 
     ENTERS("cmfe_AMGPreconditioner_TypeSetObj",err,error,*999)
 
-    CALL AMGPreconditionerTypeSet(amgPreconditioner%amgPreconditioner,amgType,err,error,*999)
+    CALL AMGPreconditioner_TypeSet(amgPreconditioner%amgPreconditioner,amgType,err,error,*999)
 
     EXITS("cmfe_AMGPreconditioner_TypeSetObj")
     RETURN
@@ -12827,8 +12827,8 @@ CONTAINS
           CALL FIELD_USER_NUMBER_FIND(fieldUserNumber,REGION,field,err,error,*999)
           IF(ASSOCIATED(field)) THEN
             CALL SolverLinearIterativePreconditionerGet(SOLVER,preconditioner,err,error,*999)
-            CALL PreconditionerBlockPreconditionerGet(preconditioner,blockPreconditioner,err,error,*999)
-            CALL BlockPreconditionerSplitFieldVariableAdd(blockPreconditioner,splitIndex,field,variableType, &
+            CALL Preconditioner_BlockPreconditionerGet(preconditioner,blockPreconditioner,err,error,*999)
+            CALL BlockPreconditioner_SplitFieldVariableAdd(blockPreconditioner,splitIndex,field,variableType, &
               & err,error,*999)
           ELSE
             localError="A field with a user number of "//TRIM(NUMBER_TO_VSTRING(fieldUserNumber,"*",err,error))// &
@@ -12902,8 +12902,8 @@ CONTAINS
           CALL FIELD_USER_NUMBER_FIND(fieldUserNumber,REGION,field,err,error,*999)
           IF(ASSOCIATED(field)) THEN
             CALL SolverLinearIterativePreconditionerGet(SOLVER,preconditioner,err,error,*999)
-            CALL PreconditionerBlockPreconditionerGet(preconditioner,blockPreconditioner,err,error,*999)
-            CALL BlockPreconditionerSplitFieldVariableAdd(blockPreconditioner,splitIndex,field,variableType, &
+            CALL Preconditioner_BlockPreconditionerGet(preconditioner,blockPreconditioner,err,error,*999)
+            CALL BlockPreconditioner_SplitFieldVariableAdd(blockPreconditioner,splitIndex,field,variableType, &
               & err,error,*999)
           ELSE
             localError="A field with a user number of "//TRIM(NUMBER_TO_VSTRING(fieldUserNumber,"*",err,error))// &
@@ -12951,7 +12951,7 @@ CONTAINS
 
     ENTERS("cmfe_BlockPreconditioner_SplitFieldVariableAddObj",err,error,*999)
 
-    CALL BlockPreconditionerSplitFieldVariableAdd(blockPreconditioner%blockPreconditioner,splitIndex,field%FIELD, &
+    CALL BlockPreconditioner_SplitFieldVariableAdd(blockPreconditioner%blockPreconditioner,splitIndex,field%FIELD, &
       & variableType,err,error,*999)
 
     EXITS("cmfe_BlockPreconditioner_SplitFieldVariableAddObj")
@@ -13000,8 +13000,8 @@ CONTAINS
         CALL REGION_USER_NUMBER_FIND(regionUserNumber,REGION,err,error,*999)
         IF(ASSOCIATED(REGION)) THEN
           CALL SolverLinearIterativePreconditionerGet(SOLVER,preconditioner,err,error,*999)
-          CALL PreconditionerBlockPreconditionerGet(preconditioner,blockPreconditioner,err,error,*999)
-          CALL BlockPreconditionerSplitLinearSolverGet(blockPreconditioner,splitIndex, &
+          CALL Preconditioner_BlockPreconditionerGet(preconditioner,blockPreconditioner,err,error,*999)
+          CALL BlockPreconditioner_SplitLinearSolverGet(blockPreconditioner,splitIndex, &
             & linearSolver%SOLVER,err,error,*999)
         ELSE
           localError="A region with a user number of "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))// &
@@ -13065,8 +13065,8 @@ CONTAINS
         CALL REGION_USER_NUMBER_FIND(regionUserNumber,REGION,err,error,*999)
         IF(ASSOCIATED(REGION)) THEN
           CALL SolverLinearIterativePreconditionerGet(SOLVER,preconditioner,err,error,*999)
-          CALL PreconditionerBlockPreconditionerGet(preconditioner,blockPreconditioner,err,error,*999)
-          CALL BlockPreconditionerSplitLinearSolverGet(blockPreconditioner,splitIndex, &
+          CALL Preconditioner_BlockPreconditionerGet(preconditioner,blockPreconditioner,err,error,*999)
+          CALL BlockPreconditioner_SplitLinearSolverGet(blockPreconditioner,splitIndex, &
             & linearSolver%SOLVER,err,error,*999)
         ELSE
           localError="A region with a user number of "//TRIM(NUMBER_TO_VSTRING(regionUserNumber,"*",err,error))// &
@@ -13108,7 +13108,7 @@ CONTAINS
 
     ENTERS("cmfe_BlockPreconditioner_SplitLinearSolverGetObj",err,error,*999)
 
-    CALL BlockPreconditionerSplitLinearSolverGet(blockPreconditioner%blockPreconditioner,splitIndex, &
+    CALL BlockPreconditioner_SplitLinearSolverGet(blockPreconditioner%blockPreconditioner,splitIndex, &
       & linearSolver%SOLVER,err,error,*999)
 
     EXITS("cmfe_BlockPreconditioner_SplitLinearSolverGetObj")
@@ -13151,8 +13151,8 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       IF(ASSOCIATED(SOLVER)) THEN
         CALL SolverLinearIterativePreconditionerGet(SOLVER,preconditioner,err,error,*999)
-        CALL PreconditionerBlockPreconditionerGet(preconditioner,blockPreconditioner,err,error,*999)
-        CALL BlockPreconditionerNumberOfSplitsSet(blockPreconditioner,numberOfSplits,err,error,*999)
+        CALL Preconditioner_BlockPreconditionerGet(preconditioner,blockPreconditioner,err,error,*999)
+        CALL BlockPreconditioner_NumberOfSplitsSet(blockPreconditioner,numberOfSplits,err,error,*999)
       ELSE
         localError="A solver with a solver index of "//TRIM(NUMBER_TO_VSTRING(solverIndex,"*",err,error))// &
           & " does not exist."
@@ -13204,8 +13204,8 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers(:),solverIndex,SOLVER,err,error,*999)
       IF(ASSOCIATED(SOLVER)) THEN
         CALL SolverLinearIterativePreconditionerGet(SOLVER,preconditioner,err,error,*999)
-        CALL PreconditionerBlockPreconditionerGet(preconditioner,blockPreconditioner,err,error,*999)
-        CALL BlockPreconditionerNumberOfSplitsSet(blockPreconditioner,numberOfSplits,err,error,*999)
+        CALL Preconditioner_BlockPreconditionerGet(preconditioner,blockPreconditioner,err,error,*999)
+        CALL BlockPreconditioner_NumberOfSplitsSet(blockPreconditioner,numberOfSplits,err,error,*999)
       ELSE
         localError="A solver with a solver index of "//TRIM(NUMBER_TO_VSTRING(solverIndex,"*",err,error))// &
           & " does not exist."
@@ -13240,7 +13240,7 @@ CONTAINS
 
     ENTERS("cmfe_BlockPreconditioner_NumberOfSplitsSetObj",err,error,*999)
 
-    CALL BlockPreconditionerNumberOfSplitsSet(blockPreconditioner%blockPreconditioner,numberOfSplits,err,error,*999)
+    CALL BlockPreconditioner_NumberOfSplitsSet(blockPreconditioner%blockPreconditioner,numberOfSplits,err,error,*999)
 
     EXITS("cmfe_BlockPreconditioner_NumberOfSplitsSetObj")
     RETURN
@@ -13282,8 +13282,8 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       IF(ASSOCIATED(SOLVER)) THEN
         CALL SolverLinearIterativePreconditionerGet(SOLVER,preconditioner,err,error,*999)
-        CALL PreconditionerBlockPreconditionerGet(preconditioner,blockPreconditioner,err,error,*999)
-        CALL BlockPreconditionerSchurPreTypeSet(blockPreconditioner, &
+        CALL Preconditioner_BlockPreconditionerGet(preconditioner,blockPreconditioner,err,error,*999)
+        CALL BlockPreconditioner_SchurPreTypeSet(blockPreconditioner, &
           & schurPreconditionerType,err,error,*999)
       ELSE
         localError="A solver with a solver index of "//TRIM(NUMBER_TO_VSTRING(solverIndex,"*",err,error))// &
@@ -13336,8 +13336,8 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers(:),solverIndex,SOLVER,err,error,*999)
       IF(ASSOCIATED(SOLVER)) THEN
         CALL SolverLinearIterativePreconditionerGet(SOLVER,preconditioner,err,error,*999)
-        CALL PreconditionerBlockPreconditionerGet(preconditioner,blockPreconditioner,err,error,*999)
-        CALL BlockPreconditionerSchurPreTypeSet(blockPreconditioner, &
+        CALL Preconditioner_BlockPreconditionerGet(preconditioner,blockPreconditioner,err,error,*999)
+        CALL BlockPreconditioner_SchurPreTypeSet(blockPreconditioner, &
           & schurPreconditionerType,err,error,*999)
       ELSE
         localError="A solver with a solver index of "//TRIM(NUMBER_TO_VSTRING(solverIndex,"*",err,error))// &
@@ -13374,7 +13374,7 @@ CONTAINS
 
     ENTERS("cmfe_BlockPreconditioner_SchurPreTypeSetObj",err,error,*999)
 
-    CALL BlockPreconditionerSchurPreTypeSet(blockPreconditioner%blockPreconditioner, &
+    CALL BlockPreconditioner_SchurPreTypeSet(blockPreconditioner%blockPreconditioner, &
       & schurPreconditionerType,err,error,*999)
 
     EXITS("cmfe_BlockPreconditioner_SchurPreTypeSetObj")
@@ -13417,8 +13417,8 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       IF(ASSOCIATED(SOLVER)) THEN
         CALL SolverLinearIterativePreconditionerGet(SOLVER,preconditioner,err,error,*999)
-        CALL PreconditionerBlockPreconditionerGet(preconditioner,blockPreconditioner,err,error,*999)
-        CALL BlockPreconditionerSchurFactorisationTypeSet(blockPreconditioner,schurFactorisationType,err,error,*999)
+        CALL Preconditioner_BlockPreconditionerGet(preconditioner,blockPreconditioner,err,error,*999)
+        CALL BlockPreconditioner_SchurFactorisationTypeSet(blockPreconditioner,schurFactorisationType,err,error,*999)
       ELSE
         localError="A solver with a solver index of "//TRIM(NUMBER_TO_VSTRING(solverIndex,"*",err,error))// &
           & " does not exist."
@@ -13470,8 +13470,8 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers(:),solverIndex,SOLVER,err,error,*999)
       IF(ASSOCIATED(SOLVER)) THEN
         CALL SolverLinearIterativePreconditionerGet(SOLVER,preconditioner,err,error,*999)
-        CALL PreconditionerBlockPreconditionerGet(preconditioner,blockPreconditioner,err,error,*999)
-        CALL BlockPreconditionerSchurFactorisationTypeSet(blockPreconditioner,schurFactorisationType,err,error,*999)
+        CALL Preconditioner_BlockPreconditionerGet(preconditioner,blockPreconditioner,err,error,*999)
+        CALL BlockPreconditioner_SchurFactorisationTypeSet(blockPreconditioner,schurFactorisationType,err,error,*999)
       ELSE
         localError="A solver with a solver index of "//TRIM(NUMBER_TO_VSTRING(solverIndex,"*",err,error))// &
           & " does not exist."
@@ -13506,7 +13506,7 @@ CONTAINS
 
     ENTERS("cmfe_BlockPreconditioner_SchurFactorisationTypeSetObj",err,error,*999)
 
-    CALL BlockPreconditionerSchurFactorisationTypeSet(blockPreconditioner%blockPreconditioner,schurFactorisationType, &
+    CALL BlockPreconditioner_SchurFactorisationTypeSet(blockPreconditioner%blockPreconditioner,schurFactorisationType, &
       & err,error,*999)
 
     EXITS("cmfe_BlockPreconditioner_SchurFactorisationTypeSetObj")
@@ -13549,8 +13549,8 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       IF(ASSOCIATED(SOLVER)) THEN
         CALL SolverLinearIterativePreconditionerGet(SOLVER,preconditioner,err,error,*999)
-        CALL PreconditionerBlockPreconditionerGet(preconditioner,blockPreconditioner,err,error,*999)
-        CALL BlockPreconditionerTypeSet(blockPreconditioner,iterativeBlockPreconditionerType,err,error,*999)
+        CALL Preconditioner_BlockPreconditionerGet(preconditioner,blockPreconditioner,err,error,*999)
+        CALL BlockPreconditioner_TypeSet(blockPreconditioner,iterativeBlockPreconditionerType,err,error,*999)
       ELSE
         localError="A solver with a solver index of "//TRIM(NUMBER_TO_VSTRING(solverIndex,"*",err,error))// &
           & " does not exist."
@@ -13602,8 +13602,8 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers(:),solverIndex,SOLVER,err,error,*999)
       IF(ASSOCIATED(SOLVER)) THEN
         CALL SolverLinearIterativePreconditionerGet(SOLVER,preconditioner,err,error,*999)
-        CALL PreconditionerBlockPreconditionerGet(preconditioner,blockPreconditioner,err,error,*999)
-        CALL BlockPreconditionerTypeSet(blockPreconditioner,iterativeBlockPreconditionerType,err,error,*999)
+        CALL Preconditioner_BlockPreconditionerGet(preconditioner,blockPreconditioner,err,error,*999)
+        CALL BlockPreconditioner_TypeSet(blockPreconditioner,iterativeBlockPreconditionerType,err,error,*999)
       ELSE
         localError="A solver with a solver index of "//TRIM(NUMBER_TO_VSTRING(solverIndex,"*",err,error))// &
           & " does not exist."
@@ -13638,7 +13638,7 @@ CONTAINS
 
     ENTERS("cmfe_BlockPreconditioner_TypeSetObj",err,error,*999)
 
-    CALL BlockPreconditionerTypeSet(blockPreconditioner%blockPreconditioner,iterativeBlockPreconditionerType,err,error,*999)
+    CALL BlockPreconditioner_TypeSet(blockPreconditioner%blockPreconditioner,iterativeBlockPreconditionerType,err,error,*999)
 
     EXITS("cmfe_BlockPreconditioner_TypeSetObj")
     RETURN
@@ -49413,7 +49413,7 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       IF(ASSOCIATED(SOLVER)) THEN
         CALL SolverLinearIterativePreconditionerGet(SOLVER,preconditioner,err,error,*999)
-        CALL PreconditionerAMGPreconditionerGet(preconditioner,amgPreconditioner%amgPreconditioner,err,error,*999)
+        CALL Preconditioner_AMGPreconditionerGet(preconditioner,amgPreconditioner%amgPreconditioner,err,error,*999)
       ELSE
         localError="A solver with a solver index of "//TRIM(NUMBER_TO_VSTRING(solverIndex,"*",err,error))// &
           & " does not exist."
@@ -49463,7 +49463,7 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers(:),solverIndex,SOLVER,err,error,*999)
       IF(ASSOCIATED(SOLVER)) THEN
         CALL SolverLinearIterativePreconditionerGet(SOLVER,preconditioner,err,error,*999)
-        CALL PreconditionerAMGPreconditionerGet(preconditioner,amgPreconditioner%amgPreconditioner,err,error,*999)
+        CALL Preconditioner_AMGPreconditionerGet(preconditioner,amgPreconditioner%amgPreconditioner,err,error,*999)
       ELSE
         localError="A solver with a solver index of "//TRIM(NUMBER_TO_VSTRING(solverIndex,"*",err,error))// &
           & " does not exist."
@@ -49498,7 +49498,7 @@ CONTAINS
 
     ENTERS("cmfe_Preconditioner_AMGPreconditionerGetObj",err,error,*999)
 
-    CALL PreconditionerAMGPreconditionerGet(preconditioner%preconditioner,amgPreconditioner%amgPreconditioner,err,error,*999)
+    CALL Preconditioner_AMGPreconditionerGet(preconditioner%preconditioner,amgPreconditioner%amgPreconditioner,err,error,*999)
 
     EXITS("cmfe_Preconditioner_AMGPreconditionerGetObj")
     RETURN
@@ -49538,7 +49538,7 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       IF(ASSOCIATED(SOLVER)) THEN
         CALL SolverLinearIterativePreconditionerGet(SOLVER,preconditioner,err,error,*999)
-        CALL PreconditionerBlockPreconditionerGet(preconditioner,blockPreconditioner%blockPreconditioner,err,error,*999)
+        CALL Preconditioner_BlockPreconditionerGet(preconditioner,blockPreconditioner%blockPreconditioner,err,error,*999)
       ELSE
         localError="A solver with a solver index of "//TRIM(NUMBER_TO_VSTRING(solverIndex,"*",err,error))// &
           & " does not exist."
@@ -49588,7 +49588,7 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers(:),solverIndex,SOLVER,err,error,*999)
       IF(ASSOCIATED(SOLVER)) THEN
         CALL SolverLinearIterativePreconditionerGet(SOLVER,preconditioner,err,error,*999)
-        CALL PreconditionerBlockPreconditionerGet(preconditioner,blockPreconditioner%blockPreconditioner,err,error,*999)
+        CALL Preconditioner_BlockPreconditionerGet(preconditioner,blockPreconditioner%blockPreconditioner,err,error,*999)
       ELSE
         localError="A solver with a solver index of "//TRIM(NUMBER_TO_VSTRING(solverIndex,"*",err,error))// &
           & " does not exist."
@@ -49623,7 +49623,7 @@ CONTAINS
 
     ENTERS("cmfe_Preconditioner_BlockPreconditionerGetObj",err,error,*999)
 
-    CALL PreconditionerBlockPreconditionerGet(preconditioner%preconditioner,blockPreconditioner%blockPreconditioner,err,error,*999)
+    CALL Preconditioner_BlockPreconditionerGet(preconditioner%preconditioner,blockPreconditioner%blockPreconditioner,err,error,*999)
 
     EXITS("cmfe_Preconditioner_BlockPreconditionerGetObj")
     RETURN
@@ -49662,7 +49662,7 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
       IF(ASSOCIATED(SOLVER)) THEN
         CALL SolverLinearIterativePreconditionerGet(SOLVER,preconditioner,err,error,*999)
-        CALL PreconditionerTypeSet(preconditioner,iterativePreconditionerType,err,error,*999)
+        CALL Preconditioner_TypeSet(preconditioner,iterativePreconditionerType,err,error,*999)
       ELSE
         localError="A solver with a solver index of "//TRIM(NUMBER_TO_VSTRING(solverIndex,"*",err,error))// &
           & " does not exist."
@@ -49711,7 +49711,7 @@ CONTAINS
       CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers(:),solverIndex,SOLVER,err,error,*999)
       IF(ASSOCIATED(SOLVER)) THEN
         CALL SolverLinearIterativePreconditionerGet(SOLVER,preconditioner,err,error,*999)
-        CALL PreconditionerTypeSet(preconditioner,iterativePreconditionerType,err,error,*999)
+        CALL Preconditioner_TypeSet(preconditioner,iterativePreconditionerType,err,error,*999)
       ELSE
         localError="A solver with a solver index of "//TRIM(NUMBER_TO_VSTRING(solverIndex,"*",err,error))// &
           & " does not exist."
@@ -49746,7 +49746,7 @@ CONTAINS
 
     ENTERS("cmfe_Preconditioner_TypeSetObj",err,error,*999)
 
-    CALL PreconditionerTypeSet(preconditioner%preconditioner,iterativePreconditionerType,err,error,*999)
+    CALL Preconditioner_TypeSet(preconditioner%preconditioner,iterativePreconditionerType,err,error,*999)
 
     EXITS("cmfe_Preconditioner_TypeSetObj")
     RETURN
@@ -51358,7 +51358,7 @@ CONTAINS
     TYPE(PROBLEM_TYPE), POINTER :: problem
     TYPE(VARYING_STRING) :: localError
 
-    CALL Enters("cmfe_Problem_SpecificationGetNumber",err,error,*999)
+    ENTERS("cmfe_Problem_SpecificationGetNumber",err,error,*999)
 
     NULLIFY(problem)
     CALL PROBLEM_USER_NUMBER_FIND(problemUserNumber,problem,err,error,*999)
@@ -51370,10 +51370,9 @@ CONTAINS
       CALL FlagError(localError,err,error,*999)
     END IF
 
-    CALL Exits("cmfe_Problem_SpecificationGetNumber")
+    EXITS("cmfe_Problem_SpecificationGetNumber")
     RETURN
-999 CALL Errors("cmfe_Problem_SpecificationGetNumber",err,error)
-    CALL Exits("cmfe_Problem_SpecificationGetNumber")
+999 ERRORSEXITS("cmfe_Problem_SpecificationGetNumber",err,error)
     CALL cmfe_HandleError(err,error)
     RETURN
 
