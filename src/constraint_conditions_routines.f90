@@ -3010,34 +3010,29 @@ CONTAINS
           !Update the residual parameter set if it exists
           CONSTRAINT_MAPPING=>CONSTRAINT_EQUATIONS%CONSTRAINT_MAPPING
           IF(ASSOCIATED(CONSTRAINT_MAPPING)) THEN
-            NONLINEAR_MAPPING=>CONSTRAINT_MAPPING%NONLINEAR_MAPPING
-            IF(ASSOCIATED(NONLINEAR_MAPPING)) THEN
-              RESIDUAL_VARIABLE=>NONLINEAR_MAPPING%VAR_TO_CONSTRAINT_JACOBIAN_MAP%VARIABLE
-              IF(ASSOCIATED(RESIDUAL_VARIABLE)) THEN
-                RESIDUAL_PARAMETER_SET=>RESIDUAL_VARIABLE%PARAMETER_SETS%SET_TYPE(FIELD_RESIDUAL_SET_TYPE)%PTR
-                IF(ASSOCIATED(RESIDUAL_PARAMETER_SET)) THEN
-                  !Residual parameter set exists
-                  CONSTRAINT_MATRICES=>CONSTRAINT_EQUATIONS%CONSTRAINT_MATRICES
-                  IF(ASSOCIATED(CONSTRAINT_MATRICES)) THEN
-                    NONLINEAR_MATRICES=>CONSTRAINT_MATRICES%NONLINEAR_MATRICES
-                    IF(ASSOCIATED(NONLINEAR_MATRICES)) THEN
-                      !Copy the residual vector to the residuals parameter set.
-                      CALL DISTRIBUTED_VECTOR_COPY(NONLINEAR_MATRICES%RESIDUAL,RESIDUAL_PARAMETER_SET%PARAMETERS,1.0_DP, &
-                        & ERR,ERROR,*999)
-                    ELSE
-                      CALL FLAG_ERROR("Constraint equations matrices nonlinear matrices is not associated.",ERR,ERROR,*999)
-                    ENDIF
+            RESIDUAL_VARIABLE=>CONSTRAINT_MAPPING%LAGRANGE_VARIABLE
+            IF(ASSOCIATED(RESIDUAL_VARIABLE)) THEN
+              RESIDUAL_PARAMETER_SET=>RESIDUAL_VARIABLE%PARAMETER_SETS%SET_TYPE(FIELD_RESIDUAL_SET_TYPE)%PTR
+              IF(ASSOCIATED(RESIDUAL_PARAMETER_SET)) THEN
+                !Residual parameter set exists
+                CONSTRAINT_MATRICES=>CONSTRAINT_EQUATIONS%CONSTRAINT_MATRICES
+                IF(ASSOCIATED(CONSTRAINT_MATRICES)) THEN
+                  NONLINEAR_MATRICES=>CONSTRAINT_MATRICES%NONLINEAR_MATRICES
+                  IF(ASSOCIATED(NONLINEAR_MATRICES)) THEN
+                    !Copy the residual vector to the residuals parameter set.
+                    CALL DISTRIBUTED_VECTOR_COPY(NONLINEAR_MATRICES%RESIDUAL,RESIDUAL_PARAMETER_SET%PARAMETERS,1.0_DP, &
+                      & ERR,ERROR,*999)
                   ELSE
-                    CALL FLAG_ERROR("Constraint equations equations matrices is not associated.",ERR,ERROR,*999)
+                    CALL FLAG_ERROR("Constraint equations matrices nonlinear matrices is not associated.",ERR,ERROR,*999)
                   ENDIF
+                ELSE
+                  CALL FLAG_ERROR("Constraint equations equations matrices is not associated.",ERR,ERROR,*999)
                 ENDIF
-              ELSE
-                LOCAL_ERROR="Nonlinear mapping residual variable for residual variable index "// &
-                  & TRIM(NUMBER_TO_VSTRING(residual_variable_idx,"*",ERR,ERROR))//" is not associated."
-                CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
               ENDIF
             ELSE
-              CALL FLAG_ERROR("Constraint equations mapping nonlinear mapping is not associated.",ERR,ERROR,*999)
+              LOCAL_ERROR="Nonlinear mapping residual variable for residual variable index "// &
+                & TRIM(NUMBER_TO_VSTRING(residual_variable_idx,"*",ERR,ERROR))//" is not associated."
+              CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
             ENDIF
           ELSE
             CALL FLAG_ERROR("Constraint equations equations mapping is not associated.",ERR,ERROR,*999)

@@ -16358,7 +16358,8 @@ CONTAINS
                                         CALL DISTRIBUTED_MATRIX_BY_VECTOR_ADD(DISTRIBUTED_MATRIX_VECTOR_NO_GHOSTS_TYPE,1.0_DP, &
                                           & CONSTRAINT_LINEAR_MATRIX%MATRIX,LAGRANGE_VECTOR,LINEAR_TEMP_VECTOR,ERR,ERROR,*999)
                                         IF(CONSTRAINT_LINEAR_MATRIX%HAS_TRANSPOSE) THEN
-                                          dependent_variable_type=CONSTRAINT_LINEAR_MAPPING%VARIABLE_TYPE
+                                          dependent_variable_type=CONSTRAINT_LINEAR_MAPPING% &
+                                            & CONSTRAINT_MATRIX_ROWS_TO_VAR_MAP(constraint_matrix_idx)%VARIABLE_TYPE
                                           LINEAR_TEMP_VECTOR=>CONSTRAINT_LINEAR_MATRIX%TEMP_TRANSPOSE_VECTOR
                                           !Initialise the linear temporary vector to zero
                                           CALL DISTRIBUTED_VECTOR_ALL_VALUES_SET(LINEAR_TEMP_VECTOR,0.0_DP,ERR,ERROR,*999)
