@@ -1779,7 +1779,7 @@ MODULE CmissPetsc
     & Petsc_MatDestroy,Petsc_MatGetInfo,Petsc_MatGetOwnershipRange,Petsc_MatGetRow,Petsc_MatGetValues, &
     & Petsc_MatMumpsSetIcntl,Petsc_MatMumpsSetCntl,Petsc_MatRestoreRow,Petsc_MatSeqAIJGetArrayF90, &
     & Petsc_MatSeqAIJGetMaxRowNonzeros,Petsc_MatSeqAIJRestoreArrayF90,Petsc_MatSetBlockSize,Petsc_MatSetLocalToGlobalMapping, &
-    & Petsc_MatSetNearNullSpace,Petsc_MatSetOption,Petsc_MatSetSizes,Petsc_MatSetValue,Petsc_MatSetValues, &
+    & Petsc_MatSetNearNullSpace,Petsc_MatSetOption,Petsc_MatSetSizes,Petsc_MatSetType,Petsc_MatSetValue,Petsc_MatSetValues, &
     & Petsc_MatSetValueLocal,Petsc_MatSetValuesLocal,Petsc_MatView,Petsc_MatZeroEntries,Petsc_MatZeroRowsColumns
 
   PUBLIC Petsc_MatNullSpaceInitialise,Petsc_MatNullSpaceFinalise

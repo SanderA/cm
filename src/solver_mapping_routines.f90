@@ -6661,10 +6661,6 @@ CONTAINS
   !================================================================================================================================
   !
 
-  !
-  !================================================================================================================================
-  !
-
   !>Adds a variable type from an interface condition Lagrange field to the list of variables for a particular solver matrix of a solver mapping.
   SUBROUTINE SolverMapping_CreateValuesCacheInterfVarListAdd(SOLVER_MAPPING,solver_matrix_idx,interface_condition_idx, &
     & variable_type,ERR,ERROR,*)
@@ -7947,7 +7943,7 @@ CONTAINS
     TYPE(CONSTRAINT_DEPENDENT_TYPE), POINTER :: CONSTRAINT_DEPENDENT
     TYPE(CONSTRAINT_EQUATIONS_TYPE), POINTER :: CONSTRAINT_EQUATIONS
     TYPE(CONSTRAINT_MAPPING_TYPE), POINTER :: CONSTRAINT_MAPPING
-    TYPE(CONSTRAINT_CONDITION_PTR_TYPE), ALLOCATABLE :: OLD_CONSTRAINT_CONDITIONS(:)
+    TYPE(CONSTRAINT_CONDITION_PTR_TYPE), ALLOCATABLE :: NEW_CONSTRAINT_CONDITIONS(:)
     TYPE(SOLVER_EQUATIONS_TYPE), POINTER :: SOLVER_EQUATIONS
     TYPE(VARYING_STRING) :: LOCAL_ERROR
  
@@ -8267,34 +8263,20 @@ CONTAINS
                         & TRIM(NUMBER_TO_VSTRING(CONSTRAINT_CONDITION%METHOD,"*",ERR,ERROR))//" is invalid."
                       CALL FlagError(LOCAL_ERROR,ERR,ERROR,*999)
                     END SELECT
-                    IF(SOLVER_MAPPING%NUMBER_OF_CONSTRAINT_CONDITIONS>0) THEN
-                      ALLOCATE(OLD_CONSTRAINT_CONDITIONS(SOLVER_MAPPING%NUMBER_OF_CONSTRAINT_CONDITIONS),STAT=ERR)
-                      IF(ERR/=0) CALL FlagError("Could not allocate old constraint conditions.",ERR,ERROR,*999)
-                      DO constraint_condition_idx=1,SOLVER_MAPPING%NUMBER_OF_CONSTRAINT_CONDITIONS
-                        OLD_CONSTRAINT_CONDITIONS(constraint_condition_idx)%PTR=>SOLVER_MAPPING% &
-                          & CONSTRAINT_CONDITIONS(constraint_condition_idx)%PTR
-                      ENDDO !constraint_condition_idx
-                      DEALLOCATE(SOLVER_MAPPING%CONSTRAINT_CONDITIONS)
-                    ELSE IF(SOLVER_MAPPING%NUMBER_OF_CONSTRAINT_CONDITIONS==0) THEN
-                      !Do nothing
-                    ELSE
-                      CALL FlagError("The number of constraint conditions is < 0.",ERR,ERROR,*999)
-                    ENDIF
-                    ALLOCATE(SOLVER_MAPPING%CONSTRAINT_CONDITIONS(SOLVER_MAPPING%NUMBER_OF_CONSTRAINT_CONDITIONS+1),STAT=ERR)
-                    IF(ERR/=0) CALL FlagError("Could not allocate constraint conditions.",ERR,ERROR,*999)
+
+                    ALLOCATE(NEW_CONSTRAINT_CONDITIONS(SOLVER_MAPPING%NUMBER_OF_CONSTRAINT_CONDITIONS+1),STAT=ERR)
+                    IF(ERR/=0) CALL FlagError("Could not allocate new constraint conditions.",ERR,ERROR,*999)
                     DO constraint_condition_idx=1,SOLVER_MAPPING%NUMBER_OF_CONSTRAINT_CONDITIONS
-                      SOLVER_MAPPING%CONSTRAINT_CONDITIONS(constraint_condition_idx)%PTR=> &
-                        & OLD_CONSTRAINT_CONDITIONS(constraint_condition_idx)%PTR
+                      NEW_CONSTRAINT_CONDITIONS(constraint_condition_idx)%PTR=>SOLVER_MAPPING% &
+                        & CONSTRAINT_CONDITIONS(constraint_condition_idx)%PTR
                     ENDDO !constraint_condition_idx
-                    SOLVER_MAPPING%CONSTRAINT_CONDITIONS(SOLVER_MAPPING%NUMBER_OF_CONSTRAINT_CONDITIONS+1)%PTR=>CONSTRAINT_CONDITION
+                    NEW_CONSTRAINT_CONDITIONS(SOLVER_MAPPING%NUMBER_OF_CONSTRAINT_CONDITIONS+1)%PTR=>CONSTRAINT_CONDITION
                     SOLVER_MAPPING%NUMBER_OF_CONSTRAINT_CONDITIONS=SOLVER_MAPPING%NUMBER_OF_CONSTRAINT_CONDITIONS+1
                     CONSTRAINT_CONDITION_INDEX=SOLVER_MAPPING%NUMBER_OF_CONSTRAINT_CONDITIONS
- 
+                    CALL MOVE_ALLOC(NEW_CONSTRAINT_CONDITIONS,SOLVER_MAPPING%CONSTRAINT_CONDITIONS)
  !TODO: SORT OUT LAGRANGE FIELD VARIABLE
                     CALL SOLVER_MAPPING_CREATE_VALUES_CACHE_CONSTR_VAR_LIST_ADD(SOLVER_MAPPING,1,CONSTRAINT_CONDITION_INDEX, &
                       & 1,ERR,ERROR,*999)
-                    
-                    IF(ALLOCATED(OLD_CONSTRAINT_CONDITIONS)) DEALLOCATE(OLD_CONSTRAINT_CONDITIONS)
                   ELSE
                     CALL FlagError("Solvers mapping create values cache is not associated.",ERR,ERROR,*999)
                   ENDIF
@@ -8320,7 +8302,7 @@ CONTAINS
         
     EXITS("SOLVER_MAPPING_CONSTRAINT_CONDITION_ADD")
     RETURN
-999 IF(ALLOCATED(OLD_CONSTRAINT_CONDITIONS)) DEALLOCATE(OLD_CONSTRAINT_CONDITIONS)
+999 IF(ALLOCATED(NEW_CONSTRAINT_CONDITIONS)) DEALLOCATE(NEW_CONSTRAINT_CONDITIONS)
     ERRORSEXITS("SOLVER_MAPPING_CONSTRAINT_CONDITION_ADD",ERR,ERROR)    
     RETURN 1
    

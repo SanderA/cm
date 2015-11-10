@@ -64,6 +64,8 @@ MODULE SOLVER_ROUTINES
   USE INTERFACE_MATRICES_CONSTANTS
   USE ISO_VARYING_STRING
   USE MATHS
+  USE PRECONDITIONER_MAPPING_ROUTINES
+  USE PRECONDITIONER_MATRIX_ROUTINES
   USE PROBLEM_CONSTANTS
   USE SOLVER_MAPPING_ROUTINES
   USE SOLVER_MATRICES_ROUTINES
@@ -141,10 +143,11 @@ MODULE SOLVER_ROUTINES
   INTEGER(INTG), PARAMETER :: SOLVER_ITERATIVE_CHEBYSHEV=2 !<Chebyshev iterative solver type \see SOLVER_ROUTINES_IterativeLinearSolverTypes,SOLVER_ROUTINES
   INTEGER(INTG), PARAMETER :: SOLVER_ITERATIVE_CONJUGATE_GRADIENT=3 !<Conjugate gradient iterative solver type \see SOLVER_ROUTINES_IterativeLinearSolverTypes,SOLVER_ROUTINES
   INTEGER(INTG), PARAMETER :: SOLVER_ITERATIVE_BICONJUGATE_GRADIENT=4 !<Bi-conjugate gradient iterative solver type \see SOLVER_ROUTINES_IterativeLinearSolverTypes,SOLVER_ROUTINES
-  INTEGER(INTG), PARAMETER :: SOLVER_ITERATIVE_GMRES=5 !<Generalised minimum residual iterative solver type \see SOLVER_ROUTINES_IterativeLinearSolverTypes,SOLVER_ROUTINES
-  INTEGER(INTG), PARAMETER :: SOLVER_ITERATIVE_FGMRES=6 !<Flexible generalised minimum residual iterative solver type \see SOLVER_ROUTINES_IterativeLinearSolverTypes,SOLVER_ROUTINES
-  INTEGER(INTG), PARAMETER :: SOLVER_ITERATIVE_BiCGSTAB=7 !<Stabalised bi-conjugate gradient iterative solver type \see SOLVER_ROUTINES_IterativeLinearSolverTypes,SOLVER_ROUTINES
-  INTEGER(INTG), PARAMETER :: SOLVER_ITERATIVE_CONJGRAD_SQUARED=8 !<Conjugate gradient squared iterative solver type \see SOLVER_ROUTINES_IterativeLinearSolverTypes,SOLVER_ROUTINES
+  INTEGER(INTG), PARAMETER :: SOLVER_ITERATIVE_MINRES=5 !<minimum residual iterative solver type \see SOLVER_ROUTINES_IterativeLinearSolverTypes,SOLVER_ROUTINES
+  INTEGER(INTG), PARAMETER :: SOLVER_ITERATIVE_GMRES=6 !<Generalised minimum residual iterative solver type \see SOLVER_ROUTINES_IterativeLinearSolverTypes,SOLVER_ROUTINES
+  INTEGER(INTG), PARAMETER :: SOLVER_ITERATIVE_FGMRES=7 !<Flexible generalised minimum residual iterative solver type \see SOLVER_ROUTINES_IterativeLinearSolverTypes,SOLVER_ROUTINES
+  INTEGER(INTG), PARAMETER :: SOLVER_ITERATIVE_BiCGSTAB=8 !<Stabilised bi-conjugate gradient iterative solver type \see SOLVER_ROUTINES_IterativeLinearSolverTypes,SOLVER_ROUTINES
+  INTEGER(INTG), PARAMETER :: SOLVER_ITERATIVE_CONJGRAD_SQUARED=9 !<Conjugate gradient squared iterative solver type \see SOLVER_ROUTINES_IterativeLinearSolverTypes,SOLVER_ROUTINES
   !>@}
 
   !> \addtogroup SOLVER_ROUTINES_IterativePreconditionerTypes SOLVER_ROUTINES::IterativePreconditionerTypes
@@ -162,13 +165,13 @@ MODULE SOLVER_ROUTINES
   INTEGER(INTG), PARAMETER :: SOLVER_ITERATIVE_AMG_PRECONDITIONER=8 !<Algebraic multigrid preconditioner type \see SOLVER_ROUTINES_IterativePreconditionerTypes,SOLVER_ROUTINES
   !>@}
 
-  !> \addtogroup SOLVER_ROUTINES_PreconditionerMatrixTypes SOLVER_ROUTINES::PreconditionerMatrixTypes
-  !> \brief The types of preconditioner matrix types.
-  !> \see SOLVER_ROUTINES
-  !>@{
-  INTEGER(INTG), PARAMETER :: PRECONDITIONER_NO_MATRIX=0 !<Use no preconditioner matrix. \see SOLVER_ROUTINES_PreconditionerMatrixTypes,SOLVER_ROUTINES
-  INTEGER(INTG), PARAMETER :: PRECONDITIONER_MASS_MATRIX=1 !<Use a mass matrix as the preconditioner matrix. \see SOLVER_ROUTINES_PreconditionerMatrixTypes,SOLVER_ROUTINES
-  !>@}
+! !> \addtogroup SOLVER_ROUTINES_PreconditionerMatrixTypes SOLVER_ROUTINES::PreconditionerMatrixTypes
+! !> \brief The types of preconditioner matrix types.
+! !> \see SOLVER_ROUTINES
+! !>@{
+! INTEGER(INTG), PARAMETER :: PRECONDITIONER_NO_MATRIX=0 !<Use no preconditioner matrix. \see SOLVER_ROUTINES_PreconditionerMatrixTypes,SOLVER_ROUTINES
+! INTEGER(INTG), PARAMETER :: PRECONDITIONER_MASS_MATRIX=1 !<Use a mass matrix as the preconditioner matrix. \see SOLVER_ROUTINES_PreconditionerMatrixTypes,SOLVER_ROUTINES
+! !>@}
 
   !> \addtogroup SOLVER_ROUTINES_AMGPreconditionerTypes SOLVER_ROUTINES::AMGPreconditionerTypes
   !> \brief The types of algebraic multigrid preconditioners
@@ -474,13 +477,15 @@ MODULE SOLVER_ROUTINES
   PUBLIC SOLVER_DIRECT_LU,SOLVER_DIRECT_CHOLESKY,SOLVER_DIRECT_SVD
 
   PUBLIC SOLVER_ITERATIVE_PRE_ONLY,SOLVER_ITERATIVE_RICHARDSON,SOLVER_ITERATIVE_CONJUGATE_GRADIENT,SOLVER_ITERATIVE_CHEBYSHEV, &
-    & SOLVER_ITERATIVE_BICONJUGATE_GRADIENT,SOLVER_ITERATIVE_GMRES,SOLVER_ITERATIVE_FGMRES, &
+    & SOLVER_ITERATIVE_BICONJUGATE_GRADIENT,SOLVER_ITERATIVE_MINRES,SOLVER_ITERATIVE_GMRES,SOLVER_ITERATIVE_FGMRES, &
     & SOLVER_ITERATIVE_BiCGSTAB,SOLVER_ITERATIVE_CONJGRAD_SQUARED
   
   PUBLIC SOLVER_ITERATIVE_NO_PRECONDITIONER,SOLVER_ITERATIVE_JACOBI_PRECONDITIONER,SOLVER_ITERATIVE_BLOCK_JACOBI_PRECONDITIONER, &
     & SOLVER_ITERATIVE_SOR_PRECONDITIONER,SOLVER_ITERATIVE_INCOMPLETE_CHOLESKY_PRECONDITIONER, &
     & SOLVER_ITERATIVE_INCOMPLETE_LU_PRECONDITIONER,SOLVER_ITERATIVE_ADDITIVE_SCHWARZ_PRECONDITIONER, &
     & SOLVER_ITERATIVE_BLOCK_PRECONDITIONER,SOLVER_ITERATIVE_AMG_PRECONDITIONER
+
+!  PUBLIC PRECONDITIONER_NO_MATRIX,PRECONDITIONER_MASS_MATRIX
 
   PUBLIC AMG_PRECONDITIONER_SMOOTHED_AGGREGATION,AMG_PRECONDITIONER_UNSMOOTHED_AGGREGATION
   !PUBLIC AMG_PRECONDITIONER_CLASSICAL
@@ -652,6 +657,8 @@ MODULE SOLVER_ROUTINES
   PUBLIC Preconditioner_Destroy
 
   PUBLIC Preconditioner_TypeSet
+  
+  PUBLIC Preconditioner_MatrixTypeSet
 
   PUBLIC Preconditioner_AMGPreconditionerGet,Preconditioner_BlockPreconditionerGet
 
@@ -11035,6 +11042,8 @@ CONTAINS
               CALL Petsc_KSPSetType(LINEAR_ITERATIVE_SOLVER%KSP,PETSC_KSPCG,ERR,ERROR,*999)
             CASE(SOLVER_ITERATIVE_BICONJUGATE_GRADIENT)
               CALL Petsc_KSPSetType(LINEAR_ITERATIVE_SOLVER%KSP,PETSC_KSPBICG,ERR,ERROR,*999)
+            CASE(SOLVER_ITERATIVE_MINRES)
+              CALL Petsc_KSPSetType(LINEAR_ITERATIVE_SOLVER%KSP,PETSC_KSPMINRES,ERR,ERROR,*999)
             CASE(SOLVER_ITERATIVE_GMRES)
               CALL Petsc_KSPSetType(LINEAR_ITERATIVE_SOLVER%KSP,PETSC_KSPGMRES,ERR,ERROR,*999)
             CASE(SOLVER_ITERATIVE_FGMRES)
@@ -11308,6 +11317,8 @@ CONTAINS
         SOLVER_LIBRARY_TYPE=ITERATIVE_SOLVER%SOLVER_LIBRARY
       CASE(SOLVER_ITERATIVE_CONJUGATE_GRADIENT)
         SOLVER_LIBRARY_TYPE=ITERATIVE_SOLVER%SOLVER_LIBRARY
+      CASE(SOLVER_ITERATIVE_MINRES)
+        SOLVER_LIBRARY_TYPE=ITERATIVE_SOLVER%SOLVER_LIBRARY
       CASE(SOLVER_ITERATIVE_GMRES)
         SOLVER_LIBRARY_TYPE=ITERATIVE_SOLVER%SOLVER_LIBRARY
       CASE(SOLVER_ITERATIVE_FGMRES)
@@ -11398,6 +11409,18 @@ CONTAINS
           LOCAL_ERROR="The specified solver library type of "// &
             & TRIM(NumberToVString(SOLVER_LIBRARY_TYPE,"*",ERR,ERROR))// &
             & " is invalid for a Conjugate gradient iterative linear solver."
+        END SELECT
+      CASE(SOLVER_ITERATIVE_MINRES)
+        SELECT CASE(SOLVER_LIBRARY_TYPE)
+        CASE(SOLVER_CMISS_LIBRARY)
+          CALL FlagError("Not implemented.",ERR,ERROR,*999)
+        CASE(SOLVER_PETSC_LIBRARY)
+          ITERATIVE_SOLVER%SOLVER_LIBRARY=SOLVER_PETSC_LIBRARY
+          ITERATIVE_SOLVER%SOLVER_MATRICES_LIBRARY=DISTRIBUTED_MATRIX_VECTOR_PETSC_TYPE
+       CASE DEFAULT
+          LOCAL_ERROR="The specified solver library type of "// &
+            & TRIM(NumberToVString(SOLVER_LIBRARY_TYPE,"*",ERR,ERROR))// &
+            & " is invalid for a MINRES iterative linear solver."
         END SELECT
       CASE(SOLVER_ITERATIVE_GMRES)
         SELECT CASE(SOLVER_LIBRARY_TYPE)
@@ -12670,6 +12693,9 @@ CONTAINS
                 IF(ASSOCIATED(solverEquations)) THEN
                   solverMapping=>solverEquations%SOLVER_MAPPING
                   IF(ASSOCIATED(solverMapping)) THEN
+                    !Can this be done without the PETSc section and DM stuff? Some kind of recursive solver mappings and then just
+                    !add these mappings via the index sets to the fieldsplitSetIs?
+
                     !First create the PETSc section and DM, to define the splitting of the variables for the PETSc solver
                     !This should only be done once for the outer linear solver
                     solverMatrixIdx=1
@@ -12893,6 +12919,8 @@ CONTAINS
                       CALL Petsc_KSPSetType(iterativeSolver%KSP,PETSC_KSPCG,err,error,*999)
                     CASE(SOLVER_ITERATIVE_BICONJUGATE_GRADIENT)
                       CALL Petsc_KSPSetType(iterativeSolver%KSP,PETSC_KSPBICG,err,error,*999)
+                    CASE(SOLVER_ITERATIVE_MINRES)
+                      CALL Petsc_KSPSetType(iterativeSolver%KSP,PETSC_KSPMINRES,err,error,*999)
                     CASE(SOLVER_ITERATIVE_GMRES)
                       CALL Petsc_KSPSetType(iterativeSolver%KSP,PETSC_KSPGMRES,err,error,*999)
                     CASE(SOLVER_ITERATIVE_FGMRES)
@@ -12907,6 +12935,15 @@ CONTAINS
                         & " is invalid."
                       CALL FlagError(localError,err,error,*999)
                     END SELECT
+
+                    !Ugly hack
+                    iterativeSolver%preconditioner%numberOfVariables=blockPreconditionerSplit%numberOfVariables
+                    ALLOCATE(iterativeSolver%preconditioner%variables(blockPreconditionerSplit%numberOfVariables),STAT=ERR)
+                    IF(ERR/=0) CALL FlagError("Could not allocate preconditioner variables.",ERR,ERROR,*999)
+                    DO variableIdx=1,blockPreconditionerSplit%numberOfVariables
+                      iterativeSolver%preconditioner%variables(variableIdx)%ptr=>blockPreconditionerSplit%variables(variableIdx)%ptr
+                    END DO
+
                     !Finish the preconditioner
                     CALL SolverLinearIterativePreconditionerCreateFinish(iterativeSolver,err,error,*999)
                   ELSE
@@ -13097,8 +13134,12 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
     !Local Variables
+    INTEGER(INTG) :: variableIdx
     TYPE(PetscMatType) :: amat,pmat
     TYPE(PreconditionerType), POINTER :: preconditioner
+    TYPE(PreconditionerMappingType), POINTER :: preconditionerMapping
+    TYPE(PreconditionerMatrixType), POINTER :: preconditionerMatrix
+    TYPE(SOLVER_MAPPING_VARIABLES_TYPE), POINTER :: solverVariables
     TYPE(VARYING_STRING) :: localError
     
     ENTERS("SolverLinearIterativePreconditionerCreateFinish",err,error,*999)
@@ -13108,23 +13149,48 @@ CONTAINS
       IF(ASSOCIATED(preconditioner)) THEN
         !Get the pre-conditioner
         CALL Petsc_KSPGetPC(linearIterativeSolver%KSP,preconditioner%PC,err,error,*999)
+        !Ugly hack
+        IF(preconditioner%numberOfVariables==0) THEN
+          solverVariables=>preconditioner%linearIterativeSolver%LINEAR_SOLVER%SOLVER%SOLVER_EQUATIONS%SOLVER_MAPPING% &
+            & VARIABLES_LIST(1)
+          preconditioner%numberOfVariables=solverVariables%NUMBER_OF_VARIABLES
+          ALLOCATE(preconditioner%variables(preconditioner%numberOfVariables),STAT=ERR)
+          IF(ERR/=0) CALL FlagError("Could not allocate dependent_parameters.",ERR,ERROR,*999)
+          DO variableIdx=1,solverVariables%NUMBER_OF_VARIABLES
+            preconditioner%variables(variableIdx)%ptr=>solverVariables%VARIABLES(variableIdx)%VARIABLE
+          END DO
+        END IF
         SELECT CASE(preconditioner%preconditionerMatrixType)
         CASE(PRECONDITIONER_NO_MATRIX)
           !Do nothing
         CASE(PRECONDITIONER_MASS_MATRIX)
-!         !Create the preconditioner mapping
-!         CALL PreconditionerMapping_CreateStart(preconditioner,preconditionerMapping,err,error,*999)
-!         !How to do this?
-!         CALL PreconditionerMapping_VariableSet(preconditionerMapping,variable,err,error,*999)
-!         CALL PreconditionerMapping_CreateFinish(preconditionerMapping,err,error,*999)
-!         !Create the preconditioner matrix
-!         CALL PreconditionerMatrix_CreateStart(preconditioner,preconditionerMatrix,err,error,*999)
-!         CALL PreconditionerMatrix_CreateFinish(preconditionerMatrix,err,error,*999)
-!         !Inform PETSc about the preconditioner matrix
-!         CALL Petsc_MatInitialise(amat,err,error,*999)
-!         CALL Petsc_MatInitialise(pmat,err,error,*999)
-!         CALL Petsc_KSPGetOperators(iterativeSolver%KSP,amat,pmat,err,error,*999)
-!         CALL Petsc_KSPSetOperators(iterativeSolver%KSP,amat,preconditionerMatrix%PETSC%MATRIX,err,error,*999)
+          !Create the preconditioner mapping
+          CALL PreconditionerMapping_CreateStart(preconditioner,preconditionerMapping,err,error,*999)
+          IF(preconditioner%numberOfVariables==1) THEN
+            preconditionerMapping%variable=>preconditioner%variables(1)%ptr
+          ELSE 
+            CALL FlagError("Number of variables must be 1 to set a mass matrix for the preconditioner.",err,error,*999)
+          END IF
+          CALL PreconditionerMapping_CreateFinish(preconditionerMapping,err,error,*999)
+          !Create the preconditioner matrix
+          NULLIFY(preconditionerMatrix)
+          CALL PreconditionerMatrix_CreateStart(preconditioner,preconditionerMatrix,err,error,*999)
+          CALL PreconditionerMatrix_CreateFinish(preconditionerMatrix,err,error,*999)
+          !Assemble here?
+          CALL PreconditionerMatrix_Assemble(preconditionerMatrix,err,error,*999)
+          !Inform PETSc about the preconditioner matrix
+          CALL Petsc_MatInitialise(amat,err,error,*999)
+          CALL Petsc_MatInitialise(pmat,err,error,*999)
+!          CALL Petsc_KSPGetOperators(preconditioner%linearIterativeSolver%KSP,amat,pmat,err,error,*999)
+!          CALL Petsc_KSPSetOperators(preconditioner%linearIterativeSolver%KSP,amat, &
+!            & preconditionerMatrix%MATRIX%PETSC%MATRIX,err,error,*999)
+!         CALL Petsc_PCFieldSplitSetSchurPre(preconditioner%linearIterativeSolver%LINEAR_SOLVER%SOLVER%LINKING_SOLVER% &
+!           & LINEAR_SOLVER%ITERATIVE_SOLVER%preconditioner%PC,PETSC_PC_FIELDSPLIT_SCHUR_PRE_USER, &
+!           & preconditionerMatrix%MATRIX%PETSC%MATRIX,err,error,*999)
+!         CALL Petsc_MatSetType(amat,PETSC_MATSCHURCOMPLEMENT,err,error,*999)
+!         CALL Petsc_MatSetType(pmat,PETSC_MATSCHURCOMPLEMENT,err,error,*999)
+         CALL Petsc_KSPSetOperators(preconditioner%linearIterativeSolver%KSP,preconditionerMatrix%MATRIX%PETSC%MATRIX, &
+           & preconditionerMatrix%MATRIX%PETSC%MATRIX,err,error,*999)
         CASE DEFAULT
           localError="The preconditioner matrix type of "// &
             & TRIM(NUMBER_TO_VSTRING(preconditioner%preconditionerMatrixType,"*",err,error))//" is invalid."
@@ -13204,11 +13270,12 @@ CONTAINS
         END IF
       END IF
       IF(ASSOCIATED(preconditioner%preconditionerMatrix)) THEN
-!        CALL PreconditionerMatrix_Finalise(preconditioner%preconditionerMatrix,err,error,*999)
+        CALL PreconditionerMatrix_Finalise(preconditioner%preconditionerMatrix,err,error,*999)
       END IF
       IF(ASSOCIATED(preconditioner%preconditionerMapping)) THEN
-!        CALL PreconditionerMapping_Finalise(preconditioner%preconditionerMatrix,err,error,*999)
+        CALL PreconditionerMapping_Finalise(preconditioner%preconditionerMapping,err,error,*999)
       END IF
+      IF(ALLOCATED(preconditioner%variables)) DEALLOCATE(preconditioner%variables)
       DEALLOCATE(preconditioner)
     END IF
     
@@ -13255,6 +13322,45 @@ CONTAINS
     RETURN 1
    
   END SUBROUTINE Preconditioner_Initialise
+        
+  !
+  !================================================================================================================================
+  !
+
+  !>Set the preconditioner matrix type.
+  SUBROUTINE Preconditioner_MatrixTypeSet(preconditioner,preconditionerMatrixType,err,error,*)
+
+    !Argument variables
+    TYPE(PreconditionerType), POINTER :: preconditioner !<The preconditioner
+    INTEGER(INTG), INTENT(IN) :: preconditionerMatrixType !<The preconditioner matrix type to set
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+    TYPE(VARYING_STRING) :: localError
+    
+    ENTERS("Preconditioner_MatrixTypeSet",err,error,*999)
+
+    IF(ASSOCIATED(preconditioner)) THEN
+      SELECT CASE(preconditionerMatrixType)
+      CASE(PRECONDITIONER_NO_MATRIX)
+        preconditioner%preconditionerMatrixType=PRECONDITIONER_NO_MATRIX
+      CASE(PRECONDITIONER_MASS_MATRIX)
+        preconditioner%preconditionerMatrixType=PRECONDITIONER_MASS_MATRIX
+      CASE DEFAULT
+        localError="The preconditioner matrix type of "// &
+          & TRIM(NUMBER_TO_VSTRING(preconditioner%preconditionerMatrixType,"*",err,error))//" is invalid."
+        CALL FlagError(localError,err,error,*999)
+      END SELECT
+    ELSE
+      CALL FlagError("Preconditioner is not associated.",err,error,*999)
+    END IF
+    
+    EXITS("Preconditioner_MatrixTypeSet")
+    RETURN
+999 ERRORSEXITS("Preconditioner_MatrixTypeSet",err,error)
+    RETURN 1
+   
+  END SUBROUTINE Preconditioner_MatrixTypeSet
         
   !
   !================================================================================================================================
@@ -13863,6 +13969,8 @@ CONTAINS
                       SOLVER%LINEAR_SOLVER%ITERATIVE_SOLVER%ITERATIVE_SOLVER_TYPE=SOLVER_ITERATIVE_CONJUGATE_GRADIENT
                     CASE(SOLVER_ITERATIVE_BICONJUGATE_GRADIENT)
                       SOLVER%LINEAR_SOLVER%ITERATIVE_SOLVER%ITERATIVE_SOLVER_TYPE=SOLVER_ITERATIVE_BICONJUGATE_GRADIENT
+                    CASE(SOLVER_ITERATIVE_MINRES)
+                      SOLVER%LINEAR_SOLVER%ITERATIVE_SOLVER%ITERATIVE_SOLVER_TYPE=SOLVER_ITERATIVE_MINRES
                     CASE(SOLVER_ITERATIVE_GMRES)
                       SOLVER%LINEAR_SOLVER%ITERATIVE_SOLVER%ITERATIVE_SOLVER_TYPE=SOLVER_ITERATIVE_GMRES
                     CASE(SOLVER_ITERATIVE_FGMRES)

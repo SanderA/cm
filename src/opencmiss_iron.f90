@@ -95,6 +95,7 @@ MODULE OpenCMISS_Iron
   USE KINDS
   USE MESH_ROUTINES
   USE NODE_ROUTINES
+  USE PRECONDITIONER_MATRIX_ROUTINES
   USE PROBLEM_CONSTANTS
   USE PROBLEM_ROUTINES
   USE REGION_ROUTINES
@@ -5724,9 +5725,16 @@ MODULE OpenCMISS_Iron
     MODULE PROCEDURE cmfe_Preconditioner_TypeSetObj
   END INTERFACE !cmfe_Preconditioner_TypeSet
 
+  !>Set the type of preconditioner matrix. \see OPENCMISS::cmfe_Preconditioner_MatrixTypeSet
+  INTERFACE cmfe_Preconditioner_MatrixTypeSet
+    MODULE PROCEDURE cmfe_Preconditioner_MatrixTypeSetNumber0
+    MODULE PROCEDURE cmfe_Preconditioner_MatrixTypeSetNumber1
+    MODULE PROCEDURE cmfe_Preconditioner_MatrixTypeSetObj
+  END INTERFACE !cmfe_Preconditioner_MatrixTypeSet
+
   PUBLIC cmfe_Preconditioner_AMGPreconditionerGet,cmfe_Preconditioner_BlockPreconditionerGet
 
-  PUBLIC cmfe_Preconditioner_TypeSet
+  PUBLIC cmfe_Preconditioner_MatrixTypeSet,cmfe_Preconditioner_TypeSet
 !!==================================================================================================================================
 !!
 !! PROBLEM_CONSTANTS_ROUTINES
@@ -6402,6 +6410,7 @@ MODULE OpenCMISS_Iron
   INTEGER(INTG), PARAMETER :: CMFE_SOLVER_ITERATIVE_CHEBYSHEV = SOLVER_ITERATIVE_CHEBYSHEV !<Chebychev iterative solver type. \see OPENCMISS_IterativeLinearSolverTypes,OPENCMISS
   INTEGER(INTG), PARAMETER :: CMFE_SOLVER_ITERATIVE_CONJUGATE_GRADIENT = SOLVER_ITERATIVE_CONJUGATE_GRADIENT !<Conjugate gradient iterative solver type. \see OPENCMISS_IterativeLinearSolverTypes,OPENCMISS
   INTEGER(INTG), PARAMETER :: CMFE_SOLVER_ITERATIVE_BICONJUGATE_GRADIENT = SOLVER_ITERATIVE_BICONJUGATE_GRADIENT !<Bi-conjugate gradient iterative solver type. \see OPENCMISS_IterativeLinearSolverTypes,OPENCMISS
+  INTEGER(INTG), PARAMETER :: CMFE_SOLVER_ITERATIVE_MINRES = SOLVER_ITERATIVE_MINRES !<Minimum residual iterative solver type. \see OPENCMISS_IterativeLinearSolverTypes,OPENCMISS
   INTEGER(INTG), PARAMETER :: CMFE_SOLVER_ITERATIVE_GMRES = SOLVER_ITERATIVE_GMRES !<Generalised minimum residual iterative solver type. \see OPENCMISS_IterativeLinearSolverTypes,OPENCMISS
   INTEGER(INTG), PARAMETER :: CMFE_SOLVER_ITERATIVE_FGMRES = SOLVER_ITERATIVE_FGMRES !<Flexible generalised minimum residual iterative solver type. \see OPENCMISS_IterativeLinearSolverTypes,OPENCMISS
   INTEGER(INTG), PARAMETER :: CMFE_SOLVER_ITERATIVE_BiCGSTAB = SOLVER_ITERATIVE_BiCGSTAB !<Stabalised bi-conjugate gradient iterative solver type. \see OPENCMISS_IterativeLinearSolverTypes,OPENCMISS
@@ -6422,6 +6431,13 @@ MODULE OpenCMISS_Iron
     & SOLVER_ITERATIVE_ADDITIVE_SCHWARZ_PRECONDITIONER !<Additive Schwrz preconditioner type. \see OPENCMISS_IterativePreconditionerTypes,OPENCMISS
   INTEGER(INTG), PARAMETER :: CMFE_SOLVER_ITERATIVE_BLOCK_PRECONDITIONER = SOLVER_ITERATIVE_BLOCK_PRECONDITIONER !<Block preconditioner type. \see OPENCMISS_IterativePreconditionerTypes,OPENCMISS
   INTEGER(INTG), PARAMETER :: CMFE_SOLVER_ITERATIVE_AMG_PRECONDITIONER = SOLVER_ITERATIVE_AMG_PRECONDITIONER !<Algebraic multigrid preconditioner type. \see OPENCMISS_IterativePreconditionerTypes,OPENCMISS
+  !>@}
+  !> \addtogroup OPENCMISS_PreconditionerMatrixTypes OPENCMISS::Solver::PreconditionerMatrixTypes
+  !> \brief The types of iterative preconditioners.
+  !> \see OPENCMISS::Solver::Constants,OPENCMISS
+  !>@{
+  INTEGER(INTG), PARAMETER :: CMFE_PRECONDITIONER_NO_MATRIX = PRECONDITIONER_NO_MATRIX !<No preconditioner matrix type. \see OPENCMISS_PreconditionerMatrixTypes,OPENCMISS
+  INTEGER(INTG), PARAMETER :: CMFE_PRECONDITIONER_MASS_MATRIX = PRECONDITIONER_MASS_MATRIX !<Mass preconditioner matrix type. \see OPENCMISS_PreconditionerMatrixTypes,OPENCMISS
   !>@}
   !> \addtogroup OPENCMISS_NonlinearSolverTypes OPENCMISS::Solver::NonlinearSolverTypes
   !> \brief The types of nonlinear solvers.
@@ -7221,14 +7237,17 @@ MODULE OpenCMISS_Iron
   PUBLIC CMFE_SOLVER_DIRECT_LU,CMFE_SOLVER_DIRECT_CHOLESKY,CMFE_SOLVER_DIRECT_SVD
 
   PUBLIC CMFE_SOLVER_ITERATIVE_PRE_ONLY,CMFE_SOLVER_ITERATIVE_RICHARDSON,CMFE_SOLVER_ITERATIVE_CONJUGATE_GRADIENT, &
-     & CMFE_SOLVER_ITERATIVE_CHEBYSHEV,CMFE_SOLVER_ITERATIVE_BICONJUGATE_GRADIENT,CMFE_SOLVER_ITERATIVE_GMRES, &
-     & CMFE_SOLVER_ITERATIVE_FGMRES,CMFE_SOLVER_ITERATIVE_BiCGSTAB,CMFE_SOLVER_ITERATIVE_CONJGRAD_SQUARED
+     & CMFE_SOLVER_ITERATIVE_CHEBYSHEV,CMFE_SOLVER_ITERATIVE_BICONJUGATE_GRADIENT,CMFE_SOLVER_ITERATIVE_MINRES, &
+     & CMFE_SOLVER_ITERATIVE_GMRES,CMFE_SOLVER_ITERATIVE_FGMRES,CMFE_SOLVER_ITERATIVE_BiCGSTAB, &
+     & CMFE_SOLVER_ITERATIVE_CONJGRAD_SQUARED
 
   PUBLIC CMFE_SOLVER_ITERATIVE_NO_PRECONDITIONER,CMFE_SOLVER_ITERATIVE_JACOBI_PRECONDITIONER, &
     & CMFE_SOLVER_ITERATIVE_BLOCK_JACOBI_PRECONDITIONER,CMFE_SOLVER_ITERATIVE_SOR_PRECONDITIONER, &
     & CMFE_SOLVER_ITERATIVE_INCOMPLETE_CHOLESKY_PRECONDITIONER,CMFE_SOLVER_ITERATIVE_INCOMPLETE_LU_PRECONDITIONER, &
     & CMFE_SOLVER_ITERATIVE_ADDITIVE_SCHWARZ_PRECONDITIONER,CMFE_SOLVER_ITERATIVE_BLOCK_PRECONDITIONER, &
     & CMFE_SOLVER_ITERATIVE_AMG_PRECONDITIONER
+
+  PUBLIC CMFE_PRECONDITIONER_NO_MATRIX,CMFE_PRECONDITIONER_MASS_MATRIX
 
   PUBLIC CMFE_SOLVER_NONLINEAR_NEWTON,CMFE_SOLVER_NONLINEAR_BFGS_INVERSE,CMFE_SOLVER_NONLINEAR_SQP
   
@@ -49632,6 +49651,129 @@ CONTAINS
     RETURN
 
   END SUBROUTINE cmfe_Preconditioner_BlockPreconditionerGetObj
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Sets/changes the preconditioner matrix type for a preconditioner identified by an user number.
+  SUBROUTINE cmfe_Preconditioner_MatrixTypeSetNumber0(problemUserNumber,controlLoopIdentifier,solverIndex,preconditionerMatrixType,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: problemUserNumber !<The user number of the problem number with the iterative linear solver to set the preconditioner's preconditioner matrix type for.
+    INTEGER(INTG), INTENT(IN) :: controlLoopIdentifier !<The control loop identifier with the iterative linear solver to set the preconditioner's preconditioner matrix type for.
+    INTEGER(INTG), INTENT(IN) :: solverIndex !<The solver index to set the preconditioner matrix type for.
+    INTEGER(INTG), INTENT(IN) :: preconditionerMatrixType !<The preconditioner matrix type to set. \see OPENCMISS_PreconditionerMatrixTypes
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(PreconditionerType), POINTER :: preconditioner
+    TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
+    TYPE(SOLVER_TYPE), POINTER :: SOLVER
+    TYPE(VARYING_STRING) :: localError
+
+    ENTERS("cmfe_Preconditioner_MatrixTypeSetNumber0",err,error,*999)
+
+    NULLIFY(Preconditioner)
+    NULLIFY(PROBLEM)
+    NULLIFY(SOLVER)
+    CALL PROBLEM_USER_NUMBER_FIND(problemUserNumber,PROBLEM,err,error,*999)
+    IF(ASSOCIATED(PROBLEM)) THEN
+      CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifier,solverIndex,SOLVER,err,error,*999)
+      IF(ASSOCIATED(SOLVER)) THEN
+        CALL SolverLinearIterativePreconditionerGet(SOLVER,preconditioner,err,error,*999)
+        CALL Preconditioner_MatrixTypeSet(preconditioner,preconditionerMatrixType,err,error,*999)
+      ELSE
+        localError="A solver with a solver index of "//TRIM(NUMBER_TO_VSTRING(solverIndex,"*",err,error))// &
+          & " does not exist."
+        CALL FlagError(localError,err,error,*999)
+      END IF 
+    ELSE
+      localError="A problem with an user number of "//TRIM(NUMBER_TO_VSTRING(problemUserNumber,"*",err,error))// &
+        & " does not exist."
+      CALL FlagError(localError,err,error,*999)
+    END IF
+
+    EXITS("cmfe_Preconditioner_MatrixTypeSetNumber0")
+    RETURN
+999 ERRORSEXITS("cmfe_Preconditioner_MatrixTypeSetNumber0",err,error)
+    CALL cmfe_HandleError(err,error)
+    RETURN
+
+  END SUBROUTINE cmfe_Preconditioner_MatrixTypeSetNumber0
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Sets/changes the preconditioner matrix type for a preconditioner identified by an user number.
+  SUBROUTINE cmfe_Preconditioner_MatrixTypeSetNumber1(problemUserNumber,controlLoopIdentifiers,solverIndex,preconditionerMatrixType,err)
+
+    !Argument variables
+    INTEGER(INTG), INTENT(IN) :: problemUserNumber !<The user number of the problem number with the iterative linear solver to set the preconditioner's preconditioner matrix type for.
+    INTEGER(INTG), INTENT(IN) :: controlLoopIdentifiers(:) !<The control loop identifier with the iterative linear solver to set the preconditioner's preconditioner matrix type for.
+    INTEGER(INTG), INTENT(IN) :: solverIndex !<The solver index to set the preconditioner matrix type for.
+    INTEGER(INTG), INTENT(IN) :: preconditionerMatrixType !<The preconditioner matrix type to set. \see OPENCMISS_PreconditionerMatrixTypes
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+    TYPE(PreconditionerType), POINTER :: preconditioner
+    TYPE(PROBLEM_TYPE), POINTER :: PROBLEM
+    TYPE(SOLVER_TYPE), POINTER :: SOLVER
+    TYPE(VARYING_STRING) :: localError
+
+    ENTERS("cmfe_Preconditioner_MatrixTypeSetNumber1",err,error,*999)
+
+    NULLIFY(Preconditioner)
+    NULLIFY(PROBLEM)
+    NULLIFY(SOLVER)
+    CALL PROBLEM_USER_NUMBER_FIND(problemUserNumber,PROBLEM,err,error,*999)
+    IF(ASSOCIATED(PROBLEM)) THEN
+      CALL PROBLEM_SOLVER_GET(PROBLEM,controlLoopIdentifiers(:),solverIndex,SOLVER,err,error,*999)
+      IF(ASSOCIATED(SOLVER)) THEN
+        CALL SolverLinearIterativePreconditionerGet(SOLVER,preconditioner,err,error,*999)
+        CALL Preconditioner_MatrixTypeSet(preconditioner,preconditionerMatrixType,err,error,*999)
+      ELSE
+        localError="A solver with a solver index of "//TRIM(NUMBER_TO_VSTRING(solverIndex,"*",err,error))// &
+          & " does not exist."
+        CALL FlagError(localError,err,error,*999)
+      END IF 
+    ELSE
+      localError="A problem with an user number of "//TRIM(NUMBER_TO_VSTRING(problemUserNumber,"*",err,error))// &
+        & " does not exist."
+      CALL FlagError(localError,err,error,*999)
+    END IF
+
+    EXITS("cmfe_Preconditioner_MatrixTypeSetNumber1")
+    RETURN
+999 ERRORSEXITS("cmfe_Preconditioner_MatrixTypeSetNumber1",err,error)
+    CALL cmfe_HandleError(err,error)
+    RETURN
+
+  END SUBROUTINE cmfe_Preconditioner_MatrixTypeSetNumber1
+
+  !
+  !================================================================================================================================
+  !
+
+  !>Sets/changes the preconditioner matrix type identified by an object.
+  SUBROUTINE cmfe_Preconditioner_MatrixTypeSetObj(preconditioner,preconditionerMatrixType,err)
+
+    !Argument variables
+    TYPE(cmfe_PreconditionerType), INTENT(IN) :: preconditioner !<The preconditioner to set the preconditioner matrix type for.
+    INTEGER(INTG), INTENT(IN) :: preconditionerMatrixType !<The preconditioner matrix type to set. \see OPENCMISS_PreconditionerMatrixTypes
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
+    !Local variables
+
+    ENTERS("cmfe_Preconditioner_MatrixTypeSetObj",err,error,*999)
+
+    CALL Preconditioner_MatrixTypeSet(preconditioner%preconditioner,preconditionerMatrixType,err,error,*999)
+
+    EXITS("cmfe_Preconditioner_MatrixTypeSetObj")
+    RETURN
+999 ERRORSEXITS("cmfe_Preconditioner_MatrixTypeSetObj",err,error)
+    CALL cmfe_HandleError(err,error)
+    RETURN
+
+  END SUBROUTINE cmfe_Preconditioner_MatrixTypeSetObj
 
   !
   !================================================================================================================================

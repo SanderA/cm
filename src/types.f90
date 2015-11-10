@@ -2922,6 +2922,7 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
   
   !>Contains information on a preconditioner mapping.
   TYPE PreconditionerMappingType  
+    TYPE(PreconditionerType), POINTER :: preconditioner
     LOGICAL :: preconditionerMappingFinished !<Is .TRUE. if the interface mapping has finished being created, .FALSE. if not.
     !Row mappings
     INTEGER(INTG) :: numberOfRows !<The number of local rows (excluding ghost rows) in the equations matrices
@@ -2938,6 +2939,7 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
 
   !>Contains information about a preconditioner matrix.
   TYPE PreconditionerMatrixType
+    LOGICAL :: preconditionerMatrixFinished
     INTEGER(INTG) :: storageType !<The storage (sparsity) type for this matrix
     INTEGER(INTG) :: structureType !<The structure (sparsity) type for this matrix
     LOGICAL :: lumped !<Is .TRUE. if the preconditioner matrix is lumped
