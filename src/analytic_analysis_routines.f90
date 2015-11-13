@@ -81,23 +81,21 @@ MODULE ANALYTIC_ANALYSIS_ROUTINES
 
   !Interfaces
 
-  PUBLIC ANALYTIC_ANALYSIS_OUTPUT
+  PUBLIC AnalyticAnalysis_Output
   
-  PUBLIC ANALYTIC_ANALYSIS_PERCENTAGE_ERROR_GET_NODE,ANALYTIC_ANALYSIS_ABSOLUTE_ERROR_GET_NODE, &
-    & ANALYTIC_ANALYSIS_RELATIVE_ERROR_GET_NODE
+  PUBLIC AnalyticAnalysis_AbsoluteErrorGetNode,AnalyticAnalysis_PercentageErrorGetNode, &
+    & AnalyticAnalysis_RelativeErrorGetNode,AnalyticAnalysis_RMSErrorGetNode
 
-  PUBLIC ANALYTIC_ANALYSIS_PERCENTAGE_ERROR_GET_ELEMENT,ANALYTIC_ANALYSIS_ABSOLUTE_ERROR_GET_ELEMENT, &
-    & ANALYTIC_ANALYSIS_RELATIVE_ERROR_GET_ELEMENT
+  PUBLIC AnalyticAnalysis_AbsoluteErrorGetElement,AnalyticAnalysis_PercentageErrorGetElement, &
+    & AnalyticAnalysis_RelativeErrorGetElement,AnalyticAnalysis_RMSErrorGetElement
 
-  PUBLIC ANALYTIC_ANALYSIS_PERCENTAGE_ERROR_GET_CONSTANT,ANALYTIC_ANALYSIS_ABSOLUTE_ERROR_GET_CONSTANT, &
-    & ANALYTIC_ANALYSIS_RELATIVE_ERROR_GET_CONSTANT
- 
-  PUBLIC ANALYTIC_ANALYSIS_RMS_ERROR_GET_NODE,ANALYTIC_ANALYSIS_RMS_ERROR_GET_ELEMENT
-  
-  PUBLIC ANALYTIC_ANALYSIS_INTEGRAL_NUMERICAL_VALUE_GET,ANALYTIC_ANALYSIS_INTEGRAL_ANALYTIC_VALUE_GET, &
-    & ANALYTIC_ANALYSIS_INTEGRAL_PERCENTAGE_ERROR_GET,ANALYTIC_ANALYSIS_INTEGRAL_ABSOLUTE_ERROR_GET, &
-    & ANALYTIC_ANALYSIS_INTEGRAL_RELATIVE_ERROR_GET,ANALYTIC_ANALYSIS_INTEGRAL_NID_NUMERICAL_VALUE_GET, &
-    & ANALYTIC_ANALYSIS_INTEGRAL_NID_ERROR_GET
+  PUBLIC AnalyticAnalysis_AbsoluteErrorGetConstant,AnalyticAnalysis_PercentageErrorGetConstant, &
+    & AnalyticAnalysis_RelativeErrorGetConstant
+   
+  PUBLIC AnalyticAnalysis_IntegralNumericalValueGet,AnalyticAnalysis_IntegralAnalyticValueGet, &
+    & AnalyticAnalysis_IntegralPercentageErrorGet,AnalyticAnalysis_IntegralAbsoluteErrorGet, &
+    & AnalyticAnalysis_IntegralRelativeErrorGet,AnalyticAnalysis_IntegralNIDNumericalValueGet, &
+    & AnalyticAnalysis_IntegralNIDErrorGet
     
 CONTAINS  
 
@@ -106,7 +104,7 @@ CONTAINS
   !  
 
   !>Output the analytic error analysis for a dependent field compared to the analytic values parameter set. \see OPENCMISS::CMISSAnalyticAnalytisOutput
-  SUBROUTINE ANALYTIC_ANALYSIS_OUTPUT(FIELD,FILENAME,ERR,ERROR,*)
+  SUBROUTINE AnalyticAnalysis_Output(FIELD,FILENAME,ERR,ERROR,*)
   
     !Argument variables 
     TYPE(FIELD_TYPE), INTENT(IN), POINTER :: FIELD !<A pointer to the dependent field to calculate the analytic error analysis for
@@ -135,7 +133,7 @@ CONTAINS
     NULLIFY(ANALYTIC_VALUES)
     NULLIFY(NUMERICAL_VALUES)
     
-    ENTERS("ANALYTIC_ANALYSIS_OUTPUT",ERR,ERROR,*999)
+    ENTERS("AnalyticAnalysis_Output",ERR,ERROR,*999)
     
     IF(ASSOCIATED(FIELD)) THEN
       IF(FIELD%FIELD_FINISHED) THEN
@@ -150,7 +148,7 @@ CONTAINS
             ENDIF
             OUTPUT_ID=IO1_FILE_UNIT
             OPEN(UNIT=OUTPUT_ID,FILE=FILE_NAME(1:LEN_TRIM(FILE_NAME)),STATUS="REPLACE",FORM="FORMATTED",IOSTAT=ERR)
-            IF(ERR/=0) CALL FLAG_ERROR("Error opening analysis output file.",ERR,ERROR,*999)            
+            IF(ERR/=0) CALL FlagError("Error opening analysis output file.",ERR,ERROR,*999)            
           ELSE
             OUTPUT_ID=GENERAL_OUTPUT_TYPE
           ENDIF
@@ -322,16 +320,16 @@ CONTAINS
                                     ENDIF
                                   ENDIF
                                 ELSE
-                                  CALL FLAG_ERROR("Decomposition topology elements is not associated.",ERR,ERROR,*999)
+                                  CALL FlagError("Decomposition topology elements is not associated.",ERR,ERROR,*999)
                                 ENDIF
                               ELSE
-                                CALL FLAG_ERROR("Decomposition topology is not associated.",ERR,ERROR,*999)
+                                CALL FlagError("Decomposition topology is not associated.",ERR,ERROR,*999)
                               ENDIF
                             ELSE
-                              CALL FLAG_ERROR("Domain decomposition is not associated.",ERR,ERROR,*999)
+                              CALL FlagError("Domain decomposition is not associated.",ERR,ERROR,*999)
                             ENDIF
                           ELSE
-                            CALL FLAG_ERROR("Elements domain topology is not associated.",ERR,ERROR,*999)
+                            CALL FlagError("Elements domain topology is not associated.",ERR,ERROR,*999)
                           ENDIF
                         CASE(FIELD_NODE_BASED_INTERPOLATION)
                           NODES_DOMAIN=>DOMAIN_TOPOLOGY%NODES
@@ -478,12 +476,12 @@ CONTAINS
                               ENDIF
                             ENDIF
                           ELSE
-                            CALL FLAG_ERROR("Nodes domain topology is not associated.",ERR,ERROR,*999)
+                            CALL FlagError("Nodes domain topology is not associated.",ERR,ERROR,*999)
                           ENDIF                     
                         CASE(FIELD_GRID_POINT_BASED_INTERPOLATION)
-                          CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+                          CALL FlagError("Not implemented.",ERR,ERROR,*999)
                         CASE(FIELD_GAUSS_POINT_BASED_INTERPOLATION)
-                          CALL FLAG_ERROR("Not implemented.",ERR,ERROR,*999)
+                          CALL FlagError("Not implemented.",ERR,ERROR,*999)
                         CASE DEFAULT
                           LOCAL_ERROR="The interpolation type of "// &
                             & TRIM(NUMBER_TO_VSTRING(FIELD%VARIABLES(var_idx)%COMPONENTS(component_idx)% &
@@ -491,13 +489,13 @@ CONTAINS
                             & TRIM(NUMBER_TO_VSTRING(component_idx,"*",ERR,ERROR))//" of variable type "// &
                             & TRIM(NUMBER_TO_VSTRING(variable_type,"*",ERR,ERROR))//" of field number "// &
                             & TRIM(NUMBER_TO_VSTRING(FIELD%USER_NUMBER,"*",ERR,ERROR))//" is invalid."
-                          CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
+                          CALL FlagError(LOCAL_ERROR,ERR,ERROR,*999)
                         END SELECT
                       ELSE
-                        CALL FLAG_ERROR("Domain topology is not associated.",ERR,ERROR,*999)
+                        CALL FlagError("Domain topology is not associated.",ERR,ERROR,*999)
                       ENDIF
                     ELSE
-                      CALL FLAG_ERROR("Domain is not associated.",ERR,ERROR,*999)
+                      CALL FlagError("Domain is not associated.",ERR,ERROR,*999)
                     ENDIF
                     CALL WRITE_STRING(OUTPUT_ID,"",ERR,ERROR,*999)
                   ENDDO !component_idx
@@ -508,9 +506,9 @@ CONTAINS
                     & ERR,ERROR,*999)
                   !Allocated the integral errors
                   ALLOCATE(INTEGRAL_ERRORS(6,FIELD_VARIABLE%NUMBER_OF_COMPONENTS),STAT=ERR)
-                  IF(ERR/=0) CALL FLAG_ERROR("Could not allocate integral errors.",ERR,ERROR,*999)
+                  IF(ERR/=0) CALL FlagError("Could not allocate integral errors.",ERR,ERROR,*999)
                   ALLOCATE(GHOST_INTEGRAL_ERRORS(6,FIELD_VARIABLE%NUMBER_OF_COMPONENTS),STAT=ERR)
-                  IF(ERR/=0) CALL FLAG_ERROR("Could not allocate ghost integral errors.",ERR,ERROR,*999)
+                  IF(ERR/=0) CALL FlagError("Could not allocate ghost integral errors.",ERR,ERROR,*999)
                   CALL ANALYTIC_ANALYSIS_INTEGRAL_ERRORS(FIELD_VARIABLE,INTEGRAL_ERRORS,GHOST_INTEGRAL_ERRORS,ERR,ERROR,*999)
                   IF(COMPUTATIONAL_ENVIRONMENT%NUMBER_COMPUTATIONAL_NODES>1) THEN
                     CALL WRITE_STRING(OUTPUT_ID,"Local Integral errors:",ERR,ERROR,*999)
@@ -662,40 +660,40 @@ CONTAINS
                   IF(ALLOCATED(INTEGRAL_ERRORS)) DEALLOCATE(INTEGRAL_ERRORS)
                   IF(ALLOCATED(GHOST_INTEGRAL_ERRORS)) DEALLOCATE(GHOST_INTEGRAL_ERRORS)
                 ELSE
-                  CALL FLAG_ERROR("Field variable is not associated.",ERR,ERROR,*999)
+                  CALL FlagError("Field variable is not associated.",ERR,ERROR,*999)
                 ENDIF
               ENDDO !var_idx
             ELSE
-              CALL FLAG_ERROR("Decomposition topology is not associated.",ERR,ERROR,*999)
+              CALL FlagError("Decomposition topology is not associated.",ERR,ERROR,*999)
             ENDIF
           ELSE
-            CALL FLAG_ERROR("Field decomposition is not associated.",ERR,ERROR,*999)
+            CALL FlagError("Field decomposition is not associated.",ERR,ERROR,*999)
           ENDIF
           IF(LEN_TRIM(FILENAME)>=1) THEN
             CLOSE(UNIT=OUTPUT_ID,IOSTAT=ERR)
-            IF(ERR/=0) CALL FLAG_ERROR("Error closing analysis output file.",ERR,ERROR,*999)
+            IF(ERR/=0) CALL FlagError("Error closing analysis output file.",ERR,ERROR,*999)
           ENDIF
         ELSE
           LOCAL_ERROR="Field number "//TRIM(NUMBER_TO_VSTRING(FIELD%USER_NUMBER,"*",ERR,ERROR))// &
             & " is not a dependent field."
-          CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
+          CALL FlagError(LOCAL_ERROR,ERR,ERROR,*999)
         ENDIF
       ELSE
         LOCAL_ERROR="Field number "//TRIM(NUMBER_TO_VSTRING(FIELD%USER_NUMBER,"*",ERR,ERROR))// &
           & " has not been finished."
-        CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
+        CALL FlagError(LOCAL_ERROR,ERR,ERROR,*999)
       ENDIF
     ELSE
-      CALL FLAG_ERROR("Field is not associated.",ERR,ERROR,*999)
+      CALL FlagError("Field is not associated.",ERR,ERROR,*999)
     ENDIF
           
-    EXITS("ANALYTIC_ANALYSIS_OUTPUT")
+    EXITS("AnalyticAnalysis_Output")
     RETURN
 999 IF(ALLOCATED(INTEGRAL_ERRORS)) DEALLOCATE(INTEGRAL_ERRORS)
     IF(ALLOCATED(GHOST_INTEGRAL_ERRORS)) DEALLOCATE(GHOST_INTEGRAL_ERRORS)
-    ERRORSEXITS("ANALYTIC_ANALYSIS_OUTPUT",ERR,ERROR)
+    ERRORSEXITS("AnalyticAnalysis_Output",ERR,ERROR)
     RETURN 1
-  END SUBROUTINE ANALYTIC_ANALYSIS_OUTPUT
+  END SUBROUTINE AnalyticAnalysis_Output
 
   !
   !================================================================================================================================
@@ -831,7 +829,7 @@ CONTAINS
                   CALL FIELD_INTERPOLATION_PARAMETERS_INITIALISE(DEPENDENT_FIELD,NUMERICAL_INTERP_PARAMETERS,ERR,ERROR,*999)
                   CALL FIELD_INTERPOLATION_PARAMETERS_INITIALISE(DEPENDENT_FIELD,ANALYTIC_INTERP_PARAMETERS,ERR,ERROR,*999)
                   CALL FIELD_INTERPOLATED_POINTS_INITIALISE(GEOMETRIC_INTERP_PARAMETERS,GEOMETRIC_INTERP_POINT,ERR,ERROR,*999)
-                  CALL FIELD_INTERPOLATED_POINTS_METRICS_INITIALISE(GEOMETRIC_INTERP_POINT,GEOMETRIC_INTERP_POINT_METRICS, &
+                  CALL Field_InterpolatedPointsMetricsInitialise(GEOMETRIC_INTERP_POINT,GEOMETRIC_INTERP_POINT_METRICS, &
                     & ERR,ERROR,*999)
                   DOMAIN_ELEMENTS1=>FIELD_VARIABLE%COMPONENTS(DECOMPOSITION%MESH_COMPONENT_NUMBER)%DOMAIN%TOPOLOGY%ELEMENTS
                   DOMAIN_ELEMENTS2=>GEOMETRIC_VARIABLE%COMPONENTS(DECOMPOSITION%MESH_COMPONENT_NUMBER)%DOMAIN%TOPOLOGY%ELEMENTS
@@ -877,7 +875,7 @@ CONTAINS
                         CASE DEFAULT
                           LOCAL_ERROR="The dependent field scaling type of "// &
                             & TRIM(NUMBER_TO_VSTRING(DEPENDENT_FIELD%SCALINGS%SCALING_TYPE,"*",ERR,ERROR))//" is invalid."
-                          CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
+                          CALL FlagError(LOCAL_ERROR,ERR,ERROR,*999)
                         END SELECT
                         INTEGRAL_ERRORS(1,component_idx)=INTEGRAL_ERRORS(1,component_idx)+NUMERICAL_INT*RWG
                         INTEGRAL_ERRORS(2,component_idx)=INTEGRAL_ERRORS(2,component_idx)+NUMERICAL_INT**2*RWG
@@ -930,7 +928,7 @@ CONTAINS
                         CASE DEFAULT
                           LOCAL_ERROR="The dependent field scaling type of "// &
                             & TRIM(NUMBER_TO_VSTRING(DEPENDENT_FIELD%SCALINGS%SCALING_TYPE,"*",ERR,ERROR))//" is invalid."
-                          CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
+                          CALL FlagError(LOCAL_ERROR,ERR,ERROR,*999)
                         END SELECT
                         GHOST_INTEGRAL_ERRORS(1,component_idx)=GHOST_INTEGRAL_ERRORS(1,component_idx)+NUMERICAL_INT*RWG
                         GHOST_INTEGRAL_ERRORS(2,component_idx)=GHOST_INTEGRAL_ERRORS(2,component_idx)+NUMERICAL_INT**2*RWG
@@ -943,39 +941,39 @@ CONTAINS
                       ENDDO !component_idx
                     ENDDO !gauss_idx
                   ENDDO !element_idx
-                  CALL FIELD_INTERPOLATED_POINTS_METRICS_FINALISE(GEOMETRIC_INTERP_POINT_METRICS,ERR,ERROR,*999)
+                  CALL Field_InterpolatedPointsMetricsFinalise(GEOMETRIC_INTERP_POINT_METRICS,ERR,ERROR,*999)
                   CALL FIELD_INTERPOLATED_POINTS_FINALISE(GEOMETRIC_INTERP_POINT,ERR,ERROR,*999)
                   CALL FIELD_INTERPOLATION_PARAMETERS_FINALISE(ANALYTIC_INTERP_PARAMETERS,ERR,ERROR,*999)
                   CALL FIELD_INTERPOLATION_PARAMETERS_FINALISE(NUMERICAL_INTERP_PARAMETERS,ERR,ERROR,*999)
                   CALL FIELD_INTERPOLATION_PARAMETERS_FINALISE(GEOMETRIC_INTERP_PARAMETERS,ERR,ERROR,*999)
                 ELSE
-                  CALL FLAG_ERROR("Geometric field variable is not associated.",ERR,ERROR,*999)
+                  CALL FlagError("Geometric field variable is not associated.",ERR,ERROR,*999)
                 ENDIF
               ELSE
-                CALL FLAG_ERROR("Field geometric field is not associated.",ERR,ERROR,*999)
+                CALL FlagError("Field geometric field is not associated.",ERR,ERROR,*999)
               ENDIF
             ELSE
-              CALL FLAG_ERROR("Field decomposition is not associated.",ERR,ERROR,*999)
+              CALL FlagError("Field decomposition is not associated.",ERR,ERROR,*999)
             ENDIF
           ELSE
-            CALL FLAG_ERROR("Field variable field is not associated.",ERR,ERROR,*999)
+            CALL FlagError("Field variable field is not associated.",ERR,ERROR,*999)
           ENDIF
         ELSE
           LOCAL_ERROR="Invalid size for GHOST_INTEGRAL_ERRORS. The size is ("// &
             & TRIM(NUMBER_TO_VSTRING(SIZE(GHOST_INTEGRAL_ERRORS,1),"*",ERR,ERROR))//","// &
             & TRIM(NUMBER_TO_VSTRING(SIZE(GHOST_INTEGRAL_ERRORS,2),"*",ERR,ERROR))//") and it needs to be at least (6,"// &
             & TRIM(NUMBER_TO_VSTRING(FIELD_VARIABLE%NUMBER_OF_COMPONENTS,"*",ERR,ERROR))//")."
-          CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
+          CALL FlagError(LOCAL_ERROR,ERR,ERROR,*999)
         ENDIF
       ELSE
         LOCAL_ERROR="Invalid size for INTEGRAL_ERRORS. The size is ("// &
           & TRIM(NUMBER_TO_VSTRING(SIZE(INTEGRAL_ERRORS,1),"*",ERR,ERROR))//","// &
           & TRIM(NUMBER_TO_VSTRING(SIZE(INTEGRAL_ERRORS,2),"*",ERR,ERROR))//") and it needs to be at least (6,"// &
           & TRIM(NUMBER_TO_VSTRING(FIELD_VARIABLE%NUMBER_OF_COMPONENTS,"*",ERR,ERROR))//")."
-        CALL FLAG_ERROR(LOCAL_ERROR,ERR,ERROR,*999)
+        CALL FlagError(LOCAL_ERROR,ERR,ERROR,*999)
       ENDIF
     ELSE
-      CALL FLAG_ERROR("Field variable is not associated.",ERR,ERROR,*999)
+      CALL FlagError("Field variable is not associated.",ERR,ERROR,*999)
     ENDIF
 
     EXITS("ANALYTIC_ANALYSIS_INTEGRAL_ERRORS")
@@ -989,7 +987,7 @@ CONTAINS
   !
 
   !>Get integral absolute error value for the field
-  SUBROUTINE ANALYTIC_ANALYSIS_INTEGRAL_ABSOLUTE_ERROR_GET(FIELD,VARIABLE_TYPE,COMPONENT_NUMBER,INTEGRAL_ERROR, &
+  SUBROUTINE AnalyticAnalysis_IntegralAbsoluteErrorGet(FIELD,VARIABLE_TYPE,COMPONENT_NUMBER,INTEGRAL_ERROR, &
     & GHOST_INTEGRAL_ERROR,ERR,ERROR,*)
 
     !Argument variables   
@@ -1005,7 +1003,7 @@ CONTAINS
     REAL(DP), ALLOCATABLE :: INTEGRAL_ERRORS(:,:) !<the integral errors for the local elements
     REAL(DP), ALLOCATABLE :: GHOST_INTEGRAL_ERRORS(:,:) !<the integral errors for the ghost elements
 
-    ENTERS("ANALYTIC_ANALYSIS_INTEGRAL_ABSOLUTE_ERROR_GET",ERR,ERROR,*999)
+    ENTERS("AnalyticAnalysis_IntegralAbsoluteErrorGet",ERR,ERROR,*999)
 
     IF(ASSOCIATED(FIELD)) THEN
       FIELD_VARIABLE=>FIELD%VARIABLE_TYPE_MAP(VARIABLE_TYPE)%PTR
@@ -1017,21 +1015,22 @@ CONTAINS
       GHOST_INTEGRAL_ERROR(2)=ANALYTIC_ANALYSIS_ABSOLUTE_ERROR(GHOST_INTEGRAL_ERRORS(2,COMPONENT_NUMBER), &
         & GHOST_INTEGRAL_ERRORS(4,COMPONENT_NUMBER))
     ELSE
-      CALL FLAG_ERROR("Field is not associated",ERR,ERROR,*999)
+      CALL FlagError("Field is not associated",ERR,ERROR,*999)
     ENDIF 
     
-    EXITS("ANALYTIC_ANALYSIS_INTEGRAL_ABSOLUTE_ERROR_GET")
+    EXITS("AnalyticAnalysis_IntegralAbsoluteErrorGet")
     RETURN
-999 ERRORSEXITS("ANALYTIC_ANALYSIS_INTEGRAL_ABSOLUTE_ERROR_GET",ERR,ERROR)
+999 ERRORSEXITS("AnalyticAnalysis_IntegralAbsoluteErrorGet",ERR,ERROR)
     RETURN 1
-  END SUBROUTINE ANALYTIC_ANALYSIS_INTEGRAL_ABSOLUTE_ERROR_GET
+    
+  END SUBROUTINE AnalyticAnalysis_IntegralAbsoluteErrorGet
   
    !
   !================================================================================================================================
   !
 
   !>Get integral analytic value for the field TODO should we use analytical formula to calculate the integration?
-  SUBROUTINE ANALYTIC_ANALYSIS_INTEGRAL_ANALYTIC_VALUE_GET(FIELD,VARIABLE_TYPE,COMPONENT_NUMBER,INTEGRAL_ERROR, &
+  SUBROUTINE AnalyticAnalysis_IntegralAnalyticValueGet(FIELD,VARIABLE_TYPE,COMPONENT_NUMBER,INTEGRAL_ERROR, &
     & GHOST_INTEGRAL_ERROR,ERR,ERROR,*)
   
     !Argument variables
@@ -1047,7 +1046,7 @@ CONTAINS
     REAL(DP), ALLOCATABLE :: INTEGRAL_ERRORS(:,:) !<the integral errors for the local elements
     REAL(DP), ALLOCATABLE :: GHOST_INTEGRAL_ERRORS(:,:) !<the integral errors for the ghost elements
 
-    ENTERS("ANALYTIC_ANALYSIS_INTEGRAL_ANALYTIC_VALUE_GET",ERR,ERROR,*999)
+    ENTERS("AnalyticAnalysis_IntegralAnalyticValueGet",ERR,ERROR,*999)
 
     IF(ASSOCIATED(FIELD)) THEN
       FIELD_VARIABLE=>FIELD%VARIABLE_TYPE_MAP(VARIABLE_TYPE)%PTR
@@ -1057,21 +1056,22 @@ CONTAINS
       GHOST_INTEGRAL_ERROR(1)=GHOST_INTEGRAL_ERRORS(3,COMPONENT_NUMBER)
       GHOST_INTEGRAL_ERROR(2)=GHOST_INTEGRAL_ERRORS(4,COMPONENT_NUMBER)
     ELSE
-      CALL FLAG_ERROR("Field is not associated",ERR,ERROR,*999)
+      CALL FlagError("Field is not associated",ERR,ERROR,*999)
     ENDIF 
     
-    EXITS("ANALYTIC_ANALYSIS_INTEGRAL_ANALYTIC_VALUE_GET")
+    EXITS("AnalyticAnalysis_IntegralAnalyticValueGet")
     RETURN
-999 ERRORSEXITS("ANALYTIC_ANALYSIS_INTEGRAL_ANALYTIC_VALUE_GET",ERR,ERROR)
+999 ERRORSEXITS("AnalyticAnalysis_IntegralAnalyticValueGet",ERR,ERROR)
     RETURN 1
-  END SUBROUTINE ANALYTIC_ANALYSIS_INTEGRAL_ANALYTIC_VALUE_GET
+    
+  END SUBROUTINE AnalyticAnalysis_IntegralAnalyticValueGet
   
   !
   !================================================================================================================================
   !
 
   !>Get integral numerical value for the field, TODO check integral calculation
-  SUBROUTINE ANALYTIC_ANALYSIS_INTEGRAL_NUMERICAL_VALUE_GET(FIELD,VARIABLE_TYPE,COMPONENT_NUMBER,INTEGRAL_ERROR, &
+  SUBROUTINE AnalyticAnalysis_IntegralNumericalValueGet(FIELD,VARIABLE_TYPE,COMPONENT_NUMBER,INTEGRAL_ERROR, &
     & GHOST_INTEGRAL_ERROR,ERR,ERROR,*)
   
     !Argument variables   
@@ -1087,7 +1087,7 @@ CONTAINS
     REAL(DP), ALLOCATABLE :: INTEGRAL_ERRORS(:,:) !<the integral errors for the local elements
     REAL(DP), ALLOCATABLE :: GHOST_INTEGRAL_ERRORS(:,:) !<the integral errors for the ghost elements
 
-    ENTERS("ANALYTIC_ANALYSIS_INTEGRAL_NUMERICAL_VALUE_GET",ERR,ERROR,*999)       
+    ENTERS("AnalyticAnalysis_IntegralNumericalValueGet",ERR,ERROR,*999)       
 
     IF(ASSOCIATED(FIELD)) THEN
       FIELD_VARIABLE=>FIELD%VARIABLE_TYPE_MAP(VARIABLE_TYPE)%PTR
@@ -1097,21 +1097,22 @@ CONTAINS
       GHOST_INTEGRAL_ERROR(1)=GHOST_INTEGRAL_ERRORS(1,COMPONENT_NUMBER)
       GHOST_INTEGRAL_ERROR(2)=GHOST_INTEGRAL_ERRORS(2,COMPONENT_NUMBER)
     ELSE
-      CALL FLAG_ERROR("Field is not associated",ERR,ERROR,*999)
+      CALL FlagError("Field is not associated",ERR,ERROR,*999)
     ENDIF 
     
-    EXITS("ANALYTIC_ANALYSIS_INTEGRAL_NUMERICAL_VALUE_GET")
+    EXITS("AnalyticAnalysis_IntegralNumericalValueGet")
     RETURN
-999 ERRORSEXITS("ANALYTIC_ANALYSIS_INTEGRAL_NUMERICAL_VALUE_GET",ERR,ERROR)
+999 ERRORSEXITS("AnalyticAnalysis_IntegralNumericalValueGet",ERR,ERROR)
     RETURN 1
-  END SUBROUTINE ANALYTIC_ANALYSIS_INTEGRAL_NUMERICAL_VALUE_GET
+    
+  END SUBROUTINE AnalyticAnalysis_IntegralNumericalValueGet
   
   !
   !================================================================================================================================
   !
 
   !>Get integral nid numerical value for the field, TODO check integral calculation
-  SUBROUTINE ANALYTIC_ANALYSIS_INTEGRAL_NID_NUMERICAL_VALUE_GET(FIELD,VARIABLE_TYPE,COMPONENT_NUMBER,INTEGRAL_ERROR, &
+  SUBROUTINE AnalyticAnalysis_IntegralNIDNumericalValueGet(FIELD,VARIABLE_TYPE,COMPONENT_NUMBER,INTEGRAL_ERROR, &
     & GHOST_INTEGRAL_ERROR,ERR,ERROR,*)
 
     !Argument variables
@@ -1127,7 +1128,7 @@ CONTAINS
     REAL(DP), ALLOCATABLE :: INTEGRAL_ERRORS(:,:) !<the integral errors for the local elements
     REAL(DP), ALLOCATABLE :: GHOST_INTEGRAL_ERRORS(:,:) !<the integral errors for the ghost elements
 
-    ENTERS("ANALYTIC_ANALYSIS_INTEGRAL_NID_NUMERICAL_VALUE_GET",ERR,ERROR,*999)
+    ENTERS("AnalyticAnalysis_IntegralNIDNumericalValueGet",ERR,ERROR,*999)
 
     IF(ASSOCIATED(FIELD)) THEN
       FIELD_VARIABLE=>FIELD%VARIABLE_TYPE_MAP(VARIABLE_TYPE)%PTR
@@ -1137,21 +1138,23 @@ CONTAINS
       GHOST_INTEGRAL_ERROR(1)=GHOST_INTEGRAL_ERRORS(5,COMPONENT_NUMBER)
       GHOST_INTEGRAL_ERROR(2)=GHOST_INTEGRAL_ERRORS(6,COMPONENT_NUMBER)
     ELSE
-      CALL FLAG_ERROR("Field is not associated",ERR,ERROR,*999)
+      CALL FlagError("Field is not associated",ERR,ERROR,*999)
     ENDIF
 
-    EXITS("ANALYTIC_ANALYSIS_INTEGRAL_NID_NUMERICAL_VALUE_GET")
+    EXITS("AnalyticAnalysis_IntegralNIDNumericalValueGet")
     RETURN
-999 ERRORSEXITS("ANALYTIC_ANALYSIS_INTEGRAL_NID_NUMERICAL_VALUE_GET",ERR,ERROR)
+999 ERRORS("AnalyticAnalysis_IntegralNIDNumericalValueGet",ERR,ERROR)
+    EXITS("AnalyticAnalysis_IntegralNIDNumericalValueGet")
     RETURN 1
-  END SUBROUTINE ANALYTIC_ANALYSIS_INTEGRAL_NID_NUMERICAL_VALUE_GET
+    
+  END SUBROUTINE AnalyticAnalysis_IntegralNIDNumericalValueGet
 
   !
   !================================================================================================================================
   !
 
   !>Get integral nid error value for the field
-  SUBROUTINE ANALYTIC_ANALYSIS_INTEGRAL_NID_ERROR_GET(FIELD,VARIABLE_TYPE,COMPONENT_NUMBER,INTEGRAL_ERROR, &
+  SUBROUTINE AnalyticAnalysis_IntegralNIDErrorGet(FIELD,VARIABLE_TYPE,COMPONENT_NUMBER,INTEGRAL_ERROR, &
     & GHOST_INTEGRAL_ERROR,ERR,ERROR,*)
 
     !Argument variables
@@ -1167,7 +1170,7 @@ CONTAINS
     REAL(DP), ALLOCATABLE :: INTEGRAL_ERRORS(:,:) !<the integral errors for the local elements
     REAL(DP), ALLOCATABLE :: GHOST_INTEGRAL_ERRORS(:,:) !<the integral errors for the ghost elements
 
-    ENTERS("ANALYTIC_ANALYSIS_INTEGRAL_NID_ERROR_GET",ERR,ERROR,*999)
+    ENTERS("AnalyticAnalysis_IntegralNIDErrorGet",ERR,ERROR,*999)
 
     IF(ASSOCIATED(FIELD)) THEN
       FIELD_VARIABLE=>FIELD%VARIABLE_TYPE_MAP(VARIABLE_TYPE)%PTR
@@ -1179,21 +1182,21 @@ CONTAINS
       GHOST_INTEGRAL_ERROR(2)=ANALYTIC_ANALYSIS_NID_ERROR(GHOST_INTEGRAL_ERRORS(6,COMPONENT_NUMBER), &
         & GHOST_INTEGRAL_ERRORS(4,COMPONENT_NUMBER))
     ELSE
-      CALL FLAG_ERROR("Field is not associated",ERR,ERROR,*999)
+      CALL FlagError("Field is not associated",ERR,ERROR,*999)
     ENDIF
 
-    EXITS("ANALYTIC_ANALYSIS_INTEGRAL_NID_ERROR_GET")
+    EXITS("AnalyticAnalysis_IntegralNIDErrorGet")
     RETURN
-999 ERRORSEXITS("ANALYTIC_ANALYSIS_INTEGRAL_NID_ERROR_GET",ERR,ERROR)
+999 ERRORSEXITS("AnalyticAnalysis_IntegralNIDErrorGet",ERR,ERROR)
     RETURN 1
-  END SUBROUTINE ANALYTIC_ANALYSIS_INTEGRAL_NID_ERROR_GET
+  END SUBROUTINE AnalyticAnalysis_IntegralNIDErrorGet
 
   !
   !================================================================================================================================
   !
 
   !>Get integral percentage error value for the field
-  SUBROUTINE ANALYTIC_ANALYSIS_INTEGRAL_PERCENTAGE_ERROR_GET(FIELD,VARIABLE_TYPE,COMPONENT_NUMBER,INTEGRAL_ERROR, &
+  SUBROUTINE AnalyticAnalysis_IntegralPercentageErrorGet(FIELD,VARIABLE_TYPE,COMPONENT_NUMBER,INTEGRAL_ERROR, &
     & GHOST_INTEGRAL_ERROR,ERR,ERROR,*)
 
     !Argument variables   
@@ -1209,7 +1212,7 @@ CONTAINS
     REAL(DP), ALLOCATABLE :: INTEGRAL_ERRORS(:,:) !<the integral errors for the local elements
     REAL(DP), ALLOCATABLE :: GHOST_INTEGRAL_ERRORS(:,:) !<the integral errors for the ghost elements
 
-    ENTERS("ANALYTIC_ANALYSIS_INTEGRAL_PERCENTAGE_ERROR_GET",ERR,ERROR,*999)
+    ENTERS("AnalyticAnalysis_IntegralPercentageErrorGet",ERR,ERROR,*999)
 
     IF(ASSOCIATED(FIELD)) THEN
       FIELD_VARIABLE=>FIELD%VARIABLE_TYPE_MAP(VARIABLE_TYPE)%PTR
@@ -1221,21 +1224,22 @@ CONTAINS
       GHOST_INTEGRAL_ERROR(2)=ANALYTIC_ANALYSIS_PERCENTAGE_ERROR(GHOST_INTEGRAL_ERRORS(2,COMPONENT_NUMBER), &
         & GHOST_INTEGRAL_ERRORS(4,COMPONENT_NUMBER))
     ELSE
-      CALL FLAG_ERROR("Field is not associated",ERR,ERROR,*999)
+      CALL FlagError("Field is not associated",ERR,ERROR,*999)
     ENDIF 
     
-    EXITS("ANALYTIC_ANALYSIS_INTEGRAL_PERCENTAGE_ERROR_GET")
+    EXITS("AnalyticAnalysis_IntegralPercentageErrorGet")
     RETURN
-999 ERRORSEXITS("ANALYTIC_ANALYSIS_INTEGRAL_PERCENTAGE_ERROR_GET",ERR,ERROR)
+999 ERRORSEXITS("AnalyticAnalysis_IntegralPercentageErrorGet",ERR,ERROR)
     RETURN 1
-  END SUBROUTINE ANALYTIC_ANALYSIS_INTEGRAL_PERCENTAGE_ERROR_GET
+    
+  END SUBROUTINE AnalyticAnalysis_IntegralPercentageErrorGet
   
    !
   !================================================================================================================================
   !
 
   !>Get integral relative error value for the field.
-  SUBROUTINE ANALYTIC_ANALYSIS_INTEGRAL_RELATIVE_ERROR_GET(FIELD,VARIABLE_TYPE,COMPONENT_NUMBER,INTEGRAL_ERROR, &
+  SUBROUTINE AnalyticAnalysis_IntegralRelativeErrorGet(FIELD,VARIABLE_TYPE,COMPONENT_NUMBER,INTEGRAL_ERROR, &
     & GHOST_INTEGRAL_ERROR,ERR,ERROR,*)
   
     !Argument variables   
@@ -1251,7 +1255,7 @@ CONTAINS
     REAL(DP), ALLOCATABLE :: INTEGRAL_ERRORS(:,:) !<the integral errors for the local elements
     REAL(DP), ALLOCATABLE :: GHOST_INTEGRAL_ERRORS(:,:) !<the integral errors for the ghost elements
 
-    ENTERS("ANALYTIC_ANALYSIS_INTEGRAL_RELATIVE_ERROR_GET",ERR,ERROR,*999)       
+    ENTERS("AnalyticAnalysis_IntegralRelativeErrorGet",ERR,ERROR,*999)       
 
     IF(ASSOCIATED(FIELD)) THEN
       FIELD_VARIABLE=>FIELD%VARIABLE_TYPE_MAP(VARIABLE_TYPE)%PTR
@@ -1263,21 +1267,22 @@ CONTAINS
       GHOST_INTEGRAL_ERROR(2)=ANALYTIC_ANALYSIS_RELATIVE_ERROR(GHOST_INTEGRAL_ERRORS(2,COMPONENT_NUMBER), &
         & GHOST_INTEGRAL_ERRORS(4,COMPONENT_NUMBER))
     ELSE
-      CALL FLAG_ERROR("Field is not associated",ERR,ERROR,*999)
+      CALL FlagError("Field is not associated",ERR,ERROR,*999)
     ENDIF 
     
-    EXITS("ANALYTIC_ANALYSIS_INTEGRAL_RELATIVE_ERROR_GET")
+    EXITS("AnalyticAnalysis_IntegralRelativeErrorGet")
     RETURN
-999 ERRORSEXITS("ANALYTIC_ANALYSIS_INTEGRAL_RELATIVE_ERROR_GET",ERR,ERROR)
+999 ERRORSEXITS("AnalyticAnalysis_IntegralRelativeErrorGet",ERR,ERROR)
     RETURN 1
-  END SUBROUTINE ANALYTIC_ANALYSIS_INTEGRAL_RELATIVE_ERROR_GET
+    
+  END SUBROUTINE AnalyticAnalysis_IntegralRelativeErrorGet
 
   !
   !================================================================================================================================
   !
 
   !>Get absolute error value for the node
-  SUBROUTINE ANALYTIC_ANALYSIS_ABSOLUTE_ERROR_GET_NODE(FIELD,VARIABLE_TYPE,VERSION_NUMBER,DERIVATIVE_NUMBER,USER_NODE_NUMBER, &
+  SUBROUTINE AnalyticAnalysis_AbsoluteErrorGetNode(FIELD,VARIABLE_TYPE,VERSION_NUMBER,DERIVATIVE_NUMBER,USER_NODE_NUMBER, &
     & COMPONENT_NUMBER,VALUE,ERR,ERROR,*)
 
     !Argument variables
@@ -1293,7 +1298,7 @@ CONTAINS
     !Local Variables
     REAL(DP) :: NUMERICAL_VALUE, ANALYTIC_VALUE
 
-    ENTERS("ANALYTIC_ANALYSIS_ABSOLUTE_ERROR_GET_NODE",ERR,ERROR,*999)
+    ENTERS("AnalyticAnalysis_AbsoluteErrorGetNode",ERR,ERROR,*999)
 
     IF(ASSOCIATED(FIELD)) THEN
       CALL FIELD_PARAMETER_SET_GET_NODE(FIELD,VARIABLE_TYPE,FIELD_VALUES_SET_TYPE,VERSION_NUMBER,DERIVATIVE_NUMBER, &
@@ -1302,21 +1307,21 @@ CONTAINS
         & USER_NODE_NUMBER,COMPONENT_NUMBER,ANALYTIC_VALUE,ERR,ERROR,*999)
       VALUE=ANALYTIC_ANALYSIS_ABSOLUTE_ERROR(NUMERICAL_VALUE,ANALYTIC_VALUE)
     ELSE
-      CALL FLAG_ERROR("Field is not associated",ERR,ERROR,*999)
+      CALL FlagError("Field is not associated",ERR,ERROR,*999)
     ENDIF
 
-    EXITS("ANALYTIC_ANALYSIS_ABSOLUTE_ERROR_GET_NODE")
+    EXITS("AnalyticAnalysis_AbsoluteErrorGetNode")
     RETURN
-999 ERRORSEXITS("ANALYTIC_ANALYSIS_ABSOLUTE_ERROR_GET_NODE",ERR,ERROR)
+999 ERRORSEXITS("AnalyticAnalysis_AbsoluteErrorGetNode",ERR,ERROR)
     RETURN 1
-  END SUBROUTINE ANALYTIC_ANALYSIS_ABSOLUTE_ERROR_GET_NODE
+  END SUBROUTINE AnalyticAnalysis_AbsoluteErrorGetNode
 
   !
   !================================================================================================================================
   !
 
   !>Get percentage error value for the node
-  SUBROUTINE ANALYTIC_ANALYSIS_PERCENTAGE_ERROR_GET_NODE(FIELD,VARIABLE_TYPE,VERSION_NUMBER,DERIVATIVE_NUMBER,USER_NODE_NUMBER, &
+  SUBROUTINE AnalyticAnalysis_PercentageErrorGetNode(FIELD,VARIABLE_TYPE,VERSION_NUMBER,DERIVATIVE_NUMBER,USER_NODE_NUMBER, &
     & COMPONENT_NUMBER,VALUE,ERR,ERROR,*)
 
     !Argument variables
@@ -1332,7 +1337,7 @@ CONTAINS
     !Local Variables
     REAL(DP) :: NUMERICAL_VALUE, ANALYTIC_VALUE
 
-    ENTERS("ANALYTIC_ANALYSIS_PERCENTAGE_ERROR_GET_NODE",ERR,ERROR,*999)
+    ENTERS("AnalyticAnalysis_PercentageErrorGetNode",ERR,ERROR,*999)
 
     IF(ASSOCIATED(FIELD)) THEN
       CALL FIELD_PARAMETER_SET_GET_NODE(FIELD,VARIABLE_TYPE,FIELD_VALUES_SET_TYPE,VERSION_NUMBER,DERIVATIVE_NUMBER, &
@@ -1341,14 +1346,14 @@ CONTAINS
         & USER_NODE_NUMBER,COMPONENT_NUMBER,ANALYTIC_VALUE,ERR,ERROR,*999)
       VALUE=ANALYTIC_ANALYSIS_PERCENTAGE_ERROR(NUMERICAL_VALUE, ANALYTIC_VALUE)
     ELSE
-      CALL FLAG_ERROR("Field is not associated",ERR,ERROR,*999)
+      CALL FlagError("Field is not associated",ERR,ERROR,*999)
     ENDIF
 
-    EXITS("ANALYTIC_ANALYSIS_PERCENTAGE_ERROR_GET_NODE")
+    EXITS("AnalyticAnalysis_PercentageErrorGetNode")
     RETURN
-999 ERRORSEXITS("ANALYTIC_ANALYSIS_PERCENTAGE_ERROR_GET_NODE",ERR,ERROR)
+999 ERRORSEXITS("AnalyticAnalysis_PercentageErrorGetNode",ERR,ERROR)
     RETURN 1
-  END SUBROUTINE ANALYTIC_ANALYSIS_PERCENTAGE_ERROR_GET_NODE
+  END SUBROUTINE AnalyticAnalysis_PercentageErrorGetNode
 
 
 
@@ -1357,7 +1362,7 @@ CONTAINS
   !
 
   !>Get relative error value for the node
-  SUBROUTINE ANALYTIC_ANALYSIS_RELATIVE_ERROR_GET_NODE(FIELD,VARIABLE_TYPE,VERSION_NUMBER,DERIVATIVE_NUMBER,USER_NODE_NUMBER, &
+  SUBROUTINE AnalyticAnalysis_RelativeErrorGetNode(FIELD,VARIABLE_TYPE,VERSION_NUMBER,DERIVATIVE_NUMBER,USER_NODE_NUMBER, &
     & COMPONENT_NUMBER,VALUE,ERR,ERROR,*)
 
     !Argument variables
@@ -1373,7 +1378,7 @@ CONTAINS
     !Local Variables
     REAL(DP) :: NUMERICAL_VALUE, ANALYTIC_VALUE
 
-    ENTERS("ANALYTIC_ANALYSIS_RELATIVE_ERROR_GET_NODE",ERR,ERROR,*999)
+    ENTERS("AnalyticAnalysis_RelativeErrorGetNode",ERR,ERROR,*999)
 
     IF(ASSOCIATED(FIELD)) THEN
       CALL FIELD_PARAMETER_SET_GET_NODE(FIELD,VARIABLE_TYPE,FIELD_VALUES_SET_TYPE,VERSION_NUMBER,DERIVATIVE_NUMBER, &
@@ -1382,21 +1387,21 @@ CONTAINS
         & USER_NODE_NUMBER,COMPONENT_NUMBER,ANALYTIC_VALUE,ERR,ERROR,*999)
       VALUE=ANALYTIC_ANALYSIS_RELATIVE_ERROR(NUMERICAL_VALUE, ANALYTIC_VALUE)
     ELSE
-      CALL FLAG_ERROR("Field is not associated",ERR,ERROR,*999)
+      CALL FlagError("Field is not associated",ERR,ERROR,*999)
     ENDIF
 
-    EXITS("ANALYTIC_ANALYSIS_RELATIVE_ERROR_GET_NODE")
+    EXITS("AnalyticAnalysis_RelativeErrorGetNode")
     RETURN
-999 ERRORSEXITS("ANALYTIC_ANALYSIS_RELATIVE_ERROR_GET_NODE",ERR,ERROR)
+999 ERRORSEXITS("AnalyticAnalysis_RelativeErrorGetNode",ERR,ERROR)
     RETURN 1
-  END SUBROUTINE ANALYTIC_ANALYSIS_RELATIVE_ERROR_GET_NODE
+  END SUBROUTINE AnalyticAnalysis_RelativeErrorGetNode
 
   !
   !================================================================================================================================
   !
 
-  !>Get absolute error value for the node
-  SUBROUTINE ANALYTIC_ANALYSIS_ABSOLUTE_ERROR_GET_ELEMENT(FIELD,VARIABLE_TYPE,USER_ELEMENT_NUMBER,COMPONENT_NUMBER,VALUE,ERR, &
+  !>Get absolute error value for an element
+  SUBROUTINE AnalyticAnalysis_AbsoluteErrorGetElement(FIELD,VARIABLE_TYPE,USER_ELEMENT_NUMBER,COMPONENT_NUMBER,VALUE,ERR, &
     & ERROR,*)
 
     !Argument variables
@@ -1410,7 +1415,7 @@ CONTAINS
     !Local Variables
     REAL(DP) :: NUMERICAL_VALUE, ANALYTIC_VALUE
 
-    ENTERS("ANALYTIC_ANALYSIS_ABSOLUTE_ERROR_GET_ELEMENT",ERR,ERROR,*999)
+    ENTERS("AnalyticAnalysis_AbsoluteErrorGetElement",ERR,ERROR,*999)
 
     IF(ASSOCIATED(FIELD)) THEN
       CALL FIELD_PARAMETER_SET_GET_ELEMENT(FIELD,VARIABLE_TYPE,FIELD_VALUES_SET_TYPE,USER_ELEMENT_NUMBER,COMPONENT_NUMBER, &
@@ -1419,21 +1424,22 @@ CONTAINS
         & COMPONENT_NUMBER,ANALYTIC_VALUE,ERR,ERROR,*999)
       VALUE=ANALYTIC_ANALYSIS_ABSOLUTE_ERROR(NUMERICAL_VALUE,ANALYTIC_VALUE)
     ELSE
-      CALL FLAG_ERROR("Field is not associated",ERR,ERROR,*999)
+      CALL FlagError("Field is not associated",ERR,ERROR,*999)
     ENDIF
 
-    EXITS("ANALYTIC_ANALYSIS_ABSOLUTE_ERROR_GET_ELEMENT")
+    EXITS("AnalyticAnalysis_AbsoluteErrorGetElement")
     RETURN
-999 ERRORSEXITS("ANALYTIC_ANALYSIS_ABSOLUTE_ERROR_GET_ELEMENT",ERR,ERROR)
+999 ERRORSEXITS("AnalyticAnalysis_AbsoluteErrorGetElement",ERR,ERROR)
     RETURN 1
-  END SUBROUTINE ANALYTIC_ANALYSIS_ABSOLUTE_ERROR_GET_ELEMENT
+    
+  END SUBROUTINE AnalyticAnalysis_AbsoluteErrorGetElement
 
   !
   !================================================================================================================================
   !
 
   !>Get percentage error value for the node
-  SUBROUTINE ANALYTIC_ANALYSIS_PERCENTAGE_ERROR_GET_ELEMENT(FIELD,VARIABLE_TYPE, &
+  SUBROUTINE AnalyticAnalysis_PercentageErrorGetElement(FIELD,VARIABLE_TYPE, &
     & USER_ELEMENT_NUMBER,COMPONENT_NUMBER,VALUE,ERR,ERROR,*)
 
     !Argument variables
@@ -1447,7 +1453,7 @@ CONTAINS
     !Local Variables
     REAL(DP) :: NUMERICAL_VALUE, ANALYTIC_VALUE
 
-    ENTERS("ANALYTIC_ANALYSIS_PERCENTAGE_ERROR_GET_ELEMENT",ERR,ERROR,*999)
+    ENTERS("AnalyticAnalysis_PercentageErrorGetElement",ERR,ERROR,*999)
 
     IF(ASSOCIATED(FIELD)) THEN
       CALL FIELD_PARAMETER_SET_GET_ELEMENT(FIELD,VARIABLE_TYPE,FIELD_VALUES_SET_TYPE,USER_ELEMENT_NUMBER,COMPONENT_NUMBER, &
@@ -1456,22 +1462,22 @@ CONTAINS
         & COMPONENT_NUMBER,ANALYTIC_VALUE,ERR,ERROR,*999)
       VALUE=ANALYTIC_ANALYSIS_PERCENTAGE_ERROR(NUMERICAL_VALUE, ANALYTIC_VALUE)
     ELSE
-      CALL FLAG_ERROR("Field is not associated",ERR,ERROR,*999)
+      CALL FlagError("Field is not associated",ERR,ERROR,*999)
     ENDIF
 
-    EXITS("ANALYTIC_ANALYSIS_PERCENTAGE_ERROR_GET_ELEMENT")
+    EXITS("AnalyticAnalysis_PercentageErrorGetElement")
     RETURN
-999 ERRORSEXITS("ANALYTIC_ANALYSIS_PERCENTAGE_ERROR_GET_ELEMENT",ERR,ERROR)
+999 ERRORSEXITS("AnalyticAnalysis_PercentageErrorGetElement",ERR,ERROR)
     RETURN 1
-  END SUBROUTINE ANALYTIC_ANALYSIS_PERCENTAGE_ERROR_GET_ELEMENT
+  END SUBROUTINE AnalyticAnalysis_PercentageErrorGetElement
 
 
   !
   !================================================================================================================================
   !
 
-  !>Get relative error value for the node
-  SUBROUTINE ANALYTIC_ANALYSIS_RELATIVE_ERROR_GET_ELEMENT(FIELD,VARIABLE_TYPE,USER_ELEMENT_NUMBER,COMPONENT_NUMBER,VALUE,ERR, &
+  !>Get relative error value for an element
+  SUBROUTINE AnalyticAnalysis_RelativeErrorGetElement(FIELD,VARIABLE_TYPE,USER_ELEMENT_NUMBER,COMPONENT_NUMBER,VALUE,ERR, &
     & ERROR,*)
 
     !Argument variables
@@ -1485,7 +1491,7 @@ CONTAINS
     !Local Variables
     REAL(DP) :: NUMERICAL_VALUE, ANALYTIC_VALUE
 
-    ENTERS("ANALYTIC_ANALYSIS_RELATIVE_ERROR_GET_ELEMENT",ERR,ERROR,*999)
+    ENTERS("AnalyticAnalysis_RelativeErrorGetElement",ERR,ERROR,*999)
 
     IF(ASSOCIATED(FIELD)) THEN
       CALL FIELD_PARAMETER_SET_GET_ELEMENT(FIELD,VARIABLE_TYPE,FIELD_VALUES_SET_TYPE,USER_ELEMENT_NUMBER,COMPONENT_NUMBER, &
@@ -1494,21 +1500,22 @@ CONTAINS
         & COMPONENT_NUMBER,ANALYTIC_VALUE,ERR,ERROR,*999)
       VALUE=ANALYTIC_ANALYSIS_RELATIVE_ERROR(NUMERICAL_VALUE, ANALYTIC_VALUE)
     ELSE
-      CALL FLAG_ERROR("Field is not associated",ERR,ERROR,*999)
+      CALL FlagError("Field is not associated",ERR,ERROR,*999)
     ENDIF
 
-    EXITS("ANALYTIC_ANALYSIS_RELATIVE_ERROR_GET_ELEMENT")
+    EXITS("AnalyticAnalysis_RelativeErrorGetElement")
     RETURN
-999 ERRORSEXITS("ANALYTIC_ANALYSIS_RELATIVE_ERROR_GET_ELEMENT",ERR,ERROR)
+999 ERRORSEXITS("AnalyticAnalysis_RelativeErrorGetElement",ERR,ERROR)
     RETURN 1
-  END SUBROUTINE ANALYTIC_ANALYSIS_RELATIVE_ERROR_GET_ELEMENT
+    
+  END SUBROUTINE AnalyticAnalysis_RelativeErrorGetElement
 
     !
   !================================================================================================================================
   !
 
   !>Get absolute error value for the node
-  SUBROUTINE ANALYTIC_ANALYSIS_ABSOLUTE_ERROR_GET_CONSTANT(FIELD,VARIABLE_TYPE,COMPONENT_NUMBER,VALUE,ERR, &
+  SUBROUTINE AnalyticAnalysis_AbsoluteErrorGetConstant(FIELD,VARIABLE_TYPE,COMPONENT_NUMBER,VALUE,ERR, &
     & ERROR,*)
 
     !Argument variables
@@ -1521,7 +1528,7 @@ CONTAINS
     !Local Variables
     REAL(DP) :: NUMERICAL_VALUE, ANALYTIC_VALUE
 
-    ENTERS("ANALYTIC_ANALYSIS_ABSOLUTE_ERROR_GET_CONSTANT",ERR,ERROR,*999)
+    ENTERS("AnalyticAnalysis_AbsoluteErrorGetConstant",ERR,ERROR,*999)
 
     IF(ASSOCIATED(FIELD)) THEN
       CALL FIELD_PARAMETER_SET_GET_CONSTANT(FIELD,VARIABLE_TYPE,FIELD_VALUES_SET_TYPE,COMPONENT_NUMBER,NUMERICAL_VALUE,ERR,ERROR, &
@@ -1530,21 +1537,22 @@ CONTAINS
         & ERR,ERROR,*999)
       VALUE=ANALYTIC_ANALYSIS_ABSOLUTE_ERROR(NUMERICAL_VALUE,ANALYTIC_VALUE)
     ELSE
-      CALL FLAG_ERROR("Field is not associated",ERR,ERROR,*999)
+      CALL FlagError("Field is not associated",ERR,ERROR,*999)
     ENDIF
 
-    EXITS("ANALYTIC_ANALYSIS_ABSOLUTE_ERROR_GET_CONSTANT")
+    EXITS("AnalyticAnalysis_AbsoluteErrorGetConstant")
     RETURN
-999 ERRORSEXITS("ANALYTIC_ANALYSIS_ABSOLUTE_ERROR_GET_CONSTANT",ERR,ERROR)
+999 ERRORSEXITS("AnalyticAnalysis_AbsoluteErrorGetConstant",ERR,ERROR)
     RETURN 1
-  END SUBROUTINE ANALYTIC_ANALYSIS_ABSOLUTE_ERROR_GET_CONSTANT
+    
+  END SUBROUTINE AnalyticAnalysis_AbsoluteErrorGetConstant
 
   !
   !================================================================================================================================
   !
 
-  !>Get percentage error value for the node
-  SUBROUTINE ANALYTIC_ANALYSIS_PERCENTAGE_ERROR_GET_CONSTANT(FIELD,VARIABLE_TYPE,COMPONENT_NUMBER,VALUE,ERR,ERROR,*)
+  !>Get percentage error value for a constant
+  SUBROUTINE AnalyticAnalysis_PercentageErrorGetConstant(FIELD,VARIABLE_TYPE,COMPONENT_NUMBER,VALUE,ERR,ERROR,*)
 
     !Argument variables
     TYPE(FIELD_TYPE), POINTER :: FIELD !<the field.
@@ -1556,7 +1564,7 @@ CONTAINS
     !Local Variables
     REAL(DP) :: NUMERICAL_VALUE, ANALYTIC_VALUE
 
-    ENTERS("ANALYTIC_ANALYSIS_PERCENTAGE_ERROR_GET_CONSTANT",ERR,ERROR,*999)
+    ENTERS("AnalyticAnalysis_PercentageErrorGetConstant",ERR,ERROR,*999)
 
     IF(ASSOCIATED(FIELD)) THEN
       CALL FIELD_PARAMETER_SET_GET_CONSTANT(FIELD,VARIABLE_TYPE,FIELD_VALUES_SET_TYPE,COMPONENT_NUMBER,NUMERICAL_VALUE,ERR,ERROR, &
@@ -1565,22 +1573,23 @@ CONTAINS
         & ERR,ERROR,*999)
       VALUE=ANALYTIC_ANALYSIS_PERCENTAGE_ERROR(NUMERICAL_VALUE, ANALYTIC_VALUE)
     ELSE
-      CALL FLAG_ERROR("Field is not associated",ERR,ERROR,*999)
+      CALL FlagError("Field is not associated",ERR,ERROR,*999)
     ENDIF
 
-    EXITS("ANALYTIC_ANALYSIS_PERCENTAGE_ERROR_GET_CONSTANT")
+    EXITS("AnalyticAnalysis_PercentageErrorGetConstant")
     RETURN
-999 ERRORSEXITS("ANALYTIC_ANALYSIS_PERCENTAGE_ERROR_GET_CONSTANT",ERR,ERROR)
+999 ERRORSEXITS("AnalyticAnalysis_PercentageErrorGetConstant",ERR,ERROR)
     RETURN 1
-  END SUBROUTINE ANALYTIC_ANALYSIS_PERCENTAGE_ERROR_GET_CONSTANT
+    
+  END SUBROUTINE AnalyticAnalysis_PercentageErrorGetConstant
 
 
   !
   !================================================================================================================================
   !
 
-  !>Get relative error value for the node
-  SUBROUTINE ANALYTIC_ANALYSIS_RELATIVE_ERROR_GET_CONSTANT(FIELD,VARIABLE_TYPE,COMPONENT_NUMBER,VALUE,ERR, &
+  !>Get relative error value for a constant
+  SUBROUTINE AnalyticAnalysis_RelativeErrorGetConstant(FIELD,VARIABLE_TYPE,COMPONENT_NUMBER,VALUE,ERR, &
     & ERROR,*)
 
     !Argument variables
@@ -1593,7 +1602,7 @@ CONTAINS
     !Local Variables
     REAL(DP) :: NUMERICAL_VALUE, ANALYTIC_VALUE
 
-    ENTERS("ANALYTIC_ANALYSIS_RELATIVE_ERROR_GET_CONSTANT",ERR,ERROR,*999)
+    ENTERS("AnalyticAnalysis_RelativeErrorGetConstant",ERR,ERROR,*999)
 
     IF(ASSOCIATED(FIELD)) THEN
       CALL FIELD_PARAMETER_SET_GET_CONSTANT(FIELD,VARIABLE_TYPE,FIELD_VALUES_SET_TYPE,COMPONENT_NUMBER,NUMERICAL_VALUE,ERR,ERROR, &
@@ -1602,21 +1611,22 @@ CONTAINS
         & ERR,ERROR,*999)
       VALUE=ANALYTIC_ANALYSIS_RELATIVE_ERROR(NUMERICAL_VALUE, ANALYTIC_VALUE)
     ELSE
-      CALL FLAG_ERROR("Field is not associated",ERR,ERROR,*999)
+      CALL FlagError("Field is not associated",ERR,ERROR,*999)
     ENDIF
 
-    EXITS("ANALYTIC_ANALYSIS_RELATIVE_ERROR_GET_CONSTANT")
+    EXITS("AnalyticAnalysis_RelativeErrorGetConstant")
     RETURN
-999 ERRORSEXITS("ANALYTIC_ANALYSIS_RELATIVE_ERROR_GET_CONSTANT",ERR,ERROR)
+999 ERRORSEXITS("AnalyticAnalysis_RelativeErrorGetConstant",ERR,ERROR)
     RETURN 1
-  END SUBROUTINE ANALYTIC_ANALYSIS_RELATIVE_ERROR_GET_CONSTANT
+    
+  END SUBROUTINE AnalyticAnalysis_RelativeErrorGetConstant
 
   !
   !================================================================================================================================
   !
 
   !>Get rms error value for the field
-  SUBROUTINE ANALYTIC_ANALYSIS_RMS_ERROR_GET_NODE(FIELD,VARIABLE_TYPE,COMPONENT_NUMBER,ERROR_TYPE,LOCAL_RMS,LOCAL_GHOST_RMS, &
+  SUBROUTINE AnalyticAnalysis_RMSErrorGetNode(FIELD,VARIABLE_TYPE,COMPONENT_NUMBER,ERROR_TYPE,LOCAL_RMS,LOCAL_GHOST_RMS, &
     & GLOBAL_RMS,ERR,ERROR,*)
   
     !Argument variables   
@@ -1650,18 +1660,18 @@ CONTAINS
             SELECT CASE(ERROR_TYPE)
             CASE(ABSOLUTE_ERROR_TYPE)
               !Default to version 1 of each node derivative
-              CALL ANALYTIC_ANALYSIS_ABSOLUTE_ERROR_GET_NODE(FIELD,VARIABLE_TYPE,1,deriv_idx,node_idx,COMPONENT_NUMBER, &
+              CALL AnalyticAnalysis_AbsoluteErrorGetNode(FIELD,VARIABLE_TYPE,1,deriv_idx,node_idx,COMPONENT_NUMBER, &
                 & ERROR_VALUE,ERR,ERROR,*999)
             CASE(PERCENTAGE_ERROR_TYPE)
               !Default to version 1 of each node derivative
-              CALL ANALYTIC_ANALYSIS_PERCENTAGE_ERROR_GET_NODE(FIELD,VARIABLE_TYPE,1,deriv_idx,node_idx,COMPONENT_NUMBER, &
+              CALL AnalyticAnalysis_PercentageErrorGetNode(FIELD,VARIABLE_TYPE,1,deriv_idx,node_idx,COMPONENT_NUMBER, &
                 & ERROR_VALUE,ERR,ERROR,*999)
             CASE(RELATIVE_ERROR_TYPE)
               !Default to version 1 of each node derivative
-              CALL ANALYTIC_ANALYSIS_RELATIVE_ERROR_GET_NODE(FIELD,VARIABLE_TYPE,1,deriv_idx,node_idx,COMPONENT_NUMBER, &
+              CALL AnalyticAnalysis_RelativeErrorGetNode(FIELD,VARIABLE_TYPE,1,deriv_idx,node_idx,COMPONENT_NUMBER, &
                 & ERROR_VALUE,ERR,ERROR,*999)
             CASE DEFAULT
-              CALL FLAG_ERROR("The error type is not valid!",ERR,ERROR,*999)
+              CALL FlagError("The error type is not valid!",ERR,ERROR,*999)
             END SELECT
             !Accumlate the RMS errors
             NUMBER(deriv_idx)=NUMBER(deriv_idx)+1
@@ -1673,18 +1683,18 @@ CONTAINS
             SELECT CASE(ERROR_TYPE)
             CASE(ABSOLUTE_ERROR_TYPE)
               !Default to version 1 of each node derivative
-              CALL ANALYTIC_ANALYSIS_ABSOLUTE_ERROR_GET_NODE(FIELD,VARIABLE_TYPE,1,deriv_idx,node_idx,COMPONENT_NUMBER, &
+              CALL AnalyticAnalysis_AbsoluteErrorGetNode(FIELD,VARIABLE_TYPE,1,deriv_idx,node_idx,COMPONENT_NUMBER, &
                 & ERROR_VALUE,ERR,ERROR,*999)
             CASE(PERCENTAGE_ERROR_TYPE)
               !Default to version 1 of each node derivative
-              CALL ANALYTIC_ANALYSIS_PERCENTAGE_ERROR_GET_NODE(FIELD,VARIABLE_TYPE,1,deriv_idx,node_idx,COMPONENT_NUMBER, &
+              CALL AnalyticAnalysis_PercentageErrorGetNode(FIELD,VARIABLE_TYPE,1,deriv_idx,node_idx,COMPONENT_NUMBER, &
                 & ERROR_VALUE,ERR,ERROR,*999)
             CASE(RELATIVE_ERROR_TYPE)
               !Default to version 1 of each node derivative
-              CALL ANALYTIC_ANALYSIS_RELATIVE_ERROR_GET_NODE(FIELD,VARIABLE_TYPE,1,deriv_idx,node_idx,COMPONENT_NUMBER, &
+              CALL AnalyticAnalysis_RelativeErrorGetNode(FIELD,VARIABLE_TYPE,1,deriv_idx,node_idx,COMPONENT_NUMBER, &
                 & ERROR_VALUE,ERR,ERROR,*999)
             CASE DEFAULT
-              CALL FLAG_ERROR("The error type is not valid!",ERR,ERROR,*999)
+              CALL FlagError("The error type is not valid!",ERR,ERROR,*999)
             END SELECT
             !Accumlate the RMS errors
             GHOST_NUMBER(deriv_idx)=GHOST_NUMBER(deriv_idx)+1
@@ -1729,24 +1739,24 @@ CONTAINS
           ENDIF
         ENDIF
       ELSE
-        CALL FLAG_ERROR("Nodes domain topology is not associated.",ERR,ERROR,*999)
+        CALL FlagError("Nodes domain topology is not associated.",ERR,ERROR,*999)
       ENDIF
     ELSE
-      CALL FLAG_ERROR("Field is not associated",ERR,ERROR,*999)
+      CALL FlagError("Field is not associated",ERR,ERROR,*999)
     ENDIF 
     
-    EXITS("ANALYTIC_ANALYSIS_RMS_ERROR_GET_NODE")
+    EXITS("AnalyticAnalysis_RMSErrorGetNode")
     RETURN
-999 ERRORSEXITS("ANALYTIC_ANALYSIS_RMS_ERROR_GET_NODE",ERR,ERROR)
+999 ERRORSEXITS("AnalyticAnalysis_RMSErrorGetNode",ERR,ERROR)
     RETURN 1
-  END SUBROUTINE ANALYTIC_ANALYSIS_RMS_ERROR_GET_NODE
+  END SUBROUTINE AnalyticAnalysis_RMSErrorGetNode
 
   !
   !================================================================================================================================
   !
 
   !>Get rms error value for the field
-  SUBROUTINE ANALYTIC_ANALYSIS_RMS_ERROR_GET_ELEMENT(FIELD,VARIABLE_TYPE,COMPONENT_NUMBER,ERROR_TYPE,LOCAL_RMS,LOCAL_GHOST_RMS, &
+  SUBROUTINE AnalyticAnalysis_RMSErrorGetElement(FIELD,VARIABLE_TYPE,COMPONENT_NUMBER,ERROR_TYPE,LOCAL_RMS,LOCAL_GHOST_RMS, &
     & GLOBAL_RMS,ERR,ERROR,*)
 
     !Argument variables
@@ -1770,7 +1780,7 @@ CONTAINS
     TYPE(DOMAIN_ELEMENTS_TYPE), POINTER :: ELEMENTS_DOMAIN
     INTEGER(INTG) :: element_idx
 
-    ENTERS("ANALYTIC_ANALYSIS_RMS_ERROR_GET_ELEMENT",ERR,ERROR,*999)
+    ENTERS("AnalyticAnalysis_RMSErrorGetElement",ERR,ERROR,*999)
 
     IF(ASSOCIATED(FIELD)) THEN
       DOMAIN=>FIELD%VARIABLE_TYPE_MAP(VARIABLE_TYPE)%PTR%COMPONENTS(COMPONENT_NUMBER)%DOMAIN
@@ -1789,16 +1799,16 @@ CONTAINS
               DO element_idx=1,ELEMENTS_DOMAIN%NUMBER_OF_ELEMENTS
                 SELECT CASE(ERROR_TYPE)
                 CASE(ABSOLUTE_ERROR_TYPE)
-                  CALL ANALYTIC_ANALYSIS_ABSOLUTE_ERROR_GET_ELEMENT(FIELD,VARIABLE_TYPE,element_idx,COMPONENT_NUMBER,ERROR_VALUE, &
+                  CALL AnalyticAnalysis_AbsoluteErrorGetElement(FIELD,VARIABLE_TYPE,element_idx,COMPONENT_NUMBER,ERROR_VALUE, &
                     & ERR,ERROR,*999)
                 CASE(PERCENTAGE_ERROR_TYPE)
-                  CALL ANALYTIC_ANALYSIS_PERCENTAGE_ERROR_GET_ELEMENT(FIELD,VARIABLE_TYPE,element_idx,COMPONENT_NUMBER, &
+                  CALL AnalyticAnalysis_PercentageErrorGetElement(FIELD,VARIABLE_TYPE,element_idx,COMPONENT_NUMBER, &
                     & ERROR_VALUE,ERR,ERROR,*999)
                 CASE(RELATIVE_ERROR_TYPE)
-                  CALL ANALYTIC_ANALYSIS_RELATIVE_ERROR_GET_ELEMENT(FIELD,VARIABLE_TYPE,element_idx,COMPONENT_NUMBER,ERROR_VALUE, &
+                  CALL AnalyticAnalysis_RelativeErrorGetElement(FIELD,VARIABLE_TYPE,element_idx,COMPONENT_NUMBER,ERROR_VALUE, &
                     & ERR,ERROR,*999)
                 CASE DEFAULT
-                  CALL FLAG_ERROR("The error type is not valid!",ERR,ERROR,*999)
+                  CALL FlagError("The error type is not valid!",ERR,ERROR,*999)
                 END SELECT
                 NUMBER=NUMBER+1
                 RMS_ERROR=RMS_ERROR+ERROR_VALUE*ERROR_VALUE
@@ -1806,16 +1816,16 @@ CONTAINS
               DO element_idx=ELEMENTS_DOMAIN%NUMBER_OF_ELEMENTS+1,ELEMENTS_DOMAIN%TOTAL_NUMBER_OF_ELEMENTS
                 SELECT CASE(ERROR_TYPE)
                 CASE(ABSOLUTE_ERROR_TYPE)
-                  CALL ANALYTIC_ANALYSIS_ABSOLUTE_ERROR_GET_ELEMENT(FIELD,VARIABLE_TYPE,element_idx,COMPONENT_NUMBER,ERROR_VALUE, &
+                  CALL AnalyticAnalysis_AbsoluteErrorGetElement(FIELD,VARIABLE_TYPE,element_idx,COMPONENT_NUMBER,ERROR_VALUE, &
                     & ERR,ERROR,*999)
                 CASE(PERCENTAGE_ERROR_TYPE)
-                  CALL ANALYTIC_ANALYSIS_PERCENTAGE_ERROR_GET_ELEMENT(FIELD,VARIABLE_TYPE,element_idx,COMPONENT_NUMBER, &
+                  CALL AnalyticAnalysis_PercentageErrorGetElement(FIELD,VARIABLE_TYPE,element_idx,COMPONENT_NUMBER, &
                     & ERROR_VALUE,ERR,ERROR,*999)
                 CASE(RELATIVE_ERROR_TYPE)
-                  CALL ANALYTIC_ANALYSIS_RELATIVE_ERROR_GET_ELEMENT(FIELD,VARIABLE_TYPE,element_idx,COMPONENT_NUMBER,ERROR_VALUE, &
+                  CALL AnalyticAnalysis_RelativeErrorGetElement(FIELD,VARIABLE_TYPE,element_idx,COMPONENT_NUMBER,ERROR_VALUE, &
                     & ERR,ERROR,*999)
                 CASE DEFAULT
-                  CALL FLAG_ERROR("The error type is not valid!",ERR,ERROR,*999)
+                  CALL FlagError("The error type is not valid!",ERR,ERROR,*999)
                 END SELECT
                 GHOST_NUMBER=GHOST_NUMBER+1
                 GHOST_RMS_ERROR=GHOST_RMS_ERROR+ERROR_VALUE*ERROR_VALUE
@@ -1837,26 +1847,26 @@ CONTAINS
                 ENDIF
               ENDIF
             ELSE
-              CALL FLAG_ERROR("Decomposition topology elements is not associated.",ERR,ERROR,*999)
+              CALL FlagError("Decomposition topology elements is not associated.",ERR,ERROR,*999)
             ENDIF
           ELSE
-            CALL FLAG_ERROR("Decomposition topology is not associated.",ERR,ERROR,*999)
+            CALL FlagError("Decomposition topology is not associated.",ERR,ERROR,*999)
           ENDIF
         ELSE
-          CALL FLAG_ERROR("Domain decomposition is not associated.",ERR,ERROR,*999)
+          CALL FlagError("Domain decomposition is not associated.",ERR,ERROR,*999)
         ENDIF
       ELSE
-        CALL FLAG_ERROR("Elements domain topology is not associated.",ERR,ERROR,*999)
+        CALL FlagError("Elements domain topology is not associated.",ERR,ERROR,*999)
       ENDIF
     ELSE
-      CALL FLAG_ERROR("Field is not associated",ERR,ERROR,*999)
+      CALL FlagError("Field is not associated",ERR,ERROR,*999)
     ENDIF
 
-    EXITS("ANALYTIC_ANALYSIS_RMS_ERROR_GET_ELEMENT")
+    EXITS("AnalyticAnalysis_RMSErrorGetElement")
     RETURN
-999 ERRORSEXITS("ANALYTIC_ANALYSIS_RMS_ERROR_GET_ELEMENT",ERR,ERROR)
+999 ERRORSEXITS("AnalyticAnalysis_RMSErrorGetElement",ERR,ERROR)
     RETURN 1
-  END SUBROUTINE ANALYTIC_ANALYSIS_RMS_ERROR_GET_ELEMENT
+  END SUBROUTINE AnalyticAnalysis_RMSErrorGetElement
 
   !
   !================================================================================================================================

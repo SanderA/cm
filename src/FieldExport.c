@@ -223,7 +223,7 @@ static SessionListEntry *FieldExport_GetSession( const int handle )
     return NULL;
 }
 
-const int FieldExport_InterpolationType( const int interpType );
+int FieldExport_InterpolationType( const int interpType );
 
 /*
     CMISS-formatted file export routines.
@@ -1021,7 +1021,7 @@ static int FieldExport_File_NodeValues( FileSession *session, const int nodeNumb
 #ifdef USE_HDF5
     herr_t status;
 #endif
-    static lastNodeNumber = -1; //A little bit of a hack, but then so is the whole file format.
+    static int lastNodeNumber = -1; //A little bit of a hack, but then so is the whole file format.
 
     if( nodeNumber != lastNodeNumber )
     {
@@ -1173,7 +1173,7 @@ static int FieldExport_File_CoordinateDerivativeIndices( FileSession *session, c
     Public API implementation
 */
 
-const int FieldExport_InterpolationType( const int interpType )
+int FieldExport_InterpolationType( const int interpType )
 {
     if(interpType == 1) 
       {

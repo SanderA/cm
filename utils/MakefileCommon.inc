@@ -219,8 +219,8 @@ ifeq ($(OPERATING_SYSTEM),linux)
       endif
     endif
     DBGC_FLGS += -O0 -fbounds-check
-    #OPTC_FLGS = -O3 -funroll-all-loops
-    OPTC_FLGS = -Ofast -funroll-all-loops
+    OPTC_FLGS = -O3 -funroll-all-loops
+    #OPTC_FLGS = -Ofast -funroll-all-loops
     ifeq ($(PROF),false)
       ifneq ($(filter $(INSTRUCTION),i686 x86_64),)# i686 or x86_64
         OPTC_FLGS += -momit-leaf-frame-pointer
