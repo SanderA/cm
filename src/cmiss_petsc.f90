@@ -190,7 +190,6 @@ MODULE CmissPetsc
   MatOption, PARAMETER :: PETSC_MAT_USE_INODES = MAT_USE_INODES !<Matrix will using an inode version of code
   MatOption, PARAMETER :: PETSC_MAT_HERMITIAN = MAT_HERMITIAN !<Hermitian matrix, the transpose is the complex conjugation
   MatOption, PARAMETER :: PETSC_MAT_SYMMETRY_ETERNAL = MAT_SYMMETRY_ETERNAL !<Matrix will always be symmetric
-  MatOption, PARAMETER :: PETSC_MAT_DUMMY = MAT_DUMMY
   MatOption, PARAMETER :: PETSC_MAT_IGNORE_LOWER_TRIANGULAR = MAT_IGNORE_LOWER_TRIANGULAR !<Ignore any additions or insertions in the lower triangular part of the matrix
   MatOption, PARAMETER :: PETSC_MAT_ERROR_LOWER_TRIANGULAR = MAT_ERROR_LOWER_TRIANGULAR
   MatOption, PARAMETER :: PETSC_MAT_GETROW_UPPERTRIANGULAR = MAT_GETROW_UPPERTRIANGULAR
@@ -387,6 +386,15 @@ MODULE CmissPetsc
   !TS Sundials Gram Schmidt Type
   TSSundialsGramSchmidtType, PARAMETER :: PETSC_SUNDIALS_MODIFIED_GS = SUNDIALS_MODIFIED_GS
   TSSundialsGramSchmidtType, PARAMETER :: PETSC_SUNDIALS_CLASSICAL_GS = SUNDIALS_CLASSICAL_GS
+
+  !VecOption types
+  !> \addtogroup CmissPetsc_PetscVecOptionTypes CmissPetsc::PetscVecOption
+  !> \brief Types of vector options for PETSc matrices
+  !> \see CmissPetsc
+  !>@{
+  VecOption, PARAMETER :: PETSC_VEC_IGNORE_OFF_PROC_ENTRIES = VEC_IGNORE_OFF_PROC_ENTRIES !<Any entries that are for other processors will be dropped
+  VecOption, PARAMETER :: PETSC_VEC_IGNORE_NEGATIVE_INDICES = VEC_IGNORE_NEGATIVE_INDICES !<Any entries with negative indices are dropped.
+  !>@}
   
   !Module types
 
@@ -713,12 +721,6 @@ MODULE CmissPetsc
       PetscScalar, POINTER :: array(:,:)
       PetscInt ierr
     END SUBROUTINE MatSeqAIJRestoreArrayF90
-
-    SUBROUTINE MatSetLocalToGlobalMapping(A,ctx,ierr)
-      Mat A
-      ISLocalToGlobalMapping ctx
-      PetscInt ierr
-    END SUBROUTINE MatSetLocalToGlobalMapping
 
     SUBROUTINE MatSetOption(A,option,flag,ierr)
       Mat A
@@ -1509,6 +1511,8 @@ MODULE CmissPetsc
   !Miscelaneous routines and constants
 
   PUBLIC PETSC_TRUE,PETSC_FALSE
+
+  PUBLIC PETSC_COPY_VALUES,PETSC_OWN_POINTER,PETSC_USE_POINTER
   
   PUBLIC PETSC_NULL_BOOL,PETSC_NULL_CHARACTER,PETSC_NULL_FUNCTION,PETSC_NULL_INTEGER,PETSC_NULL_DOUBLE,PETSC_NULL_OBJECT, &
     & PETSC_NULL_SCALAR,PETSC_NULL_REAL
@@ -1594,7 +1598,7 @@ MODULE CmissPetsc
     & PETSC_MAT_NEW_DIAGONALS,PETSC_MAT_IGNORE_OFF_PROC_ENTRIES,PETSC_MAT_NEW_NONZERO_LOCATION_ERR, &
     & PETSC_MAT_NEW_NONZERO_ALLOCATION_ERR,PETSC_MAT_USE_HASH_TABLE,PETSC_MAT_KEEP_NONZERO_PATTERN, &
     & PETSC_MAT_IGNORE_ZERO_ENTRIES,PETSC_MAT_USE_INODES,PETSC_MAT_HERMITIAN,PETSC_MAT_SYMMETRY_ETERNAL, &
-    & PETSC_MAT_DUMMY,PETSC_MAT_IGNORE_LOWER_TRIANGULAR,PETSC_MAT_ERROR_LOWER_TRIANGULAR,PETSC_MAT_GETROW_UPPERTRIANGULAR, &
+    & PETSC_MAT_IGNORE_LOWER_TRIANGULAR,PETSC_MAT_ERROR_LOWER_TRIANGULAR,PETSC_MAT_GETROW_UPPERTRIANGULAR, &
     & PETSC_MAT_UNUSED_NONZERO_LOCATION_ERR,PETSC_MAT_SPD,PETSC_MAT_NO_OFF_PROC_ENTRIES,PETSC_MAT_NO_OFF_PROC_ZERO_ROWS
 
   PUBLIC PETSC_MAT_SOLVER_SUPERLU,PETSC_MAT_SOLVER_SUPERLU_DIST,PETSC_MAT_SOLVER_UMFPACK,PETSC_MAT_SOLVER_CHOLMOD, &
@@ -1713,6 +1717,8 @@ MODULE CmissPetsc
 
   !Vector routines and constants
 
+  PUBLIC PETSC_VEC_IGNORE_OFF_PROC_ENTRIES,PETSC_VEC_IGNORE_NEGATIVE_INDICES
+
   PUBLIC Petsc_VecInitialise,Petsc_VecFinalise
 
   PUBLIC Petsc_VecAssemblyBegin,Petsc_VecAssemblyEnd,Petsc_VecCopy,Petsc_VecCreate,Petsc_VecCreateGhost, &
@@ -1720,7 +1726,7 @@ MODULE CmissPetsc
     & Petsc_VecCreateSeqWithArray,Petsc_VecDestroy,Petsc_VecDuplicate,Petsc_VecDot,Petsc_VecGetArrayF90, &
     & Petsc_VecGetArrayReadF90,Petsc_VecGetLocalSize,Petsc_VecGetOwnershipRange,Petsc_VecGetSize,Petsc_VecGetValues, &
     & Petsc_VecNorm,Petsc_VecRestoreArrayF90,Petsc_VecRestoreArrayReadF90,Petsc_VecScale,Petsc_VecSet,Petsc_VecSetFromOptions, &
-    & Petsc_VecSetLocalToGlobalMapping,Petsc_VecSetSizes,Petsc_VecSetValues,Petsc_VecView
+    & Petsc_VecSetLocalToGlobalMapping,Petsc_VecSetOption,Petsc_VecSetSizes,Petsc_VecSetValues,Petsc_VecSetValuesLocal,Petsc_VecView
   
 CONTAINS
 
@@ -2038,7 +2044,7 @@ CONTAINS
   SUBROUTINE Petsc_ISLocalToGlobalMappingFinalise(isLocalToGlobalMapping,err,error,*)
 
     !Argument Variables
-    TYPE(PetscISLocalToGloabalMappingType), INTENT(INOUT) :: isLocalToGlobalMapping !<The ISLocalToGlobalMapping to finalise
+    TYPE(PetscISLocalToGlobalMappingType), INTENT(INOUT) :: isLocalToGlobalMapping !<The ISLocalToGlobalMapping to finalise
     INTEGER(INTG), INTENT(OUT) :: err !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
     !Local Variables
@@ -2064,7 +2070,7 @@ CONTAINS
   SUBROUTINE Petsc_ISLocalToGlobalMappingInitialise(isLocalToGlobalMapping,err,error,*)
 
     !Argument Variables
-    TYPE(PetscISLocalToGloabalMappingType), INTENT(INOUT) :: isLocalToGlobalMapping !<The ISLocalToGlobalMapping to initialise
+    TYPE(PetscISLocalToGlobalMappingType), INTENT(INOUT) :: isLocalToGlobalMapping !<The ISLocalToGlobalMapping to initialise
     INTEGER(INTG), INTENT(OUT) :: err !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
     !Local Variables
@@ -2088,7 +2094,7 @@ CONTAINS
   SUBROUTINE Petsc_ISLocalToGlobalMappingApply(isLocalToGlobalMapping,n,idxIn,idxOut,err,error,*)
 
     !Argument Variables
-    TYPE(PetscISLocalToGloabalMappingType), INTENT(INOUT) :: isLocalToGlobalMapping !<The local to global mapping to apply
+    TYPE(PetscISLocalToGlobalMappingType), INTENT(INOUT) :: isLocalToGlobalMapping !<The local to global mapping to apply
     INTEGER(INTG), INTENT(IN) :: n !<The number of indicies
     INTEGER(INTG), INTENT(IN) :: idxIn(:)
     INTEGER(INTG), INTENT(OUT) :: idxOut(:)
@@ -2122,7 +2128,7 @@ CONTAINS
   SUBROUTINE Petsc_ISLocalToGlobalMappingApplyIS(isLocalToGlobalMapping,isIn,isOut,err,error,*)
 
     !Argument Variables
-    TYPE(PetscISLocalToGloabalMappingType), INTENT(IN) :: isLocalToGlobalMapping !<The local to global mapping to apply
+    TYPE(PetscISLocalToGlobalMappingType), INTENT(IN) :: isLocalToGlobalMapping !<The local to global mapping to apply
     TYPE(PetscISType), INTENT(IN) :: isIn
     TYPE(PetscISType), INTENT(OUT) :: isOut
     INTEGER(INTG), INTENT(OUT) :: err !<The error code
@@ -2159,7 +2165,7 @@ CONTAINS
     INTEGER(INTG), INTENT(IN) :: n !<The number of local indices divided by the block size (or the number of block indices)
     INTEGER(INTG), INTENT(IN) :: indices(:) !<The global index for each local element
     PetscCopyMode, INTENT(IN) :: mode !<The copy mode
-    TYPE(PetscISLocalToGloabalMappingType), INTENT(INOUT) :: isLocalToGlobalMapping !<On exit, the local to global mapping context
+    TYPE(PetscISLocalToGlobalMappingType), INTENT(INOUT) :: isLocalToGlobalMapping !<On exit, the local to global mapping context
     INTEGER(INTG), INTENT(OUT) :: err !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
     !Local Variables
@@ -2189,7 +2195,7 @@ CONTAINS
   SUBROUTINE Petsc_ISLocalToGlobalMappingDestroy(isLocalToGlobalMapping,err,error,*)
 
     !Argument Variables
-    TYPE(PetscISLocalToGloabalMappingType), INTENT(INOUT) :: isLocalToGlobalMapping !<The local to global mapping context
+    TYPE(PetscISLocalToGlobalMappingType), INTENT(INOUT) :: isLocalToGlobalMapping !<The local to global mapping context
     INTEGER(INTG), INTENT(OUT) :: err !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
     !Local Variables
@@ -3458,18 +3464,18 @@ CONTAINS
   !
 
   !>Buffer routine to the PETSc MatSetLocalToGlobalMapping routine.
-  SUBROUTINE Petsc_MatSetLocalToGlobalMapping(a,isLocalToGlobalMapping,err,error,*)
+  SUBROUTINE Petsc_MatSetLocalToGlobalMapping(a,rowMapping,columnMapping,err,error,*)
 
     !Argument Variables
     TYPE(PetscMatType), INTENT(INOUT) :: a !<The matrix to set the local to global mapping for
-    TYPE(PetscISLocalToGloabalMappingType), INTENT(IN) :: isLocalToGlobalMapping !<The local to global mapping context
+    TYPE(PetscISLocalToGlobalMappingType), INTENT(IN) :: rowMapping,columnMapping !<The local to global mapping context
     INTEGER(INTG), INTENT(OUT) :: err !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
     !Local Variables
 
     ENTERS("Petsc_MatSetLocalToGlobalMapping",err,error,*999)
 
-    CALL MatSetLocalToGlobalMapping(a%mat,isLocalToGlobalMapping%isLocalToGlobalMapping,err)
+    CALL MatSetLocalToGlobalMapping(a%mat,rowMapping%isLocalToGlobalMapping,columnMapping%isLocalToGlobalMapping,err)
     IF(err/=0) THEN
       IF(petscHandleError) THEN
         CHKERRQ(err)
@@ -3699,10 +3705,10 @@ CONTAINS
     !Argument Variables
     TYPE(PetscMatType), INTENT(INOUT) :: a !<The matrix to set the values of
     INTEGER(INTG), INTENT(IN) :: m !<The number of row indices
-    INTEGER(INTG), INTENT(IN) :: mIndices(:) !<The row indices
+    INTEGER(INTG), INTENT(IN) :: mIndices(*) !<The row indices
     INTEGER(INTG), INTENT(IN) :: n !<The number of column indices
-    INTEGER(INTG), INTENT(IN) :: nIndices(:) !<The column indices
-    REAL(DP), INTENT(IN) :: values(:) !<The values to set
+    INTEGER(INTG), INTENT(IN) :: nIndices(*) !<The column indices
+    REAL(DP), INTENT(IN) :: values(*) !<The values to set
     InsertMode, INTENT(IN) :: insertMode !<The insert mode
     INTEGER(INTG), INTENT(OUT) :: err !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
@@ -7386,7 +7392,7 @@ CONTAINS
 
     !Argument Variables
     TYPE(PetscVecType), INTENT(INOUT) :: x !<The vector to set the local to global mapping for
-    TYPE(PetscISLocalToGloabalMappingType), INTENT(IN) :: isLocalToGlobalMapping !<The local to global mapping context
+    TYPE(PetscISLocalToGlobalMappingType), INTENT(IN) :: isLocalToGlobalMapping !<The local to global mapping context
     INTEGER(INTG), INTENT(OUT) :: err !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
     !Local Variables
@@ -7407,6 +7413,42 @@ CONTAINS
     RETURN 1
     
   END SUBROUTINE Petsc_VecSetLocalToGlobalMapping
+    
+  !
+  !================================================================================================================================
+  !
+
+  !>Buffer routine to the PETSc VecSetOption routine.
+  SUBROUTINE Petsc_VecSetOption(x,option,flag,err,error,*)
+
+    !Argument Variables
+    TYPE(PetscVecType), INTENT(INOUT) :: x !<The vector to set the option for
+    VecOption, INTENT(IN) :: option !<The option to set \see CmissPetsc_PetscVecOptionTypes,CmissPetsc
+    LOGICAL, INTENT(IN) :: flag !<The option flag to set
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
+    !Local Variables
+
+    ENTERS("Petsc_VecSetOption",err,error,*999)
+
+    IF(flag) THEN
+      CALL VecSetOption(x%vec,option,PETSC_TRUE,err)
+    ELSE
+      CALL VecSetOption(x%vec,option,PETSC_FALSE,err)
+    ENDIF
+    IF(err/=0) THEN
+      IF(petscHandleError) THEN
+        CHKERRQ(err)
+      ENDIF
+      CALL FlagError("PETSc error in VecSetOption.",err,error,*999)
+    ENDIF
+    
+    EXITS("Petsc_VecSetOption")
+    RETURN
+999 ERRORSEXITS("Petsc_VecSetOption",err,error)
+    RETURN 1
+    
+  END SUBROUTINE Petsc_VecSetOption
     
   !
   !================================================================================================================================
@@ -7479,7 +7521,7 @@ CONTAINS
   !
 
   !>Buffer routine to the PETSc VecSetValuesLocal routine.
-  SUBROUTINE Petsc_SetValuesLocal(x,n,indices,values,insertMode,err,error,*)
+  SUBROUTINE Petsc_VecSetValuesLocal(x,n,indices,values,insertMode,err,error,*)
 
     !Argument Variables
     TYPE(PetscVecType), INTENT(INOUT) :: x !<The vector to set the values of
@@ -7491,7 +7533,7 @@ CONTAINS
     TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
     !Local Variables
 
-    ENTERS("Petsc_SetValuesLocal",err,error,*999)
+    ENTERS("Petsc_VecSetValuesLocal",err,error,*999)
 
     CALL VecSetValuesLocal(x%vec,n,indices,values,insertMode,err)
     IF(err/=0) THEN
@@ -7501,12 +7543,12 @@ CONTAINS
       CALL FlagError("PETSc error in VecSetValuesLocal.",err,error,*999)
     ENDIF
     
-    EXITS("Petsc_SetValuesLocal")
+    EXITS("Petsc_VecSetValuesLocal")
     RETURN
-999 ERRORSEXITS("Petsc_SetValuesLocal",err,error)
+999 ERRORSEXITS("Petsc_VecSetValuesLocal",err,error)
     RETURN 1
     
-  END SUBROUTINE Petsc_SetValuesLocal
+  END SUBROUTINE Petsc_VecSetValuesLocal
     
   !
   !================================================================================================================================

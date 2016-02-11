@@ -2113,6 +2113,7 @@ CONTAINS
     INTEGER(INTG) :: NUMBER_OF_DIMENSIONS,BOUNDARY_CONDITION_CHECK_VARIABLE,GLOBAL_DERIV_INDEX,node_idx,variable_type
     INTEGER(INTG) :: variable_idx,local_ny,ANALYTIC_FUNCTION_TYPE,component_idx,deriv_idx,dim_idx
     INTEGER(INTG) :: element_idx,en_idx,I,J,K,number_of_nodes_xic(3)
+    INTEGER(INTG), POINTER :: conditionTypes(:)
     REAL(DP) :: X(3),MU_PARAM,RHO_PARAM
     REAL(DP), POINTER :: MESH_VELOCITY_VALUES(:), GEOMETRIC_PARAMETERS(:)
     REAL(DP), POINTER :: BOUNDARY_VALUES(:)
@@ -2308,6 +2309,9 @@ CONTAINS
                                                 & DEPENDENT_FIELD%VARIABLE_TYPE_MAP(FIELD_U_VARIABLE_TYPE)%PTR, &
                                                 & BOUNDARY_CONDITIONS_VARIABLE,ERR,ERROR,*999)
                                               IF(ASSOCIATED(BOUNDARY_CONDITIONS_VARIABLE)) THEN
+                                                NULLIFY(conditionTypes)
+                                                CALL DistributedVector_DataGet(BOUNDARY_CONDITIONS_VARIABLE%CONDITION_TYPES, &
+                                                  & conditionTypes,err,error,*999)
                                                 DO deriv_idx=1,DOMAIN_NODES%NODES(node_idx)%NUMBER_OF_DERIVATIVES
                                                   ANALYTIC_FUNCTION_TYPE=EQUATIONS_SET%ANALYTIC%ANALYTIC_FUNCTION_TYPE
                                                   GLOBAL_DERIV_INDEX=DOMAIN_NODES%NODES(node_idx)%DERIVATIVES(deriv_idx)% &
@@ -2335,14 +2339,15 @@ CONTAINS
                                                     & NODE_PARAM2DOF_MAP%NODES(node_idx)%DERIVATIVES(deriv_idx)%VERSIONS(1)
                                                   CALL FIELD_PARAMETER_SET_UPDATE_LOCAL_DOF(DEPENDENT_FIELD,variable_type, &
                                                     & FIELD_ANALYTIC_VALUES_SET_TYPE,local_ny,VALUE,ERR,ERROR,*999)
-                                                  BOUNDARY_CONDITION_CHECK_VARIABLE=BOUNDARY_CONDITIONS_VARIABLE% &
-                                                    & CONDITION_TYPES(local_ny)
+                                                  BOUNDARY_CONDITION_CHECK_VARIABLE=conditionTypes(local_ny)
                                                   IF(BOUNDARY_CONDITION_CHECK_VARIABLE==BOUNDARY_CONDITION_FIXED) THEN
                                                    CALL FIELD_PARAMETER_SET_UPDATE_LOCAL_DOF(DEPENDENT_FIELD, &
                                                      & variable_type,FIELD_VALUES_SET_TYPE,local_ny, &
                                                      & VALUE,ERR,ERROR,*999)
                                                   ENDIF
                                                 ENDDO !deriv_idx
+                                                CALL DistributedVector_DataRestore(BOUNDARY_CONDITIONS_VARIABLE%CONDITION_TYPES, &
+                                                  & conditionTypes,err,error,*999)
                                               ELSE
                                                 CALL FlagError("Boundary conditions U variable is not associated",ERR,ERROR,*999)
                                               ENDIF
@@ -2414,6 +2419,9 @@ CONTAINS
                         CALL BOUNDARY_CONDITIONS_VARIABLE_GET(BOUNDARY_CONDITIONS,EQUATIONS_SET%DEPENDENT%DEPENDENT_FIELD% &
                           & VARIABLE_TYPE_MAP(FIELD_U_VARIABLE_TYPE)%PTR,BOUNDARY_CONDITIONS_VARIABLE,ERR,ERROR,*999)
                         IF(ASSOCIATED(BOUNDARY_CONDITIONS_VARIABLE)) THEN
+                          NULLIFY(conditionTypes)
+                          CALL DistributedVector_DataGet(BOUNDARY_CONDITIONS_VARIABLE%CONDITION_TYPES, &
+                            & conditionTypes,err,error,*999)
                           CALL FIELD_NUMBER_OF_COMPONENTS_GET(EQUATIONS_SET%GEOMETRY%GEOMETRIC_FIELD,FIELD_U_VARIABLE_TYPE, &
                             & NUMBER_OF_DIMENSIONS,ERR,ERROR,*999)
                           NULLIFY(MESH_VELOCITY_VALUES)
@@ -2445,8 +2453,7 @@ CONTAINS
                                             & NODE_PARAM2DOF_MAP%NODES(node_idx)%DERIVATIVES(deriv_idx)%VERSIONS(1)
 ! xxxxxxxxxxxxxxxxxxxxxxxxx
                                           DISPLACEMENT_VALUE=0.0_DP
-                                          BOUNDARY_CONDITION_CHECK_VARIABLE=BOUNDARY_CONDITIONS_VARIABLE% & 
-                                            & CONDITION_TYPES(local_ny)
+                                          BOUNDARY_CONDITION_CHECK_VARIABLE=conditionTypes(local_ny)
                                           IF(BOUNDARY_CONDITION_CHECK_VARIABLE==BOUNDARY_CONDITION_MOVED_WALL) THEN
                                             CALL FIELD_PARAMETER_SET_UPDATE_LOCAL_DOF(EQUATIONS_SET%DEPENDENT%DEPENDENT_FIELD, & 
                                               & FIELD_U_VARIABLE_TYPE,FIELD_VALUES_SET_TYPE,local_ny, & 
@@ -2464,6 +2471,8 @@ CONTAINS
                               ENDDO !component_idx
                             ENDIF
                           ENDDO !variable_idx
+                          CALL DistributedVector_DataRestore(BOUNDARY_CONDITIONS_VARIABLE%CONDITION_TYPES, &
+                            & conditionTypes,err,error,*999)
                         ELSE
                           CALL FlagError("Boundary condition variable is not associated.",ERR,ERROR,*999)
                         END IF
@@ -2500,6 +2509,9 @@ CONTAINS
                         CALL BOUNDARY_CONDITIONS_VARIABLE_GET(BOUNDARY_CONDITIONS,EQUATIONS_SET%DEPENDENT%DEPENDENT_FIELD% &
                           & VARIABLE_TYPE_MAP(FIELD_U_VARIABLE_TYPE)%PTR,BOUNDARY_CONDITIONS_VARIABLE,ERR,ERROR,*999)
                         IF(ASSOCIATED(BOUNDARY_CONDITIONS_VARIABLE)) THEN
+                          NULLIFY(conditionTypes)
+                          CALL DistributedVector_DataGet(BOUNDARY_CONDITIONS_VARIABLE%CONDITION_TYPES, &
+                            & conditionTypes,err,error,*999)
                           CALL FIELD_NUMBER_OF_COMPONENTS_GET(EQUATIONS_SET%GEOMETRY%GEOMETRIC_FIELD,FIELD_U_VARIABLE_TYPE, &
                             & NUMBER_OF_DIMENSIONS,ERR,ERROR,*999)
                           NULLIFY(BOUNDARY_VALUES)
@@ -2524,8 +2536,7 @@ CONTAINS
                                           !Default to version 1 of each node derivative
                                           local_ny=FIELD_VARIABLE%COMPONENTS(component_idx)%PARAM_TO_DOF_MAP% &
                                             & NODE_PARAM2DOF_MAP%NODES(node_idx)%DERIVATIVES(deriv_idx)%VERSIONS(1)
-                                          BOUNDARY_CONDITION_CHECK_VARIABLE=BOUNDARY_CONDITIONS_VARIABLE% & 
-                                            & CONDITION_TYPES(local_ny)
+                                          BOUNDARY_CONDITION_CHECK_VARIABLE=conditionTypes(local_ny)
                                           IF(BOUNDARY_CONDITION_CHECK_VARIABLE==BOUNDARY_CONDITION_MOVED_WALL) THEN
                                             CALL FIELD_PARAMETER_SET_UPDATE_LOCAL_DOF(EQUATIONS_SET%DEPENDENT%DEPENDENT_FIELD, & 
                                               & FIELD_U_VARIABLE_TYPE,FIELD_VALUES_SET_TYPE,local_ny, & 
@@ -2541,6 +2552,8 @@ CONTAINS
                           ENDDO !variable_idx
                           CALL FIELD_PARAMETER_SET_DATA_RESTORE(EQUATIONS_SET%INDEPENDENT%INDEPENDENT_FIELD, &
                             & FIELD_U_VARIABLE_TYPE,FIELD_BOUNDARY_SET_TYPE,BOUNDARY_VALUES,ERR,ERROR,*999)
+                          CALL DistributedVector_DataRestore(BOUNDARY_CONDITIONS_VARIABLE%CONDITION_TYPES, &
+                            & conditionTypes,err,error,*999)
 !\todo: This part should be read in out of a file eventually
                         ELSE
                           CALL FlagError("Boundary condition variable is not associated.",ERR,ERROR,*999)
@@ -2576,6 +2589,9 @@ CONTAINS
                         CALL BOUNDARY_CONDITIONS_VARIABLE_GET(BOUNDARY_CONDITIONS,EQUATIONS_SET%DEPENDENT%DEPENDENT_FIELD% &
                           & VARIABLE_TYPE_MAP(FIELD_U_VARIABLE_TYPE)%PTR,BOUNDARY_CONDITIONS_VARIABLE,ERR,ERROR,*999)
                         IF(ASSOCIATED(BOUNDARY_CONDITIONS_VARIABLE)) THEN
+                          NULLIFY(conditionTypes)
+                          CALL DistributedVector_DataGet(BOUNDARY_CONDITIONS_VARIABLE%CONDITION_TYPES, &
+                            & conditionTypes,err,error,*999)
                           CALL FIELD_NUMBER_OF_COMPONENTS_GET(EQUATIONS_SET%GEOMETRY%GEOMETRIC_FIELD,FIELD_U_VARIABLE_TYPE, &
                             & NUMBER_OF_DIMENSIONS,ERR,ERROR,*999)
                           NULLIFY(MESH_VELOCITY_VALUES)
@@ -2604,8 +2620,7 @@ CONTAINS
                                           local_ny=FIELD_VARIABLE%COMPONENTS(component_idx)%PARAM_TO_DOF_MAP% &
                                             & NODE_PARAM2DOF_MAP%NODES(node_idx)%DERIVATIVES(deriv_idx)%VERSIONS(1)
                                           DISPLACEMENT_VALUE=0.0_DP
-                                          BOUNDARY_CONDITION_CHECK_VARIABLE=BOUNDARY_CONDITIONS_VARIABLE% & 
-                                            & CONDITION_TYPES(local_ny)
+                                          BOUNDARY_CONDITION_CHECK_VARIABLE=conditionTypes(local_ny)
                                           IF(BOUNDARY_CONDITION_CHECK_VARIABLE==BOUNDARY_CONDITION_MOVED_WALL) THEN
                                             CALL FIELD_PARAMETER_SET_UPDATE_LOCAL_DOF(EQUATIONS_SET%DEPENDENT%DEPENDENT_FIELD, & 
                                               & FIELD_U_VARIABLE_TYPE,FIELD_VALUES_SET_TYPE,local_ny, & 
@@ -2627,6 +2642,8 @@ CONTAINS
                             & FIELD_U_VARIABLE_TYPE,FIELD_MESH_VELOCITY_SET_TYPE,MESH_VELOCITY_VALUES,ERR,ERROR,*999)
                           CALL FIELD_PARAMETER_SET_DATA_RESTORE(EQUATIONS_SET%INDEPENDENT%INDEPENDENT_FIELD, &
                             & FIELD_U_VARIABLE_TYPE,FIELD_BOUNDARY_SET_TYPE,BOUNDARY_VALUES,ERR,ERROR,*999)
+                          CALL DistributedVector_DataRestore(BOUNDARY_CONDITIONS_VARIABLE%CONDITION_TYPES, &
+                            & conditionTypes,err,error,*999)
                         ELSE
                           CALL FlagError("Boundary condition variable is not associated.",ERR,ERROR,*999)
                         END IF
@@ -2724,7 +2741,7 @@ CONTAINS
                 IF(ASSOCIATED(SOLVER_EQUATIONS_ALE_STOKES)) THEN
                   SOLVER_MAPPING_ALE_STOKES=>SOLVER_EQUATIONS_ALE_STOKES%SOLVER_MAPPING
                   IF(ASSOCIATED(SOLVER_MAPPING_ALE_STOKES)) THEN
-                    EQUATIONS_SET_ALE_STOKES=>SOLVER_MAPPING_ALE_STOKES%EQUATIONS_SETS(1)%PTR
+                    EQUATIONS_SET_ALE_STOKES=>SOLVER_MAPPING_ALE_STOKES%EQUATIONS_SET_TO_SOLVER_MAP(1)%EQUATIONS_SET
                     IF(ASSOCIATED(EQUATIONS_SET_ALE_STOKES)) THEN
                       INDEPENDENT_FIELD_ALE_STOKES=>EQUATIONS_SET_ALE_STOKES%INDEPENDENT%INDEPENDENT_FIELD
                     ELSE
@@ -2816,7 +2833,7 @@ CONTAINS
                   IF(ASSOCIATED(SOLVER_EQUATIONS_LAPLACE)) THEN
                     SOLVER_MAPPING_LAPLACE=>SOLVER_EQUATIONS_LAPLACE%SOLVER_MAPPING
                     IF(ASSOCIATED(SOLVER_MAPPING_LAPLACE)) THEN
-                      EQUATIONS_SET_LAPLACE=>SOLVER_MAPPING_LAPLACE%EQUATIONS_SETS(1)%PTR
+                      EQUATIONS_SET_LAPLACE=>SOLVER_MAPPING_LAPLACE%EQUATIONS_SET_TO_SOLVER_MAP(1)%EQUATIONS_SET
                       IF(ASSOCIATED(EQUATIONS_SET_LAPLACE)) THEN
                         DEPENDENT_FIELD_LAPLACE=>EQUATIONS_SET_LAPLACE%DEPENDENT%DEPENDENT_FIELD
                       ELSE
@@ -2836,7 +2853,7 @@ CONTAINS
                   IF(ASSOCIATED(SOLVER_EQUATIONS_ALE_STOKES)) THEN
                     SOLVER_MAPPING_ALE_STOKES=>SOLVER_EQUATIONS_ALE_STOKES%SOLVER_MAPPING
                     IF(ASSOCIATED(SOLVER_MAPPING_ALE_STOKES)) THEN
-                      EQUATIONS_SET_ALE_STOKES=>SOLVER_MAPPING_ALE_STOKES%EQUATIONS_SETS(1)%PTR
+                      EQUATIONS_SET_ALE_STOKES=>SOLVER_MAPPING_ALE_STOKES%EQUATIONS_SET_TO_SOLVER_MAP(1)%EQUATIONS_SET
                       IF(ASSOCIATED(EQUATIONS_SET_ALE_STOKES)) THEN
                         INDEPENDENT_FIELD_ALE_STOKES=>EQUATIONS_SET_ALE_STOKES%INDEPENDENT%INDEPENDENT_FIELD
                       ELSE
@@ -2990,7 +3007,7 @@ CONTAINS
                 IF(ASSOCIATED(SOLVER_EQUATIONS)) THEN
                   SOLVER_MAPPING=>SOLVER_EQUATIONS%SOLVER_MAPPING
                   IF(ASSOCIATED(SOLVER_MAPPING)) THEN
-                    EQUATIONS_SET=>SOLVER_MAPPING%EQUATIONS_SETS(1)%PTR
+                    EQUATIONS_SET=>SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(1)%EQUATIONS_SET
                     NULLIFY(MESH_STIFF_VALUES)
                     CALL FIELD_PARAMETER_SET_DATA_GET(EQUATIONS_SET%INDEPENDENT%INDEPENDENT_FIELD,FIELD_U_VARIABLE_TYPE, & 
                       & FIELD_VALUES_SET_TYPE,MESH_STIFF_VALUES,ERR,ERROR,*999)
@@ -3119,7 +3136,7 @@ CONTAINS
                   IF(ASSOCIATED(SOLVER_MAPPING)) THEN
                     !Make sure the equations sets are up to date
                     DO equations_set_idx=1,SOLVER_MAPPING%NUMBER_OF_EQUATIONS_SETS
-                      EQUATIONS_SET=>SOLVER_MAPPING%EQUATIONS_SETS(equations_set_idx)%PTR
+                      EQUATIONS_SET=>SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)%EQUATIONS_SET
                       METHOD="FORTRAN"
                       EXPORT_FIELD=.TRUE.
                       IF(EXPORT_FIELD) THEN          
@@ -3141,7 +3158,7 @@ CONTAINS
                 IF(ASSOCIATED(SOLVER_MAPPING)) THEN
                   !Make sure the equations sets are up to date
                   DO equations_set_idx=1,SOLVER_MAPPING%NUMBER_OF_EQUATIONS_SETS
-                    EQUATIONS_SET=>SOLVER_MAPPING%EQUATIONS_SETS(equations_set_idx)%PTR
+                    EQUATIONS_SET=>SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)%EQUATIONS_SET
                     CURRENT_LOOP_ITERATION=CONTROL_LOOP%TIME_LOOP%ITERATION_NUMBER
                     OUTPUT_ITERATION_NUMBER=CONTROL_LOOP%TIME_LOOP%OUTPUT_NUMBER
                     IF(OUTPUT_ITERATION_NUMBER/=0) THEN

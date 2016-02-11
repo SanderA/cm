@@ -46,8 +46,11 @@ MODULE CMISS_PARMETIS
   
   USE BASE_ROUTINES
   USE KINDS
+  USE ISO_C_BINDING
   USE ISO_VARYING_STRING
-  
+
+#define idx_t C_INT
+#define real_t C_DOUBLE
 #include "macros.h"
 
   IMPLICIT NONE
@@ -63,61 +66,115 @@ MODULE CMISS_PARMETIS
   !Interfaces
   INTERFACE
 
-    SUBROUTINE ParMETIS_V3_PartKway(vtxdist, xadj, adjncy, vwgt, adjwgt, wgtflag, numflag, ncon, nparts, tpwgts, ubvec, &
-      & options, edgecut, part, comm)
-#ifdef WIN32
-      !DEC$ ATTRIBUTES C, reference, alias:'_ParMETIS_V3_PartKway' :: ParMETIS_V3_PartKway
-#endif      
-      USE KINDS
-      INTEGER(INTG) :: vtxdist(*)
-      INTEGER(INTG) :: xadj(*)
-      INTEGER(INTG) :: adjncy(*)
-      INTEGER(INTG) :: vwgt(*)
-      INTEGER(INTG) :: adjwgt(*)
-      INTEGER(INTG) :: wgtflag
-      INTEGER(INTG) :: numflag
-      INTEGER(INTG) :: ncon
-      INTEGER(INTG) :: nparts
-      !REAL(SP) :: tpwgts(*)
-      !REAL(SP) :: ubvec(*)
-      REAL(DP) :: tpwgts(*)
-      REAL(DP) :: ubvec(*)
-      INTEGER(INTG) :: options(*)
-      INTEGER(INTG) :: edgecut
-      INTEGER(INTG) :: part(*)
-      INTEGER(INTG) :: comm
-    END SUBROUTINE PARMETIS_V3_PARTKWAY
+    FUNCTION ParMETIS_V3_Mesh2Dual(elmdist,eptr,eind,numflag,ncommonnodes,xadj,adjncy,comm) BIND(C) 
+      USE ISO_C_BINDING, ONLY: C_INT,C_PTR,idx_t
+      INTEGER(C_INT) :: ParMETIS_V3_Mesh2Dual
+      INTEGER(idx_t) :: elmdist(*)
+      INTEGER(idx_t) :: eptr(*)
+      INTEGER(idx_t) :: eind(*)
+      INTEGER(idx_t) :: numflag
+      INTEGER(idx_t) :: ncommonnodes
+      TYPE(C_PTR) :: xadj
+      TYPE(C_PTR) :: adjncy
+      INTEGER(C_INT) :: comm
+    END FUNCTION ParMETIS_V3_Mesh2Dual
 
-    SUBROUTINE ParMETIS_V3_PartMeshKway(elmdist, eptr, eind, elmwgt, wgtflag, numflag, ncon, ncommonnodes, nparts, tpwgts, &
-      & ubvec, options, edgecut, part, comm)
-#ifdef WIN32
-      !DEC$ ATTRIBUTES C, reference, alias:'_ParMETIS_V3_PartMeshKway' :: ParMETIS_V3_PartMeshKway
-#endif      
-      USE KINDS
-      INTEGER(INTG) :: elmdist(*)
-      INTEGER(INTG) :: eptr(*)
-      INTEGER(INTG) :: eind(*)
-      INTEGER(INTG) :: elmwgt(*)
-      INTEGER(INTG) :: wgtflag
-      INTEGER(INTG) :: numflag
-      INTEGER(INTG) :: ncon
-      INTEGER(INTG) :: ncommonnodes
-      INTEGER(INTG) :: nparts
-      !REAL(SP) :: tpwgts(*)
-      !REAL(SP) :: ubvec(*)
-      REAL(DP) :: tpwgts(*)
-      REAL(DP) :: ubvec(*)
-      INTEGER(INTG) :: options(*)
-      INTEGER(INTG) :: edgecut
-      INTEGER(INTG) :: part(*)
-      INTEGER(INTG) :: comm      
-    END SUBROUTINE ParMETIS_V3_PartMeshKway
+    FUNCTION ParMETIS_V3_PartKway(vtxdist,xadj,adjncy,vwgt,adjwgt,wgtflag,numflag,ncon,nparts,tpwgts,ubvec,options,edgecut, &
+        & part,comm) BIND(C)
+      USE ISO_C_BINDING, ONLY: C_INT,idx_t,real_t
+      INTEGER(C_INT) :: ParMETIS_V3_PartKway
+      INTEGER(idx_t) :: vtxdist(*)
+      INTEGER(idx_t) :: xadj(*)
+      INTEGER(idx_t) :: adjncy(*)
+      INTEGER(idx_t) :: vwgt(*)
+      INTEGER(idx_t) :: adjwgt(*)
+      INTEGER(idx_t) :: wgtflag
+      INTEGER(idx_t) :: numflag
+      INTEGER(idx_t) :: ncon
+      INTEGER(idx_t) :: nparts
+      REAL(real_t) :: tpwgts(*)
+      REAL(real_t) :: ubvec(*)
+      INTEGER(idx_t) :: options(*)
+      INTEGER(idx_t) :: edgecut
+      INTEGER(idx_t) :: part(*)
+      INTEGER(C_INT) :: comm
+    END FUNCTION ParMETIS_V3_PartKway
+
+    FUNCTION ParMETIS_V3_PartMeshKway(elmdist,eptr,eind,elmwgt,wgtflag,numflag,ncon,ncommonnodes,nparts,tpwgts, &
+      & ubvec,options,edgecut,part,comm) BIND(C)
+      USE ISO_C_BINDING, ONLY: C_INT,idx_t,real_t
+      INTEGER(C_INT) :: ParMETIS_V3_PartMeshKway
+      INTEGER(idx_t) :: elmdist(*)
+      INTEGER(idx_t) :: eptr(*)
+      INTEGER(idx_t) :: eind(*)
+      INTEGER(idx_t) :: elmwgt(*)
+      INTEGER(idx_t) :: wgtflag
+      INTEGER(idx_t) :: numflag
+      INTEGER(idx_t) :: ncon
+      INTEGER(idx_t) :: ncommonnodes
+      INTEGER(idx_t) :: nparts
+      REAL(real_t) :: tpwgts(*)
+      REAL(real_t) :: ubvec(*)
+      INTEGER(idx_t) :: options(*)
+      INTEGER(idx_t) :: edgecut
+      INTEGER(idx_t) :: part(*)
+      INTEGER(C_INT) :: comm
+    END FUNCTION ParMETIS_V3_PartMeshKway
     
   END INTERFACE
 
-  PUBLIC PARMETIS_PARTKWAY,PARMETIS_PARTMESHKWAY
+  PUBLIC ParMETIS_Mesh2Dual,PARMETIS_PARTKWAY,PARMETIS_PARTMESHKWAY
   
 CONTAINS
+
+  !>Buffer routine to the ParMetis ParMETIS_V3_Mesh2Dual routine.
+  SUBROUTINE ParMETIS_Mesh2Dual(elmdist,eptr,eind,numflag,ncommonnodes,xadj,adjncy,comm,err,error,*)
+
+    !Argument Variables
+    INTEGER(INTG), INTENT(IN) :: elmdist(:)
+    INTEGER(INTG), INTENT(IN) :: eptr(:)
+    INTEGER(INTG), INTENT(IN) :: eind(:)
+    INTEGER(INTG), INTENT(IN) :: numflag
+    INTEGER(INTG), INTENT(IN) :: ncommonnodes
+    INTEGER(INTG), POINTER :: xadj(:)
+    INTEGER(INTG), POINTER :: adjncy(:)
+    INTEGER(INTG), INTENT(IN) :: comm      
+    INTEGER(INTG), INTENT(OUT) :: err
+    TYPE(VARYING_STRING), INTENT(OUT) :: error
+    !Local Variables
+    INTEGER(INTG), POINTER :: xadjFPtr(:),adjncyFPtr(:)
+    TYPE(C_PTR) :: xadjCPtr,adjncyCPtr
+
+    ENTERS("ParMETIS_Mesh2Dual",err,error,*999)
+
+    IF(ASSOCIATED(xadj)) CALL FlagError("The xadj pointer is already associated.",err,error,*999)
+    IF(ASSOCIATED(adjncy)) CALL FlagError("The adjncy pointer is already associated.",err,error,*999)
+
+    IF(ParMETIS_V3_Mesh2Dual(elmdist,eptr,eind,numflag,ncommonnodes,xadjCPtr,adjncyCPtr,comm)/=1) THEN
+      CALL FlagError("ParMetis error in ParMETIS_V3_Mesh2Dual",err,error,*999)
+    ENDIF
+
+    CALL C_F_POINTER(xadjCPtr,xadjFptr,[SIZE(eptr)])
+    CALL C_F_POINTER(adjncyCPtr,adjncyFptr,[xadjFptr(SIZE(xadjFptr))-1])
+    
+    SELECT CASE(numflag)
+    CASE(0)
+      !C-style numbering
+      xadj(0:SIZE(xadjFptr)-1)=>xadjFPtr
+      adjncy(0:SIZE(adjncyFptr)-1)=>adjncyFPtr
+    CASE(1)
+      !F-style numbering
+      xadj=>xadjFPtr
+      adjncy=>adjncyFPtr
+    CASE DEFAULT
+      CALL FlagError("Invalid number flag. Must be either 0 or 1.",err,error,*999)
+    END SELECT
+    
+    EXITS("ParMETIS_Mesh2Dual")
+    RETURN
+999 ERRORSEXITS("ParMETIS_Mesh2Dual",err,error)
+    RETURN 1
+  END SUBROUTINE ParMETIS_Mesh2Dual
 
   !
   !================================================================================================================================
@@ -137,8 +194,6 @@ CONTAINS
     INTEGER(INTG), INTENT(IN) :: NUM_FLAG
     INTEGER(INTG), INTENT(IN) :: NCON
     INTEGER(INTG), INTENT(IN) :: NUMBER_PARTS
-    !REAL(SP), INTENT(IN) :: TP_WEIGHTS(:)
-    !REAL(SP), INTENT(IN) :: UB_VEC(:)
     REAL(DP), INTENT(IN) :: TP_WEIGHTS(:)
     REAL(DP), INTENT(IN) :: UB_VEC(:)
     INTEGER(INTG), INTENT(IN) :: OPTIONS(:)
@@ -151,9 +206,8 @@ CONTAINS
 
     ENTERS("PARMETIS_PARTKWAY",ERR,ERROR,*999)
 
-    CALL ParMETIS_V3_PartKway(VERTEX_DISTANCE,XADJ,ADJNCY,VERTEX_WEIGHT,ADJ_WEIGHT,WEIGHT_FLAG,NUM_FLAG,NCON, &
-      & NUMBER_PARTS,TP_WEIGHTS,UB_VEC,OPTIONS,NUMBER_EDGES_CUT,PARTITION,COMMUNICATOR)
-    IF(ERR/=0) THEN
+    IF(ParMETIS_V3_PartKway(VERTEX_DISTANCE,XADJ,ADJNCY,VERTEX_WEIGHT,ADJ_WEIGHT,WEIGHT_FLAG,NUM_FLAG,NCON, &
+      & NUMBER_PARTS,TP_WEIGHTS,UB_VEC,OPTIONS,NUMBER_EDGES_CUT,PARTITION,COMMUNICATOR)/=1) THEN
       CALL FlagError("ParMetis error in ParMETIS_V3_PartKway",ERR,ERROR,*999)
     ENDIF
     
@@ -181,8 +235,6 @@ CONTAINS
     INTEGER(INTG), INTENT(IN) :: NCON
     INTEGER(INTG), INTENT(IN) :: NUMBER_COMMON_NODES
     INTEGER(INTG), INTENT(IN) :: NUMBER_PARTS
-    !REAL(SP), INTENT(IN) :: TP_WEIGHTS(:)
-    !REAL(SP), INTENT(IN) :: UB_VEC(:)
     REAL(DP), INTENT(IN) :: TP_WEIGHTS(:)
     REAL(DP), INTENT(IN) :: UB_VEC(:)
     INTEGER(INTG), INTENT(IN) :: OPTIONS(:)
@@ -195,10 +247,8 @@ CONTAINS
 
     ENTERS("PARMETIS_PARTMESHKWAY",ERR,ERROR,*999)
     
-    CALL ParMETIS_V3_PartMeshKway(ELEMENT_DISTANCE,ELEMENT_PTR,ELEMENT_INDEX,ELEMENT_WEIGHT,WEIGHT_FLAG,NUM_FLAG,NCON, &
-      & NUMBER_COMMON_NODES,NUMBER_PARTS,TP_WEIGHTS,UB_VEC,OPTIONS,NUMBER_EDGES_CUT,PARTITION,COMMUNICATOR)
-    
-    IF(ERR/=0) THEN
+    IF(ParMETIS_V3_PartMeshKway(ELEMENT_DISTANCE,ELEMENT_PTR,ELEMENT_INDEX,ELEMENT_WEIGHT,WEIGHT_FLAG,NUM_FLAG,NCON, &
+      & NUMBER_COMMON_NODES,NUMBER_PARTS,TP_WEIGHTS,UB_VEC,OPTIONS,NUMBER_EDGES_CUT,PARTITION,COMMUNICATOR)/=1) THEN
       CALL FlagError("ParMetis error in ParMETIS_V3_PartMeshKway",ERR,ERROR,*999)
     ENDIF
     

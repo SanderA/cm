@@ -553,18 +553,18 @@ CONTAINS
      !             & INT(ControlLoop%TIME_LOOP%CURRENT_TIME/ControlLoop%TIME_LOOP%TIME_INCREMENT),"*",Err,Error))// &
      !             & "output"
      !           Method="FORTRAN"
-     !           CALL FIELD_IO_NODES_EXPORT(Solver%SOLVER_EQUATIONS%SOLVER_MAPPING%EQUATIONS_SETS(1)%PTR%REGION%FIELDS, &
+     !           CALL FIELD_IO_NODES_EXPORT(Solver%SOLVER_EQUATIONS%SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(1)%EQUATIONS_SET%REGION%FIELDS, &
      !             & FileName,Method,ERR,ERROR,*999)
-     !           CALL FIELD_IO_ELEMENTS_EXPORT(Solver%SOLVER_EQUATIONS%SOLVER_MAPPING%EQUATIONS_SETS(1)%PTR%REGION%FIELDS, &
+     !           CALL FIELD_IO_ELEMENTS_EXPORT(Solver%SOLVER_EQUATIONS%SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(1)%EQUATIONS_SET%REGION%FIELDS, &
      !             & FileName,Method,ERR,ERROR,*999)
      !           !Export fluid fields
      !           FileName="FluidStep00"//TRIM(NUMBER_TO_VSTRING( &
      !             & INT(ControlLoop%TIME_LOOP%CURRENT_TIME/ControlLoop%TIME_LOOP%TIME_INCREMENT),"*",Err,Error))// &
      !             & "output"
      !           Method="FORTRAN"
-     !           CALL FIELD_IO_NODES_EXPORT(Solver%SOLVER_EQUATIONS%SOLVER_MAPPING%EQUATIONS_SETS(2)%PTR%REGION%FIELDS, &
+     !           CALL FIELD_IO_NODES_EXPORT(Solver%SOLVER_EQUATIONS%SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(2)%EQUATIONS_SET%REGION%FIELDS, &
      !             & FileName,Method,ERR,ERROR,*999)
-     !           CALL FIELD_IO_ELEMENTS_EXPORT(Solver%SOLVER_EQUATIONS%SOLVER_MAPPING%EQUATIONS_SETS(2)%PTR%REGION%FIELDS, &
+     !           CALL FIELD_IO_ELEMENTS_EXPORT(Solver%SOLVER_EQUATIONS%SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(2)%EQUATIONS_SET%REGION%FIELDS, &
      !             & FileName,Method,ERR,ERROR,*999)
               ELSE
                 LOCAL_ERROR="Problem subtype "//TRIM(NUMBER_TO_VSTRING(ControlLoop%PROBLEM%SPECIFICATION(3),"*",Err,Error))// &
@@ -687,7 +687,7 @@ CONTAINS
           & .AND..NOT.SolidEquationsSetFound) &
           & .OR.(EquationsSetIndex<=DynamicSolverMapping%NUMBER_OF_EQUATIONS_SETS &
           & .AND..NOT.FluidEquationsSetFound))
-          EquationsSet=>DynamicSolverMapping%EQUATIONS_SETS(EquationsSetIndex)%PTR
+          EquationsSet=>DynamicSolverMapping%EQUATIONS_SET_TO_SOLVER_MAP(EquationsSetIndex)%EQUATIONS_SET
           IF(EquationsSet%specification(1)==EQUATIONS_SET_ELASTICITY_CLASS &
             & .AND.EquationsSet%specification(2)==EQUATIONS_SET_FINITE_ELASTICITY_TYPE &
             & .AND.((EquationsSet%specification(3)==EQUATIONS_SET_MOONEY_RIVLIN_SUBTYPE).OR. &
@@ -714,7 +714,7 @@ CONTAINS
           ENDIF
           SolidDependentField=>SolidEquationsSet%DEPENDENT%DEPENDENT_FIELD
           IF(ASSOCIATED(SolidDependentField)) THEN
-            InterfaceCondition=>DynamicSolverMapping%INTERFACE_CONDITIONS(1)%PTR
+            InterfaceCondition=>DynamicSolverMapping%INTERFACE_CONDITION_TO_SOLVER_MAP(1)%INTERFACE_CONDITION
             IF(ASSOCIATED(InterfaceCondition)) THEN
               FSInterface=>InterfaceCondition%INTERFACE
               IF(ASSOCIATED(FSInterface)) THEN

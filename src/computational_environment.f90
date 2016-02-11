@@ -73,14 +73,13 @@ MODULE COMP_ENVIRONMENT
     INTEGER(INTG) :: NUMBER_SUB_WORK_GROUPS !<size of sub working grous
     TYPE(COMPUTATIONAL_WORK_GROUP_TYPE), POINTER:: PARENT !<Parent of this working groups
     TYPE(COMPUTATIONAL_WORK_GROUP_PTR_TYPE), ALLOCATABLE:: SUB_WORK_GROUPS(:) !<non-leaf node: The sub working groups
-    
     TYPE(COMPUTATIONAL_ENVIRONMENT_TYPE), POINTER :: COMP_ENV !<pointer to the actual working environment
     LOGICAL :: COMP_ENV_FINISHED !<Is .TURE. if the actual working environment has been generated, .FALSE. if not
   END TYPE COMPUTATIONAL_WORK_GROUP_TYPE
 
   PRIVATE
 
-  !>Contains information on a cache heirarchy
+  !>Contains information on a cache hierarchy
   TYPE CACHE_TYPE
     INTEGER(INTG) :: NUMBER_LEVELS !<The number of levels in the cache hierarchy
     INTEGER(INTG),ALLOCATABLE :: SIZE(:) !<SIZE(level_idx). The size of the level_idx'th cache level.

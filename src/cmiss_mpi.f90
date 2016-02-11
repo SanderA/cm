@@ -58,12 +58,28 @@ MODULE CMISS_MPI
   PRIVATE
 
   !Module parameters
+  !> \addtogroup CMISS_MPI_TagTypes CMISS_MPI::TagTypes
+  !> \brief The MPI tag types parameters
+  !> \see CMISS_MPI
+  !>@{
+  INTEGER(INTG), PARAMETER :: MPI_GHOST_EXCHANGE_TAG=1 !<The MPI tag for the exchange of ghost elements. \see CMISS_MPI_TagTypes,CMISS_MPI
+  INTEGER(INTG), PARAMETER :: MPI_ELEMENT_EXCHANGE_TAG=2 !<The MPI tag for the exchange of elements. \see CMISS_MPI_TagTypes,CMISS_MPI
+  INTEGER(INTG), PARAMETER :: MPI_NODE_DERIVATIVE_COUNT_TAG=3 !<The MPI tag for the count of the node derivatives. \see CMISS_MPI_TagTypes,CMISS_MPI
+  INTEGER(INTG), PARAMETER :: MPI_NODE_DERIVATIVE_EXCHANGE_TAG=4 !<The MPI tag for the exchange of the node derivatives. \see CMISS_MPI_TagTypes,CMISS_MPI
+  INTEGER(INTG), PARAMETER :: MPI_BOUNDARY_ELEMENT_EXCHANGE_TAG=5 !<The MPI tag for the exchange of boundary elements. \see CMISS_MPI_TagTypes,CMISS_MPI
+  INTEGER(INTG), PARAMETER :: MPI_GHOST_INDICES_EXCHANGE_TAG=6 !<The MPI tag for the exchange of ghost indices. \see CMISS_MPI_TagTypes,CMISS_MPI
+  INTEGER(INTG), PARAMETER :: MPI_LOCAL_TO_GLOBAL_TAG=7 !<The MPI tag for the exchange of local to global information. \see CMISS_MPI_TagTypes,CMISS_MPI
+  !>@}
+
 
   !Module types
 
   !Module variables
 
   !Interfaces
+
+  PUBLIC MPI_GHOST_EXCHANGE_TAG,MPI_ELEMENT_EXCHANGE_TAG,MPI_NODE_DERIVATIVE_COUNT_TAG,MPI_NODE_DERIVATIVE_EXCHANGE_TAG, &
+    & MPI_BOUNDARY_ELEMENT_EXCHANGE_TAG,MPI_GHOST_INDICES_EXCHANGE_TAG,MPI_LOCAL_TO_GLOBAL_TAG
 
   PUBLIC MPI_ERROR_CHECK
  

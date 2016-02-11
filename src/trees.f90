@@ -175,6 +175,8 @@ MODULE TREES
 
   PUBLIC Tree_NodeValueGet,Tree_NodeValueSet
 
+  PUBLIC Tree_NumberOfItemsGet
+
   PUBLIC Tree_Output
 
   PUBLIC Tree_Search 
@@ -287,13 +289,13 @@ CONTAINS
   !================================================================================================================================
   !
 
-  !>Detaches the tree values and returns them as a pointer to the an array
+  !>Detaches the tree values and returns them as an array
   SUBROUTINE TREE_DETACH(TREE,NUMBER_IN_TREE,TREE_VALUES,ERR,ERROR,*)
 
     !Argument Variables
     TYPE(TREE_TYPE), POINTER :: TREE !<A pointer to the tree to detach
     INTEGER(INTG), INTENT(OUT) :: NUMBER_IN_TREE !<On exit, the number in the array that has been detached
-    INTEGER(INTG), POINTER :: TREE_VALUES(:) !<On exit, a pointer to the dettached tree values. Must not be associated on entry.
+    INTEGER(INTG), ALLOCATABLE, INTENT(OUT) :: TREE_VALUES(:) !<On exit, the dettached tree values.
     INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string.
     !Local Variables
@@ -302,15 +304,10 @@ CONTAINS
 
     IF(ASSOCIATED(TREE)) THEN
       IF(TREE%TREE_FINISHED) THEN
-        IF(ASSOCIATED(TREE_VALUES)) THEN
-          CALL FlagError("Tree values is already associated.",ERR,ERROR,*998)
-        ELSE
-          NULLIFY(TREE_VALUES)
-          ALLOCATE(TREE_VALUES(TREE%NUMBER_IN_TREE),STAT=ERR)
-          IF(ERR/=0) CALL FlagError("Could not allocate tree values.",ERR,ERROR,*999)
-          NUMBER_IN_TREE=0
-          CALL TREE_DETACH_IN_ORDER(TREE,TREE%ROOT,NUMBER_IN_TREE,TREE_VALUES,ERR,ERROR,*999)
-        ENDIF
+        ALLOCATE(TREE_VALUES(TREE%NUMBER_IN_TREE),STAT=ERR)
+        IF(ERR/=0) CALL FlagError("Could not allocate tree values.",ERR,ERROR,*999)
+        NUMBER_IN_TREE=0
+        CALL TREE_DETACH_IN_ORDER(TREE,TREE%ROOT,NUMBER_IN_TREE,TREE_VALUES,ERR,ERROR,*999)
       ELSE
         CALL FlagError("Tree has not been finished.",ERR,ERROR,*999)
       ENDIF
@@ -320,7 +317,7 @@ CONTAINS
 
     EXITS("TREE_DETACH")
     RETURN
-999 IF(ASSOCIATED(TREE_VALUES)) DEALLOCATE(TREE_VALUES)
+999 IF(ALLOCATED(TREE_VALUES)) DEALLOCATE(TREE_VALUES)
     NUMBER_IN_TREE=0
 998 ERRORSEXITS("TREE_DETACH",ERR,ERROR)
     RETURN 1
@@ -330,13 +327,13 @@ CONTAINS
   !================================================================================================================================
   !
 
-  !>Detaches the tree values and returns them as a pointer to the an array and then destroys the tree
+  !>Detaches the tree values and returns them as a an array and then destroys the tree
   SUBROUTINE TREE_DETACH_AND_DESTROY(TREE,NUMBER_IN_TREE,TREE_VALUES,ERR,ERROR,*)
 
     !Argument Variables
     TYPE(TREE_TYPE), POINTER :: TREE !<A pointer to the tree to detach and destroy
     INTEGER(INTG), INTENT(OUT) :: NUMBER_IN_TREE !<On exit, the number in the array that has been detached
-    INTEGER(INTG), POINTER :: TREE_VALUES(:) !<On exit, a pointer to the dettached tree values. Must not be associated on entry.
+    INTEGER(INTG), ALLOCATABLE, INTENT(OUT) :: TREE_VALUES(:) !<On exit, the detached tree values.
     INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string.
     !Local Variables
@@ -345,16 +342,11 @@ CONTAINS
 
     IF(ASSOCIATED(TREE)) THEN
       IF(TREE%TREE_FINISHED) THEN
-        IF(ASSOCIATED(TREE_VALUES)) THEN
-          CALL FlagError("Tree values is associated",ERR,ERROR,*998)
-        ELSE
-          NULLIFY(TREE_VALUES)
-          ALLOCATE(TREE_VALUES(TREE%NUMBER_IN_TREE),STAT=ERR)
-          IF(ERR/=0) CALL FlagError("Could not allocate tree values",ERR,ERROR,*999)
-          NUMBER_IN_TREE=0
-          CALL TREE_DETACH_IN_ORDER(TREE,TREE%ROOT,NUMBER_IN_TREE,TREE_VALUES,ERR,ERROR,*999)
-          CALL TREE_FINALISE(TREE,ERR,ERROR,*999)
-        ENDIF
+        ALLOCATE(TREE_VALUES(TREE%NUMBER_IN_TREE),STAT=ERR)
+        IF(ERR/=0) CALL FlagError("Could not allocate tree values",ERR,ERROR,*999)
+        NUMBER_IN_TREE=0
+        CALL TREE_DETACH_IN_ORDER(TREE,TREE%ROOT,NUMBER_IN_TREE,TREE_VALUES,ERR,ERROR,*999)
+        CALL TREE_FINALISE(TREE,ERR,ERROR,*999)
       ELSE
         CALL FlagError("Tree has not been finished",ERR,ERROR,*999)
       ENDIF
@@ -364,7 +356,7 @@ CONTAINS
 
     EXITS("TREE_DETACH_AND_DESTROY")
     RETURN
-999 IF(ASSOCIATED(TREE_VALUES)) DEALLOCATE(TREE_VALUES)
+999 IF(ALLOCATED(TREE_VALUES)) DEALLOCATE(TREE_VALUES)
     NUMBER_IN_TREE=0
 998 ERRORSEXITS("TREE_DETACH_AND_DESTROY",ERR,ERROR)
     RETURN 1
@@ -527,7 +519,6 @@ CONTAINS
     !Local Variables
     INTEGER(INTG) :: COMPARE_VALUE
     TYPE(TREE_NODE_TYPE), POINTER :: U,V,W,X,Y,Z
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
     
     ENTERS("TREE_ITEM_DELETE",ERR,ERROR,*999)
 
@@ -572,6 +563,10 @@ CONTAINS
                 Y%PARENT%RIGHT=>X
               ENDIF
             ENDIF
+            IF(.NOT.ASSOCIATED(Y,Z)) THEN
+              Z%KEY=Y%KEY
+              Z%VALUE=Y%VALUE
+            ENDIF
             IF(Y%COLOUR==TREE_BLACK_NODE) THEN
               !Fixup the delete to ensure the tree has red black properties
               !Note: Due to Fortran restrictions on aliasing pointers in dummy arguments we need to do the fixup and rotations
@@ -614,7 +609,7 @@ CONTAINS
                       U%LEFT=>V%RIGHT
                       IF(.NOT.ASSOCIATED(V%RIGHT,TREE%NIL)) V%RIGHT%PARENT=>U
                       V%PARENT=>U%PARENT
-                      IF(ASSOCIATED(V%PARENT,TREE%NIL)) THEN
+                      IF(ASSOCIATED(U%PARENT,TREE%NIL)) THEN
                         TREE%ROOT=>V
                       ELSE
                         IF(ASSOCIATED(U,U%PARENT%RIGHT)) THEN
@@ -660,7 +655,7 @@ CONTAINS
                     U%LEFT=>V%RIGHT
                     IF(.NOT.ASSOCIATED(V%RIGHT,TREE%NIL)) V%RIGHT%PARENT=>U
                     V%PARENT=>U%PARENT
-                    IF(ASSOCIATED(V%PARENT,TREE%NIL)) THEN
+                    IF(ASSOCIATED(U%PARENT,TREE%NIL)) THEN
                       TREE%ROOT=>V
                     ELSE
                       IF(ASSOCIATED(U,U%PARENT%RIGHT)) THEN
@@ -725,24 +720,8 @@ CONTAINS
               ENDDO
               X%COLOUR=TREE_BLACK_NODE
             ENDIF
-            IF(.NOT.ASSOCIATED(Y,Z)) THEN
-              Y%LEFT=>Z%LEFT
-              Y%RIGHT=>Z%RIGHT
-              Y%PARENT=>Z%PARENT
-              Y%COLOUR=Z%COLOUR
-              Z%LEFT%PARENT=>Y
-              Z%RIGHT%PARENT=>Y
-              IF(ASSOCIATED(Z,Z%PARENT%LEFT)) THEN
-                Z%PARENT%LEFT=>Y              
-              ELSE
-                Z%PARENT%RIGHT=>Y
-              ENDIF
-            ENDIF
-            DEALLOCATE(Z)
             TREE%NUMBER_IN_TREE=TREE%NUMBER_IN_TREE-1
-          ELSE
-            LOCAL_ERROR="Could not find the key "//TRIM(NUMBER_TO_VSTRING(KEY,"*",ERR,ERROR))//" in the tree"
-            CALL FlagError(LOCAL_ERROR,ERR,ERROR,*999)
+            DEALLOCATE(Y)
           ENDIF
         ELSE
           CALL FlagError("The tree root is NIL. Can not delete the key",ERR,ERROR,*999)
@@ -826,7 +805,7 @@ CONTAINS
           !Note: Due to Fortran restrictions on aliasing pointers in dummy arguments we need to do the fixup and rotations
           !inside this routine rather than call fixup and rotate left and rotate right subroutines.
           Z=>NEW_TREE_NODE
-          DO WHILE(Z%PARENT%COLOUR==TREE_RED_NODE)
+          DO WHILE(.NOT.ASSOCIATED(Z,TREE%ROOT).AND.Z%PARENT%COLOUR==TREE_RED_NODE)
             IF(ASSOCIATED(Z%PARENT,Z%PARENT%PARENT%LEFT)) THEN
               Y=>Z%PARENT%PARENT%RIGHT
               IF(Y%COLOUR==TREE_RED_NODE) THEN
@@ -1091,6 +1070,38 @@ CONTAINS
   !================================================================================================================================
   !
 
+  !>Inserts a tree node into a red-black tree 
+  SUBROUTINE Tree_NumberOfItemsGet(tree,numberOfItems,err,error,*)
+
+    !Argument Variables
+    TYPE(TREE_TYPE), POINTER :: tree !<A pointer to the Red-Black tree to insert into
+    INTEGER(INTG), INTENT(OUT) :: numberOfItems !<The number of items in the tree 
+    INTEGER(INTG), INTENT(OUT) :: err !<The error code
+    TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string.
+    !Local Variables
+
+    ENTERS("Tree_NumberOfItemsGet",err,error,*999)
+
+    IF(ASSOCIATED(tree)) THEN
+      IF(tree%TREE_FINISHED) THEN
+        numberOfItems=tree%NUMBER_IN_TREE
+      ELSE
+        CALL FlagError("The tree has not been finished",err,error,*999)
+      ENDIF
+    ELSE
+      CALL FlagError("Tree is not associated",err,error,*999)
+    ENDIF
+
+    EXITS("Tree_NumberOfItemsGet")
+    RETURN
+999 ERRORSEXITS("Tree_NumberOfItemsGet",err,error)
+    RETURN 1
+  END SUBROUTINE Tree_NumberOfItemsGet
+
+  !
+  !================================================================================================================================
+  !
+
   !>Sets the value at a specified tree node
   SUBROUTINE TREE_NODE_VALUE_SET(TREE,TREE_NODE,VALUE,ERR,ERROR,*)
 
@@ -1217,7 +1228,7 @@ CONTAINS
   !================================================================================================================================
   !
 
-  !>Returns the predeccessor of a tree at a specified tree node
+  !>Returns the predecessor of a tree at a specified tree node
   FUNCTION TREE_PREDECESSOR(TREE,X,ERR,ERROR)
 
     !Argument Variables
@@ -1236,25 +1247,19 @@ CONTAINS
 
     IF(ASSOCIATED(TREE)) THEN
       IF(ASSOCIATED(X)) THEN
-        Y=>X%LEFT
-        IF(ASSOCIATED(Y,TREE%NIL)) THEN
+        IF(.NOT.ASSOCIATED(X%LEFT,TREE%NIL)) THEN
+          Y=>X%LEFT
           DO WHILE(.NOT.ASSOCIATED(Y%RIGHT,TREE%NIL))
             Y=>Y%RIGHT
           ENDDO
-          TREE_PREDECESSOR=>Y
         ELSE
           Y=>X%PARENT
-          DO WHILE(ASSOCIATED(X,Y%LEFT))
-            IF(ASSOCIATED(Y,TREE%ROOT)) THEN
-              TREE_PREDECESSOR=>TREE%NIL
-              EXIT
-            ELSE
-              X=>Y
-              Y=>Y%PARENT
-            ENDIF
+          DO WHILE(.NOT.ASSOCIATED(Y,TREE%NIL).AND.ASSOCIATED(X,Y%LEFT))
+            X=>Y
+            Y=>Y%PARENT
           ENDDO
-          IF(.NOT.ASSOCIATED(TREE_PREDECESSOR)) TREE_PREDECESSOR=>Y
         ENDIF
+        TREE_PREDECESSOR=>Y
        ELSE
         CALL FlagError("Tree node X is not associated",ERR,ERROR,*999)
       ENDIF
@@ -1337,7 +1342,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string.
     !Function variable
-    TYPE(TREE_NODE_TYPE), POINTER :: TREE_SUCCESSOR !<On return the pointer to the successor of X or NIL if no sucessor exits
+    TYPE(TREE_NODE_TYPE), POINTER :: TREE_SUCCESSOR !<On return the pointer to the successor of X or NIL if no sucessor exists
     !Local Variables
     TYPE(TREE_NODE_TYPE), POINTER :: Y
 
@@ -1347,25 +1352,19 @@ CONTAINS
 
     IF(ASSOCIATED(TREE)) THEN
       IF(ASSOCIATED(X)) THEN
-        Y=>X%RIGHT
-        IF(ASSOCIATED(Y,TREE%NIL)) THEN
+        IF(.NOT.ASSOCIATED(X%RIGHT,TREE%NIL)) THEN
+          Y=>X%RIGHT
           DO WHILE(.NOT.ASSOCIATED(Y%LEFT,TREE%NIL))
             Y=>Y%LEFT
           ENDDO
-          TREE_SUCCESSOR=>Y
-          RETURN
         ELSE
           Y=>X%PARENT
-          DO WHILE(ASSOCIATED(X,Y%RIGHT))
+          DO WHILE(.NOT.ASSOCIATED(Y,TREE%NIL).AND.ASSOCIATED(X,Y%RIGHT))
             X=>Y
             Y=>Y%PARENT
           ENDDO
-          IF(ASSOCIATED(Y,TREE%ROOT)) THEN
-            TREE_SUCCESSOR=>TREE%NIL
-          ELSE
-            TREE_SUCCESSOR=>Y
-          ENDIF
         ENDIF
+        TREE_SUCCESSOR=>Y
        ELSE
         CALL FlagError("Tree node X is not associated",ERR,ERROR,*999)
       ENDIF

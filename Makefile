@@ -444,6 +444,7 @@ $(OBJECT_DIR)/boundary_condition_routines.o  : $(SOURCE_DIR)/boundary_condition_
 	$(OBJECT_DIR)/kinds.o \
 	$(OBJECT_DIR)/linkedlist_routines.o \
 	$(OBJECT_DIR)/lists.o \
+	$(OBJECT_DIR)/mesh_routines.o \
 	$(OBJECT_DIR)/node_routines.o \
 	$(OBJECT_DIR)/strings.o \
 	$(OBJECT_DIR)/timer_f.o \
@@ -928,6 +929,7 @@ $(OBJECT_DIR)/distributed_matrix_vector_IO.o	:	$(SOURCE_DIR)/distributed_matrix_
 
 $(OBJECT_DIR)/domain_mappings.o	:	$(SOURCE_DIR)/domain_mappings.f90 \
 	$(OBJECT_DIR)/base_routines.o \
+	$(OBJECT_DIR)/cmiss_mpi.o \
 	$(OBJECT_DIR)/computational_environment.o \
 	$(OBJECT_DIR)/input_output.o \
 	$(OBJECT_DIR)/iso_varying_string.o \
@@ -980,6 +982,7 @@ $(OBJECT_DIR)/equations_mapping_routines.o	:	$(SOURCE_DIR)/equations_mapping_rou
 	$(OBJECT_DIR)/input_output.o \
 	$(OBJECT_DIR)/iso_varying_string.o \
 	$(OBJECT_DIR)/kinds.o \
+	$(OBJECT_DIR)/lists.o \
 	$(OBJECT_DIR)/strings.o \
 	$(OBJECT_DIR)/types.o
 
@@ -1442,6 +1445,7 @@ $(OBJECT_DIR)/mesh_routines.o	:	$(SOURCE_DIR)/mesh_routines.f90 \
 	$(OBJECT_DIR)/kinds.o \
 	$(OBJECT_DIR)/lists.o \
 	$(OBJECT_DIR)/node_routines.o \
+	$(OBJECT_DIR)/sorting.o \
 	$(OBJECT_DIR)/strings.o \
 	$(OBJECT_DIR)/trees.o \
 	$(OBJECT_DIR)/types.o

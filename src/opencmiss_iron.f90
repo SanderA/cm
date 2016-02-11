@@ -259,12 +259,6 @@ MODULE OpenCMISS_Iron
     TYPE(MESH_EMBEDDING_TYPE), POINTER :: meshEmbedding
   END TYPE cmfe_MeshEmbeddingType
 
-  !>Contains information on a mesh nodes defined in a mesh
-  TYPE cmfe_MeshNodesType
-    PRIVATE
-    TYPE(MeshNodesType), POINTER :: meshNodes
-  END TYPE cmfe_MeshNodesType
-
   !>Contains information on the nodes defined on a region.
   TYPE cmfe_NodesType
     PRIVATE
@@ -381,8 +375,6 @@ MODULE OpenCMISS_Iron
   PUBLIC cmfe_MeshType,cmfe_Mesh_Finalise,cmfe_Mesh_Initialise
 
   PUBLIC cmfe_MeshElementsType,cmfe_MeshElements_Finalise,cmfe_MeshElements_Initialise
-
-  PUBLIC cmfe_MeshNodesType,cmfe_MeshNodes_Finalise,cmfe_MeshNodes_Initialise
 
   PUBLIC cmfe_NodesType,cmfe_Nodes_Finalise,cmfe_Nodes_Initialise
 
@@ -4523,10 +4515,10 @@ MODULE OpenCMISS_Iron
   END INTERFACE cmfe_InterfaceCondition_CreateStart
 
   !>Adds in a dependent variable to an interface condition.
-  INTERFACE cmfe_InterfaceCondition_DependentVariableAdd
-    MODULE PROCEDURE cmfe_InterfaceCondition_DependentVariableAddNumber
-    MODULE PROCEDURE cmfe_InterfaceCondition_DependentVariableAddObj
-  END INTERFACE cmfe_InterfaceCondition_DependentVariableAdd
+  INTERFACE cmfe_InterfaceCondition_EquationsSetAdd
+    MODULE PROCEDURE cmfe_InterfaceCondition_EquationsSetAddNumber
+    MODULE PROCEDURE cmfe_InterfaceCondition_EquationsSetAddObj
+  END INTERFACE cmfe_InterfaceCondition_EquationsSetAdd
 
   !>Destroys an interface condition.
   INTERFACE cmfe_InterfaceCondition_Destroy
@@ -4647,7 +4639,7 @@ MODULE OpenCMISS_Iron
 
   PUBLIC cmfe_InterfaceCondition_CreateFinish,cmfe_InterfaceCondition_CreateStart
 
-  PUBLIC cmfe_InterfaceCondition_DependentVariableAdd
+  PUBLIC cmfe_InterfaceCondition_EquationsSetAdd
 
   PUBLIC cmfe_InterfaceCondition_Destroy
 
@@ -4741,24 +4733,6 @@ MODULE OpenCMISS_Iron
     MODULE PROCEDURE cmfe_Decomposition_DestroyNumber
     MODULE PROCEDURE cmfe_Decomposition_DestroyObj
   END INTERFACE cmfe_Decomposition_Destroy
-
-  !>Calculates the element domains for the decomposition of a mesh.
-  INTERFACE cmfe_Decomposition_ElementDomainCalculate
-    MODULE PROCEDURE cmfe_Decomposition_ElementDomainCalculateNumber
-    MODULE PROCEDURE cmfe_Decomposition_ElementDomainCalculateObj
-  END INTERFACE cmfe_Decomposition_ElementDomainCalculate
-
-  !>Returns the domain for a given element in a decomposition of a mesh.
-  INTERFACE cmfe_Decomposition_ElementDomainGet
-    MODULE PROCEDURE cmfe_Decomposition_ElementDomainGetNumber
-    MODULE PROCEDURE cmfe_Decomposition_ElementDomainGetObj
-  END INTERFACE cmfe_Decomposition_ElementDomainGet
-
-  !>Sets/changes the domain for a given element in a decomposition of a mesh.
-  INTERFACE cmfe_Decomposition_ElementDomainSet
-    MODULE PROCEDURE cmfe_Decomposition_ElementDomainSetNumber
-    MODULE PROCEDURE cmfe_Decomposition_ElementDomainSetObj
-  END INTERFACE cmfe_Decomposition_ElementDomainSet
 
   !>Returns the mesh component number used for the decomposition of a mesh.
   INTERFACE cmfe_Decomposition_MeshComponentGet
@@ -4876,12 +4850,6 @@ MODULE OpenCMISS_Iron
     MODULE PROCEDURE cmfe_MeshElements_BasisSetObj
   END INTERFACE cmfe_MeshElements_BasisSet
 
-  !>Returns the adjacent elements for a given element and adjacent xi direction for an element in a mesh.
-  INTERFACE cmfe_MeshElements_AdjacentElementGet
-    MODULE PROCEDURE cmfe_MeshElements_AdjacentElementGetNumber
-    MODULE PROCEDURE cmfe_MeshElements_AdjacentElementGetObj
-  END INTERFACE cmfe_MeshElements_AdjacentElementGet
-
   !>Finishes the creation of a mesh elements for a mesh component. \see OpenCMISS::Iron::cmfe_MeshElements_CreateStart
   INTERFACE cmfe_MeshElements_CreateFinish
     MODULE PROCEDURE cmfe_MeshElements_CreateFinishNumber
@@ -4942,53 +4910,11 @@ MODULE OpenCMISS_Iron
     MODULE PROCEDURE cmfe_MeshElements_UserNumbersAllSetObj
   END INTERFACE cmfe_MeshElements_UserNumbersAllSet
 
-  !>Returns true if the given node is in the given mesh component.
-  INTERFACE cmfe_Mesh_NodeExists
-    MODULE PROCEDURE cmfe_Mesh_NodeExistsNumber
-    MODULE PROCEDURE cmfe_Mesh_NodeExistsObj
-  END INTERFACE cmfe_Mesh_NodeExists
-
   !>Returns true if the given element is in the given mesh component.
   INTERFACE cmfe_Mesh_ElementExists
     MODULE PROCEDURE cmfe_Mesh_ElementExistsNumber
     MODULE PROCEDURE cmfe_Mesh_ElementExistsObj
   END INTERFACE cmfe_Mesh_ElementExists
-
-  !>Get the mesh nodes belonging to a mesh component.
-  INTERFACE cmfe_Mesh_NodesGet
-    MODULE PROCEDURE cmfe_Mesh_NodesGetNumber
-    MODULE PROCEDURE cmfe_Mesh_NodesGetObj
-  END INTERFACE cmfe_Mesh_NodesGet
-
-  !>Returns the number of derivatives for a node in a mesh.
-  INTERFACE cmfe_MeshNodes_NumberOfDerivativesGet
-    MODULE PROCEDURE cmfe_MeshNodes_NumberOfDerivativesGetNumber
-    MODULE PROCEDURE cmfe_MeshNodes_NumberOfDerivativesGetObj
-  END INTERFACE cmfe_MeshNodes_NumberOfDerivativesGet
-
-  !>Returns the derivatives for a node in a mesh.
-  INTERFACE cmfe_MeshNodes_DerivativesGet
-    MODULE PROCEDURE cmfe_MeshNodes_DerivativesGetNumber
-    MODULE PROCEDURE cmfe_MeshNodes_DerivativesGetObj
-  END INTERFACE cmfe_MeshNodes_DerivativesGet
-
-  !>Returns the number of versions for a derivative at a node in a mesh.
-  INTERFACE cmfe_MeshNodes_NumberOfVersionsGet
-    MODULE PROCEDURE cmfe_MeshNodes_NumberOfVersionsGetNumber
-    MODULE PROCEDURE cmfe_MeshNodes_NumberOfVersionsGetObj
-  END INTERFACE cmfe_MeshNodes_NumberOfVersionsGet
-
-  !>Returns the number of nodes in a mesh.
-  INTERFACE cmfe_MeshNodes_NumberOfNodesGet
-    MODULE PROCEDURE cmfe_MeshNodes_NumberOfNodesGetNumber
-    MODULE PROCEDURE cmfe_MeshNodes_NumberOfNodesGetObj
-  END INTERFACE cmfe_MeshNodes_NumberOfNodesGet
-
-  !>Returns the domain for a given element in a decomposition of a mesh.
-  INTERFACE cmfe_Decomposition_NodeDomainGet
-    MODULE PROCEDURE cmfe_Decomposition_NodeDomainGetNumber
-    MODULE PROCEDURE cmfe_Decomposition_NodeDomainGetObj
-  END INTERFACE cmfe_Decomposition_NodeDomainGet
 
   !>Calculates the decomposition topology for data points .
   INTERFACE cmfe_Decomposition_TopologyDataProjectionCalculate
@@ -5024,17 +4950,11 @@ MODULE OpenCMISS_Iron
 
   PUBLIC cmfe_Decomposition_Destroy
 
-  PUBLIC cmfe_Decomposition_ElementDomainCalculate
-
-  PUBLIC cmfe_Decomposition_ElementDomainGet,cmfe_Decomposition_ElementDomainSet
-
   PUBLIC cmfe_Decomposition_MeshComponentGet,cmfe_Decomposition_MeshComponentSet
 
   PUBLIC cmfe_Decomposition_NumberOfDomainsGet,cmfe_Decomposition_NumberOfDomainsSet
 
   PUBLIC cmfe_Decomposition_TypeGet,cmfe_Decomposition_TypeSet
-
-  PUBLIC cmfe_Decomposition_NodeDomainGet
 
   PUBLIC cmfe_Mesh_CreateFinish,cmfe_Mesh_CreateStart
 
@@ -5046,8 +4966,6 @@ MODULE OpenCMISS_Iron
 
   PUBLIC cmfe_MeshElements_BasisGet,cmfe_MeshElements_BasisSet
 
-  PUBLIC cmfe_MeshElements_AdjacentElementGet
-
   PUBLIC cmfe_MeshElements_UserNodeVersionSet,cmfe_MeshElements_LocalElementNodeVersionSet
 
   PUBLIC cmfe_MeshElements_CreateFinish,cmfe_MeshElements_CreateStart
@@ -5057,18 +4975,10 @@ MODULE OpenCMISS_Iron
   PUBLIC cmfe_MeshElements_UserNumberGet,cmfe_MeshElements_UserNumberSet
 
   PUBLIC cmfe_MeshElements_UserNumbersAllSet
- 
-  PUBLIC cmfe_MeshNodes_NumberOfDerivativesGet,cmfe_MeshNodes_DerivativesGet
-
-  PUBLIC cmfe_MeshNodes_NumberOfVersionsGet
-
-  PUBLIC cmfe_MeshNodes_NumberOfNodesGet
 
   PUBLIC cmfe_Mesh_ElementsGet
 
-  PUBLIC cmfe_Mesh_NodesGet
-
-  PUBLIC cmfe_Mesh_NodeExists,cmfe_Mesh_ElementExists
+  PUBLIC cmfe_Mesh_ElementExists
 
   PUBLIC cmfe_Mesh_SurroundingElementsCalculateSet
 
@@ -8461,55 +8371,6 @@ CONTAINS
     RETURN
 
   END SUBROUTINE cmfe_MeshElements_Initialise
-
-  !
-  !================================================================================================================================
-  !
-
-  !>Finalises a cmfe_MeshNodesType object.
-  SUBROUTINE cmfe_MeshNodes_Finalise(cmfe_MeshNodes,err)
-
-    !Argument variables
-    TYPE(cmfe_MeshNodesType), INTENT(OUT) :: cmfe_MeshNodes !<The cmfe_MeshNodesType object to finalise.
-    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
-    !Local variables
-
-    ENTERS("cmfe_MeshNodes_Finalise",err,error,*999)
-
-    IF(ASSOCIATED(cmfe_MeshNodes%meshNodes))  &
-      & CALL MeshTopologyNodesDestroy(cmfe_MeshNodes%meshNodes,err,error,*999)
-
-    EXITS("cmfe_MeshNodes_Finalise")
-    RETURN
-999 ERRORSEXITS("cmfe_MeshNodes_Finalise",err,error)
-    CALL cmfe_HandleError(err,error)
-    RETURN
-
-  END SUBROUTINE cmfe_MeshNodes_Finalise
-
-  !
-  !================================================================================================================================
-  !
-
-  !>Initialises a cmfe_MeshNodesType object.
-  SUBROUTINE cmfe_MeshNodes_Initialise(cmfe_MeshNodes,err)
-
-    !Argument variables
-    TYPE(cmfe_MeshNodesType), INTENT(OUT) :: cmfe_MeshNodes !<The cmfe_MeshNodesType object to initialise.
-    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
-    !Local variables
-
-    ENTERS("cmfe_MeshNodes_Initialise",err,error,*999)
-
-    NULLIFY(cmfe_MeshNodes%meshNodes)
-
-    EXITS("cmfe_MeshNodes_Initialise")
-    RETURN
-999 ERRORSEXITS("cmfe_MeshNodes_Initialise",err,error)
-    CALL cmfe_HandleError(err,error)
-    RETURN
-
-  END SUBROUTINE cmfe_MeshNodes_Initialise
 
   !
   !================================================================================================================================
@@ -15437,7 +15298,7 @@ CONTAINS
   !================================================================================================================================
   !
 
-  !>Set the working group tree in order to performe mesh decomposition
+  !>Set the working group tree in order to perform mesh decomposition
   SUBROUTINE cmfe_Decomposition_WorldWorkGroupSet(decomposition, worldWorkGroup, err)
     !Argument Variables
     TYPE(cmfe_DecompositionType), INTENT(INOUT) :: decomposition
@@ -39409,18 +39270,17 @@ CONTAINS
   !================================================================================================================================
   !
 
-  !>Adds a dependent variable to an interface condition identified by a user number.
-  SUBROUTINE cmfe_InterfaceCondition_DependentVariableAddNumber(interfaceRegionUserNumber,interfaceUserNumber, &
-    & interfaceConditionUserNumber,meshIndex,equationsSetRegionUserNumber,equationsSetUserNumber,variableType,err)
+  !>Adds an equations set to an interface condition identified by a user number.
+  SUBROUTINE cmfe_InterfaceCondition_EquationsSetAddNumber(interfaceRegionUserNumber,interfaceUserNumber, &
+    & interfaceConditionUserNumber,meshIndex,equationsSetRegionUserNumber,equationsSetUserNumber,err)
 
     !Argument variables
-    INTEGER(INTG), INTENT(IN) :: interfaceRegionUserNumber !<The user number of the region containing the interface containing the interface condition to add the dependent variable for.
-    INTEGER(INTG), INTENT(IN) :: interfaceUserNumber !<The user number of the interface containing the interface condition to add the dependent variable for.
-    INTEGER(INTG), INTENT(IN) :: interfaceConditionUserNumber !<The user number of the interface condition to add the dependent variable for.
-    INTEGER(INTG), INTENT(IN) :: meshIndex !<The mesh index of the interface condition interface for which the dependent variable is added.
-    INTEGER(INTG), INTENT(IN) :: equationsSetRegionUserNumber !<The user number of the region containing the equations set containing the dependent field varible to add.
-    INTEGER(INTG), INTENT(IN) :: equationsSetUserNumber !<The user number of the equations set containing the dependent field to add the variable for.
-    INTEGER(INTG), INTENT(IN) :: variableType !<The variable type of the dependent variable to add.
+    INTEGER(INTG), INTENT(IN) :: interfaceRegionUserNumber !<The user number of the region containing the interface containing the interface condition to add the equations set for.
+    INTEGER(INTG), INTENT(IN) :: interfaceUserNumber !<The user number of the interface containing the interface condition to add the equations set for.
+    INTEGER(INTG), INTENT(IN) :: interfaceConditionUserNumber !<The user number of the interface condition to add the equations set for.
+    INTEGER(INTG), INTENT(IN) :: meshIndex !<The mesh index of the interface condition interface for which the equations set is added.
+    INTEGER(INTG), INTENT(IN) :: equationsSetRegionUserNumber !<The user number of the region containing the equations set to add.
+    INTEGER(INTG), INTENT(IN) :: equationsSetUserNumber !<The user number of the equations set to add.
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
     TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET
@@ -39429,7 +39289,7 @@ CONTAINS
     TYPE(REGION_TYPE), POINTER :: EQUATIONS_SET_REGION,INTERFACE_REGION
     TYPE(VARYING_STRING) :: localError
 
-    ENTERS("cmfe_InterfaceCondition_DependentVariableAddNumber",err,error,*999)
+    ENTERS("cmfe_InterfaceCondition_EquationsSetAddNumber",err,error,*999)
 
     NULLIFY(INTERFACE_REGION)
     NULLIFY(INTERFACE)
@@ -39446,8 +39306,7 @@ CONTAINS
           IF(ASSOCIATED(EQUATIONS_SET_REGION)) THEN
             CALL EQUATIONS_SET_USER_NUMBER_FIND(equationsSetUserNumber,EQUATIONS_SET_REGION,EQUATIONS_SET,err,error,*999)
             IF(ASSOCIATED(EQUATIONS_SET)) THEN
-              CALL INTERFACE_CONDITION_DEPENDENT_VARIABLE_ADD(INTERFACE_CONDITION,meshIndex,EQUATIONS_SET,variableType, &
-                & err,error,*999)
+              CALL INTERFACE_CONDITION_EQUATIONS_SET_ADD(INTERFACE_CONDITION,meshIndex,EQUATIONS_SET,err,error,*999)
             ELSE
               localError="An equations set with an user number of "// &
                 & TRIM(NumberToVString(equationsSetUserNumber,"*",err,error))// &
@@ -39478,43 +39337,42 @@ CONTAINS
       CALL FlagError(localError,err,error,*999)
     END IF
 
-    EXITS("cmfe_InterfaceCondition_DependentVariableAddNumber")
+    EXITS("cmfe_InterfaceCondition_EquationsSetAddNumber")
     RETURN
-999 ERRORS("cmfe_InterfaceCondition_DependentVariableAddNumber",err,error)
-    EXITS("cmfe_InterfaceCondition_DependentVariableAddNumber")
+999 ERRORS("cmfe_InterfaceCondition_EquationsSetAddNumber",err,error)
+    EXITS("cmfe_InterfaceCondition_EquationsSetAddNumber")
     CALL cmfe_HandleError(err,error)
     RETURN
 
-  END SUBROUTINE cmfe_InterfaceCondition_DependentVariableAddNumber
+  END SUBROUTINE cmfe_InterfaceCondition_EquationsSetAddNumber
 
   !
   !================================================================================================================================
   !
 
-  !>Adds a dependent field variable to an interface condition identified by an object.
-  SUBROUTINE cmfe_InterfaceCondition_DependentVariableAddObj(interfaceCondition,meshIndex,equationsSet,variableType,err)
+  !>Adds a equations set to an interface condition identified by an object.
+  SUBROUTINE cmfe_InterfaceCondition_EquationsSetAddObj(interfaceCondition,meshIndex,equationsSet,err)
 
     !Argument variables
-    TYPE(cmfe_InterfaceConditionType), INTENT(IN) :: interfaceCondition !<The interface condition to add the dependent variable to.
-    INTEGER(INTG), INTENT(IN) :: meshIndex !<The mesh index of the interface condition interface for which the dependent variable is added.
-    TYPE(cmfe_EquationsSetType), INTENT(IN) :: equationsSet !<The equations set containg the dependent variable to add.
-    INTEGER(INTG), INTENT(IN) :: variableType !<The variable type of the dependent variable to add.
+    TYPE(cmfe_InterfaceConditionType), INTENT(IN) :: interfaceCondition !<The interface condition to add the equations set to.
+    INTEGER(INTG), INTENT(IN) :: meshIndex !<The mesh index of the interface condition interface for which the equations set is added.
+    TYPE(cmfe_EquationsSetType), INTENT(IN) :: equationsSet !<The equations set to add.
     INTEGER(INTG), INTENT(OUT) :: err !<The error code.
     !Local variables
 
-    ENTERS("cmfe_InterfaceCondition_DependentVariableAddObj",err,error,*999)
+    ENTERS("cmfe_InterfaceCondition_EquationsSetAddObj",err,error,*999)
 
-    CALL INTERFACE_CONDITION_DEPENDENT_VARIABLE_ADD(interfaceCondition%interfaceCondition,meshIndex,equationsSet%equationsSet, &
-      & variableType,err,error,*999)
+    CALL INTERFACE_CONDITION_EQUATIONS_SET_ADD(interfaceCondition%interfaceCondition,meshIndex,equationsSet%equationsSet, &
+      & err,error,*999)
 
-    EXITS("cmfe_InterfaceCondition_DependentVariableAddObj")
+    EXITS("cmfe_InterfaceCondition_EquationsSetAddObj")
     RETURN
-999 ERRORS("cmfe_InterfaceCondition_DependentVariableAddObj",err,error)
-    EXITS("cmfe_InterfaceCondition_DependentVariableAddObj")
+999 ERRORS("cmfe_InterfaceCondition_EquationsSetAddObj",err,error)
+    EXITS("cmfe_InterfaceCondition_EquationsSetAddObj")
     CALL cmfe_HandleError(err,error)
     RETURN
 
-  END SUBROUTINE cmfe_InterfaceCondition_DependentVariableAddObj
+  END SUBROUTINE cmfe_InterfaceCondition_EquationsSetAddObj
 
   !
   !================================================================================================================================
@@ -41429,252 +41287,6 @@ CONTAINS
   !================================================================================================================================
   !
 
-  !>Calculates the element domains for a decomposition identified by a user number.
-  SUBROUTINE cmfe_Decomposition_ElementDomainCalculateNumber(regionUserNumber,meshUserNumber,decompositionUserNumber,err)
-
-    !Argument variables
-    INTEGER(INTG), INTENT(IN) :: regionUserNumber !<The user number of the region containing the mesh to calculate the element domains for.
-    INTEGER(INTG), INTENT(IN) :: meshUserNumber !<The user number of the mesh to calculate the element domains for.
-    INTEGER(INTG), INTENT(IN) :: decompositionUserNumber !<The user number of the decomposition to calculate the element domains for.
-    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
-    !Local variables
-    TYPE(DECOMPOSITION_TYPE), POINTER :: DECOMPOSITION
-    TYPE(MESH_TYPE), POINTER :: MESH
-    TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: localError
-
-    ENTERS("cmfe_Decomposition_ElementDomainCalculateNumber",err,error,*999)
-
-    NULLIFY(REGION)
-    NULLIFY(MESH)
-    NULLIFY(DECOMPOSITION)
-    CALL REGION_USER_NUMBER_FIND(regionUserNumber,REGION,err,error,*999)
-    IF(ASSOCIATED(REGION)) THEN
-      CALL MESH_USER_NUMBER_FIND(meshUserNumber,REGION,MESH,err,error,*999)
-      IF(ASSOCIATED(MESH)) THEN
-        CALL DECOMPOSITION_USER_NUMBER_FIND(decompositionUserNumber,MESH,DECOMPOSITION,err,error,*999)
-        IF(ASSOCIATED(DECOMPOSITION)) THEN
-          CALL DECOMPOSITION_ELEMENT_DOMAIN_CALCULATE(DECOMPOSITION,err,error,*999)
-        ELSE
-          localError="A decomposition with an user number of "//TRIM(NumberToVString(decompositionUserNumber,"*",err,error))// &
-            & " does not exist on the mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))//"."
-          CALL FlagError(localError,err,error,*999)
-        END IF
-      ELSE
-        localError="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
-          & " does not exist on the region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(localError,err,error,*999)
-      END IF
-    ELSE
-      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
-        & " does not exist."
-      CALL FlagError(localError,err,error,*999)
-    END IF
-
-    EXITS("cmfe_Decomposition_ElementDomainCalculateNumber")
-    RETURN
-999 ERRORS("cmfe_Decomposition_ElementDomainCalculateNumber",err,error)
-    EXITS("cmfe_Decomposition_ElementDomainCalculateNumber")
-    CALL cmfe_HandleError(err,error)
-    RETURN
-
-  END SUBROUTINE cmfe_Decomposition_ElementDomainCalculateNumber
-
-  !
-  !================================================================================================================================
-  !
-
-  !>Calculates the element domains for a decomposition identified by an object.
-  SUBROUTINE cmfe_Decomposition_ElementDomainCalculateObj(decomposition,err)
-
-    !Argument variables
-    TYPE(cmfe_DecompositionType), INTENT(IN) :: decomposition !<The decomposition to calcualte the element domains for.
-    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
-    !Local variables
-
-    ENTERS("cmfe_Decomposition_ElementDomainCalculateObj",err,error,*999)
-
-    CALL DECOMPOSITION_ELEMENT_DOMAIN_CALCULATE(decomposition%decomposition,err,error,*999)
-
-    EXITS("cmfe_Decomposition_ElementDomainCalculateObj")
-    RETURN
-999 ERRORS("cmfe_Decomposition_ElementDomainCalculateObj",err,error)
-    EXITS("cmfe_Decomposition_ElementDomainCalculateObj")
-    CALL cmfe_HandleError(err,error)
-    RETURN
-
-  END SUBROUTINE cmfe_Decomposition_ElementDomainCalculateObj
-
-  !
-  !================================================================================================================================
-  !
-
-  !>Returns the domain for a given element in a decomposition identified by a user number.
-  SUBROUTINE cmfe_Decomposition_ElementDomainGetNumber(regionUserNumber,meshUserNumber,decompositionUserNumber, &
-    & elementUserNumber,domain,err)
-
-    !Argument variables
-    INTEGER(INTG), INTENT(IN) :: regionUserNumber !<The user number of the region containing the mesh to get the element domain for.
-    INTEGER(INTG), INTENT(IN) :: meshUserNumber !<The user number of the mesh to get the element domain for.
-    INTEGER(INTG), INTENT(IN) :: decompositionUserNumber !<The user number of the decomposition to get the element domain for.
-    INTEGER(INTG), INTENT(IN) :: elementUserNumber !<The user number of the element to get the domain for.
-    INTEGER(INTG), INTENT(OUT) :: domain !<On return, the computational domain of the element.
-    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
-    !Local variables
-    TYPE(DECOMPOSITION_TYPE), POINTER :: DECOMPOSITION
-    TYPE(MESH_TYPE), POINTER :: MESH
-    TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: localError
-
-    ENTERS("cmfe_Decomposition_ElementDomainGetNumber",err,error,*999)
-
-    NULLIFY(REGION)
-    NULLIFY(MESH)
-    NULLIFY(DECOMPOSITION)
-    CALL REGION_USER_NUMBER_FIND(regionUserNumber,REGION,err,error,*999)
-    IF(ASSOCIATED(REGION)) THEN
-      CALL MESH_USER_NUMBER_FIND(meshUserNumber,REGION,MESH,err,error,*999)
-      IF(ASSOCIATED(MESH)) THEN
-        CALL DECOMPOSITION_USER_NUMBER_FIND(decompositionUserNumber,MESH,DECOMPOSITION,err,error,*999)
-        IF(ASSOCIATED(DECOMPOSITION)) THEN
-          CALL DECOMPOSITION_ELEMENT_DOMAIN_GET(DECOMPOSITION,elementUserNumber,domain,err,error,*999)
-        ELSE
-          localError="A decomposition with an user number of "//TRIM(NumberToVString(decompositionUserNumber,"*",err,error))// &
-            & " does not exist on the mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))//"."
-          CALL FlagError(localError,err,error,*999)
-        END IF
-      ELSE
-        localError="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
-          & " does not exist on the region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(localError,err,error,*999)
-      END IF
-    ELSE
-      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
-        & " does not exist."
-      CALL FlagError(localError,err,error,*999)
-    END IF
-
-    EXITS("cmfe_Decomposition_ElementDomainGetNumber")
-    RETURN
-999 ERRORSEXITS("cmfe_Decomposition_ElementDomainGetNumber",err,error)
-    CALL cmfe_HandleError(err,error)
-    RETURN
-
-  END SUBROUTINE cmfe_Decomposition_ElementDomainGetNumber
-
-  !
-  !================================================================================================================================
-  !
-
-  !>Returns the domain for a given element in a decomposition identified by an object.
-  SUBROUTINE cmfe_Decomposition_ElementDomainGetObj(decomposition,elementUserNumber,domain,err)
-
-    !Argument variables
-    TYPE(cmfe_DecompositionType), INTENT(IN) :: decomposition !<The decomposition to get the domain for.
-    INTEGER(INTG), INTENT(IN) :: elementUserNumber !<The user number of the element to get the domain for.
-    INTEGER(INTG), INTENT(OUT) :: domain !<On return, the computational domain of the element.
-    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
-    !Local variables
-
-    ENTERS("cmfe_Decomposition_ElementDomainGetObj",err,error,*999)
-
-    CALL DECOMPOSITION_ELEMENT_DOMAIN_GET(decomposition%decomposition,elementUserNumber,domain,err,error,*999)
-
-    EXITS("cmfe_Decomposition_ElementDomainGetObj")
-    RETURN
-999 ERRORSEXITS("cmfe_Decomposition_ElementDomainGetObj",err,error)
-    CALL cmfe_HandleError(err,error)
-    RETURN
-
-  END SUBROUTINE cmfe_Decomposition_ElementDomainGetObj
-
-  !
-  !================================================================================================================================
-  !
-
-  !>Sets/changes the domain for a given element in a decomposition identified by a user number.
-  SUBROUTINE cmfe_Decomposition_ElementDomainSetNumber(regionUserNumber,meshUserNumber,decompositionUserNumber, &
-    & elementUserNumber,domain,err)
-
-    !Argument variables
-    INTEGER(INTG), INTENT(IN) :: regionUserNumber !<The user number of the region containing the mesh to set the element domain for.
-    INTEGER(INTG), INTENT(IN) :: meshUserNumber !<The user number of the mesh to set the element domain for.
-    INTEGER(INTG), INTENT(IN) :: decompositionUserNumber !<The user number of the decomposition to set the element domain for.
-    INTEGER(INTG), INTENT(IN) :: elementUserNumber !<The user number of the element to set the domain for.
-    INTEGER(INTG), INTENT(IN) :: domain !<The computational domain of the element to set.
-    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
-    !Local variables
-    TYPE(DECOMPOSITION_TYPE), POINTER :: DECOMPOSITION
-    TYPE(MESH_TYPE), POINTER :: MESH
-    TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: localError
-
-    ENTERS("cmfe_Decomposition_ElementDomainSetNumber",err,error,*999)
-
-    NULLIFY(REGION)
-    NULLIFY(MESH)
-    NULLIFY(DECOMPOSITION)
-    CALL REGION_USER_NUMBER_FIND(regionUserNumber,REGION,err,error,*999)
-    IF(ASSOCIATED(REGION)) THEN
-      CALL MESH_USER_NUMBER_FIND(meshUserNumber,REGION,MESH,err,error,*999)
-      IF(ASSOCIATED(MESH)) THEN
-        CALL DECOMPOSITION_USER_NUMBER_FIND(decompositionUserNumber,MESH,DECOMPOSITION,err,error,*999)
-        IF(ASSOCIATED(DECOMPOSITION)) THEN
-          CALL DECOMPOSITION_ELEMENT_DOMAIN_SET(DECOMPOSITION,elementUserNumber,domain,err,error,*999)
-        ELSE
-          localError="A decomposition with an user number of "//TRIM(NumberToVString(decompositionUserNumber,"*",err,error))// &
-            & " does not exist on the mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))//"."
-          CALL FlagError(localError,err,error,*999)
-        END IF
-      ELSE
-        localError="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
-          & " does not exist on the region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(localError,err,error,*999)
-      END IF
-    ELSE
-      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
-        & " does not exist."
-      CALL FlagError(localError,err,error,*999)
-    END IF
-
-    EXITS("cmfe_Decomposition_ElementDomainSetNumber")
-    RETURN
-999 ERRORSEXITS("cmfe_Decomposition_ElementDomainSetNumber",err,error)
-    CALL cmfe_HandleError(err,error)
-    RETURN
-
-  END SUBROUTINE cmfe_Decomposition_ElementDomainSetNumber
-
-  !
-  !================================================================================================================================
-  !
-
-  !>Sets/changes the domain for a given element in a decomposition identified by an object.
-  SUBROUTINE cmfe_Decomposition_ElementDomainSetObj(decomposition,elementUserNumber,domain,err)
-
-    !Argument variables
-    TYPE(cmfe_DecompositionType), INTENT(IN) :: decomposition !<The decomposition to set the element domain for.
-    INTEGER(INTG), INTENT(IN) :: elementUserNumber !<The user number of the element to set the domain for.
-    INTEGER(INTG), INTENT(IN) :: domain !<The computational domain of the element to set.
-    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
-    !Local variables
-
-    ENTERS("cmfe_Decomposition_ElementDomainSetObj",err,error,*999)
-
-    CALL DECOMPOSITION_ELEMENT_DOMAIN_SET(decomposition%decomposition,elementUserNumber,domain,err,error,*999)
-
-    EXITS("cmfe_Decomposition_ElementDomainSetObj")
-    RETURN
-999 ERRORSEXITS("cmfe_Decomposition_ElementDomainSetObj",err,error)
-    CALL cmfe_HandleError(err,error)
-    RETURN
-
-  END SUBROUTINE cmfe_Decomposition_ElementDomainSetObj
-
-  !
-  !================================================================================================================================
-  !
-
   !>Returns the mesh component number used for the decomposition of a mesh for a decomposition identified by a user number.
   SUBROUTINE cmfe_Decomposition_MeshComponentGetNumber(regionUserNumber,meshUserNumber,decompositionUserNumber, &
     & meshComponentNumber,err)
@@ -42316,91 +41928,6 @@ CONTAINS
     RETURN
 
   END SUBROUTINE cmfe_Decomposition_CalculateFacesSetObj
-
-  !
-  !================================================================================================================================
-  !
-
-  !>Returns the domain for a given node in a decomposition identified by a user number.
-  SUBROUTINE cmfe_Decomposition_NodeDomainGetNumber(regionUserNumber,meshUserNumber,decompositionUserNumber, &
-    & nodeUserNumber,meshComponentNumber,domain,err)
-
-    !Argument variables
-    INTEGER(INTG), INTENT(IN) :: regionUserNumber !<The user number of the region containing the mesh to get the node domain for.
-    INTEGER(INTG), INTENT(IN) :: meshUserNumber !<The user number of the mesh to get the node domain for.
-    INTEGER(INTG), INTENT(IN) :: decompositionUserNumber !<The user number of the decomposition to get the node domain for.
-    INTEGER(INTG), INTENT(IN) :: nodeUserNumber !<The user number of the node to get the domain for.
-    INTEGER(INTG), INTENT(IN) :: meshComponentNumber !<The user number of the mesh component to get the domain for.
-    INTEGER(INTG), INTENT(OUT) :: domain !<On return, the computational domain of the node.
-    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
-    !Local variables
-    TYPE(DECOMPOSITION_TYPE), POINTER :: DECOMPOSITION
-    TYPE(MESH_TYPE), POINTER :: MESH
-    TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: localError
-
-    ENTERS("cmfe_Decomposition_NodeDomainGetNumber",err,error,*999)
-
-    NULLIFY(REGION)
-    NULLIFY(MESH)
-    NULLIFY(DECOMPOSITION)
-    CALL REGION_USER_NUMBER_FIND(regionUserNumber,REGION,err,error,*999)
-    IF(ASSOCIATED(REGION)) THEN
-      CALL MESH_USER_NUMBER_FIND(meshUserNumber,REGION,MESH,err,error,*999)
-      IF(ASSOCIATED(MESH)) THEN
-        CALL DECOMPOSITION_USER_NUMBER_FIND(decompositionUserNumber,MESH,DECOMPOSITION,err,error,*999)
-        IF(ASSOCIATED(DECOMPOSITION)) THEN
-          CALL DECOMPOSITION_NODE_DOMAIN_GET(DECOMPOSITION,nodeUserNumber,meshComponentNumber,domain,err,error,*999)
-        ELSE
-          localError="A decomposition with an user number of "//TRIM(NumberToVString(decompositionUserNumber,"*",err,error))// &
-            & " does not exist on the mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))//"."
-          CALL FlagError(localError,err,error,*999)
-        END IF
-      ELSE
-        localError="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
-          & " does not exist on the region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(localError,err,error,*999)
-      END IF
-    ELSE
-      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
-        & " does not exist."
-      CALL FlagError(localError,err,error,*999)
-    END IF
-
-    EXITS("cmfe_Decomposition_NodeDomainGetNumber")
-    RETURN
-999 ERRORSEXITS("cmfe_Decomposition_NodeDomainGetNumber",err,error)
-    CALL cmfe_HandleError(err,error)
-    RETURN
-
-  END SUBROUTINE cmfe_Decomposition_NodeDomainGetNumber
-
-  !
-  !================================================================================================================================
-  !
-
-  !>Returns the domain for a given node in a decomposition identified by an object. \todo Maybe swap Node and MeshComponent?
-  SUBROUTINE cmfe_Decomposition_NodeDomainGetObj(decomposition,nodeUserNumber,meshComponentNumber,domain,err)
-
-    !Argument variables
-    TYPE(cmfe_DecompositionType), INTENT(IN) :: decomposition !<The decomposition to get the domain for.
-    INTEGER(INTG), INTENT(IN) :: nodeUserNumber !<The user number of the node to get the domain for.
-    INTEGER(INTG), INTENT(IN) :: meshComponentNumber !<The user number of the mesh component to get the domain for.
-    INTEGER(INTG), INTENT(OUT) :: domain !<On return, the computational domain of the node.
-    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
-    !Local variables
-
-    ENTERS("cmfe_Decomposition_NodeDomainGetObj",err,error,*999)
-
-    CALL DECOMPOSITION_NODE_DOMAIN_GET(decomposition%decomposition,nodeUserNumber,meshComponentNumber,domain,err,error,*999)
-
-    EXITS("cmfe_Decomposition_NodeDomainGetObj")
-    RETURN
-999 ERRORSEXITS("cmfe_Decomposition_NodeDomainGetObj",err,error)
-    CALL cmfe_HandleError(err,error)
-    RETURN
-
-  END SUBROUTINE cmfe_Decomposition_NodeDomainGetObj
 
   !
   !================================================================================================================================
@@ -43543,87 +43070,6 @@ CONTAINS
   !================================================================================================================================
   !
 
-  !>Returns the adjacent element number of a mesh identified by a user number
-  SUBROUTINE cmfe_MeshElements_AdjacentElementGetNumber(regionUserNumber,meshUserNumber,meshComponentNumber,globalElementNumber, &
-    & adjacentElementXi,adjacentElement,err)
-
-    !Argument variables
-    INTEGER(INTG), INTENT(IN) :: regionUserNumber !<The user number of the region containing the mesh from which to get the adjacent element from.
-    INTEGER(INTG), INTENT(IN) :: meshUserNumber !<The user number of the mesh from which to get the adjacent element from.
-    INTEGER(INTG), INTENT(IN) :: meshComponentNumber !<The mesh component number from which to get adjacent element number from.
-    INTEGER(INTG), INTENT(IN) :: globalElementNumber !<The global element number to get the adjacent element number for. !\todo this should be a user number
-    INTEGER(INTG), INTENT(IN) :: adjacentElementXi !<The xi coordinate direction to get the adjacent element for. Note that -xiCoordinateDirection gives the adjacent element before the element in the xiCoordinateDirection'th direction and +xiCoordinateDirection gives the adjacent element after the element in the xiCoordinateDirection'th direction. The xiCoordinateDirection=0 index will give the information on the current element.
-    INTEGER(INTG), INTENT(OUT) :: adjacentElement !<On return, the adjacent element number in the specified xi coordinate direction. Return 0 if the specified element has no adjacent elements in the specified xi coordinate direction.
-    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
-    !Local variables
-    TYPE(MESH_TYPE), POINTER :: MESH
-    TYPE(MeshElementsType), POINTER :: MESH_ELEMENTS
-    TYPE(REGION_TYPE), POINTER :: REGION
-    TYPE(VARYING_STRING) :: localError
-
-    ENTERS("cmfe_MeshElements_AdjacentElementGetNumber",err,error,*999)
-
-    NULLIFY(REGION)
-    NULLIFY(MESH)
-    NULLIFY(MESH_ELEMENTS)
-    CALL REGION_USER_NUMBER_FIND(regionUserNumber,REGION,err,error,*999)
-    IF(ASSOCIATED(REGION)) THEN
-      CALL MESH_USER_NUMBER_FIND(meshUserNumber,REGION,MESH,err,error,*999)
-      IF(ASSOCIATED(MESH)) THEN
-        CALL MESH_TOPOLOGY_ELEMENTS_GET(MESH,meshComponentNumber,MESH_ELEMENTS,err,error,*999)
-        CALL MESH_TOPOLOGY_ELEMENTS_ADJACENT_ELEMENT_GET(globalElementNumber,MESH_ELEMENTS,adjacentElementXi,adjacentElement, &
-          & err,error,*999)
-      ELSE
-        localError="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
-          & " does not exist on the region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(localError,err,error,*999)
-      END IF
-    ELSE
-      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
-        & " does not exist."
-      CALL FlagError(localError,err,error,*999)
-    END IF
-
-    EXITS("cmfe_MeshElements_AdjacentElementGetNumber")
-    RETURN
-999 ERRORSEXITS("cmfe_MeshElements_AdjacentElementGetNumber",err,error)
-    CALL cmfe_HandleError(err,error)
-    RETURN
-
-  END SUBROUTINE cmfe_MeshElements_AdjacentElementGetNumber
-
-  !
-  !================================================================================================================================
-  !
-
-  !>Returns the adjacent element number of a mesh identified by an object.
-  SUBROUTINE cmfe_MeshElements_AdjacentElementGetObj(meshElements,globalElementNumber,adjacentElementXi,adjacentElement,err)
-
-    !Argument variables
-    TYPE(cmfe_MeshElementsType), INTENT(IN) :: meshElements !<The mesh elements from which to get the adjacent element for.
-    INTEGER(INTG), INTENT(IN) :: globalElementNumber !<The global element number to get the adjacent element for !\todo this should be a user number
-    INTEGER(INTG), INTENT(IN) :: adjacentElementXi !<The xi coordinate direction to get the adjacent element for  Note that -xiCoordinateDirection gives the adjacent element before the element in the xiCoordinateDirection'th direction and +xiCoordinateDirection gives the adjacent element after the element in the xiCoordinateDirection'th direction. The xiCoordinateDirection=0 index will give the information on the current element.
-    INTEGER(INTG), INTENT(OUT) :: adjacentElement !<On return, the adjacent element number in the specified xi coordinate direction. Return 0 if the specified element has no adjacent elements in the specified xi coordinate direction.
-    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
-    !Local variables
-
-    ENTERS("cmfe_MeshElements_AdjacentElementGetObj",err,error,*999)
-
-    CALL MESH_TOPOLOGY_ELEMENTS_ADJACENT_ELEMENT_GET(globalElementNumber,meshElements%meshElements,adjacentElementXi, &
-      & adjacentElement,err,error,*999)
-
-    EXITS("cmfe_MeshElements_AdjacentElementGetObj")
-    RETURN
-999 ERRORSEXITS("cmfe_MeshElements_AdjacentElementGetObj",err,error)
-    CALL cmfe_HandleError(err,error)
-    RETURN
-
-  END SUBROUTINE cmfe_MeshElements_AdjacentElementGetObj
-
-  !
-  !================================================================================================================================
-  !
-
   !>Returns the element nodes for an element in a mesh identified by an user number. \todo should the global element number be a user number?
   SUBROUTINE cmfe_MeshElements_NodesGetNumber(regionUserNumber,meshUserNumber,meshComponentNumber,globalElementNumber, &
     & elementUserNodes,err)
@@ -44215,87 +43661,6 @@ CONTAINS
   !================================================================================================================================
   !
 
-
-  !>Checks if the given node exists on the given mesh component.
-  SUBROUTINE cmfe_Mesh_NodeExistsNumber( regionUserNumber, meshUserNumber, meshComponentNumber, nodeUserNumber, nodeExists, err )
-
-    !Argument variables
-    INTEGER(INTG), INTENT(IN) :: regionUserNumber !<The user number of the region containing the mesh to check the node for.
-    INTEGER(INTG), INTENT(IN) :: meshUserNumber !<The user number of the mesh tocheck the node for.
-    INTEGER(INTG), INTENT(IN) :: meshComponentNumber !<The mesh component number to check the node for.
-    INTEGER(INTG), INTENT(IN) :: nodeUserNumber !<The user number of the node to check.
-    LOGICAL, INTENT(OUT) :: nodeExists !<True if the node exists, false otherwise.
-    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
-    !Local variables
-    TYPE(MESH_TYPE), POINTER :: mesh
-    TYPE(REGION_TYPE), POINTER :: region
-    INTEGER(INTG) :: meshNodeNumber
-    TYPE(VARYING_STRING) :: localError
-
-    ENTERS("cmfe_Mesh_NodeExistsNumber",err,error,*999)
-
-    nodeExists = .FALSE.
-
-    NULLIFY( region )
-    NULLIFY( mesh )
-    CALL REGION_USER_NUMBER_FIND( regionUserNumber, Region, err, error, *999 )
-    IF(ASSOCIATED(region)) THEN
-      CALL MESH_USER_NUMBER_FIND( meshUserNumber, Region, Mesh, err, error, *999 )
-      IF( ASSOCIATED( mesh ) ) THEN
-        CALL MeshTopologyNodeCheckExists(Mesh,meshComponentNumber,nodeUserNumber,nodeExists,meshNodeNumber,err,error,*999)
-      ELSE
-        LocalError="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
-          & " does not exist on the region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(LocalError,err,error,*999)
-      END IF
-    ELSE
-      LocalError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
-        & " does not exist."
-      CALL FlagError(LocalError,err,error,*999)
-    END IF
-
-    EXITS("cmfe_Mesh_NodeExistsNumber")
-    RETURN
-999 ERRORSEXITS("cmfe_Mesh_NodeExistsNumber",err,error)
-    CALL cmfe_HandleError(err,error)
-    RETURN
-
-  END SUBROUTINE cmfe_Mesh_NodeExistsNumber
-
-  !
-  !================================================================================================================================
-  !
-
-  !>Checks if the given node exists on the given mesh component.
-  SUBROUTINE cmfe_Mesh_NodeExistsObj( mesh, meshComponentNumber, nodeUserNumber, nodeExists, err )
-
-    !Argument variables
-    TYPE(cmfe_MeshType), INTENT(IN) :: mesh !<The mesh to check the node for.
-    INTEGER(INTG), INTENT(IN) :: meshComponentNumber !<The mesh component number to check the node for.
-    INTEGER(INTG), INTENT(IN) :: nodeUserNumber !<The user number of the node to check.
-    LOGICAL, INTENT(OUT) :: nodeExists !<True if the node exists, false otherwise.
-    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
-    !Local variables
-    INTEGER(INTG) :: meshNodeNumber
-
-    nodeExists = .FALSE.
-
-    ENTERS("cmfe_Mesh_NodeExistsObj",err,error,*999)
-
-    CALL MeshTopologyNodeCheckExists(mesh%mesh,meshComponentNumber,nodeUserNumber,nodeExists,meshNodeNumber,err,error,*999)
-
-    EXITS("cmfe_Mesh_NodeExistsObj")
-    RETURN
-999 ERRORSEXITS("cmfe_Mesh_NodeExistsObj",err,error)
-    CALL cmfe_HandleError(err,error)
-    RETURN
-
-  END SUBROUTINE cmfe_Mesh_NodeExistsObj
-
-  !
-  !================================================================================================================================
-  !
-
   !>Checks if the given element exists on the given mesh component.
   SUBROUTINE cmfe_Mesh_ElementExistsNumber( regionUserNumber, meshUserNumber, meshComponentNumber, &
     & elementUserNumber, elementExists, err )
@@ -44377,385 +43742,6 @@ CONTAINS
 
   END SUBROUTINE cmfe_Mesh_ElementExistsObj
 
-  !
-  !================================================================================================================================
-  !
-
-  !>Returns the mesh nodes for a mesh component on a mesh identified by an user number.
-  SUBROUTINE cmfe_Mesh_NodesGetNumber(regionUserNumber,meshUserNumber,meshComponentNumber,meshNodes,err)
-
-    !Argument variables
-    INTEGER(INTG), INTENT(IN) :: regionUserNumber !<The user number of the region containing the mesh to get the nodes for.
-    INTEGER(INTG), INTENT(IN) :: meshUserNumber !<The user number of the mesh to get the nodes for.
-    INTEGER(INTG), INTENT(IN) :: meshComponentNumber !<The mesh component number to get the nodes for.
-    TYPE(cmfe_MeshNodesType), INTENT(INOUT) :: meshNodes !<On return, the mesh nodes.
-    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
-    !Local variables
-    TYPE(MESH_TYPE), POINTER :: mesh
-    TYPE(REGION_TYPE), POINTER :: region
-    TYPE(VARYING_STRING) :: localError
-
-    ENTERS("cmfe_Mesh_NodesGetNumber",err,error,*999)
-
-    NULLIFY(region)
-    NULLIFY(mesh)
-    CALL REGION_USER_NUMBER_FIND(regionUserNumber,region,err,error,*999)
-    IF(ASSOCIATED(region)) THEN
-      CALL MESH_USER_NUMBER_FIND(meshUserNumber,region,mesh,err,error,*999)
-      IF(ASSOCIATED(mesh)) THEN
-        CALL MeshTopologyNodesGet(mesh,meshComponentNumber,meshNodes%meshNodes,err,error,*999)
-      ELSE
-        localError="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
-          & " does not exist on the region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(localError,err,error,*999)
-      END IF
-    ELSE
-      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
-        & " does not exist."
-      CALL FlagError(localError,err,error,*999)
-    END IF
-
-    EXITS("cmfe_Mesh_NodesGetNumber")
-    RETURN
-999 ERRORSEXITS("cmfe_Mesh_NodesGetNumber",err,error)
-    CALL cmfe_HandleError(err,error)
-    RETURN
-
-  END SUBROUTINE cmfe_Mesh_NodesGetNumber
-
-
-  !
-  !================================================================================================================================
-  !
-
-  !>Returns the mesh nodes for a mesh component on a mesh identified by an object.
-  SUBROUTINE cmfe_Mesh_NodesGetObj(mesh,meshComponentNumber,meshNodes,err)
-
-    !Argument variables
-    TYPE(cmfe_MeshType), INTENT(IN) :: mesh !<The mesh to get the nodes for.
-    INTEGER(INTG), INTENT(IN) :: meshComponentNumber !<The mesh component number to get the nodes for.
-    TYPE(cmfe_MeshNodesType), INTENT(INOUT) :: meshNodes!<On return, the mesh nodes.
-    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
-    !Local variables
-
-    ENTERS("cmfe_Mesh_NodesGetObj",err,error,*999)
-
-    CALL MeshTopologyNodesGet(mesh%mesh,meshComponentNumber,meshNodes%meshNodes,err,error,*999)
-
-    EXITS("cmfe_Mesh_NodesGetObj")
-    RETURN
-999 ERRORSEXITS("cmfe_Mesh_NodesGetObj",err,error)
-    CALL cmfe_HandleError(err,error)
-    RETURN
-
-  END SUBROUTINE cmfe_Mesh_NodesGetObj
-
-  !
-  !================================================================================================================================
-  !
-
-  !>Returns the number of nodes at a node in a mesh identified by an user number. 
-  SUBROUTINE cmfe_MeshNodes_NumberOfNodesGetNumber(regionUserNumber,meshUserNumber,meshComponentNumber,numberOfNodes,err)
-
-    !Argument variables
-    INTEGER(INTG), INTENT(IN) :: regionUserNumber !<The user number of the region containing the mesh to get the number of dervatives for.
-    INTEGER(INTG), INTENT(IN) :: meshUserNumber !<The user number of the mesh to get the number of nodes for.
-    INTEGER(INTG), INTENT(IN) :: meshComponentNumber !<The mesh component number to get the number of nodes for.
-    INTEGER(INTG), INTENT(OUT) :: numberOfNodes !<On return, the number of nodes in the mesh.
-    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
-    !Local variables
-    TYPE(MESH_TYPE), POINTER :: mesh
-    TYPE(MeshNodesType), POINTER :: meshNodes
-    TYPE(REGION_TYPE), POINTER :: region
-    TYPE(VARYING_STRING) :: localError
-
-    ENTERS("cmfe_MeshNodes_NumberOfNodesGetNumber",err,error,*999)
-
-    NULLIFY(region)
-    NULLIFY(mesh)
-    NULLIFY(meshNodes)
-    CALL REGION_USER_NUMBER_FIND(regionUserNumber,region,err,error,*999)
-    IF(ASSOCIATED(region)) THEN
-      CALL MESH_USER_NUMBER_FIND(meshUserNumber,region,mesh,err,error,*999)
-      IF(ASSOCIATED(mesh)) THEN
-        CALL MeshTopologyNodesGet(mesh,meshComponentNumber,meshNodes,err,error,*999)
-        CALL MeshTopologyNodesNumberOfNodesGet(meshNodes,numberOfNodes,err,error,*999)
-      ELSE
-        localError="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
-          & " does not exist on the region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(localError,err,error,*999)
-      END IF
-    ELSE
-      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
-        & " does not exist."
-      CALL FlagError(localError,err,error,*999)
-    END IF
-
-    EXITS("cmfe_MeshNodes_NumberOfNodesGetNumber")
-    RETURN
-999 ERRORSEXITS("cmfe_MeshNodes_NumberOfNodesGetNumber",err,error)
-    CALL cmfe_HandleError(err,error)
-    RETURN
-
-  END SUBROUTINE cmfe_MeshNodes_NumberOfNodesGetNumber
-
-  !
-  !================================================================================================================================
-  !
-
-  !>Returns the number of derivatives for a node in a mesh identified by an object.
-  SUBROUTINE cmfe_MeshNodes_NumberOfNodesGetObj(meshNodes,numberOfNodes,err)
-
-    !Argument variables
-    TYPE(cmfe_MeshNodesType), INTENT(IN) :: meshNodes!<The mesh nodes to get the number of derivatives at a node for.
-    INTEGER(INTG), INTENT(OUT) :: numberOfNodes!<On return, the number of nodes in a mesh.
-    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
-    !Local variables
-
-    ENTERS("cmfe_MeshNodes_NumberOfNodesGetObj",err,error,*999)
-
-    CALL MeshTopologyNodesNumberOfNodesGet(meshNodes%meshNodes,numberOfNodes,err,error,*999)
-
-    EXITS("cmfe_MeshNodes_NumberOfNodesGetObj")
-    RETURN
-999 ERRORSEXITS("cmfe_MeshNodes_NumberOfNodesGetObj",err,error)
-    CALL cmfe_HandleError(err,error)
-    RETURN
-    
-  END SUBROUTINE cmfe_MeshNodes_NumberOfNodesGetObj
-
-  !
-  !================================================================================================================================
-  !
-  !>Returns the number of derivatives at a node in a mesh identified by an user number. 
-  SUBROUTINE cmfe_MeshNodes_NumberOfDerivativesGetNumber(regionUserNumber,meshUserNumber,meshComponentNumber,userNodeNumber, &
-    & numberOfDerivatives,err)
-
-    !Argument variables
-    INTEGER(INTG), INTENT(IN) :: regionUserNumber !<The user number of the region containing the mesh to get the number of dervatives for.
-    INTEGER(INTG), INTENT(IN) :: meshUserNumber !<The user number of the mesh to get the number of derivatives for.
-    INTEGER(INTG), INTENT(IN) :: meshComponentNumber !<The mesh component number to get the number of derivatives for.
-    INTEGER(INTG), INTENT(IN) :: userNodeNumber !<The user node number to get the number of derivatives for.
-    INTEGER(INTG), INTENT(OUT) :: numberOfDerivatives !<On return, the number of derivatives in the mesh for the user node number.
-    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
-    !Local variables
-    TYPE(MESH_TYPE), POINTER :: mesh
-    TYPE(MeshNodesType), POINTER :: meshNodes
-    TYPE(REGION_TYPE), POINTER :: region
-    TYPE(VARYING_STRING) :: localError
-
-    ENTERS("cmfe_MeshNodes_NumberOfDerivativesGetNumber",err,error,*999)
-
-    NULLIFY(region)
-    NULLIFY(mesh)
-    NULLIFY(meshNodes)
-    CALL REGION_USER_NUMBER_FIND(regionUserNumber,region,err,error,*999)
-    IF(ASSOCIATED(region)) THEN
-      CALL MESH_USER_NUMBER_FIND(meshUserNumber,region,mesh,err,error,*999)
-      IF(ASSOCIATED(mesh)) THEN
-        CALL MeshTopologyNodesGet(mesh,meshComponentNumber,meshNodes,err,error,*999)
-        CALL MeshTopologyNodeNumberOfDerivativesGet(meshNodes,userNodeNumber,numberOfDerivatives,err,error,*999)
-      ELSE
-        localError="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
-          & " does not exist on the region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(localError,err,error,*999)
-      END IF
-    ELSE
-      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
-        & " does not exist."
-      CALL FlagError(localError,err,error,*999)
-    END IF
-
-    EXITS("cmfe_MeshNodes_NumberOfDerivativesGetNumber")
-    RETURN
-999 ERRORSEXITS("cmfe_MeshNodes_NumberOfDerivativesGetNumber",err,error)
-    CALL cmfe_HandleError(err,error)
-    RETURN
-
-  END SUBROUTINE cmfe_MeshNodes_NumberOfDerivativesGetNumber
-
-  !
-  !================================================================================================================================
-  !
-
-  !>Returns the number of derivatives for a node in a mesh identified by an object.
-  SUBROUTINE cmfe_MeshNodes_NumberOfDerivativesGetObj(meshNodes,userNodeNumber,numberOfDerivatives,err)
-
-    !Argument variables
-    TYPE(cmfe_MeshNodesType), INTENT(IN) :: meshNodes!<The mesh nodes to get the number of derivatives at a node for.
-    INTEGER(INTG), INTENT(IN) :: userNodeNumber !<The user node number to get the number of derivatives at a node for.
-    INTEGER(INTG), INTENT(OUT) :: numberOfDerivatives!<On return, the number of derivatives at a node in a mesh.
-    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
-    !Local variables
-
-    ENTERS("cmfe_MeshNodes_NumberOfDerivativesGetObj",err,error,*999)
-
-    CALL MeshTopologyNodeNumberOfDerivativesGet(meshNodes%meshNodes,userNodeNumber,numberOfDerivatives,err,error,*999)
-
-    EXITS("cmfe_MeshNodes_NumberOfDerivativesGetObj")
-    RETURN
-999 ERRORSEXITS("cmfe_MeshNodes_NumberOfDerivativesGetObj",err,error)
-    CALL cmfe_HandleError(err,error)
-    RETURN
-
-  END SUBROUTINE cmfe_MeshNodes_NumberOfDerivativesGetObj
-
-  !
-  !================================================================================================================================
-  !
-
-  !>Returns the derivatives at a node in a mesh identified by an user number. 
-  SUBROUTINE cmfe_MeshNodes_DerivativesGetNumber(regionUserNumber,meshUserNumber,meshComponentNumber,userNodeNumber, &
-    & derivatives,err)
-
-    !Argument variables
-    INTEGER(INTG), INTENT(IN) :: regionUserNumber !<The user number of the region containing the mesh to get the derivatives for.
-    INTEGER(INTG), INTENT(IN) :: meshUserNumber !<The user number of the mesh to get the derivatives for.
-    INTEGER(INTG), INTENT(IN) :: meshComponentNumber !<The mesh component number to get the derivatives for.
-    INTEGER(INTG), INTENT(IN) :: userNodeNumber !<The user node number to get the derivatives for.
-    INTEGER(INTG), INTENT(OUT) :: derivatives(:) !<On return, the derivatives in the mesh for the user node number.
-    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
-    !Local variables
-    TYPE(MESH_TYPE), POINTER :: mesh
-    TYPE(MeshNodesType), POINTER :: meshNodes
-    TYPE(REGION_TYPE), POINTER :: region
-    TYPE(VARYING_STRING) :: localError
-
-    ENTERS("cmfe_MeshNodes_DerivativesGetNumber",err,error,*999)
-
-    NULLIFY(region)
-    NULLIFY(mesh)
-    NULLIFY(meshNodes)
-    CALL REGION_USER_NUMBER_FIND(regionUserNumber,region,err,error,*999)
-    IF(ASSOCIATED(region)) THEN
-      CALL MESH_USER_NUMBER_FIND(meshUserNumber,region,mesh,err,error,*999)
-      IF(ASSOCIATED(mesh)) THEN
-        CALL MeshTopologyNodesGet(mesh,meshComponentNumber,meshNodes,err,error,*999)
-        CALL MeshTopologyNodeDerivativesGet(meshNodes,userNodeNumber,derivatives,err,error,*999)
-      ELSE
-        localError="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
-          & " does not exist on the region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(localError,err,error,*999)
-      END IF
-    ELSE
-      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
-        & " does not exist."
-      CALL FlagError(localError,err,error,*999)
-    END IF
-
-    EXITS("cmfe_MeshNodes_DerivativesGetNumber")
-    RETURN
-999 ERRORSEXITS("cmfe_MeshNodes_DerivativesGetNumber",err,error)
-    CALL cmfe_HandleError(err,error)
-    RETURN
-
-  END SUBROUTINE cmfe_MeshNodes_DerivativesGetNumber
-
-  !
-  !================================================================================================================================
-  !
-
-  !>Returns the derivatives for a node in a mesh identified by an object.
-  SUBROUTINE cmfe_MeshNodes_DerivativesGetObj(meshNodes,userNodeNumber,derivatives,err)
-
-    !Argument variables
-    TYPE(cmfe_MeshNodesType), INTENT(IN) :: meshNodes!<The mesh nodes to get the derivatives at a node for.
-    INTEGER(INTG), INTENT(IN) :: userNodeNumber !<The user node number to get the derivatives at a node for.
-    INTEGER(INTG), INTENT(OUT) :: derivatives(:) !<On return, the derivatives at a node in a mesh.
-    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
-    !Local variables
-
-    ENTERS("cmfe_MeshNodes_DerivativesGetObj",err,error,*999)
-
-    CALL MeshTopologyNodeDerivativesGet(meshNodes%meshNodes,userNodeNumber,derivatives,err,error,*999)
-
-    EXITS("cmfe_MeshNodes_DerivativesGetObj")
-    RETURN
-999 ERRORSEXITS("cmfe_MeshNodes_DerivativesGetObj",err,error)
-    CALL cmfe_HandleError(err,error)
-    RETURN
-
-  END SUBROUTINE cmfe_MeshNodes_DerivativesGetObj
-
-  !
-  !================================================================================================================================
-  !
-
-  !>Returns the number of version at a derivative for a node in a mesh identified by an user number. 
-  SUBROUTINE cmfe_MeshNodes_NumberOfVersionsGetNumber(regionUserNumber,meshUserNumber,meshComponentNumber,derivativeNumber, &
-    & userNodeNumber,numberOfVersions,err)
-
-    !Argument variables
-    INTEGER(INTG), INTENT(IN) :: regionUserNumber !<The user number of the region containing the mesh to get the number of versions.
-    INTEGER(INTG), INTENT(IN) :: meshUserNumber !<The user number of the mesh to get the number of versions for.
-    INTEGER(INTG), INTENT(IN) :: meshComponentNumber !<The mesh component number to get the number of versions for.
-    INTEGER(INTG), INTENT(IN) :: derivativeNumber !<The derivative number of the node to get the number of versions for.
-    INTEGER(INTG), INTENT(IN) :: userNodeNumber !<The user node number to get the number of versions for.
-    INTEGER(INTG), INTENT(OUT) :: numberOfVersions !<On return, the number of versions in the mesh for the derivative index of the user node number.
-    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
-    !Local variables
-    TYPE(MESH_TYPE), POINTER :: mesh
-    TYPE(MeshNodesType), POINTER :: meshNodes
-    TYPE(REGION_TYPE), POINTER :: region
-    TYPE(VARYING_STRING) :: localError
-
-    ENTERS("cmfe_MeshNodes_NumberOfVersionsGetNumber",err,error,*999)
-
-    NULLIFY(region)
-    NULLIFY(mesh)
-    NULLIFY(meshNodes)
-    CALL REGION_USER_NUMBER_FIND(regionUserNumber,region,err,error,*999)
-    IF(ASSOCIATED(region)) THEN
-      CALL MESH_USER_NUMBER_FIND(meshUserNumber,region,mesh,err,error,*999)
-      IF(ASSOCIATED(mesh)) THEN
-        CALL MeshTopologyNodesGet(mesh,meshComponentNumber,meshNodes,err,error,*999)
-        CALL MeshTopologyNodeNumberOfVersionsGet(meshnodes,derivativeNumber,userNodeNumber,numberOfVersions,err,error,*999)
-      ELSE
-        localError="A mesh with an user number of "//TRIM(NumberToVString(meshUserNumber,"*",err,error))// &
-          & " does not exist on the region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))//"."
-        CALL FlagError(localError,err,error,*999)
-      END IF
-    ELSE
-      localError="A region with an user number of "//TRIM(NumberToVString(regionUserNumber,"*",err,error))// &
-        & " does not exist."
-      CALL FlagError(localError,err,error,*999)
-    END IF
-
-    EXITS("cmfe_MeshNodes_NumberOfVersionsGetNumber")
-    RETURN
-999 ERRORSEXITS("cmfe_MeshNodes_NumberOfVersionsGetNumber",err,error)
-    CALL cmfe_HandleError(err,error)
-    RETURN
-
-  END SUBROUTINE cmfe_MeshNodes_NumberOfVersionsGetNumber
-
-  !
-  !================================================================================================================================
-  !
-
-  !>Returns the number of versions for an node in a mesh identified by an object.
-  SUBROUTINE cmfe_MeshNodes_NumberOfVersionsGetObj(meshNodes,derivativeNumber,userNodeNumber,numberOfVersions,err)
-
-    !Argument variables
-    TYPE(cmfe_MeshNodesType), INTENT(IN) :: meshNodes !<The mesh nodes to get the number of versions at a node for.
-    INTEGER(INTG), INTENT(IN) :: derivativeNumber !<The derivative number of a node to get the number of versions for.
-    INTEGER(INTG), INTENT(IN) :: userNodeNumber !<The user node number to get the number of versions at a node for.
-    INTEGER(INTG), INTENT(OUT) :: numberOfVersions !<On return, the number of derivatives at the specified node and derivative in a mesh.
-    INTEGER(INTG), INTENT(OUT) :: err !<The error code.
-    !Local variables
-
-    ENTERS("cmfe_MeshNodes_NumberOfVersionsGetObj",err,error,*999)
-
-    CALL MeshTopologyNodeNumberOfVersionsGet(meshNodes%meshNodes,derivativeNumber,userNodeNumber, &
-      & numberOfVersions,err,error,*999)
-
-    EXITS("cmfe_MeshNodes_NumberOfVersionsGetObj")
-    RETURN
-999 ERRORSEXITS("cmfe_MeshNodes_NumberOfVersionsGetObj",err,error)
-    CALL cmfe_HandleError(err,error)
-    RETURN
-
-  END SUBROUTINE cmfe_MeshNodes_NumberOfVersionsGetObj
 
 !!==================================================================================================================================
 !!

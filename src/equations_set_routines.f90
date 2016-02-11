@@ -1146,10 +1146,9 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
     !Local Variables
-    INTEGER(INTG) :: element_idx,ne,NUMBER_OF_TIMES
+    INTEGER(INTG) :: element_idx
     REAL(SP) :: ELEMENT_USER_ELAPSED,ELEMENT_SYSTEM_ELAPSED,USER_ELAPSED,USER_TIME1(1),USER_TIME2(1),USER_TIME3(1),USER_TIME4(1), &
-      & USER_TIME5(1),USER_TIME6(1),SYSTEM_ELAPSED,SYSTEM_TIME1(1),SYSTEM_TIME2(1),SYSTEM_TIME3(1),SYSTEM_TIME4(1), &
-      & SYSTEM_TIME5(1),SYSTEM_TIME6(1)
+      & SYSTEM_ELAPSED,SYSTEM_TIME1(1),SYSTEM_TIME2(1),SYSTEM_TIME3(1),SYSTEM_TIME4(1)
     TYPE(DOMAIN_MAPPING_TYPE), POINTER :: ELEMENTS_MAPPING
     TYPE(EQUATIONS_TYPE), POINTER :: EQUATIONS
     TYPE(EQUATIONS_MATRICES_TYPE), POINTER :: EQUATIONS_MATRICES
@@ -1189,13 +1188,10 @@ CONTAINS
               ELEMENT_USER_ELAPSED=0.0_SP
               ELEMENT_SYSTEM_ELAPSED=0.0_SP
             ENDIF
-            NUMBER_OF_TIMES=0
-            !Loop over the internal elements
-            DO element_idx=ELEMENTS_MAPPING%INTERNAL_START,ELEMENTS_MAPPING%INTERNAL_FINISH
-              ne=ELEMENTS_MAPPING%DOMAIN_LIST(element_idx)
-              NUMBER_OF_TIMES=NUMBER_OF_TIMES+1
-              CALL EQUATIONS_MATRICES_ELEMENT_CALCULATE(EQUATIONS_MATRICES,ne,ERR,ERROR,*999)
-              CALL EQUATIONS_SET_FINITE_ELEMENT_CALCULATE(EQUATIONS_SET,ne,ERR,ERROR,*999)
+            !Loop over the local+ghost elements
+            DO element_idx=1,ELEMENTS_MAPPING%TOTAL_NUMBER_OF_LOCAL
+              CALL EQUATIONS_MATRICES_ELEMENT_CALCULATE(EQUATIONS_MATRICES,element_idx,ERR,ERROR,*999)
+              CALL EQUATIONS_SET_FINITE_ELEMENT_CALCULATE(EQUATIONS_SET,element_idx,ERR,ERROR,*999)
               CALL EQUATIONS_MATRICES_ELEMENT_ADD(EQUATIONS_MATRICES,ERR,ERROR,*999)
             ENDDO !element_idx
             !Output timing information if required
@@ -1207,48 +1203,14 @@ CONTAINS
               ELEMENT_USER_ELAPSED=USER_ELAPSED
               ELEMENT_SYSTEM_ELAPSED=SYSTEM_ELAPSED
               CALL WRITE_STRING(GENERAL_OUTPUT_TYPE,"",ERR,ERROR,*999)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for internal equations assembly = ",USER_ELAPSED, &
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for equations assembly = ",USER_ELAPSED, &
                 & ERR,ERROR,*999)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for internal equations assembly = ",SYSTEM_ELAPSED, &
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for equations assembly = ",SYSTEM_ELAPSED, &
                 & ERR,ERROR,*999)
-             ENDIF
-            !Output timing information if required
-            IF(EQUATIONS%OUTPUT_TYPE>=EQUATIONS_TIMING_OUTPUT) THEN
-              CALL CPU_TIMER(USER_CPU,USER_TIME4,ERR,ERROR,*999)
-              CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME4,ERR,ERROR,*999)
-              USER_ELAPSED=USER_TIME4(1)-USER_TIME3(1)
-              SYSTEM_ELAPSED=SYSTEM_TIME4(1)-SYSTEM_TIME3(1)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for parameter transfer completion = ",USER_ELAPSED, &
-                & ERR,ERROR,*999)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for parameter transfer completion = ",SYSTEM_ELAPSED, &
-                & ERR,ERROR,*999)
-            ENDIF
-            !Loop over the boundary and ghost elements
-            DO element_idx=ELEMENTS_MAPPING%BOUNDARY_START,ELEMENTS_MAPPING%GHOST_FINISH
-              ne=ELEMENTS_MAPPING%DOMAIN_LIST(element_idx)
-              NUMBER_OF_TIMES=NUMBER_OF_TIMES+1
-              CALL EQUATIONS_MATRICES_ELEMENT_CALCULATE(EQUATIONS_MATRICES,ne,ERR,ERROR,*999)
-              CALL EQUATIONS_SET_FINITE_ELEMENT_CALCULATE(EQUATIONS_SET,ne,ERR,ERROR,*999)
-              CALL EQUATIONS_MATRICES_ELEMENT_ADD(EQUATIONS_MATRICES,ERR,ERROR,*999)
-            ENDDO !element_idx
-            !Output timing information if required
-            IF(EQUATIONS%OUTPUT_TYPE>=EQUATIONS_TIMING_OUTPUT) THEN
-              CALL CPU_TIMER(USER_CPU,USER_TIME5,ERR,ERROR,*999)
-              CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME5,ERR,ERROR,*999)
-              USER_ELAPSED=USER_TIME5(1)-USER_TIME4(1)
-              SYSTEM_ELAPSED=SYSTEM_TIME5(1)-SYSTEM_TIME4(1)
-              ELEMENT_USER_ELAPSED=ELEMENT_USER_ELAPSED+USER_ELAPSED
-              ELEMENT_SYSTEM_ELAPSED=ELEMENT_SYSTEM_ELAPSED+USER_ELAPSED
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for boundary+ghost equations assembly = ",USER_ELAPSED, &
-                & ERR,ERROR,*999)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for boundary+ghost equations assembly = ",SYSTEM_ELAPSED, &
-                & ERR,ERROR,*999)
-              IF(NUMBER_OF_TIMES>0) THEN
-                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average element user time for equations assembly = ", &
-                  & ELEMENT_USER_ELAPSED/NUMBER_OF_TIMES,ERR,ERROR,*999)
-                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average element system time for equations assembly = ", &
-                  & ELEMENT_SYSTEM_ELAPSED/NUMBER_OF_TIMES,ERR,ERROR,*999)
-              ENDIF
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average element user time for equations assembly = ", &
+                & ELEMENT_USER_ELAPSED/ELEMENTS_MAPPING%TOTAL_NUMBER_OF_LOCAL,ERR,ERROR,*999)
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average element system time for equations assembly = ", &
+                & ELEMENT_SYSTEM_ELAPSED/ELEMENTS_MAPPING%TOTAL_NUMBER_OF_LOCAL,ERR,ERROR,*999)
             ENDIF
             !Finalise the element matrices
             CALL EQUATIONS_MATRICES_ELEMENT_FINALISE(EQUATIONS_MATRICES,ERR,ERROR,*999)
@@ -1258,10 +1220,10 @@ CONTAINS
             ENDIF
             !Output timing information if required
             IF(EQUATIONS%OUTPUT_TYPE>=EQUATIONS_TIMING_OUTPUT) THEN
-              CALL CPU_TIMER(USER_CPU,USER_TIME6,ERR,ERROR,*999)
-              CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME6,ERR,ERROR,*999)
-              USER_ELAPSED=USER_TIME6(1)-USER_TIME1(1)
-              SYSTEM_ELAPSED=SYSTEM_TIME6(1)-SYSTEM_TIME1(1)
+              CALL CPU_TIMER(USER_CPU,USER_TIME4,ERR,ERROR,*999)
+              CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME4,ERR,ERROR,*999)
+              USER_ELAPSED=USER_TIME4(1)-USER_TIME1(1)
+              SYSTEM_ELAPSED=SYSTEM_TIME4(1)-SYSTEM_TIME1(1)
               CALL WRITE_STRING(GENERAL_OUTPUT_TYPE,"",ERR,ERROR,*999)
               CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Total user time for equations assembly = ",USER_ELAPSED, &
                 & ERR,ERROR,*999)
@@ -1299,10 +1261,9 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
     !Local Variables
-    INTEGER(INTG) :: element_idx,ne,NUMBER_OF_TIMES
+    INTEGER(INTG) :: element_idx
     REAL(SP) :: ELEMENT_USER_ELAPSED,ELEMENT_SYSTEM_ELAPSED,USER_ELAPSED,USER_TIME1(1),USER_TIME2(1),USER_TIME3(1),USER_TIME4(1), &
-      & USER_TIME5(1),USER_TIME6(1),SYSTEM_ELAPSED,SYSTEM_TIME1(1),SYSTEM_TIME2(1),SYSTEM_TIME3(1),SYSTEM_TIME4(1), &
-      & SYSTEM_TIME5(1),SYSTEM_TIME6(1)
+      & SYSTEM_ELAPSED,SYSTEM_TIME1(1),SYSTEM_TIME2(1),SYSTEM_TIME3(1),SYSTEM_TIME4(1)
     TYPE(DOMAIN_MAPPING_TYPE), POINTER :: ELEMENTS_MAPPING
     TYPE(EQUATIONS_TYPE), POINTER :: EQUATIONS
     TYPE(EQUATIONS_MATRICES_TYPE), POINTER :: EQUATIONS_MATRICES
@@ -1359,31 +1320,27 @@ CONTAINS
               ELEMENT_USER_ELAPSED=0.0_SP
               ELEMENT_SYSTEM_ELAPSED=0.0_SP
             ENDIF
-            NUMBER_OF_TIMES=0
-            !Loop over the internal elements
+            !Loop over the local+ghost elements
 
 #ifdef TAUPROF
-            CALL TAU_STATIC_PHASE_START("Internal Elements Loop")
+            CALL TAU_STATIC_PHASE_START("Local+ghost elements Loop")
 #endif
-            DO element_idx=ELEMENTS_MAPPING%INTERNAL_START,ELEMENTS_MAPPING%INTERNAL_FINISH
+            DO element_idx=1,ELEMENTS_MAPPING%TOTAL_NUMBER_OF_LOCAL
 !#ifdef TAUPROF
 !              WRITE (CVAR,'(a23,i3)') 'Internal Elements Loop ',element_idx
 !              CALL TAU_PHASE_CREATE_DYNAMIC(PHASE,CVAR)
 !              CALL TAU_PHASE_START(PHASE)
 !#endif
-              ne=ELEMENTS_MAPPING%DOMAIN_LIST(element_idx)
-              NUMBER_OF_TIMES=NUMBER_OF_TIMES+1
-              CALL EQUATIONS_MATRICES_ELEMENT_CALCULATE(EQUATIONS_MATRICES,ne,ERR,ERROR,*999)
-              CALL EQUATIONS_SET_FINITE_ELEMENT_CALCULATE(EQUATIONS_SET,ne,ERR,ERROR,*999)
+              CALL EQUATIONS_MATRICES_ELEMENT_CALCULATE(EQUATIONS_MATRICES,element_idx,ERR,ERROR,*999)
+              CALL EQUATIONS_SET_FINITE_ELEMENT_CALCULATE(EQUATIONS_SET,element_idx,ERR,ERROR,*999)
               CALL EQUATIONS_MATRICES_ELEMENT_ADD(EQUATIONS_MATRICES,ERR,ERROR,*999)
 !#ifdef TAUPROF
 !              CALL TAU_PHASE_STOP(PHASE)
 !#endif
             ENDDO !element_idx
 #ifdef TAUPROF
-            CALL TAU_STATIC_PHASE_STOP("Internal Elements Loop")
+            CALL TAU_STATIC_PHASE_STOP("Local+ghost Elements Loop")
 #endif
-
             !Output timing information if required
             IF(EQUATIONS%OUTPUT_TYPE>=EQUATIONS_TIMING_OUTPUT) THEN
               CALL CPU_TIMER(USER_CPU,USER_TIME3,ERR,ERROR,*999)
@@ -1393,56 +1350,15 @@ CONTAINS
               ELEMENT_USER_ELAPSED=USER_ELAPSED
               ELEMENT_SYSTEM_ELAPSED=SYSTEM_ELAPSED
               CALL WRITE_STRING(GENERAL_OUTPUT_TYPE,"",ERR,ERROR,*999)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for internal equations assembly = ",USER_ELAPSED, &
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for equations assembly = ",USER_ELAPSED, &
                 & ERR,ERROR,*999)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for internal equations assembly = ",SYSTEM_ELAPSED, &
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for equations assembly = ",SYSTEM_ELAPSED, &
                 & ERR,ERROR,*999)
-             ENDIF
-            !Output timing information if required
-            IF(EQUATIONS%OUTPUT_TYPE>=EQUATIONS_TIMING_OUTPUT) THEN
-              CALL CPU_TIMER(USER_CPU,USER_TIME4,ERR,ERROR,*999)
-              CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME4,ERR,ERROR,*999)
-              USER_ELAPSED=USER_TIME4(1)-USER_TIME3(1)
-              SYSTEM_ELAPSED=SYSTEM_TIME4(1)-SYSTEM_TIME3(1)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for parameter transfer completion = ",USER_ELAPSED, &
-                & ERR,ERROR,*999)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for parameter transfer completion = ",SYSTEM_ELAPSED, &
-                & ERR,ERROR,*999)
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average element user time for equations assembly = ", &
+                & ELEMENT_USER_ELAPSED/ELEMENTS_MAPPING%TOTAL_NUMBER_OF_LOCAL,ERR,ERROR,*999)
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average element system time for equations assembly = ", &
+                & ELEMENT_SYSTEM_ELAPSED/ELEMENTS_MAPPING%TOTAL_NUMBER_OF_LOCAL,ERR,ERROR,*999)
             ENDIF
-            !Loop over the boundary and ghost elements
-#ifdef TAUPROF
-            CALL TAU_STATIC_PHASE_START("Boundary and Ghost Elements Loop")
-#endif
-            DO element_idx=ELEMENTS_MAPPING%BOUNDARY_START,ELEMENTS_MAPPING%GHOST_FINISH
-              ne=ELEMENTS_MAPPING%DOMAIN_LIST(element_idx)
-              NUMBER_OF_TIMES=NUMBER_OF_TIMES+1
-              CALL EQUATIONS_MATRICES_ELEMENT_CALCULATE(EQUATIONS_MATRICES,ne,ERR,ERROR,*999)
-              CALL EQUATIONS_SET_FINITE_ELEMENT_CALCULATE(EQUATIONS_SET,ne,ERR,ERROR,*999)
-              CALL EQUATIONS_MATRICES_ELEMENT_ADD(EQUATIONS_MATRICES,ERR,ERROR,*999)
-            ENDDO !element_idx
-#ifdef TAUPROF
-            CALL TAU_STATIC_PHASE_STOP("Boundary and Ghost Elements Loop")
-#endif
-            !Output timing information if required
-            IF(EQUATIONS%OUTPUT_TYPE>=EQUATIONS_TIMING_OUTPUT) THEN
-              CALL CPU_TIMER(USER_CPU,USER_TIME5,ERR,ERROR,*999)
-              CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME5,ERR,ERROR,*999)
-              USER_ELAPSED=USER_TIME5(1)-USER_TIME4(1)
-              SYSTEM_ELAPSED=SYSTEM_TIME5(1)-SYSTEM_TIME4(1)
-              ELEMENT_USER_ELAPSED=ELEMENT_USER_ELAPSED+USER_ELAPSED
-              ELEMENT_SYSTEM_ELAPSED=ELEMENT_SYSTEM_ELAPSED+USER_ELAPSED
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for boundary+ghost equations assembly = ",USER_ELAPSED, &
-                & ERR,ERROR,*999)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for boundary+ghost equations assembly = ",SYSTEM_ELAPSED, &
-                & ERR,ERROR,*999)
-              IF(NUMBER_OF_TIMES>0) THEN
-                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average element user time for equations assembly = ", &
-                  & ELEMENT_USER_ELAPSED/NUMBER_OF_TIMES,ERR,ERROR,*999)
-                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average element system time for equations assembly = ", &
-                  & ELEMENT_SYSTEM_ELAPSED/NUMBER_OF_TIMES,ERR,ERROR,*999)
-              ENDIF
-            ENDIF
-            !Finalise the element matrices
 #ifdef TAUPROF
             CALL TAU_STATIC_PHASE_START("EQUATIONS_MATRICES_ELEMENT_FINALISE()")
 #endif
@@ -1456,10 +1372,10 @@ CONTAINS
             ENDIF
             !Output timing information if required
             IF(EQUATIONS%OUTPUT_TYPE>=EQUATIONS_TIMING_OUTPUT) THEN
-              CALL CPU_TIMER(USER_CPU,USER_TIME6,ERR,ERROR,*999)
-              CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME6,ERR,ERROR,*999)
-              USER_ELAPSED=USER_TIME6(1)-USER_TIME1(1)
-              SYSTEM_ELAPSED=SYSTEM_TIME6(1)-SYSTEM_TIME1(1)
+              CALL CPU_TIMER(USER_CPU,USER_TIME4,ERR,ERROR,*999)
+              CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME4,ERR,ERROR,*999)
+              USER_ELAPSED=USER_TIME4(1)-USER_TIME1(1)
+              SYSTEM_ELAPSED=SYSTEM_TIME4(1)-SYSTEM_TIME1(1)
               CALL WRITE_STRING(GENERAL_OUTPUT_TYPE,"",ERR,ERROR,*999)
               CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Total user time for equations assembly = ",USER_ELAPSED, &
                 & ERR,ERROR,*999)
@@ -1497,10 +1413,9 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
     !Local Variables
-    INTEGER(INTG) :: element_idx,ne,NUMBER_OF_TIMES
+    INTEGER(INTG) :: element_idx
     REAL(SP) :: ELEMENT_USER_ELAPSED,ELEMENT_SYSTEM_ELAPSED,USER_ELAPSED,USER_TIME1(1),USER_TIME2(1),USER_TIME3(1),USER_TIME4(1), &
-      & USER_TIME5(1),USER_TIME6(1),SYSTEM_ELAPSED,SYSTEM_TIME1(1),SYSTEM_TIME2(1),SYSTEM_TIME3(1),SYSTEM_TIME4(1), &
-      & SYSTEM_TIME5(1),SYSTEM_TIME6(1)
+      & SYSTEM_ELAPSED,SYSTEM_TIME1(1),SYSTEM_TIME2(1),SYSTEM_TIME3(1),SYSTEM_TIME4(1)
     TYPE(DOMAIN_MAPPING_TYPE), POINTER :: ELEMENTS_MAPPING
     TYPE(EQUATIONS_TYPE), POINTER :: EQUATIONS
     TYPE(EQUATIONS_MATRICES_TYPE), POINTER :: EQUATIONS_MATRICES
@@ -1539,13 +1454,10 @@ CONTAINS
               ELEMENT_USER_ELAPSED=0.0_SP
               ELEMENT_SYSTEM_ELAPSED=0.0_SP
             ENDIF
-            NUMBER_OF_TIMES=0
-            !Loop over the internal elements
-            DO element_idx=ELEMENTS_MAPPING%INTERNAL_START,ELEMENTS_MAPPING%INTERNAL_FINISH
-              ne=ELEMENTS_MAPPING%DOMAIN_LIST(element_idx)
-              NUMBER_OF_TIMES=NUMBER_OF_TIMES+1
-              CALL EQUATIONS_MATRICES_ELEMENT_CALCULATE(EQUATIONS_MATRICES,ne,ERR,ERROR,*999)
-              CALL EquationsSet_FiniteElementResidualEvaluate(EQUATIONS_SET,ne,ERR,ERROR,*999)
+            !Loop over the local+ghost elements
+            DO element_idx=1,ELEMENTS_MAPPING%TOTAL_NUMBER_OF_LOCAL
+              CALL EQUATIONS_MATRICES_ELEMENT_CALCULATE(EQUATIONS_MATRICES,element_idx,ERR,ERROR,*999)
+              CALL EquationsSet_FiniteElementResidualEvaluate(EQUATIONS_SET,element_idx,ERR,ERROR,*999)
               CALL EQUATIONS_MATRICES_ELEMENT_ADD(EQUATIONS_MATRICES,ERR,ERROR,*999)
             ENDDO !element_idx
             !Output timing information if required
@@ -1557,48 +1469,14 @@ CONTAINS
               ELEMENT_USER_ELAPSED=USER_ELAPSED
               ELEMENT_SYSTEM_ELAPSED=SYSTEM_ELAPSED
               CALL WRITE_STRING(GENERAL_OUTPUT_TYPE,"",ERR,ERROR,*999)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for internal equations assembly = ",USER_ELAPSED, &
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for equations assembly = ",USER_ELAPSED, &
                 & ERR,ERROR,*999)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for internal equations assembly = ",SYSTEM_ELAPSED, &
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for equations assembly = ",SYSTEM_ELAPSED, &
                 & ERR,ERROR,*999)
-            ENDIF
-            !Output timing information if required
-            IF(EQUATIONS%OUTPUT_TYPE>=EQUATIONS_TIMING_OUTPUT) THEN
-              CALL CPU_TIMER(USER_CPU,USER_TIME4,ERR,ERROR,*999)
-              CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME4,ERR,ERROR,*999)
-              USER_ELAPSED=USER_TIME4(1)-USER_TIME3(1)
-              SYSTEM_ELAPSED=SYSTEM_TIME4(1)-SYSTEM_TIME3(1)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for parameter transfer completion = ",USER_ELAPSED, &
-                & ERR,ERROR,*999)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for parameter transfer completion = ",SYSTEM_ELAPSED, &
-                & ERR,ERROR,*999)
-            ENDIF
-            !Loop over the boundary and ghost elements
-            DO element_idx=ELEMENTS_MAPPING%BOUNDARY_START,ELEMENTS_MAPPING%GHOST_FINISH
-              ne=ELEMENTS_MAPPING%DOMAIN_LIST(element_idx)
-              NUMBER_OF_TIMES=NUMBER_OF_TIMES+1
-              CALL EQUATIONS_MATRICES_ELEMENT_CALCULATE(EQUATIONS_MATRICES,ne,ERR,ERROR,*999)
-              CALL EquationsSet_FiniteElementResidualEvaluate(EQUATIONS_SET,ne,ERR,ERROR,*999)
-              CALL EQUATIONS_MATRICES_ELEMENT_ADD(EQUATIONS_MATRICES,ERR,ERROR,*999)
-            ENDDO !element_idx
-            !Output timing information if required
-            IF(EQUATIONS%OUTPUT_TYPE>=EQUATIONS_TIMING_OUTPUT) THEN
-              CALL CPU_TIMER(USER_CPU,USER_TIME5,ERR,ERROR,*999)
-              CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME5,ERR,ERROR,*999)
-              USER_ELAPSED=USER_TIME5(1)-USER_TIME4(1)
-              SYSTEM_ELAPSED=SYSTEM_TIME5(1)-SYSTEM_TIME4(1)
-              ELEMENT_USER_ELAPSED=ELEMENT_USER_ELAPSED+USER_ELAPSED
-              ELEMENT_SYSTEM_ELAPSED=ELEMENT_SYSTEM_ELAPSED+USER_ELAPSED
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for boundary+ghost equations assembly = ",USER_ELAPSED, &
-                & ERR,ERROR,*999)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for boundary+ghost equations assembly = ",SYSTEM_ELAPSED, &
-                & ERR,ERROR,*999)
-              IF(NUMBER_OF_TIMES>0) THEN
-                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average element user time for equations assembly = ", &
-                  & ELEMENT_USER_ELAPSED/NUMBER_OF_TIMES,ERR,ERROR,*999)
-                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average element system time for equations assembly = ", &
-                  & ELEMENT_SYSTEM_ELAPSED/NUMBER_OF_TIMES,ERR,ERROR,*999)
-              ENDIF
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average element user time for equations assembly = ", &
+                & ELEMENT_USER_ELAPSED/ELEMENTS_MAPPING%TOTAL_NUMBER_OF_LOCAL,ERR,ERROR,*999)
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average element system time for equations assembly = ", &
+                & ELEMENT_SYSTEM_ELAPSED/ELEMENTS_MAPPING%TOTAL_NUMBER_OF_LOCAL,ERR,ERROR,*999)
             ENDIF
             !Finalise the element matrices
             CALL EQUATIONS_MATRICES_ELEMENT_FINALISE(EQUATIONS_MATRICES,ERR,ERROR,*999)
@@ -1608,10 +1486,10 @@ CONTAINS
             ENDIF
             !Output timing information if required
             IF(EQUATIONS%OUTPUT_TYPE>=EQUATIONS_TIMING_OUTPUT) THEN
-              CALL CPU_TIMER(USER_CPU,USER_TIME6,ERR,ERROR,*999)
-              CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME6,ERR,ERROR,*999)
-              USER_ELAPSED=USER_TIME6(1)-USER_TIME1(1)
-              SYSTEM_ELAPSED=SYSTEM_TIME6(1)-SYSTEM_TIME1(1)
+              CALL CPU_TIMER(USER_CPU,USER_TIME4,ERR,ERROR,*999)
+              CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME4,ERR,ERROR,*999)
+              USER_ELAPSED=USER_TIME4(1)-USER_TIME1(1)
+              SYSTEM_ELAPSED=SYSTEM_TIME4(1)-SYSTEM_TIME1(1)
               CALL WRITE_STRING(GENERAL_OUTPUT_TYPE,"",ERR,ERROR,*999)
               CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Total user time for equations assembly = ",USER_ELAPSED, &
                 & ERR,ERROR,*999)
@@ -1673,10 +1551,9 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
     !Local Variables
-    INTEGER(INTG) :: element_idx,ne,NUMBER_OF_TIMES
+    INTEGER(INTG) :: element_idx
     REAL(SP) :: ELEMENT_USER_ELAPSED,ELEMENT_SYSTEM_ELAPSED,USER_ELAPSED,USER_TIME1(1),USER_TIME2(1),USER_TIME3(1),USER_TIME4(1), &
-      & USER_TIME5(1),USER_TIME6(1),SYSTEM_ELAPSED,SYSTEM_TIME1(1),SYSTEM_TIME2(1),SYSTEM_TIME3(1),SYSTEM_TIME4(1), &
-      & SYSTEM_TIME5(1),SYSTEM_TIME6(1)
+      & SYSTEM_ELAPSED,SYSTEM_TIME1(1),SYSTEM_TIME2(1),SYSTEM_TIME3(1),SYSTEM_TIME4(1)
     TYPE(DOMAIN_MAPPING_TYPE), POINTER :: ELEMENTS_MAPPING
     TYPE(EQUATIONS_TYPE), POINTER :: EQUATIONS
     TYPE(EQUATIONS_MATRICES_TYPE), POINTER :: EQUATIONS_MATRICES
@@ -1715,13 +1592,10 @@ CONTAINS
               ELEMENT_USER_ELAPSED=0.0_SP
               ELEMENT_SYSTEM_ELAPSED=0.0_SP
             ENDIF
-            NUMBER_OF_TIMES=0
-            !Loop over the internal elements
-            DO element_idx=ELEMENTS_MAPPING%INTERNAL_START,ELEMENTS_MAPPING%INTERNAL_FINISH
-              ne=ELEMENTS_MAPPING%DOMAIN_LIST(element_idx)
-              NUMBER_OF_TIMES=NUMBER_OF_TIMES+1
-              CALL EQUATIONS_MATRICES_ELEMENT_CALCULATE(EQUATIONS_MATRICES,ne,ERR,ERROR,*999)
-              CALL EQUATIONS_SET_FINITE_ELEMENT_CALCULATE(EQUATIONS_SET,ne,ERR,ERROR,*999)
+            !Loop over the local+ghost elements
+            DO element_idx=1,ELEMENTS_MAPPING%TOTAL_NUMBER_OF_LOCAL
+              CALL EQUATIONS_MATRICES_ELEMENT_CALCULATE(EQUATIONS_MATRICES,element_idx,ERR,ERROR,*999)
+              CALL EQUATIONS_SET_FINITE_ELEMENT_CALCULATE(EQUATIONS_SET,element_idx,ERR,ERROR,*999)
               CALL EQUATIONS_MATRICES_ELEMENT_ADD(EQUATIONS_MATRICES,ERR,ERROR,*999)
             ENDDO !element_idx
             !Output timing information if required
@@ -1733,49 +1607,15 @@ CONTAINS
               ELEMENT_USER_ELAPSED=USER_ELAPSED
               ELEMENT_SYSTEM_ELAPSED=SYSTEM_ELAPSED
               CALL WRITE_STRING(GENERAL_OUTPUT_TYPE,"",ERR,ERROR,*999)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for internal equations assembly = ",USER_ELAPSED, &
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for equations assembly = ",USER_ELAPSED, &
                 & ERR,ERROR,*999)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for internal equations assembly = ",SYSTEM_ELAPSED, &
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for equations assembly = ",SYSTEM_ELAPSED, &
                 & ERR,ERROR,*999)
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average element user time for equations assembly = ", &
+                & ELEMENT_USER_ELAPSED/ELEMENTS_MAPPING%TOTAL_NUMBER_OF_LOCAL,ERR,ERROR,*999)
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average element system time for equations assembly = ", &
+                & ELEMENT_SYSTEM_ELAPSED/ELEMENTS_MAPPING%TOTAL_NUMBER_OF_LOCAL,ERR,ERROR,*999)
              ENDIF
-            !Output timing information if required
-            IF(EQUATIONS%OUTPUT_TYPE>=EQUATIONS_TIMING_OUTPUT) THEN
-              CALL CPU_TIMER(USER_CPU,USER_TIME4,ERR,ERROR,*999)
-              CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME4,ERR,ERROR,*999)
-              USER_ELAPSED=USER_TIME4(1)-USER_TIME3(1)
-              SYSTEM_ELAPSED=SYSTEM_TIME4(1)-SYSTEM_TIME3(1)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for parameter transfer completion = ",USER_ELAPSED, &
-                & ERR,ERROR,*999)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for parameter transfer completion = ",SYSTEM_ELAPSED, &
-                & ERR,ERROR,*999)
-            ENDIF
-            !Loop over the boundary and ghost elements
-            DO element_idx=ELEMENTS_MAPPING%BOUNDARY_START,ELEMENTS_MAPPING%GHOST_FINISH
-              ne=ELEMENTS_MAPPING%DOMAIN_LIST(element_idx)
-              NUMBER_OF_TIMES=NUMBER_OF_TIMES+1
-              CALL EQUATIONS_MATRICES_ELEMENT_CALCULATE(EQUATIONS_MATRICES,ne,ERR,ERROR,*999)
-              CALL EQUATIONS_SET_FINITE_ELEMENT_CALCULATE(EQUATIONS_SET,ne,ERR,ERROR,*999)
-              CALL EQUATIONS_MATRICES_ELEMENT_ADD(EQUATIONS_MATRICES,ERR,ERROR,*999)
-            ENDDO !element_idx
-            !Output timing information if required
-            IF(EQUATIONS%OUTPUT_TYPE>=EQUATIONS_TIMING_OUTPUT) THEN
-              CALL CPU_TIMER(USER_CPU,USER_TIME5,ERR,ERROR,*999)
-              CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME5,ERR,ERROR,*999)
-              USER_ELAPSED=USER_TIME5(1)-USER_TIME4(1)
-              SYSTEM_ELAPSED=SYSTEM_TIME5(1)-SYSTEM_TIME4(1)
-              ELEMENT_USER_ELAPSED=ELEMENT_USER_ELAPSED+USER_ELAPSED
-              ELEMENT_SYSTEM_ELAPSED=ELEMENT_SYSTEM_ELAPSED+USER_ELAPSED
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for boundary+ghost equations assembly = ",USER_ELAPSED, &
-                & ERR,ERROR,*999)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for boundary+ghost equations assembly = ",SYSTEM_ELAPSED, &
-                & ERR,ERROR,*999)
-              IF(NUMBER_OF_TIMES>0) THEN
-                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average element user time for equations assembly = ", &
-                  & ELEMENT_USER_ELAPSED/NUMBER_OF_TIMES,ERR,ERROR,*999)
-                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average element system time for equations assembly = ", &
-                  & ELEMENT_SYSTEM_ELAPSED/NUMBER_OF_TIMES,ERR,ERROR,*999)
-              ENDIF
-            ENDIF
             !Finalise the element matrices
             CALL EQUATIONS_MATRICES_ELEMENT_FINALISE(EQUATIONS_MATRICES,ERR,ERROR,*999)
             !Output equations matrices and RHS vector if required
@@ -1784,10 +1624,10 @@ CONTAINS
             ENDIF
             !Output timing information if required
             IF(EQUATIONS%OUTPUT_TYPE>=EQUATIONS_TIMING_OUTPUT) THEN
-              CALL CPU_TIMER(USER_CPU,USER_TIME6,ERR,ERROR,*999)
-              CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME6,ERR,ERROR,*999)
-              USER_ELAPSED=USER_TIME6(1)-USER_TIME1(1)
-              SYSTEM_ELAPSED=SYSTEM_TIME6(1)-SYSTEM_TIME1(1)
+              CALL CPU_TIMER(USER_CPU,USER_TIME4,ERR,ERROR,*999)
+              CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME4,ERR,ERROR,*999)
+              USER_ELAPSED=USER_TIME4(1)-USER_TIME1(1)
+              SYSTEM_ELAPSED=SYSTEM_TIME4(1)-SYSTEM_TIME1(1)
               CALL WRITE_STRING(GENERAL_OUTPUT_TYPE,"",ERR,ERROR,*999)
               CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Total user time for equations assembly = ",USER_ELAPSED, &
                 & ERR,ERROR,*999)
@@ -1826,13 +1666,14 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
     !Local Variables
-    INTEGER(INTG) :: equations_column_idx,equations_column_number,equations_matrix_idx,equations_row_number, &
-      & EQUATIONS_STORAGE_TYPE,rhs_boundary_condition,rhs_global_dof,rhs_variable_dof,RHS_VARIABLE_TYPE,variable_dof,VARIABLE_TYPE
+    INTEGER(INTG) :: equationsColumnIdx,equationsColumnNumber,equationsMatrixIdx,equationsRowNumber,constraintIdx, &
+      & variableDofIdx,EQUATIONS_STORAGE_TYPE
     INTEGER(INTG), POINTER :: COLUMN_INDICES(:),ROW_INDICES(:)
-    REAL(DP) :: DEPENDENT_VALUE,MATRIX_VALUE,RHS_VALUE,SOURCE_VALUE
+    REAL(DP) :: rhsValue,sourceValue
     REAL(DP), POINTER :: DEPENDENT_PARAMETERS(:),EQUATIONS_MATRIX_DATA(:),SOURCE_VECTOR_DATA(:)
-    TYPE(BOUNDARY_CONDITIONS_VARIABLE_TYPE), POINTER :: RHS_BOUNDARY_CONDITIONS
-    TYPE(DOMAIN_MAPPING_TYPE), POINTER :: COLUMN_DOMAIN_MAPPING,RHS_DOMAIN_MAPPING
+    TYPE(BOUNDARY_CONDITIONS_VARIABLE_TYPE), POINTER :: BOUNDARY_CONDITIONS_VARIABLE
+    TYPE(BoundaryConditionsConstraintsType), POINTER :: constraints
+    TYPE(DOMAIN_MAPPING_TYPE), POINTER :: COLUMN_DOMAIN_MAPPING
     TYPE(DISTRIBUTED_MATRIX_TYPE), POINTER :: EQUATIONS_DISTRIBUTED_MATRIX
     TYPE(DISTRIBUTED_VECTOR_TYPE), POINTER :: SOURCE_DISTRIBUTED_VECTOR
     TYPE(EQUATIONS_TYPE), POINTER :: EQUATIONS
@@ -1845,8 +1686,7 @@ CONTAINS
     TYPE(EQUATIONS_MATRICES_LINEAR_TYPE), POINTER :: LINEAR_MATRICES
     TYPE(EQUATIONS_MATRICES_SOURCE_TYPE), POINTER :: SOURCE_VECTOR
     TYPE(EQUATIONS_MATRIX_TYPE), POINTER :: EQUATIONS_MATRIX
-    TYPE(FIELD_TYPE), POINTER :: DEPENDENT_FIELD
-    TYPE(FIELD_VARIABLE_TYPE), POINTER :: DEPENDENT_VARIABLE,RHS_VARIABLE
+    TYPE(FIELD_VARIABLE_TYPE), POINTER :: COLUMN_VARIABLE,RHS_VARIABLE
     TYPE(VARYING_STRING) :: LOCAL_ERROR
 
     NULLIFY(DEPENDENT_PARAMETERS)
@@ -1855,232 +1695,122 @@ CONTAINS
 
     ENTERS("EQUATIONS_SET_BACKSUBSTITUTE",ERR,ERROR,*999)
 
-    IF(ASSOCIATED(EQUATIONS_SET)) THEN
-      IF(EQUATIONS_SET%EQUATIONS_SET_FINISHED) THEN
-        DEPENDENT_FIELD=>EQUATIONS_SET%DEPENDENT%DEPENDENT_FIELD
-        IF(ASSOCIATED(DEPENDENT_FIELD)) THEN
-          EQUATIONS=>EQUATIONS_SET%EQUATIONS
-          IF(ASSOCIATED(EQUATIONS)) THEN
-            EQUATIONS_MATRICES=>EQUATIONS%EQUATIONS_MATRICES
-            IF(ASSOCIATED(EQUATIONS_MATRICES)) THEN
-              DYNAMIC_MATRICES=>EQUATIONS_MATRICES%DYNAMIC_MATRICES
-              IF(ASSOCIATED(DYNAMIC_MATRICES)) THEN
-                !CALL FlagError("Not implemented.",ERR,ERROR,*999)
-              ELSE
-                LINEAR_MATRICES=>EQUATIONS_MATRICES%LINEAR_MATRICES
-                IF(ASSOCIATED(LINEAR_MATRICES)) THEN
-                  EQUATIONS_MAPPING=>EQUATIONS%EQUATIONS_MAPPING
-                  IF(ASSOCIATED(EQUATIONS_MAPPING)) THEN
-                    LINEAR_MAPPING=>EQUATIONS_MAPPING%LINEAR_MAPPING
-                    IF(ASSOCIATED(LINEAR_MAPPING)) THEN
-                      RHS_MAPPING=>EQUATIONS_MAPPING%RHS_MAPPING
-                      SOURCE_MAPPING=>EQUATIONS_MAPPING%SOURCE_MAPPING
-                      IF(ASSOCIATED(RHS_MAPPING)) THEN
-                        IF(ASSOCIATED(BOUNDARY_CONDITIONS)) THEN
-                          IF(ASSOCIATED(SOURCE_MAPPING)) THEN
-                            SOURCE_VECTOR=>EQUATIONS_MATRICES%SOURCE_VECTOR
-                            IF(ASSOCIATED(SOURCE_VECTOR)) THEN
-                              SOURCE_DISTRIBUTED_VECTOR=>SOURCE_VECTOR%VECTOR
-                              IF(ASSOCIATED(SOURCE_DISTRIBUTED_VECTOR)) THEN
-                                CALL DISTRIBUTED_VECTOR_DATA_GET(SOURCE_DISTRIBUTED_VECTOR,SOURCE_VECTOR_DATA,ERR,ERROR,*999)
-                              ELSE
-                                CALL FlagError("Source distributed vector is not associated.",ERR,ERROR,*999)
-                              ENDIF
-                            ELSE
-                              CALL FlagError("Source vector is not associated.",ERR,ERROR,*999)
-                            ENDIF
-                          ENDIF
-                          RHS_VARIABLE=>RHS_MAPPING%RHS_VARIABLE
-                          IF(ASSOCIATED(RHS_VARIABLE)) THEN
-                            RHS_VARIABLE_TYPE=RHS_VARIABLE%VARIABLE_TYPE
-                            RHS_DOMAIN_MAPPING=>RHS_VARIABLE%DOMAIN_MAPPING
-                            IF(ASSOCIATED(RHS_DOMAIN_MAPPING)) THEN
-                              CALL BOUNDARY_CONDITIONS_VARIABLE_GET(BOUNDARY_CONDITIONS,RHS_VARIABLE,RHS_BOUNDARY_CONDITIONS, &
-                                & ERR,ERROR,*999)
-                              IF(ASSOCIATED(RHS_BOUNDARY_CONDITIONS)) THEN
-                                !Loop over the equations matrices
-                                DO equations_matrix_idx=1,LINEAR_MATRICES%NUMBER_OF_LINEAR_MATRICES
-                                  DEPENDENT_VARIABLE=>LINEAR_MAPPING%EQUATIONS_MATRIX_TO_VAR_MAPS(equations_matrix_idx)%VARIABLE
-                                  IF(ASSOCIATED(DEPENDENT_VARIABLE)) THEN
-                                    VARIABLE_TYPE=DEPENDENT_VARIABLE%VARIABLE_TYPE
-                                    !Get the dependent field variable parameters
-                                    CALL Field_ParameterSetDataGet(DEPENDENT_FIELD,VARIABLE_TYPE,FIELD_VALUES_SET_TYPE, &
-                                      & DEPENDENT_PARAMETERS,ERR,ERROR,*999)
-                                    EQUATIONS_MATRIX=>LINEAR_MATRICES%MATRICES(equations_matrix_idx)%PTR
-                                    IF(ASSOCIATED(EQUATIONS_MATRIX)) THEN
-                                      COLUMN_DOMAIN_MAPPING=>LINEAR_MAPPING%EQUATIONS_MATRIX_TO_VAR_MAPS(equations_matrix_idx)% &
-                                        & COLUMN_DOFS_MAPPING
-                                      IF(ASSOCIATED(COLUMN_DOMAIN_MAPPING)) THEN
-                                        EQUATIONS_DISTRIBUTED_MATRIX=>EQUATIONS_MATRIX%MATRIX
-                                        IF(ASSOCIATED(EQUATIONS_DISTRIBUTED_MATRIX)) THEN
-                                          CALL DISTRIBUTED_MATRIX_STORAGE_TYPE_GET(EQUATIONS_DISTRIBUTED_MATRIX, &
-                                            & EQUATIONS_STORAGE_TYPE,ERR,ERROR,*999)
-                                          CALL DISTRIBUTED_MATRIX_DATA_GET(EQUATIONS_DISTRIBUTED_MATRIX,EQUATIONS_MATRIX_DATA, &
-                                            & ERR,ERROR,*999)
-                                          SELECT CASE(EQUATIONS_STORAGE_TYPE)
-                                          CASE(DISTRIBUTED_MATRIX_BLOCK_STORAGE_TYPE)
-                                            !Loop over the non ghosted rows in the equations set
-                                            DO equations_row_number=1,EQUATIONS_MAPPING%NUMBER_OF_ROWS
-                                              RHS_VALUE=0.0_DP
-                                              rhs_variable_dof=RHS_MAPPING%EQUATIONS_ROW_TO_RHS_DOF_MAP(equations_row_number)
-                                              rhs_global_dof=RHS_DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(rhs_variable_dof)
-                                              rhs_boundary_condition=RHS_BOUNDARY_CONDITIONS%DOF_TYPES(rhs_global_dof)
-                                              !For free RHS DOFs, set the right hand side field values by multiplying the
-                                              !row by the dependent variable value
-                                              SELECT CASE(rhs_boundary_condition)
-                                              CASE(BOUNDARY_CONDITION_DOF_FREE)
-                                                !Back substitute
-                                                !Loop over the local columns of the equations matrix
-                                                DO equations_column_idx=1,COLUMN_DOMAIN_MAPPING%TOTAL_NUMBER_OF_LOCAL
-                                                  equations_column_number=COLUMN_DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP( &
-                                                    & equations_column_idx)
-                                                  variable_dof=equations_column_idx
-                                                  MATRIX_VALUE=EQUATIONS_MATRIX_DATA(equations_row_number+ &
-                                                    & (equations_column_number-1)*EQUATIONS_MATRICES%TOTAL_NUMBER_OF_ROWS)
-                                                  DEPENDENT_VALUE=DEPENDENT_PARAMETERS(variable_dof)
-                                                  RHS_VALUE=RHS_VALUE+MATRIX_VALUE*DEPENDENT_VALUE
-                                                ENDDO !equations_column_idx
-                                              CASE(BOUNDARY_CONDITION_DOF_FIXED)
-                                                !Do nothing
-                                              CASE(BOUNDARY_CONDITION_DOF_MIXED)
-                                                !Robin or is it Cauchy??? boundary conditions
-                                                CALL FlagError("Not implemented.",ERR,ERROR,*999)
-                                              CASE DEFAULT
-                                                LOCAL_ERROR="The RHS variable boundary condition of "// &
-                                                  & TRIM(NUMBER_TO_VSTRING(rhs_boundary_condition,"*",ERR,ERROR))// &
-                                                  & " for RHS variable dof number "// &
-                                                  & TRIM(NUMBER_TO_VSTRING(rhs_variable_dof,"*",ERR,ERROR))//" is invalid."
-                                                CALL FlagError(LOCAL_ERROR,ERR,ERROR,*999)
-                                              END SELECT
-                                              IF(ASSOCIATED(SOURCE_MAPPING)) THEN
-                                                SOURCE_VALUE=SOURCE_VECTOR_DATA(equations_row_number)
-                                                RHS_VALUE=RHS_VALUE-SOURCE_VALUE
-                                              ENDIF
-                                              CALL Field_ParameterSetUpdateLocalDOF(DEPENDENT_FIELD,RHS_VARIABLE_TYPE, &
-                                                & FIELD_VALUES_SET_TYPE,rhs_variable_dof,RHS_VALUE,ERR,ERROR,*999)
-                                            ENDDO !equations_row_number
-                                          CASE(DISTRIBUTED_MATRIX_DIAGONAL_STORAGE_TYPE)
-                                            CALL FlagError("Not implemented.",ERR,ERROR,*999)
-                                          CASE(DISTRIBUTED_MATRIX_COLUMN_MAJOR_STORAGE_TYPE)
-                                            CALL FlagError("Not implemented.",ERR,ERROR,*999)
-                                          CASE(DISTRIBUTED_MATRIX_ROW_MAJOR_STORAGE_TYPE)
-                                            CALL FlagError("Not implemented.",ERR,ERROR,*999)
-                                          CASE(DISTRIBUTED_MATRIX_COMPRESSED_ROW_STORAGE_TYPE)
-                                            CALL DISTRIBUTED_MATRIX_STORAGE_LOCATIONS_GET(EQUATIONS_DISTRIBUTED_MATRIX, &
-                                              & ROW_INDICES,COLUMN_INDICES,ERR,ERROR,*999)
-                                            !Loop over the non-ghosted rows in the equations set
-                                            DO equations_row_number=1,EQUATIONS_MAPPING%NUMBER_OF_ROWS
-                                              RHS_VALUE=0.0_DP
-                                              rhs_variable_dof=RHS_MAPPING%EQUATIONS_ROW_TO_RHS_DOF_MAP(equations_row_number)
-                                              rhs_global_dof=RHS_DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(rhs_variable_dof)
-                                              rhs_boundary_condition=RHS_BOUNDARY_CONDITIONS%DOF_TYPES(rhs_global_dof)
-                                              SELECT CASE(rhs_boundary_condition)
-                                              CASE(BOUNDARY_CONDITION_DOF_FREE)
-                                                !Back substitute
-                                                !Loop over the local columns of the equations matrix
-                                                DO equations_column_idx=ROW_INDICES(equations_row_number), &
-                                                  ROW_INDICES(equations_row_number+1)-1
-                                                  equations_column_number=COLUMN_INDICES(equations_column_idx)
-                                                  variable_dof=equations_column_idx-ROW_INDICES(equations_row_number)+1
-                                                  MATRIX_VALUE=EQUATIONS_MATRIX_DATA(equations_column_idx)
-                                                  DEPENDENT_VALUE=DEPENDENT_PARAMETERS(variable_dof)
-                                                  RHS_VALUE=RHS_VALUE+MATRIX_VALUE*DEPENDENT_VALUE
-                                                ENDDO !equations_column_idx
-                                              CASE(BOUNDARY_CONDITION_DOF_FIXED)
-                                                !Do nothing
-                                              CASE(BOUNDARY_CONDITION_DOF_MIXED)
-                                                !Robin or is it Cauchy??? boundary conditions
-                                                CALL FlagError("Not implemented.",ERR,ERROR,*999)
-                                              CASE DEFAULT
-                                                LOCAL_ERROR="The global boundary condition of "// &
-                                                  & TRIM(NUMBER_TO_VSTRING(rhs_boundary_condition,"*",ERR,ERROR))// &
-                                                  & " for RHS variable dof number "// &
-                                                  & TRIM(NUMBER_TO_VSTRING(rhs_variable_dof,"*",ERR,ERROR))//" is invalid."
-                                                CALL FlagError(LOCAL_ERROR,ERR,ERROR,*999)
-                                              END SELECT
-                                              IF(ASSOCIATED(SOURCE_MAPPING)) THEN
-                                                SOURCE_VALUE=SOURCE_VECTOR_DATA(equations_row_number)
-                                                RHS_VALUE=RHS_VALUE-SOURCE_VALUE
-                                              ENDIF
-                                              CALL Field_ParameterSetUpdateLocalDOF(DEPENDENT_FIELD,RHS_VARIABLE_TYPE, &
-                                                & FIELD_VALUES_SET_TYPE,rhs_variable_dof,RHS_VALUE,ERR,ERROR,*999)
-                                            ENDDO !equations_row_number
-                                          CASE(DISTRIBUTED_MATRIX_COMPRESSED_COLUMN_STORAGE_TYPE)
-                                            CALL FlagError("Not implemented.",ERR,ERROR,*999)
-                                          CASE(DISTRIBUTED_MATRIX_ROW_COLUMN_STORAGE_TYPE)
-                                            CALL FlagError("Not implemented.",ERR,ERROR,*999)
-                                          CASE DEFAULT
-                                            LOCAL_ERROR="The matrix storage type of "// &
-                                              & TRIM(NUMBER_TO_VSTRING(EQUATIONS_STORAGE_TYPE,"*",ERR,ERROR))//" is invalid."
-                                            CALL FlagError(LOCAL_ERROR,ERR,ERROR,*999)
-                                          END SELECT
-                                          CALL DISTRIBUTED_MATRIX_DATA_RESTORE(EQUATIONS_DISTRIBUTED_MATRIX,EQUATIONS_MATRIX_DATA, &
-                                            & ERR,ERROR,*999)
-                                        ELSE
-                                          CALL FlagError("Equations matrix distributed matrix is not associated.",ERR,ERROR,*999)
-                                        ENDIF
-                                      ELSE
-                                        CALL FlagError("Equations column domain mapping is not associated.",ERR,ERROR,*999)
-                                      ENDIF
-                                    ELSE
-                                      CALL FlagError("Equations equations matrix is not associated.",ERR,ERROR,*999)
-                                    ENDIF
-                                    !Restore the dependent field variable parameters
-                                    CALL Field_ParameterSetDataRestore(DEPENDENT_FIELD,VARIABLE_TYPE,FIELD_VALUES_SET_TYPE, &
-                                      & DEPENDENT_PARAMETERS,ERR,ERROR,*999)
-                                  ELSE
-                                    CALL FlagError("Dependent variable is not associated.",ERR,ERROR,*999)
-                                  ENDIF
-                                ENDDO !equations_matrix_idx
-                                !Start the update of the field parameters
-                                CALL Field_ParameterSetUpdateStart(DEPENDENT_FIELD,RHS_VARIABLE_TYPE,FIELD_VALUES_SET_TYPE, &
-                                  & ERR,ERROR,*999)
-                                !Finish the update of the field parameters
-                                CALL Field_ParameterSetUpdateFinish(DEPENDENT_FIELD,RHS_VARIABLE_TYPE,FIELD_VALUES_SET_TYPE, &
-                                  & ERR,ERROR,*999)
-                              ELSE
-                                CALL FlagError("RHS boundary conditions variable is not associated.",ERR,ERROR,*999)
-                              ENDIF
-                            ELSE
-                              CALL FlagError("RHS variable domain mapping is not associated.",ERR,ERROR,*999)
-                            ENDIF
-                          ELSE
-                            CALL FlagError("RHS variable is not associated.",ERR,ERROR,*999)
-                          ENDIF
-                          IF(ASSOCIATED(SOURCE_MAPPING)) THEN
-                            CALL DISTRIBUTED_VECTOR_DATA_RESTORE(SOURCE_DISTRIBUTED_VECTOR,SOURCE_VECTOR_DATA,ERR,ERROR,*999)
-                          ENDIF
-                        ELSE
-                          CALL FlagError("Boundary conditions are not associated.",ERR,ERROR,*999)
-                        ENDIF
-                      ELSE
-                        CALL FlagError("Equations mapping RHS mappings is not associated.",ERR,ERROR,*999)
-                      ENDIF
-                    ELSE
-                      CALL FlagError("Equations mapping linear mapping is not associated.",ERR,ERROR,*999)
-                    ENDIF
-                  ELSE
-                    CALL FlagError("Equations mapping is not associated.",ERR,ERROR,*999)
-                  ENDIF
-                ELSE
-                  CALL FlagError("Equations matrices linear matrices is not associated.",ERR,ERROR,*999)
-                ENDIF
-              ENDIF
-            ELSE
-              CALL FlagError("Equations matrices is not associated.",ERR,ERROR,*999)
-            ENDIF
-          ELSE
-            CALL FlagError("Equations is not associated.",ERR,ERROR,*999)
-          ENDIF
-        ELSE
-          CALL FlagError("Dependent field is not associated.",ERR,ERROR,*999)
-        ENDIF
-      ELSE            
-        CALL FlagError("Equations set has not been finished.",ERR,ERROR,*999)
-      ENDIF
+    IF(.NOT.ASSOCIATED(EQUATIONS_SET)) CALL FlagError("Equations set is not associated",ERR,ERROR,*999)
+    IF(.NOT.EQUATIONS_SET%EQUATIONS_SET_FINISHED) CALL FlagError("Equations set has not been finished.",ERR,ERROR,*999)
+    IF(.NOT.ASSOCIATED(BOUNDARY_CONDITIONS)) CALL FlagError("Boundary conditions are not associated.",ERR,ERROR,*999)
+    EQUATIONS=>EQUATIONS_SET%EQUATIONS
+    IF(.NOT.ASSOCIATED(EQUATIONS)) CALL FlagError("Equations is not associated.",ERR,ERROR,*999)
+    EQUATIONS_MATRICES=>EQUATIONS%EQUATIONS_MATRICES
+    IF(.NOT.ASSOCIATED(EQUATIONS_MATRICES)) CALL FlagError("Equations matrices is not associated.",ERR,ERROR,*999)
+    DYNAMIC_MATRICES=>EQUATIONS_MATRICES%DYNAMIC_MATRICES
+    IF(ASSOCIATED(DYNAMIC_MATRICES)) THEN
+      !CALL FlagError("Not implemented.",ERR,ERROR,*999)
     ELSE
-      CALL FlagError("Equations set is not associated",ERR,ERROR,*999)
-    ENDIF
+      LINEAR_MATRICES=>EQUATIONS_MATRICES%LINEAR_MATRICES
+      IF(.NOT.ASSOCIATED(LINEAR_MATRICES)) CALL FlagError("Equations matrices linear matrices is not associated.",ERR,ERROR,*999)
+      EQUATIONS_MAPPING=>EQUATIONS%EQUATIONS_MAPPING
+      IF(.NOT.ASSOCIATED(EQUATIONS_MAPPING)) CALL FlagError("Equations mapping is not associated.",ERR,ERROR,*999)
+      LINEAR_MAPPING=>EQUATIONS_MAPPING%LINEAR_MAPPING
+      IF(.NOT.ASSOCIATED(LINEAR_MAPPING)) CALL FlagError("Equations mapping linear mapping is not associated.",ERR,ERROR,*999)
+      RHS_MAPPING=>EQUATIONS_MAPPING%RHS_MAPPING
+      IF(.NOT.ASSOCIATED(RHS_MAPPING)) CALL FlagError("Equations mapping RHS mappings is not associated.",ERR,ERROR,*999)
+      RHS_VARIABLE=>RHS_MAPPING%RHS_VARIABLE
+      IF(.NOT.ASSOCIATED(RHS_VARIABLE)) CALL FlagError("RHS variable is not associated.",ERR,ERROR,*999)
+      SOURCE_MAPPING=>EQUATIONS_MAPPING%SOURCE_MAPPING
+      IF(ASSOCIATED(SOURCE_MAPPING)) THEN
+        SOURCE_VECTOR=>EQUATIONS_MATRICES%SOURCE_VECTOR
+        IF(.NOT.ASSOCIATED(SOURCE_VECTOR)) CALL FlagError("Source vector is not associated.",ERR,ERROR,*999)
+        SOURCE_DISTRIBUTED_VECTOR=>SOURCE_VECTOR%VECTOR
+        CALL DISTRIBUTED_VECTOR_DATA_GET(SOURCE_DISTRIBUTED_VECTOR,SOURCE_VECTOR_DATA,ERR,ERROR,*999)
+      END IF
+      CALL BOUNDARY_CONDITIONS_VARIABLE_GET(BOUNDARY_CONDITIONS,EQUATIONS_MAPPING%DEPENDENT_VARIABLE, &
+        & BOUNDARY_CONDITIONS_VARIABLE,ERR,ERROR,*999)
+      IF(.NOT.ASSOCIATED(BOUNDARY_CONDITIONS_VARIABLE)) CALL FlagError("Boundary conditions variable is not associated.", &
+        & ERR,ERROR,*999)
+      constraints=>BOUNDARY_CONDITIONS_VARIABLE%constraints
+      !Set all the values we're going to update to zero first, so we can add to them later.
+      CALL Field_ParameterSetUpdateLocalDOF(RHS_VARIABLE%FIELD,RHS_VARIABLE%VARIABLE_TYPE, &
+        & FIELD_VALUES_SET_TYPE,constraints%constrainedDofIndices, &
+        & [(0.0_DP,constraintIdx=1,constraints%numberOfConstraints)],ERR,ERROR,*999)
+      !Loop over the equations matrices
+      DO equationsMatrixIdx=1,LINEAR_MATRICES%NUMBER_OF_LINEAR_MATRICES
+        COLUMN_VARIABLE=>LINEAR_MAPPING%EQUATIONS_MATRIX_TO_VAR_MAPS(equationsMatrixIdx)%VARIABLE
+        IF(.NOT.ASSOCIATED(COLUMN_VARIABLE)) CALL FlagError("Column variable is not associated.",ERR,ERROR,*999)
+        !Get the dependent field variable parameters
+        CALL Field_ParameterSetDataGet(COLUMN_VARIABLE%FIELD,COLUMN_VARIABLE%VARIABLE_TYPE,FIELD_VALUES_SET_TYPE, &
+          & DEPENDENT_PARAMETERS,ERR,ERROR,*999)
+        EQUATIONS_MATRIX=>LINEAR_MATRICES%MATRICES(equationsMatrixIdx)%PTR
+        IF(.NOT.ASSOCIATED(EQUATIONS_MATRIX)) CALL FlagError("Equations equations matrix is not associated.",ERR,ERROR,*999)
+        COLUMN_DOMAIN_MAPPING=>LINEAR_MAPPING%EQUATIONS_MATRIX_TO_VAR_MAPS(equationsMatrixIdx)%COLUMN_DOFS_MAPPING
+        IF(.NOT.ASSOCIATED(COLUMN_DOMAIN_MAPPING)) CALL FlagError("Equations column domain mapping is not associated.",ERR,ERROR,*999)
+        EQUATIONS_DISTRIBUTED_MATRIX=>EQUATIONS_MATRIX%MATRIX
+        CALL DISTRIBUTED_MATRIX_STORAGE_TYPE_GET(EQUATIONS_DISTRIBUTED_MATRIX, &
+          & EQUATIONS_STORAGE_TYPE,ERR,ERROR,*999)
+        CALL DISTRIBUTED_MATRIX_DATA_GET(EQUATIONS_DISTRIBUTED_MATRIX,EQUATIONS_MATRIX_DATA, &
+          & ERR,ERROR,*999)
+        SELECT CASE(EQUATIONS_STORAGE_TYPE)
+        CASE(DISTRIBUTED_MATRIX_BLOCK_STORAGE_TYPE)
+          DO constraintIdx=1,constraints%numberOfConstraints
+            variableDofIdx=constraints%constrainedDofIndices(constraintIdx)
+            !Back substitute
+            !Loop over the local columns of the equations matrix
+            rhsValue=0.0_DP
+            DO equationsColumnNumber=1,COLUMN_DOMAIN_MAPPING%TOTAL_NUMBER_OF_LOCAL
+              rhsValue=rhsValue+DEPENDENT_PARAMETERS(equationsColumnNumber)* &
+                & EQUATIONS_MATRIX_DATA(equationsRowNumber+(equationsColumnNumber-1)*EQUATIONS_MATRICES%TOTAL_NUMBER_OF_ROWS)
+            END DO !equationsColumnIdx
+            CALL Field_ParameterSetAddLocalDOF(RHS_VARIABLE%FIELD,RHS_VARIABLE%VARIABLE_TYPE, &
+              & FIELD_VALUES_SET_TYPE,variableDofIdx,rhsValue,ERR,ERROR,*999)
+          END DO !constraintIdx
+        CASE(DISTRIBUTED_MATRIX_DIAGONAL_STORAGE_TYPE)
+          CALL FlagError("Not implemented.",ERR,ERROR,*999)
+        CASE(DISTRIBUTED_MATRIX_COLUMN_MAJOR_STORAGE_TYPE)
+          CALL FlagError("Not implemented.",ERR,ERROR,*999)
+        CASE(DISTRIBUTED_MATRIX_ROW_MAJOR_STORAGE_TYPE)
+          CALL FlagError("Not implemented.",ERR,ERROR,*999)
+        CASE(DISTRIBUTED_MATRIX_COMPRESSED_ROW_STORAGE_TYPE)
+          CALL DISTRIBUTED_MATRIX_STORAGE_LOCATIONS_GET(EQUATIONS_DISTRIBUTED_MATRIX,ROW_INDICES,COLUMN_INDICES,ERR,ERROR,*999)
+          !Loop over the non-ghosted rows in the equations set
+          DO constraintIdx=1,constraints%numberOfConstraints
+            variableDofIdx=constraints%constrainedDofIndices(constraintIdx)
+            !Back substitute
+            !Loop over the local columns of the equations matrix
+            rhsValue=0.0_DP
+            DO equationsColumnIdx=ROW_INDICES(variableDofIdx),ROW_INDICES(variableDofIdx+1)-1
+              rhsValue=rhsValue+EQUATIONS_MATRIX_DATA(equationsColumnIdx)*DEPENDENT_PARAMETERS(COLUMN_INDICES(equationsColumnIdx))
+            END DO !equationsColumnIdx
+            CALL Field_ParameterSetAddLocalDOF(RHS_VARIABLE%FIELD,RHS_VARIABLE%VARIABLE_TYPE, &
+              & FIELD_VALUES_SET_TYPE,variableDofIdx,rhsValue,ERR,ERROR,*999)
+          END DO !constraintIdx
+        CASE(DISTRIBUTED_MATRIX_COMPRESSED_COLUMN_STORAGE_TYPE)
+          CALL FlagError("Not implemented.",ERR,ERROR,*999)
+        CASE(DISTRIBUTED_MATRIX_ROW_COLUMN_STORAGE_TYPE)
+          CALL FlagError("Not implemented.",ERR,ERROR,*999)
+        CASE DEFAULT
+          LOCAL_ERROR="The matrix storage type of "// &
+            & TRIM(NUMBER_TO_VSTRING(EQUATIONS_STORAGE_TYPE,"*",ERR,ERROR))//" is invalid."
+          CALL FlagError(LOCAL_ERROR,ERR,ERROR,*999)
+        END SELECT
+        CALL DISTRIBUTED_MATRIX_DATA_RESTORE(EQUATIONS_DISTRIBUTED_MATRIX,EQUATIONS_MATRIX_DATA,ERR,ERROR,*999)
+        !Restore the dependent field variable parameters
+        CALL Field_ParameterSetDataRestore(COLUMN_VARIABLE%FIELD,COLUMN_VARIABLE%VARIABLE_TYPE,FIELD_VALUES_SET_TYPE, &
+          & DEPENDENT_PARAMETERS,ERR,ERROR,*999)
+      END DO !equationsMatrixIdx
+      IF(ASSOCIATED(SOURCE_MAPPING)) THEN
+        !Subtract the source values. 
+        DO constraintIdx=1,constraints%numberOfConstraints
+          variableDofIdx=constraints%constrainedDofIndices(constraintIdx)
+          sourceValue=SOURCE_VECTOR_DATA(equationsRowNumber)
+          CALL Field_ParameterSetAddLocalDOF(RHS_VARIABLE%FIELD,RHS_VARIABLE%VARIABLE_TYPE, &
+            & FIELD_VALUES_SET_TYPE,variableDofIdx,-sourceValue,ERR,ERROR,*999)
+        END DO !constraintIdx
+        CALL DISTRIBUTED_VECTOR_DATA_RESTORE(SOURCE_DISTRIBUTED_VECTOR,SOURCE_VECTOR_DATA,ERR,ERROR,*999)
+      END IF
+      !Start the update of the field parameters
+      CALL Field_ParameterSetUpdateStart(RHS_VARIABLE%FIELD,RHS_VARIABLE%VARIABLE_TYPE,FIELD_VALUES_SET_TYPE,ERR,ERROR,*999)
+      !Finish the update of the field parameters
+      CALL Field_ParameterSetUpdateFinish(RHS_VARIABLE%FIELD,RHS_VARIABLE%VARIABLE_TYPE,FIELD_VALUES_SET_TYPE,ERR,ERROR,*999)
+    END IF
           
     EXITS("EQUATIONS_SET_BACKSUBSTITUTE")
     RETURN
@@ -2102,122 +1832,53 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
     !Local Variables
-    INTEGER(INTG) :: variable_dof,row_idx,VARIABLE_TYPE,rhs_global_dof,rhs_boundary_condition,equations_matrix_idx
-    REAL(DP) :: VALUE
+    REAL(DP), POINTER :: residualData(:)
     TYPE(EQUATIONS_TYPE), POINTER :: EQUATIONS
     TYPE(EQUATIONS_MAPPING_TYPE), POINTER :: EQUATIONS_MAPPING
-    TYPE(EQUATIONS_MAPPING_NONLINEAR_TYPE), POINTER :: NONLINEAR_MAPPING
-    TYPE(EQUATIONS_MAPPING_RHS_TYPE), POINTER :: RHS_MAPPING
     TYPE(EQUATIONS_MATRICES_TYPE), POINTER :: EQUATIONS_MATRICES
     TYPE(EQUATIONS_MATRICES_NONLINEAR_TYPE), POINTER :: NONLINEAR_MATRICES
     TYPE(DISTRIBUTED_VECTOR_TYPE), POINTER :: RESIDUAL_VECTOR
-    TYPE(FIELD_TYPE), POINTER :: RHS_FIELD
     TYPE(FIELD_VARIABLE_TYPE), POINTER :: RHS_VARIABLE,RESIDUAL_VARIABLE
-    TYPE(BOUNDARY_CONDITIONS_VARIABLE_TYPE), POINTER :: RHS_BOUNDARY_CONDITIONS
-    TYPE(DOMAIN_MAPPING_TYPE), POINTER :: RHS_DOMAIN_MAPPING
-    TYPE(VARYING_STRING) :: LOCAL_ERROR
+    TYPE(BOUNDARY_CONDITIONS_VARIABLE_TYPE), POINTER :: BOUNDARY_CONDITIONS_VARIABLE
+    TYPE(BoundaryConditionsConstraintsType), POINTER :: constraints
 
     ENTERS("EQUATIONS_SET_NONLINEAR_RHS_UPDATE",ERR,ERROR,*999)
 
-    IF(ASSOCIATED(EQUATIONS_SET)) THEN
-      EQUATIONS=>EQUATIONS_SET%EQUATIONS
-      IF(ASSOCIATED(EQUATIONS)) THEN
-        EQUATIONS_MAPPING=>EQUATIONS%EQUATIONS_MAPPING
-        IF(ASSOCIATED(EQUATIONS_MAPPING)) THEN
-          RHS_MAPPING=>EQUATIONS_MAPPING%RHS_MAPPING
-          IF(ASSOCIATED(RHS_MAPPING)) THEN
-            RHS_VARIABLE=>RHS_MAPPING%RHS_VARIABLE
-            IF(ASSOCIATED(RHS_VARIABLE)) THEN
-              !Get the right hand side variable
-              RHS_FIELD=>RHS_VARIABLE%FIELD
-              VARIABLE_TYPE=RHS_VARIABLE%VARIABLE_TYPE
-            ELSE
-              CALL FlagError("RHS mapping RHS variable is not associated.",ERR,ERROR,*999)
-            ENDIF
-          ELSE
-            CALL FlagError("Equations mapping RHS mapping is not associated.",ERR,ERROR,*999)
-          ENDIF
-          IF(ASSOCIATED(RHS_FIELD)) THEN
-            IF(ASSOCIATED(BOUNDARY_CONDITIONS)) THEN
-              RHS_DOMAIN_MAPPING=>RHS_VARIABLE%DOMAIN_MAPPING
-              IF(ASSOCIATED(RHS_DOMAIN_MAPPING)) THEN
-                CALL BOUNDARY_CONDITIONS_VARIABLE_GET(BOUNDARY_CONDITIONS,RHS_VARIABLE,RHS_BOUNDARY_CONDITIONS, &
-                  & ERR,ERROR,*999)
-                IF(ASSOCIATED(RHS_BOUNDARY_CONDITIONS)) THEN
-                  !Get the equations residual vector
-                  EQUATIONS_MATRICES=>EQUATIONS%EQUATIONS_MATRICES
-                  IF(ASSOCIATED(EQUATIONS_MATRICES)) THEN
-                    NONLINEAR_MATRICES=>EQUATIONS_MATRICES%NONLINEAR_MATRICES
-                    IF(ASSOCIATED(NONLINEAR_MATRICES)) THEN
-                      RESIDUAL_VECTOR=>NONLINEAR_MATRICES%RESIDUAL
-                      IF(ASSOCIATED(RESIDUAL_VECTOR)) THEN
-                        !Get mapping from equations rows to field dofs
-                        NONLINEAR_MAPPING=>EQUATIONS_MAPPING%NONLINEAR_MAPPING
-                        IF(ASSOCIATED(NONLINEAR_MAPPING)) THEN
-                          DO equations_matrix_idx=1,NONLINEAR_MAPPING%NUMBER_OF_RESIDUAL_VARIABLES
-                            RESIDUAL_VARIABLE=>NONLINEAR_MAPPING%JACOBIAN_TO_VAR_MAP(equations_matrix_idx)%VARIABLE
-                            IF(ASSOCIATED(RESIDUAL_VARIABLE)) THEN
-                              DO row_idx=1,EQUATIONS_MAPPING%NUMBER_OF_ROWS
-                                variable_dof=RHS_MAPPING%EQUATIONS_ROW_TO_RHS_DOF_MAP(row_idx)
-                                rhs_global_dof=RHS_DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(variable_dof)
-                                rhs_boundary_condition=RHS_BOUNDARY_CONDITIONS%DOF_TYPES(rhs_global_dof)
-                                SELECT CASE(rhs_boundary_condition)
-                                CASE(BOUNDARY_CONDITION_DOF_FREE)
-                                  !Add residual to field value
-                                  CALL DISTRIBUTED_VECTOR_VALUES_GET(RESIDUAL_VECTOR,row_idx,VALUE,ERR,ERROR,*999)
-                                  CALL Field_ParameterSetUpdateLocalDOF(RHS_FIELD,VARIABLE_TYPE,FIELD_VALUES_SET_TYPE, &
-                                    & variable_dof,VALUE,ERR,ERROR,*999)
-                                CASE(BOUNDARY_CONDITION_DOF_FIXED)
-                                  !Do nothing
-                                CASE(BOUNDARY_CONDITION_DOF_MIXED)
-                                  CALL FlagError("Not implemented.",ERR,ERROR,*999)
-                                CASE DEFAULT
-                                  LOCAL_ERROR="The RHS variable boundary condition of "// &
-                                    & TRIM(NUMBER_TO_VSTRING(rhs_boundary_condition,"*",ERR,ERROR))// &
-                                    & " for RHS variable dof number "// &
-                                    & TRIM(NUMBER_TO_VSTRING(variable_dof,"*",ERR,ERROR))//" is invalid."
-                                  CALL FlagError(LOCAL_ERROR,ERR,ERROR,*999)
-                                END SELECT
-                              ENDDO
-                            ELSE
-                              CALL FlagError("Residual variable is not associated.",ERR,ERROR,*999)
-                            ENDIF
-                          ENDDO !equations_matrix_idx
-                        ELSE
-                          CALL FlagError("Nonlinear mapping is not associated.",ERR,ERROR,*999)
-                        ENDIF
-                      ELSE
-                        CALL FlagError("Residual vector is not associated.",ERR,ERROR,*999)
-                      ENDIF
-                    ELSE
-                      CALL FlagError("Nonlinear matrices is not associated.",ERR,ERROR,*999)
-                    ENDIF
-                  ELSE
-                    CALL FlagError("Equations matrices is not associated.",ERR,ERROR,*999)
-                  ENDIF
-                ELSE
-                  CALL FlagError("RHS boundary conditions variable is not associated.",ERR,ERROR,*999)
-                ENDIF
-              ELSE
-                CALL FlagError("RHS variable domain mapping is not associated.",ERR,ERROR,*999)
-              ENDIF
-            ELSE
-              CALL FlagError("Boundary conditions are not associated.",ERR,ERROR,*999)
-            ENDIF
-            CALL Field_ParameterSetUpdateStart(RHS_FIELD,VARIABLE_TYPE,FIELD_VALUES_SET_TYPE,ERR,ERROR,*999)
-            CALL Field_ParameterSetUpdateFinish(RHS_FIELD,VARIABLE_TYPE,FIELD_VALUES_SET_TYPE,ERR,ERROR,*999)
-          ELSE
-            CALL FlagError("RHS variable field is not associated.",ERR,ERROR,*999)
-          ENDIF
-        ELSE
-          CALL FlagError("Equations mapping is not associated.",ERR,ERROR,*999)
-        ENDIF
-      ELSE
-        CALL FlagError("Equations set equations is not associated.",ERR,ERROR,*999)
-      ENDIF
-    ELSE
-      CALL FlagError("Equations set is not associated.",ERR,ERROR,*999)
-    ENDIF
+    IF(.NOT.ASSOCIATED(EQUATIONS_SET)) CALL FlagError("Equations set is not associated.",ERR,ERROR,*999)
+    EQUATIONS=>EQUATIONS_SET%EQUATIONS
+    IF(.NOT.ASSOCIATED(EQUATIONS)) CALL FlagError("Equations set equations is not associated.",ERR,ERROR,*999)
+    EQUATIONS_MAPPING=>EQUATIONS%EQUATIONS_MAPPING
+    IF(.NOT.ASSOCIATED(EQUATIONS_MAPPING)) CALL FlagError("Equations mapping is not associated.",ERR,ERROR,*999)
+    EQUATIONS_MATRICES=>EQUATIONS%EQUATIONS_MATRICES
+    IF(.NOT.ASSOCIATED(EQUATIONS_MATRICES))  CALL FlagError("Equations matrices is not associated.",ERR,ERROR,*999)
+    NONLINEAR_MATRICES=>EQUATIONS_MATRICES%NONLINEAR_MATRICES
+    IF(.NOT.ASSOCIATED(NONLINEAR_MATRICES)) CALL FlagError("Nonlinear matrices is not associated.",ERR,ERROR,*999)
+    RESIDUAL_VECTOR=>NONLINEAR_MATRICES%RESIDUAL
+    IF(.NOT.ASSOCIATED(RESIDUAL_VECTOR)) CALL FlagError("Residual vector is not associated.",ERR,ERROR,*999)
+    RESIDUAL_VARIABLE=>EQUATIONS_MAPPING%DEPENDENT_VARIABLE
+    IF(.NOT.ASSOCIATED(RESIDUAL_VARIABLE)) CALL FlagError("Residual variable is not associated.",ERR,ERROR,*999)
+    RHS_VARIABLE=>EQUATIONS_MAPPING%RHS_MAPPING%RHS_VARIABLE
+    IF(.NOT.ASSOCIATED(RHS_VARIABLE)) CALL FlagError("RHS mapping RHS variable is not associated.",ERR,ERROR,*999)
+    IF(.NOT.ASSOCIATED(BOUNDARY_CONDITIONS)) CALL FlagError("Boundary conditions is not associated.",ERR,ERROR,*999)
+
+    CALL BOUNDARY_CONDITIONS_VARIABLE_GET(BOUNDARY_CONDITIONS,RESIDUAL_VARIABLE,BOUNDARY_CONDITIONS_VARIABLE,ERR,ERROR,*999)
+    IF(.NOT.ASSOCIATED(BOUNDARY_CONDITIONS_VARIABLE)) CALL FlagError("Boundary conditions variable is not associated.", &
+      & ERR,ERROR,*999)
+
+    constraints=>BOUNDARY_CONDITIONS_VARIABLE%constraints
+    IF(.NOT.ASSOCIATED(constraints)) CALL FlagError("Boundary conditions variable constraints is not associated.",ERR,ERROR,*999)
+
+    NULLIFY(residualData)
+    CALL DistributedVector_DataGet(RESIDUAL_VECTOR,residualData,err,error,*999)
+    !Only need to update the rhs values for the constrained values.
+    CALL Field_ParameterSetUpdateLocalDOF(RHS_VARIABLE%FIELD,RHS_VARIABLE%VARIABLE_TYPE,FIELD_VALUES_SET_TYPE, &
+      & constraints%constrainedDofIndices,residualData(constraints%constrainedDofIndices),ERR,ERROR,*999)
+    CALL DistributedVector_DataRestore(RESIDUAL_VECTOR,residualData,err,error,*999)
+
+    !Start the update of the field parameters
+    CALL Field_ParameterSetUpdateStart(RHS_VARIABLE%FIELD,RHS_VARIABLE%VARIABLE_TYPE,FIELD_VALUES_SET_TYPE,ERR,ERROR,*999)
+    !Finish the update of the field parameters
+    CALL Field_ParameterSetUpdateFinish(RHS_VARIABLE%FIELD,RHS_VARIABLE%VARIABLE_TYPE,FIELD_VALUES_SET_TYPE,ERR,ERROR,*999)
 
     EXITS("EQUATIONS_SET_NONLINEAR_RHS_UPDATE")
     RETURN
@@ -2709,6 +2370,7 @@ CONTAINS
       CALL EQUATIONS_SET_EQUATIONS_SET_FIELD_FINALISE(EQUATIONS_SET%EQUATIONS_SET_FIELD,ERR,ERROR,*999)
       CALL EquationsSet_DerivedFinalise(EQUATIONS_SET%derived,ERR,ERROR,*999)
       IF(ASSOCIATED(EQUATIONS_SET%EQUATIONS)) CALL EQUATIONS_DESTROY(EQUATIONS_SET%EQUATIONS,ERR,ERROR,*999)
+      IF(ALLOCATED(EQUATIONS_SET%interfaceConditions)) DEALLOCATE(EQUATIONS_SET%interfaceConditions)
       IF(ALLOCATED(EQUATIONS_SET%SPECIFICATION)) DEALLOCATE(EQUATIONS_SET%SPECIFICATION)
       DEALLOCATE(EQUATIONS_SET)
     ENDIF
@@ -3062,7 +2724,7 @@ CONTAINS
         nonlinearMapping=>equations%EQUATIONS_MAPPING%NONLINEAR_MAPPING
         ! The first residual variable is always the row variable, which is the variable the
         ! residual is calculated for
-        rowVariable=>nonlinearMapping%RESIDUAL_VARIABLES(1)%PTR
+        rowVariable=>nonlinearMapping%VAR_TO_JACOBIAN_MAP(1)%VARIABLE
         ! For coupled problems this routine will be called multiple times if multiple Jacobians use finite
         ! differencing, so make sure we only calculate the residual vector once, to save time and because
         ! it would otherwise add together
@@ -3076,7 +2738,7 @@ CONTAINS
           ! For this equations set, we calculate the residual for the row variable
           ! while pertubing parameters from the column variable.
           ! For non coupled problems these two variables will be the same
-          columnVariable=>nonlinearMapping%RESIDUAL_VARIABLES(jacobianNumber)%PTR
+          columnVariable=>nonlinearMapping%VAR_TO_JACOBIAN_MAP(jacobianNumber)%VARIABLE
           parameters=>columnVariable%PARAMETER_SETS%PARAMETER_SETS(FIELD_VALUES_SET_TYPE)%PTR%PARAMETERS  ! vector of dependent variables, basically
           numberOfRows=nonlinearMatrices%JACOBIANS(jacobianNumber)%PTR%ELEMENT_JACOBIAN%NUMBER_OF_ROWS
           IF(numberOfRows/=nonlinearMatrices%ELEMENT_RESIDUAL%NUMBER_OF_ROWS) THEN
@@ -3621,6 +3283,7 @@ CONTAINS
       NULLIFY(EQUATIONS_SET%EQUATIONS_SETS)
       NULLIFY(EQUATIONS_SET%REGION)
       EQUATIONS_SET%SOLUTION_METHOD=0
+      EQUATIONS_SET%numberOfInterfaceConditions=0
       CALL EQUATIONS_SET_GEOMETRY_INITIALISE(EQUATIONS_SET,ERR,ERROR,*999)
       CALL EQUATIONS_SET_DEPENDENT_INITIALISE(EQUATIONS_SET,ERR,ERROR,*999)
       CALL EquationsSet_EquationsSetFieldInitialise(EQUATIONS_SET,ERR,ERROR,*999)
@@ -4882,10 +4545,9 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
     !Local Variables
-    INTEGER(INTG) :: element_idx,ne,NUMBER_OF_TIMES
+    INTEGER(INTG) :: element_idx
     REAL(SP) :: ELEMENT_USER_ELAPSED,ELEMENT_SYSTEM_ELAPSED,USER_ELAPSED,USER_TIME1(1),USER_TIME2(1),USER_TIME3(1),USER_TIME4(1), &
-      & USER_TIME5(1),USER_TIME6(1),SYSTEM_ELAPSED,SYSTEM_TIME1(1),SYSTEM_TIME2(1),SYSTEM_TIME3(1),SYSTEM_TIME4(1), &
-      & SYSTEM_TIME5(1),SYSTEM_TIME6(1)
+      & SYSTEM_ELAPSED,SYSTEM_TIME1(1),SYSTEM_TIME2(1),SYSTEM_TIME3(1),SYSTEM_TIME4(1)
     TYPE(DOMAIN_MAPPING_TYPE), POINTER :: ELEMENTS_MAPPING
     TYPE(EQUATIONS_TYPE), POINTER :: EQUATIONS
     TYPE(EQUATIONS_MATRICES_TYPE), POINTER :: EQUATIONS_MATRICES
@@ -4904,7 +4566,6 @@ CONTAINS
               CALL CPU_TIMER(USER_CPU,USER_TIME1,ERR,ERROR,*999)
               CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME1,ERR,ERROR,*999)
             ENDIF
-!!Do we need to transfer parameter sets???
             !Initialise the matrices and rhs vector
             CALL EQUATIONS_MATRICES_VALUES_INITIALISE(EQUATIONS_MATRICES,EQUATIONS_MATRICES_JACOBIAN_ONLY,0.0_DP,ERR,ERROR,*999)
             !Assemble the elements
@@ -4925,13 +4586,10 @@ CONTAINS
               ELEMENT_USER_ELAPSED=0.0_SP
               ELEMENT_SYSTEM_ELAPSED=0.0_SP
             ENDIF
-            NUMBER_OF_TIMES=0
-            !Loop over the internal elements
-            DO element_idx=ELEMENTS_MAPPING%INTERNAL_START,ELEMENTS_MAPPING%INTERNAL_FINISH
-              ne=ELEMENTS_MAPPING%DOMAIN_LIST(element_idx)
-              NUMBER_OF_TIMES=NUMBER_OF_TIMES+1
-              CALL EQUATIONS_MATRICES_ELEMENT_CALCULATE(EQUATIONS_MATRICES,ne,ERR,ERROR,*999)
-              CALL EquationsSet_FiniteElementJacobianEvaluate(EQUATIONS_SET,ne,ERR,ERROR,*999)
+            !Loop over the local+ghost elements
+            DO element_idx=1,ELEMENTS_MAPPING%TOTAL_NUMBER_OF_LOCAL
+              CALL EQUATIONS_MATRICES_ELEMENT_CALCULATE(EQUATIONS_MATRICES,element_idx,ERR,ERROR,*999)
+              CALL EquationsSet_FiniteElementJacobianEvaluate(EQUATIONS_SET,element_idx,ERR,ERROR,*999)
               CALL EQUATIONS_MATRICES_JACOBIAN_ELEMENT_ADD(EQUATIONS_MATRICES,ERR,ERROR,*999)
             ENDDO !element_idx                  
             !Output timing information if required
@@ -4943,48 +4601,14 @@ CONTAINS
               ELEMENT_USER_ELAPSED=USER_ELAPSED
               ELEMENT_SYSTEM_ELAPSED=SYSTEM_ELAPSED
               CALL WRITE_STRING(GENERAL_OUTPUT_TYPE,"",ERR,ERROR,*999)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for internal equations assembly = ",USER_ELAPSED, &
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for equations assembly = ",USER_ELAPSED, &
                 & ERR,ERROR,*999)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for internal equations assembly = ",SYSTEM_ELAPSED, &
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for equations assembly = ",SYSTEM_ELAPSED, &
                 & ERR,ERROR,*999)
-            ENDIF
-            !Output timing information if required
-            IF(EQUATIONS%OUTPUT_TYPE>=EQUATIONS_TIMING_OUTPUT) THEN
-              CALL CPU_TIMER(USER_CPU,USER_TIME4,ERR,ERROR,*999)
-              CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME4,ERR,ERROR,*999)
-              USER_ELAPSED=USER_TIME4(1)-USER_TIME3(1)
-              SYSTEM_ELAPSED=SYSTEM_TIME4(1)-SYSTEM_TIME3(1)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for parameter transfer completion = ",USER_ELAPSED, &
-                & ERR,ERROR,*999)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for parameter transfer completion = ",SYSTEM_ELAPSED, &
-                & ERR,ERROR,*999)
-            ENDIF
-            !Loop over the boundary and ghost elements
-            DO element_idx=ELEMENTS_MAPPING%BOUNDARY_START,ELEMENTS_MAPPING%GHOST_FINISH
-              ne=ELEMENTS_MAPPING%DOMAIN_LIST(element_idx)
-              NUMBER_OF_TIMES=NUMBER_OF_TIMES+1
-              CALL EQUATIONS_MATRICES_ELEMENT_CALCULATE(EQUATIONS_MATRICES,ne,ERR,ERROR,*999)
-              CALL EquationsSet_FiniteElementJacobianEvaluate(EQUATIONS_SET,ne,ERR,ERROR,*999)
-              CALL EQUATIONS_MATRICES_JACOBIAN_ELEMENT_ADD(EQUATIONS_MATRICES,ERR,ERROR,*999)
-            ENDDO !element_idx
-            !Output timing information if required
-            IF(EQUATIONS%OUTPUT_TYPE>=EQUATIONS_TIMING_OUTPUT) THEN
-              CALL CPU_TIMER(USER_CPU,USER_TIME5,ERR,ERROR,*999)
-              CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME5,ERR,ERROR,*999)
-              USER_ELAPSED=USER_TIME5(1)-USER_TIME4(1)
-              SYSTEM_ELAPSED=SYSTEM_TIME5(1)-SYSTEM_TIME4(1)
-              ELEMENT_USER_ELAPSED=ELEMENT_USER_ELAPSED+USER_ELAPSED
-              ELEMENT_SYSTEM_ELAPSED=ELEMENT_SYSTEM_ELAPSED+USER_ELAPSED
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for boundary+ghost equations assembly = ",USER_ELAPSED, &
-                & ERR,ERROR,*999)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for boundary+ghost equations assembly = ",SYSTEM_ELAPSED, &
-                & ERR,ERROR,*999)
-              IF(NUMBER_OF_TIMES>0) THEN
-                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average element user time for equations assembly = ", &
-                  & ELEMENT_USER_ELAPSED/NUMBER_OF_TIMES,ERR,ERROR,*999)
-                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average element system time for equations assembly = ", &
-                  & ELEMENT_SYSTEM_ELAPSED/NUMBER_OF_TIMES,ERR,ERROR,*999)
-              ENDIF
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average element user time for equations assembly = ", &
+                & ELEMENT_USER_ELAPSED/ELEMENTS_MAPPING%TOTAL_NUMBER_OF_LOCAL,ERR,ERROR,*999)
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average element system time for equations assembly = ", &
+                & ELEMENT_SYSTEM_ELAPSED/ELEMENTS_MAPPING%TOTAL_NUMBER_OF_LOCAL,ERR,ERROR,*999)
             ENDIF
             !Finalise the element matrices
             CALL EQUATIONS_MATRICES_ELEMENT_FINALISE(EQUATIONS_MATRICES,ERR,ERROR,*999)
@@ -4994,10 +4618,10 @@ CONTAINS
             ENDIF
             !Output timing information if required
             IF(EQUATIONS%OUTPUT_TYPE>=EQUATIONS_TIMING_OUTPUT) THEN
-              CALL CPU_TIMER(USER_CPU,USER_TIME6,ERR,ERROR,*999)
-              CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME6,ERR,ERROR,*999)
-              USER_ELAPSED=USER_TIME6(1)-USER_TIME1(1)
-              SYSTEM_ELAPSED=SYSTEM_TIME6(1)-SYSTEM_TIME1(1)
+              CALL CPU_TIMER(USER_CPU,USER_TIME4,ERR,ERROR,*999)
+              CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME4,ERR,ERROR,*999)
+              USER_ELAPSED=USER_TIME4(1)-USER_TIME1(1)
+              SYSTEM_ELAPSED=SYSTEM_TIME4(1)-SYSTEM_TIME1(1)
               CALL WRITE_STRING(GENERAL_OUTPUT_TYPE,"",ERR,ERROR,*999)
               CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Total user time for equations assembly = ",USER_ELAPSED, &
                 & ERR,ERROR,*999)
@@ -5035,10 +4659,9 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
     !Local Variables
-    INTEGER(INTG) :: element_idx,ne,NUMBER_OF_TIMES
+    INTEGER(INTG) :: element_idx
     REAL(SP) :: ELEMENT_USER_ELAPSED,ELEMENT_SYSTEM_ELAPSED,USER_ELAPSED,USER_TIME1(1),USER_TIME2(1),USER_TIME3(1),USER_TIME4(1), &
-      & USER_TIME5(1),USER_TIME6(1),SYSTEM_ELAPSED,SYSTEM_TIME1(1),SYSTEM_TIME2(1),SYSTEM_TIME3(1),SYSTEM_TIME4(1), &
-      & SYSTEM_TIME5(1),SYSTEM_TIME6(1)
+      & SYSTEM_ELAPSED,SYSTEM_TIME1(1),SYSTEM_TIME2(1),SYSTEM_TIME3(1),SYSTEM_TIME4(1)
     TYPE(DOMAIN_MAPPING_TYPE), POINTER :: ELEMENTS_MAPPING
     TYPE(EQUATIONS_TYPE), POINTER :: EQUATIONS
     TYPE(EQUATIONS_MATRICES_TYPE), POINTER :: EQUATIONS_MATRICES
@@ -5057,7 +4680,6 @@ CONTAINS
               CALL CPU_TIMER(USER_CPU,USER_TIME1,ERR,ERROR,*999)
               CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME1,ERR,ERROR,*999)
             ENDIF
-!!Do we need to transfer parameter sets???
             !Initialise the matrices and rhs vector
             CALL EQUATIONS_MATRICES_VALUES_INITIALISE(EQUATIONS_MATRICES,EQUATIONS_MATRICES_JACOBIAN_ONLY,0.0_DP,ERR,ERROR,*999)
             !Assemble the elements
@@ -5078,13 +4700,10 @@ CONTAINS
               ELEMENT_USER_ELAPSED=0.0_SP
               ELEMENT_SYSTEM_ELAPSED=0.0_SP
             ENDIF
-            NUMBER_OF_TIMES=0
-            !Loop over the internal elements
-            DO element_idx=ELEMENTS_MAPPING%INTERNAL_START,ELEMENTS_MAPPING%INTERNAL_FINISH
-              ne=ELEMENTS_MAPPING%DOMAIN_LIST(element_idx)
-              NUMBER_OF_TIMES=NUMBER_OF_TIMES+1
-              CALL EQUATIONS_MATRICES_ELEMENT_CALCULATE(EQUATIONS_MATRICES,ne,ERR,ERROR,*999)
-              CALL EquationsSet_FiniteElementJacobianEvaluate(EQUATIONS_SET,ne,ERR,ERROR,*999)
+            !Loop over the local+ghost elements
+            DO element_idx=1,ELEMENTS_MAPPING%TOTAL_NUMBER_OF_LOCAL
+              CALL EQUATIONS_MATRICES_ELEMENT_CALCULATE(EQUATIONS_MATRICES,element_idx,ERR,ERROR,*999)
+              CALL EquationsSet_FiniteElementJacobianEvaluate(EQUATIONS_SET,element_idx,ERR,ERROR,*999)
               CALL EQUATIONS_MATRICES_JACOBIAN_ELEMENT_ADD(EQUATIONS_MATRICES,ERR,ERROR,*999)
             ENDDO !element_idx
             !Output timing information if required
@@ -5096,48 +4715,14 @@ CONTAINS
               ELEMENT_USER_ELAPSED=USER_ELAPSED
               ELEMENT_SYSTEM_ELAPSED=SYSTEM_ELAPSED
               CALL WRITE_STRING(GENERAL_OUTPUT_TYPE,"",ERR,ERROR,*999)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for internal equations assembly = ",USER_ELAPSED, &
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for equations assembly = ",USER_ELAPSED, &
                 & ERR,ERROR,*999)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for internal equations assembly = ",SYSTEM_ELAPSED, &
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for equations assembly = ",SYSTEM_ELAPSED, &
                 & ERR,ERROR,*999)
-            ENDIF
-            !Output timing information if required
-            IF(EQUATIONS%OUTPUT_TYPE>=EQUATIONS_TIMING_OUTPUT) THEN
-              CALL CPU_TIMER(USER_CPU,USER_TIME4,ERR,ERROR,*999)
-              CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME4,ERR,ERROR,*999)
-              USER_ELAPSED=USER_TIME4(1)-USER_TIME3(1)
-              SYSTEM_ELAPSED=SYSTEM_TIME4(1)-SYSTEM_TIME3(1)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for parameter transfer completion = ",USER_ELAPSED, &
-                & ERR,ERROR,*999)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for parameter transfer completion = ",SYSTEM_ELAPSED, &
-                & ERR,ERROR,*999)
-            ENDIF
-            !Loop over the boundary and ghost elements
-            DO element_idx=ELEMENTS_MAPPING%BOUNDARY_START,ELEMENTS_MAPPING%GHOST_FINISH
-              ne=ELEMENTS_MAPPING%DOMAIN_LIST(element_idx)
-              NUMBER_OF_TIMES=NUMBER_OF_TIMES+1
-              CALL EQUATIONS_MATRICES_ELEMENT_CALCULATE(EQUATIONS_MATRICES,ne,ERR,ERROR,*999)
-              CALL EquationsSet_FiniteElementJacobianEvaluate(EQUATIONS_SET,ne,ERR,ERROR,*999)
-              CALL EQUATIONS_MATRICES_JACOBIAN_ELEMENT_ADD(EQUATIONS_MATRICES,ERR,ERROR,*999)
-            ENDDO !element_idx
-            !Output timing information if required
-            IF(EQUATIONS%OUTPUT_TYPE>=EQUATIONS_TIMING_OUTPUT) THEN
-              CALL CPU_TIMER(USER_CPU,USER_TIME5,ERR,ERROR,*999)
-              CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME5,ERR,ERROR,*999)
-              USER_ELAPSED=USER_TIME5(1)-USER_TIME4(1)
-              SYSTEM_ELAPSED=SYSTEM_TIME5(1)-SYSTEM_TIME4(1)
-              ELEMENT_USER_ELAPSED=ELEMENT_USER_ELAPSED+USER_ELAPSED
-              ELEMENT_SYSTEM_ELAPSED=ELEMENT_SYSTEM_ELAPSED+USER_ELAPSED
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for boundary+ghost equations assembly = ",USER_ELAPSED, &
-                & ERR,ERROR,*999)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for boundary+ghost equations assembly = ",SYSTEM_ELAPSED, &
-                & ERR,ERROR,*999)
-              IF(NUMBER_OF_TIMES>0) THEN
-                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average element user time for equations assembly = ", &
-                  & ELEMENT_USER_ELAPSED/NUMBER_OF_TIMES,ERR,ERROR,*999)
-                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average element system time for equations assembly = ", &
-                  & ELEMENT_SYSTEM_ELAPSED/NUMBER_OF_TIMES,ERR,ERROR,*999)
-              ENDIF
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average element user time for equations assembly = ", &
+                & ELEMENT_USER_ELAPSED/ELEMENTS_MAPPING%TOTAL_NUMBER_OF_LOCAL,ERR,ERROR,*999)
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average element system time for equations assembly = ", &
+                & ELEMENT_SYSTEM_ELAPSED/ELEMENTS_MAPPING%TOTAL_NUMBER_OF_LOCAL,ERR,ERROR,*999)
             ENDIF
             !Finalise the element matrices
             CALL EQUATIONS_MATRICES_ELEMENT_FINALISE(EQUATIONS_MATRICES,ERR,ERROR,*999)
@@ -5147,10 +4732,10 @@ CONTAINS
             ENDIF
             !Output timing information if required
             IF(EQUATIONS%OUTPUT_TYPE>=EQUATIONS_TIMING_OUTPUT) THEN
-              CALL CPU_TIMER(USER_CPU,USER_TIME6,ERR,ERROR,*999)
-              CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME6,ERR,ERROR,*999)
-              USER_ELAPSED=USER_TIME6(1)-USER_TIME1(1)
-              SYSTEM_ELAPSED=SYSTEM_TIME6(1)-SYSTEM_TIME1(1)
+              CALL CPU_TIMER(USER_CPU,USER_TIME4,ERR,ERROR,*999)
+              CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME4,ERR,ERROR,*999)
+              USER_ELAPSED=USER_TIME4(1)-USER_TIME1(1)
+              SYSTEM_ELAPSED=SYSTEM_TIME4(1)-SYSTEM_TIME1(1)
               CALL WRITE_STRING(GENERAL_OUTPUT_TYPE,"",ERR,ERROR,*999)
               CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Total user time for equations assembly = ",USER_ELAPSED, &
                 & ERR,ERROR,*999)
@@ -5269,7 +4854,7 @@ CONTAINS
             NONLINEAR_MAPPING=>EQUATIONS_MAPPING%NONLINEAR_MAPPING
             IF(ASSOCIATED(NONLINEAR_MAPPING)) THEN
               DO residual_variable_idx=1,NONLINEAR_MAPPING%NUMBER_OF_RESIDUAL_VARIABLES
-                RESIDUAL_VARIABLE=>NONLINEAR_MAPPING%RESIDUAL_VARIABLES(residual_variable_idx)%PTR
+                RESIDUAL_VARIABLE=>NONLINEAR_MAPPING%VAR_TO_JACOBIAN_MAP(residual_variable_idx)%VARIABLE
                 IF(ASSOCIATED(RESIDUAL_VARIABLE)) THEN
                   RESIDUAL_PARAMETER_SET=>RESIDUAL_VARIABLE%PARAMETER_SETS%SET_TYPE(FIELD_RESIDUAL_SET_TYPE)%PTR
                   IF(ASSOCIATED(RESIDUAL_PARAMETER_SET)) THEN
@@ -5329,10 +4914,9 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
     !Local Variables
-    INTEGER(INTG) :: element_idx,ne,NUMBER_OF_TIMES
+    INTEGER(INTG) :: element_idx
     REAL(SP) :: ELEMENT_USER_ELAPSED,ELEMENT_SYSTEM_ELAPSED,USER_ELAPSED,USER_TIME1(1),USER_TIME2(1),USER_TIME3(1),USER_TIME4(1), &
-      & USER_TIME5(1),USER_TIME6(1),SYSTEM_ELAPSED,SYSTEM_TIME1(1),SYSTEM_TIME2(1),SYSTEM_TIME3(1),SYSTEM_TIME4(1), &
-      & SYSTEM_TIME5(1),SYSTEM_TIME6(1)
+      & SYSTEM_ELAPSED,SYSTEM_TIME1(1),SYSTEM_TIME2(1),SYSTEM_TIME3(1),SYSTEM_TIME4(1)
     TYPE(DOMAIN_MAPPING_TYPE), POINTER :: ELEMENTS_MAPPING
     TYPE(EQUATIONS_TYPE), POINTER :: EQUATIONS
     TYPE(EQUATIONS_MATRICES_TYPE), POINTER :: EQUATIONS_MATRICES
@@ -5377,13 +4961,10 @@ CONTAINS
               ELEMENT_USER_ELAPSED=0.0_SP
               ELEMENT_SYSTEM_ELAPSED=0.0_SP
             ENDIF
-            NUMBER_OF_TIMES=0
-            !Loop over the internal elements
-            DO element_idx=ELEMENTS_MAPPING%INTERNAL_START,ELEMENTS_MAPPING%INTERNAL_FINISH
-              ne=ELEMENTS_MAPPING%DOMAIN_LIST(element_idx)
-              NUMBER_OF_TIMES=NUMBER_OF_TIMES+1
-              CALL EQUATIONS_MATRICES_ELEMENT_CALCULATE(EQUATIONS_MATRICES,ne,ERR,ERROR,*999)
-              CALL EquationsSet_FiniteElementResidualEvaluate(EQUATIONS_SET,ne,ERR,ERROR,*999)
+            !Loop over the local+ghost elements
+            DO element_idx=1,ELEMENTS_MAPPING%TOTAL_NUMBER_OF_LOCAL
+              CALL EQUATIONS_MATRICES_ELEMENT_CALCULATE(EQUATIONS_MATRICES,element_idx,ERR,ERROR,*999)
+              CALL EquationsSet_FiniteElementResidualEvaluate(EQUATIONS_SET,element_idx,ERR,ERROR,*999)
               CALL EQUATIONS_MATRICES_ELEMENT_ADD(EQUATIONS_MATRICES,ERR,ERROR,*999)
             ENDDO !element_idx                  
             !Output timing information if required
@@ -5395,49 +4976,15 @@ CONTAINS
               ELEMENT_USER_ELAPSED=USER_ELAPSED
               ELEMENT_SYSTEM_ELAPSED=SYSTEM_ELAPSED
               CALL WRITE_STRING(GENERAL_OUTPUT_TYPE,"",ERR,ERROR,*999)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for internal equations assembly = ",USER_ELAPSED, &
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for equations assembly = ",USER_ELAPSED, &
                 & ERR,ERROR,*999)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for internal equations assembly = ",SYSTEM_ELAPSED, &
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for equations assembly = ",SYSTEM_ELAPSED, &
                 & ERR,ERROR,*999)
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average element user time for equations assembly = ", &
+                & ELEMENT_USER_ELAPSED/ELEMENTS_MAPPING%TOTAL_NUMBER_OF_LOCAL,ERR,ERROR,*999)
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average element system time for equations assembly = ", &
+                & ELEMENT_SYSTEM_ELAPSED/ELEMENTS_MAPPING%TOTAL_NUMBER_OF_LOCAL,ERR,ERROR,*999)
              ENDIF
-             !Output timing information if required
-            IF(EQUATIONS%OUTPUT_TYPE>=EQUATIONS_TIMING_OUTPUT) THEN
-              CALL CPU_TIMER(USER_CPU,USER_TIME4,ERR,ERROR,*999)
-              CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME4,ERR,ERROR,*999)
-              USER_ELAPSED=USER_TIME4(1)-USER_TIME3(1)
-              SYSTEM_ELAPSED=SYSTEM_TIME4(1)-SYSTEM_TIME3(1)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for parameter transfer completion = ",USER_ELAPSED, &
-                & ERR,ERROR,*999)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for parameter transfer completion = ",SYSTEM_ELAPSED, &
-                & ERR,ERROR,*999)
-            ENDIF
-            !Loop over the boundary and ghost elements
-            DO element_idx=ELEMENTS_MAPPING%BOUNDARY_START,ELEMENTS_MAPPING%GHOST_FINISH
-              ne=ELEMENTS_MAPPING%DOMAIN_LIST(element_idx)
-              NUMBER_OF_TIMES=NUMBER_OF_TIMES+1
-              CALL EQUATIONS_MATRICES_ELEMENT_CALCULATE(EQUATIONS_MATRICES,ne,ERR,ERROR,*999)
-              CALL EquationsSet_FiniteElementResidualEvaluate(EQUATIONS_SET,ne,ERR,ERROR,*999)
-              CALL EQUATIONS_MATRICES_ELEMENT_ADD(EQUATIONS_MATRICES,ERR,ERROR,*999)
-            ENDDO !element_idx
-            !Output timing information if required
-            IF(EQUATIONS%OUTPUT_TYPE>=EQUATIONS_TIMING_OUTPUT) THEN
-              CALL CPU_TIMER(USER_CPU,USER_TIME5,ERR,ERROR,*999)
-              CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME5,ERR,ERROR,*999)
-              USER_ELAPSED=USER_TIME5(1)-USER_TIME4(1)
-              SYSTEM_ELAPSED=SYSTEM_TIME5(1)-SYSTEM_TIME4(1)
-              ELEMENT_USER_ELAPSED=ELEMENT_USER_ELAPSED+USER_ELAPSED
-              ELEMENT_SYSTEM_ELAPSED=ELEMENT_SYSTEM_ELAPSED+USER_ELAPSED
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for boundary+ghost equations assembly = ",USER_ELAPSED, &
-                & ERR,ERROR,*999)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for boundary+ghost equations assembly = ",SYSTEM_ELAPSED, &
-                & ERR,ERROR,*999)
-              IF(NUMBER_OF_TIMES>0) THEN
-                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average element user time for equations assembly = ", &
-                  & ELEMENT_USER_ELAPSED/NUMBER_OF_TIMES,ERR,ERROR,*999)
-                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average element system time for equations assembly = ", &
-                  & ELEMENT_SYSTEM_ELAPSED/NUMBER_OF_TIMES,ERR,ERROR,*999)
-              ENDIF
-            ENDIF
             !Finalise the element matrices
             CALL EQUATIONS_MATRICES_ELEMENT_FINALISE(EQUATIONS_MATRICES,ERR,ERROR,*999)
             !Output equations matrices and RHS vector if required
@@ -5446,10 +4993,10 @@ CONTAINS
             ENDIF
             !Output timing information if required
             IF(EQUATIONS%OUTPUT_TYPE>=EQUATIONS_TIMING_OUTPUT) THEN
-              CALL CPU_TIMER(USER_CPU,USER_TIME6,ERR,ERROR,*999)
-              CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME6,ERR,ERROR,*999)
-              USER_ELAPSED=USER_TIME6(1)-USER_TIME1(1)
-              SYSTEM_ELAPSED=SYSTEM_TIME6(1)-SYSTEM_TIME1(1)
+              CALL CPU_TIMER(USER_CPU,USER_TIME4,ERR,ERROR,*999)
+              CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME4,ERR,ERROR,*999)
+              USER_ELAPSED=USER_TIME4(1)-USER_TIME1(1)
+              SYSTEM_ELAPSED=SYSTEM_TIME4(1)-SYSTEM_TIME1(1)
               CALL WRITE_STRING(GENERAL_OUTPUT_TYPE,"",ERR,ERROR,*999)
               CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Total user time for equations assembly = ",USER_ELAPSED, &
                 & ERR,ERROR,*999)
@@ -5487,10 +5034,9 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
     !Local Variables
-    INTEGER(INTG) :: element_idx,ne,NUMBER_OF_TIMES
+    INTEGER(INTG) :: element_idx
     REAL(SP) :: ELEMENT_USER_ELAPSED,ELEMENT_SYSTEM_ELAPSED,USER_ELAPSED,USER_TIME1(1),USER_TIME2(1),USER_TIME3(1),USER_TIME4(1), &
-      & USER_TIME5(1),USER_TIME6(1),SYSTEM_ELAPSED,SYSTEM_TIME1(1),SYSTEM_TIME2(1),SYSTEM_TIME3(1),SYSTEM_TIME4(1), &
-      & SYSTEM_TIME5(1),SYSTEM_TIME6(1)
+      & SYSTEM_ELAPSED,SYSTEM_TIME1(1),SYSTEM_TIME2(1),SYSTEM_TIME3(1),SYSTEM_TIME4(1)
     TYPE(DOMAIN_MAPPING_TYPE), POINTER :: ELEMENTS_MAPPING
     TYPE(EQUATIONS_TYPE), POINTER :: EQUATIONS
     TYPE(EQUATIONS_MATRICES_TYPE), POINTER :: EQUATIONS_MATRICES
@@ -5509,7 +5055,6 @@ CONTAINS
               CALL CPU_TIMER(USER_CPU,USER_TIME1,ERR,ERROR,*999)
               CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME1,ERR,ERROR,*999)
             ENDIF
-            !!Do we need to transfer parameter sets???
             !Initialise the matrices and rhs vector
             CALL EQUATIONS_MATRICES_VALUES_INITIALISE(EQUATIONS_MATRICES,EQUATIONS_MATRICES_NONLINEAR_ONLY,0.0_DP,ERR,ERROR,*999)
             !Assemble the elements
@@ -5530,13 +5075,10 @@ CONTAINS
               ELEMENT_USER_ELAPSED=0.0_SP
               ELEMENT_SYSTEM_ELAPSED=0.0_SP
             ENDIF
-            NUMBER_OF_TIMES=0
-            !Loop over the internal elements
-            DO element_idx=ELEMENTS_MAPPING%INTERNAL_START,ELEMENTS_MAPPING%INTERNAL_FINISH
-              ne=ELEMENTS_MAPPING%DOMAIN_LIST(element_idx)
-              NUMBER_OF_TIMES=NUMBER_OF_TIMES+1
-              CALL EQUATIONS_MATRICES_ELEMENT_CALCULATE(EQUATIONS_MATRICES,ne,ERR,ERROR,*999)
-              CALL EquationsSet_FiniteElementResidualEvaluate(EQUATIONS_SET,ne,ERR,ERROR,*999)
+            !Loop over the local+ghost elements
+            DO element_idx=1,ELEMENTS_MAPPING%TOTAL_NUMBER_OF_LOCAL
+              CALL EQUATIONS_MATRICES_ELEMENT_CALCULATE(EQUATIONS_MATRICES,element_idx,ERR,ERROR,*999)
+              CALL EquationsSet_FiniteElementResidualEvaluate(EQUATIONS_SET,element_idx,ERR,ERROR,*999)
               CALL EQUATIONS_MATRICES_ELEMENT_ADD(EQUATIONS_MATRICES,ERR,ERROR,*999)
             ENDDO !element_idx
             !Output timing information if required
@@ -5548,48 +5090,14 @@ CONTAINS
               ELEMENT_USER_ELAPSED=USER_ELAPSED
               ELEMENT_SYSTEM_ELAPSED=SYSTEM_ELAPSED
               CALL WRITE_STRING(GENERAL_OUTPUT_TYPE,"",ERR,ERROR,*999)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for internal equations assembly = ",USER_ELAPSED, &
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for equations assembly = ",USER_ELAPSED, &
                 & ERR,ERROR,*999)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for internal equations assembly = ",SYSTEM_ELAPSED, &
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for equations assembly = ",SYSTEM_ELAPSED, &
                 & ERR,ERROR,*999)
-            ENDIF
-            !Output timing information if required
-            IF(EQUATIONS%OUTPUT_TYPE>=EQUATIONS_TIMING_OUTPUT) THEN
-              CALL CPU_TIMER(USER_CPU,USER_TIME4,ERR,ERROR,*999)
-              CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME4,ERR,ERROR,*999)
-              USER_ELAPSED=USER_TIME4(1)-USER_TIME3(1)
-              SYSTEM_ELAPSED=SYSTEM_TIME4(1)-SYSTEM_TIME3(1)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for parameter transfer completion = ",USER_ELAPSED, &
-                & ERR,ERROR,*999)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for parameter transfer completion = ",SYSTEM_ELAPSED, &
-                & ERR,ERROR,*999)
-            ENDIF
-            !Loop over the boundary and ghost elements
-            DO element_idx=ELEMENTS_MAPPING%BOUNDARY_START,ELEMENTS_MAPPING%GHOST_FINISH
-              ne=ELEMENTS_MAPPING%DOMAIN_LIST(element_idx)
-              NUMBER_OF_TIMES=NUMBER_OF_TIMES+1
-              CALL EQUATIONS_MATRICES_ELEMENT_CALCULATE(EQUATIONS_MATRICES,ne,ERR,ERROR,*999)
-              CALL EquationsSet_FiniteElementResidualEvaluate(EQUATIONS_SET,ne,ERR,ERROR,*999)
-              CALL EQUATIONS_MATRICES_ELEMENT_ADD(EQUATIONS_MATRICES,ERR,ERROR,*999)
-            ENDDO !element_idx
-            !Output timing information if required
-            IF(EQUATIONS%OUTPUT_TYPE>=EQUATIONS_TIMING_OUTPUT) THEN
-              CALL CPU_TIMER(USER_CPU,USER_TIME5,ERR,ERROR,*999)
-              CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME5,ERR,ERROR,*999)
-              USER_ELAPSED=USER_TIME5(1)-USER_TIME4(1)
-              SYSTEM_ELAPSED=SYSTEM_TIME5(1)-SYSTEM_TIME4(1)
-              ELEMENT_USER_ELAPSED=ELEMENT_USER_ELAPSED+USER_ELAPSED
-              ELEMENT_SYSTEM_ELAPSED=ELEMENT_SYSTEM_ELAPSED+USER_ELAPSED
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for boundary+ghost equations assembly = ",USER_ELAPSED, &
-                & ERR,ERROR,*999)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for boundary+ghost equations assembly = ",SYSTEM_ELAPSED, &
-                & ERR,ERROR,*999)
-              IF(NUMBER_OF_TIMES>0) THEN
-                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average element user time for equations assembly = ", &
-                  & ELEMENT_USER_ELAPSED/NUMBER_OF_TIMES,ERR,ERROR,*999)
-                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average element system time for equations assembly = ", &
-                  & ELEMENT_SYSTEM_ELAPSED/NUMBER_OF_TIMES,ERR,ERROR,*999)
-              ENDIF
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average element user time for equations assembly = ", &
+                & ELEMENT_USER_ELAPSED/ELEMENTS_MAPPING%TOTAL_NUMBER_OF_LOCAL,ERR,ERROR,*999)
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average element system time for equations assembly = ", &
+                & ELEMENT_SYSTEM_ELAPSED/ELEMENTS_MAPPING%TOTAL_NUMBER_OF_LOCAL,ERR,ERROR,*999)
             ENDIF
             !Finalise the element matrices
             CALL EQUATIONS_MATRICES_ELEMENT_FINALISE(EQUATIONS_MATRICES,ERR,ERROR,*999)
@@ -5599,10 +5107,10 @@ CONTAINS
             ENDIF
             !Output timing information if required
             IF(EQUATIONS%OUTPUT_TYPE>=EQUATIONS_TIMING_OUTPUT) THEN
-              CALL CPU_TIMER(USER_CPU,USER_TIME6,ERR,ERROR,*999)
-              CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME6,ERR,ERROR,*999)
-              USER_ELAPSED=USER_TIME6(1)-USER_TIME1(1)
-              SYSTEM_ELAPSED=SYSTEM_TIME6(1)-SYSTEM_TIME1(1)
+              CALL CPU_TIMER(USER_CPU,USER_TIME4,ERR,ERROR,*999)
+              CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME4,ERR,ERROR,*999)
+              USER_ELAPSED=USER_TIME4(1)-USER_TIME1(1)
+              SYSTEM_ELAPSED=SYSTEM_TIME4(1)-SYSTEM_TIME1(1)
               CALL WRITE_STRING(GENERAL_OUTPUT_TYPE,"",ERR,ERROR,*999)
               CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Total user time for equations assembly = ",USER_ELAPSED, &
                 & ERR,ERROR,*999)
@@ -6504,12 +6012,13 @@ CONTAINS
     TYPE(FIELD_VARIABLE_TYPE), POINTER :: DEPENDENT_VARIABLE
     TYPE(DOMAIN_MAPPING_TYPE), POINTER :: DOMAIN_MAPPING
     TYPE(BOUNDARY_CONDITIONS_VARIABLE_TYPE), POINTER :: BOUNDARY_CONDITIONS_VARIABLE
-    TYPE(BOUNDARY_CONDITIONS_DIRICHLET_TYPE), POINTER :: DIRICHLET_BOUNDARY_CONDITIONS
+    TYPE(BoundaryConditionsConstraintsType), POINTER :: constraints 
     TYPE(BOUNDARY_CONDITIONS_PRESSURE_INCREMENTED_TYPE), POINTER :: PRESSURE_INCREMENTED_BOUNDARY_CONDITIONS
-    INTEGER(INTG) :: variable_idx,variable_type,dirichlet_idx,dirichlet_dof_idx,neumann_point_dof
-    INTEGER(INTG) :: condition_idx, condition_global_dof, condition_local_dof, MY_COMPUTATIONAL_NODE_NUMBER
-    REAL(DP), POINTER :: FULL_LOADS(:),CURRENT_LOADS(:), PREV_LOADS(:)
-    REAL(DP) :: FULL_LOAD, CURRENT_LOAD, NEW_LOAD, PREV_LOAD
+    INTEGER(INTG) :: variable_idx,variable_type,dirichlet_idx,dirichlet_dof_idx
+    INTEGER(INTG) :: condition_idx,condition_local_dof
+    INTEGER(INTG), POINTER :: conditionTypes(:)
+    REAL(DP), POINTER :: FULL_LOADS(:),CURRENT_LOADS(:),PREV_LOADS(:)
+    REAL(DP) :: FULL_LOAD, CURRENT_LOAD,NEW_LOAD,PREV_LOAD
     TYPE(VARYING_STRING) :: LOCAL_ERROR
 
     ENTERS("EQUATIONS_SET_BOUNDARY_CONDITIONS_INCREMENT",ERR,ERROR,*999)
@@ -6517,12 +6026,9 @@ CONTAINS
     NULLIFY(DEPENDENT_FIELD)
     NULLIFY(DEPENDENT_VARIABLE)
     NULLIFY(BOUNDARY_CONDITIONS_VARIABLE)
-    NULLIFY(DIRICHLET_BOUNDARY_CONDITIONS)
     NULLIFY(FULL_LOADS)
     NULLIFY(PREV_LOADS)
     NULLIFY(CURRENT_LOADS)
-
-    MY_COMPUTATIONAL_NODE_NUMBER=COMPUTATIONAL_NODE_NUMBER_GET(ERR,ERROR)
     
     !Take the stored load, scale it down appropriately then apply to the unknown variables
     IF(ASSOCIATED(EQUATIONS_SET)) THEN
@@ -6541,14 +6047,15 @@ CONTAINS
               CALL BOUNDARY_CONDITIONS_VARIABLE_GET(BOUNDARY_CONDITIONS,DEPENDENT_VARIABLE,BOUNDARY_CONDITIONS_VARIABLE, &
                 & ERR,ERROR,*999)
               IF(ASSOCIATED(BOUNDARY_CONDITIONS_VARIABLE)) THEN
+                NULLIFY(conditionTypes)
+                CALL DistributedVector_DataGet(BOUNDARY_CONDITIONS_VARIABLE%CONDITION_TYPES,conditionTypes,err,error,*999)
                 DOMAIN_MAPPING=>DEPENDENT_VARIABLE%DOMAIN_MAPPING
                 IF(ASSOCIATED(DOMAIN_MAPPING)) THEN
-
                   ! Check if there are any incremented conditions applied for this boundary conditions variable
-                  IF(BOUNDARY_CONDITIONS_VARIABLE%DOF_COUNTS(BOUNDARY_CONDITION_FIXED_INCREMENTED)>0.OR. &
-                      & BOUNDARY_CONDITIONS_VARIABLE%DOF_COUNTS(BOUNDARY_CONDITION_MOVED_WALL_INCREMENTED)>0) THEN
-                    IF(ASSOCIATED(BOUNDARY_CONDITIONS_VARIABLE%DIRICHLET_BOUNDARY_CONDITIONS)) THEN
-                      DIRICHLET_BOUNDARY_CONDITIONS=>BOUNDARY_CONDITIONS_VARIABLE%DIRICHLET_BOUNDARY_CONDITIONS
+                  IF(BOUNDARY_CONDITIONS_VARIABLE%anyGlobalDofs(BOUNDARY_CONDITION_FIXED_INCREMENTED).OR. &
+                    & BOUNDARY_CONDITIONS_VARIABLE%anyGlobalDofs(BOUNDARY_CONDITION_MOVED_WALL_INCREMENTED)) THEN
+                    constraints=>BOUNDARY_CONDITIONS_VARIABLE%constraints
+                    IF(ASSOCIATED(constraints)) THEN
                       !Get the pointer to vector holding the full and current loads
                       !   full load: FIELD_BOUNDARY_CONDITIONS_SET_TYPE - holds the target load values
                       !   current load: FIELD_VALUES_SET_TYPE - holds the current increment values
@@ -6561,96 +6068,69 @@ CONTAINS
                         & CURRENT_LOADS,ERR,ERROR,*999)
   !                     write(*,*)'CURRENT_LOADS = ',CURRENT_LOADS
                       !Get full increment, calculate new load, then apply to dependent field
-                      DO dirichlet_idx=1,BOUNDARY_CONDITIONS_VARIABLE%NUMBER_OF_DIRICHLET_CONDITIONS
-                        dirichlet_dof_idx=DIRICHLET_BOUNDARY_CONDITIONS%DIRICHLET_DOF_INDICES(dirichlet_idx)
+                      DO dirichlet_idx=1,constraints%numberOfConstraints
+                        dirichlet_dof_idx=constraints%constrainedDofIndices(dirichlet_idx)
                         !Check whether we have an incremented boundary condition type
-                        SELECT CASE(BOUNDARY_CONDITIONS_VARIABLE%CONDITION_TYPES(dirichlet_dof_idx))
-                        CASE(BOUNDARY_CONDITION_FIXED_INCREMENTED, &
-                            & BOUNDARY_CONDITION_MOVED_WALL_INCREMENTED)
-                          !Convert dof index to local index
-                          IF(DOMAIN_MAPPING%GLOBAL_TO_LOCAL_MAP(dirichlet_dof_idx)%DOMAIN_NUMBER(1)== &
-                            & MY_COMPUTATIONAL_NODE_NUMBER) THEN
-                            dirichlet_dof_idx=DOMAIN_MAPPING%GLOBAL_TO_LOCAL_MAP(dirichlet_dof_idx)%LOCAL_NUMBER(1)
-                            IF(0<dirichlet_dof_idx.AND.dirichlet_dof_idx<DOMAIN_MAPPING%GHOST_START) THEN
-                              FULL_LOAD=FULL_LOADS(dirichlet_dof_idx)
-                              ! Apply full load if last step, or fixed BC
-                              IF(ITERATION_NUMBER==MAXIMUM_NUMBER_OF_ITERATIONS) THEN
-                                CALL Field_ParameterSetUpdateLocalDOF(DEPENDENT_FIELD,variable_type,FIELD_VALUES_SET_TYPE, &
-                                  & dirichlet_dof_idx,FULL_LOAD,ERR,ERROR,*999)
-                              ELSE
-                                !Calculate new load and apply to dependent field
-                                CURRENT_LOAD=CURRENT_LOADS(dirichlet_dof_idx)
-                                NEW_LOAD=CURRENT_LOAD+(FULL_LOAD-CURRENT_LOAD)/(MAXIMUM_NUMBER_OF_ITERATIONS-ITERATION_NUMBER+1)
-                                CALL Field_ParameterSetUpdateLocalDOF(DEPENDENT_FIELD,variable_type,FIELD_VALUES_SET_TYPE, &
-                                  & dirichlet_dof_idx,NEW_LOAD,ERR,ERROR,*999)
-                                IF(DIAGNOSTICS1) THEN
-                                  CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"  dof idx",dirichlet_dof_idx,ERR,ERROR,*999)
-                                  CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"    current load",CURRENT_LOAD,ERR,ERROR,*999)
-                                  CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"    new load",NEW_LOAD,ERR,ERROR,*999)
-                                ENDIF
-                              ENDIF !Full or intermediate load
-                            ENDIF !non-ghost dof
-                          ENDIF !current domain
+                        SELECT CASE(conditionTypes(dirichlet_dof_idx))
+                        CASE(BOUNDARY_CONDITION_FIXED_INCREMENTED,BOUNDARY_CONDITION_MOVED_WALL_INCREMENTED)
+                          FULL_LOAD=FULL_LOADS(dirichlet_dof_idx)
+                          ! Apply full load if last step, or fixed BC
+                          IF(ITERATION_NUMBER==MAXIMUM_NUMBER_OF_ITERATIONS) THEN
+                            CALL Field_ParameterSetUpdateLocalDOF(DEPENDENT_FIELD,variable_type,FIELD_VALUES_SET_TYPE, &
+                              & dirichlet_dof_idx,FULL_LOAD,ERR,ERROR,*999)
+                          ELSE
+                            !Calculate new load and apply to dependent field
+                            CURRENT_LOAD=CURRENT_LOADS(dirichlet_dof_idx)
+                            NEW_LOAD=CURRENT_LOAD+(FULL_LOAD-CURRENT_LOAD)/(MAXIMUM_NUMBER_OF_ITERATIONS-ITERATION_NUMBER+1)
+                            CALL Field_ParameterSetUpdateLocalDOF(DEPENDENT_FIELD,variable_type,FIELD_VALUES_SET_TYPE, &
+                              & dirichlet_dof_idx,NEW_LOAD,ERR,ERROR,*999)
+                            IF(DIAGNOSTICS1) THEN
+                              CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"  dof idx",dirichlet_dof_idx,ERR,ERROR,*999)
+                              CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"    current load",CURRENT_LOAD,ERR,ERROR,*999)
+                              CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"    new load",NEW_LOAD,ERR,ERROR,*999)
+                            ENDIF
+                          ENDIF !Full or intermediate load
                         CASE DEFAULT
                           !Do nothing for non-incremented boundary conditions
                         END SELECT
                       ENDDO !dirichlet_idx
-  !---tob
-                      !\ToDo: What happens if the call below is issued
-                      !without actually that the dependent field has been modified in above conditional ?
-                      CALL Field_ParameterSetUpdateStart(DEPENDENT_FIELD, &
-                        & variable_type, FIELD_VALUES_SET_TYPE,ERR,ERROR,*999)
-                      CALL Field_ParameterSetUpdateFinish(DEPENDENT_FIELD, &
-                        & variable_type, FIELD_VALUES_SET_TYPE,ERR,ERROR,*999)
-  !---toe
                       !Restore the vector handles
                       CALL Field_ParameterSetDataRestore(DEPENDENT_FIELD,variable_type,FIELD_BOUNDARY_CONDITIONS_SET_TYPE, &
                         & FULL_LOADS,ERR,ERROR,*999)
                       CALL Field_ParameterSetDataRestore(DEPENDENT_FIELD,variable_type,FIELD_VALUES_SET_TYPE, &
                         & CURRENT_LOADS,ERR,ERROR,*999)
                     ELSE
-                      LOCAL_ERROR="Dirichlet boundary condition for variable type "// &
+                      LOCAL_ERROR="Constraints boundary condition for variable type "// &
                         & TRIM(NUMBER_TO_VSTRING(variable_type,"*",ERR,ERROR))//" is not associated."
                       CALL FlagError(LOCAL_ERROR,ERR,ERROR,*999)
                     ENDIF
                   ENDIF
 
                   ! Also increment any incremented Neumann point conditions
-                  IF(BOUNDARY_CONDITIONS_VARIABLE%DOF_COUNTS(BOUNDARY_CONDITION_NEUMANN_POINT_INCREMENTED)>0) THEN
+                  IF(BOUNDARY_CONDITIONS_VARIABLE%anyGlobalDofs(BOUNDARY_CONDITION_NEUMANN_POINT_INCREMENTED)) THEN
                     IF(ASSOCIATED(BOUNDARY_CONDITIONS_VARIABLE%neumannBoundaryConditions)) THEN
                       ! The boundary conditions parameter set contains the full values and the
                       ! current incremented values are transferred to the point values vector
-                      DO condition_idx=1,BOUNDARY_CONDITIONS_VARIABLE%DOF_COUNTS(BOUNDARY_CONDITION_NEUMANN_POINT_INCREMENTED)+ &
-                          & BOUNDARY_CONDITIONS_VARIABLE%DOF_COUNTS(BOUNDARY_CONDITION_NEUMANN_POINT)
-                        condition_global_dof=BOUNDARY_CONDITIONS_VARIABLE%neumannBoundaryConditions%setDofs(condition_idx)
-                        ! condition_global_dof could be for non-incremented point Neumann condition
-                        IF(BOUNDARY_CONDITIONS_VARIABLE%CONDITION_TYPES(condition_global_dof)/= &
-                          & BOUNDARY_CONDITION_NEUMANN_POINT_INCREMENTED) CYCLE
-                        IF(DOMAIN_MAPPING%GLOBAL_TO_LOCAL_MAP(condition_global_dof)%DOMAIN_NUMBER(1)== &
-                          & MY_COMPUTATIONAL_NODE_NUMBER) THEN
-                          condition_local_dof=DOMAIN_MAPPING%GLOBAL_TO_LOCAL_MAP(condition_global_dof)% &
-                            & LOCAL_NUMBER(1)
-                          neumann_point_dof=BOUNDARY_CONDITIONS_VARIABLE%neumannBoundaryConditions%pointDofMapping% &
-                            & GLOBAL_TO_LOCAL_MAP(condition_idx)%LOCAL_NUMBER(1)
+                      DO condition_idx=1,BOUNDARY_CONDITIONS_VARIABLE%neumannBoundaryConditions%numberOfNeumann
+                        ! condition_local_dof could be for non-incremented point Neumann condition
+                        IF(conditionTypes(condition_idx)==BOUNDARY_CONDITION_NEUMANN_POINT_INCREMENTED) THEN
+                          condition_local_dof=BOUNDARY_CONDITIONS_VARIABLE%neumannBoundaryConditions%setDofs(condition_idx)
                           CALL FIELD_PARAMETER_SET_GET_LOCAL_DOF(DEPENDENT_FIELD,variable_type, &
                             & FIELD_BOUNDARY_CONDITIONS_SET_TYPE,condition_local_dof,FULL_LOAD,ERR,ERROR,*999)
                           CALL DISTRIBUTED_VECTOR_VALUES_SET(BOUNDARY_CONDITIONS_VARIABLE%neumannBoundaryConditions% &
-                            & pointValues,neumann_point_dof,FULL_LOAD*(REAL(ITERATION_NUMBER)/REAL(MAXIMUM_NUMBER_OF_ITERATIONS)), &
+                            & pointValues,condition_idx,FULL_LOAD*(REAL(ITERATION_NUMBER)/REAL(MAXIMUM_NUMBER_OF_ITERATIONS)), &
                             & ERR,ERROR,*999)
                         END IF
                       END DO
                     ELSE
                       LOCAL_ERROR="Neumann boundary conditions for variable type "// &
-                        & TRIM(NUMBER_TO_VSTRING(variable_type,"*",ERR,ERROR))//" are not associated even though"// &
-                        & TRIM(NUMBER_TO_VSTRING(BOUNDARY_CONDITIONS_VARIABLE%DOF_COUNTS( &
-                        & BOUNDARY_CONDITION_NEUMANN_POINT_INCREMENTED), &
-                        & '*',ERR,ERROR))//" conditions of this type has been counted."
+                        & TRIM(NUMBER_TO_VSTRING(variable_type,"*",ERR,ERROR))//" are not associated."
                       CALL FlagError(LOCAL_ERROR,ERR,ERROR,*999)
                     END IF
                   END IF
 
                   !There might also be pressure incremented conditions
-                  IF (BOUNDARY_CONDITIONS_VARIABLE%DOF_COUNTS(BOUNDARY_CONDITION_PRESSURE_INCREMENTED)>0) THEN
+                  IF(BOUNDARY_CONDITIONS_VARIABLE%anyGlobalDofs(BOUNDARY_CONDITION_PRESSURE_INCREMENTED)) THEN
                     ! handle pressure incremented boundary conditions
                     IF(ASSOCIATED(BOUNDARY_CONDITIONS_VARIABLE%PRESSURE_INCREMENTED_BOUNDARY_CONDITIONS)) THEN
                       PRESSURE_INCREMENTED_BOUNDARY_CONDITIONS=>BOUNDARY_CONDITIONS_VARIABLE% &
@@ -6667,89 +6147,53 @@ CONTAINS
                       !Calculate the new load, update the old load
                       IF(ITERATION_NUMBER==1) THEN
                         !On the first iteration, FIELD_PRESSURE_VALUES_SET_TYPE actually contains the full load
-                        DO condition_idx=1,BOUNDARY_CONDITIONS_VARIABLE%DOF_COUNTS( &
-                            & BOUNDARY_CONDITION_PRESSURE_INCREMENTED)
-                          !Global dof index
-                          condition_global_dof=PRESSURE_INCREMENTED_BOUNDARY_CONDITIONS%PRESSURE_INCREMENTED_DOF_INDICES &
-                            & (condition_idx)
-                          !Must convert into local dof index
-                          IF(DOMAIN_MAPPING%GLOBAL_TO_LOCAL_MAP(condition_global_dof)%DOMAIN_NUMBER(1)== &
-                            & MY_COMPUTATIONAL_NODE_NUMBER) THEN
-                            condition_local_dof=DOMAIN_MAPPING%GLOBAL_TO_LOCAL_MAP(condition_global_dof)% &
-                              & LOCAL_NUMBER(1)
-                            IF(0<condition_local_dof.AND.condition_local_dof<DOMAIN_MAPPING%GHOST_START) THEN
-                              NEW_LOAD=CURRENT_LOADS(condition_local_dof)
-                              NEW_LOAD=NEW_LOAD/MAXIMUM_NUMBER_OF_ITERATIONS
-!if (condition_idx==1) write(*,*) "new load=",new_load
-                              !Update current and previous loads
-                              CALL Field_ParameterSetUpdateLocalDOF(DEPENDENT_FIELD,variable_type, &
-                                & FIELD_PRESSURE_VALUES_SET_TYPE,condition_local_dof,NEW_LOAD,ERR,ERROR,*999)
-                              CALL Field_ParameterSetUpdateLocalDOF(DEPENDENT_FIELD,variable_type, &
-                                & FIELD_PREVIOUS_PRESSURE_SET_TYPE,condition_local_dof,0.0_dp,ERR,ERROR,*999)
-                              IF(DIAGNOSTICS1) THEN
-                                CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"  dof idx", &
-                                    & condition_local_dof,ERR,ERROR,*999)
-                                CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"    current load", &
-                                    & CURRENT_LOADS(condition_local_dof),ERR,ERROR,*999)
-                                CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"    new load",NEW_LOAD,ERR,ERROR,*999)
-                              ENDIF
-                            ENDIF !Non-ghost dof
-                          ENDIF !Current domain
+                        DO condition_idx=1,PRESSURE_INCREMENTED_BOUNDARY_CONDITIONS%numberOfPressureIncrementedDofs
+                          condition_local_dof=PRESSURE_INCREMENTED_BOUNDARY_CONDITIONS% &
+                            & PRESSURE_INCREMENTED_DOF_INDICES(condition_idx)
+                          NEW_LOAD=CURRENT_LOADS(condition_local_dof)/MAXIMUM_NUMBER_OF_ITERATIONS
+                          !Update current and previous loads
+                          CALL Field_ParameterSetUpdateLocalDOF(DEPENDENT_FIELD,variable_type, &
+                            & FIELD_PRESSURE_VALUES_SET_TYPE,condition_local_dof,NEW_LOAD,ERR,ERROR,*999)
+                          CALL Field_ParameterSetUpdateLocalDOF(DEPENDENT_FIELD,variable_type, &
+                            & FIELD_PREVIOUS_PRESSURE_SET_TYPE,condition_local_dof,0.0_dp,ERR,ERROR,*999)
+                          IF(DIAGNOSTICS1) THEN
+                            CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"  dof idx", &
+                                & condition_local_dof,ERR,ERROR,*999)
+                            CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"    current load", &
+                                & CURRENT_LOADS(condition_local_dof),ERR,ERROR,*999)
+                            CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"    new load",NEW_LOAD,ERR,ERROR,*999)
+                          ENDIF
                         ENDDO !condition_idx
                       ELSE
                         !Calculate the new load, keep the current load
-                        DO condition_idx=1,BOUNDARY_CONDITIONS_VARIABLE%DOF_COUNTS( &
-                            & BOUNDARY_CONDITION_PRESSURE_INCREMENTED)
-                          !This is global dof idx
-                          condition_global_dof=PRESSURE_INCREMENTED_BOUNDARY_CONDITIONS%PRESSURE_INCREMENTED_DOF_INDICES &
+                        DO condition_idx=1,PRESSURE_INCREMENTED_BOUNDARY_CONDITIONS%numberOfPressureIncrementedDofs
+                          condition_local_dof=PRESSURE_INCREMENTED_BOUNDARY_CONDITIONS%PRESSURE_INCREMENTED_DOF_INDICES &
                             & (condition_idx)
-                          !Must convert into local dof index
-                          IF(DOMAIN_MAPPING%GLOBAL_TO_LOCAL_MAP(condition_global_dof)%DOMAIN_NUMBER(1)== &
-                            & MY_COMPUTATIONAL_NODE_NUMBER) THEN
-                            condition_local_dof=DOMAIN_MAPPING%GLOBAL_TO_LOCAL_MAP(condition_global_dof)% &
-                              & LOCAL_NUMBER(1)
-                            IF(0<condition_local_dof.AND.condition_local_dof<DOMAIN_MAPPING%GHOST_START) THEN
-                              PREV_LOAD=PREV_LOADS(condition_local_dof)
-                              CURRENT_LOAD=CURRENT_LOADS(condition_local_dof)
-                              NEW_LOAD=CURRENT_LOAD+(CURRENT_LOAD-PREV_LOAD)  !This may be subject to numerical errors...
-!if (condition_idx==1) write(*,*) "new load=",new_load
-                              !Update current and previous loads
-                              CALL Field_ParameterSetUpdateLocalDOF(DEPENDENT_FIELD,variable_type, &
-                                & FIELD_PRESSURE_VALUES_SET_TYPE,condition_local_dof,NEW_LOAD,ERR,ERROR,*999)
-                              CALL Field_ParameterSetUpdateLocalDOF(DEPENDENT_FIELD,variable_type, &
-                                & FIELD_PREVIOUS_PRESSURE_SET_TYPE,condition_local_dof,CURRENT_LOAD,ERR,ERROR,*999)
-                              IF(DIAGNOSTICS1) THEN
-                                CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"  dof idx", &
-                                    & condition_local_dof,ERR,ERROR,*999)
-                                CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"    current load", &
-                                    & CURRENT_LOADS(condition_local_dof),ERR,ERROR,*999)
-                                CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"    new load",NEW_LOAD,ERR,ERROR,*999)
-                              ENDIF
-                            ENDIF !Non-ghost dof
-                          ENDIF !Current domain
+                          PREV_LOAD=PREV_LOADS(condition_local_dof)
+                          CURRENT_LOAD=CURRENT_LOADS(condition_local_dof)
+                          NEW_LOAD=CURRENT_LOAD+(CURRENT_LOAD-PREV_LOAD)  !This may be subject to numerical errors...
+                          !Update current and previous loads
+                          CALL Field_ParameterSetUpdateLocalDOF(DEPENDENT_FIELD,variable_type, &
+                            & FIELD_PRESSURE_VALUES_SET_TYPE,condition_local_dof,NEW_LOAD,ERR,ERROR,*999)
+                          CALL Field_ParameterSetUpdateLocalDOF(DEPENDENT_FIELD,variable_type, &
+                            & FIELD_PREVIOUS_PRESSURE_SET_TYPE,condition_local_dof,CURRENT_LOAD,ERR,ERROR,*999)
+                          IF(DIAGNOSTICS1) THEN
+                            CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"  dof idx", &
+                                & condition_local_dof,ERR,ERROR,*999)
+                            CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"    current load", &
+                                & CURRENT_LOADS(condition_local_dof),ERR,ERROR,*999)
+                            CALL WRITE_STRING_VALUE(DIAGNOSTIC_OUTPUT_TYPE,"    new load",NEW_LOAD,ERR,ERROR,*999)
+                          ENDIF
                         ENDDO !condition_idx
                       ENDIF
-                      !Start transfer of dofs to neighbouring domains
-                      CALL Field_ParameterSetUpdateStart(DEPENDENT_FIELD,variable_type,FIELD_PREVIOUS_PRESSURE_SET_TYPE, &
-                        & ERR,ERROR,*999)
-                      CALL Field_ParameterSetUpdateStart(DEPENDENT_FIELD,variable_type,FIELD_PRESSURE_VALUES_SET_TYPE, &
-                        & ERR,ERROR,*999)
                       !Restore the vector handles
                       CALL Field_ParameterSetDataRestore(DEPENDENT_FIELD,variable_type,FIELD_PREVIOUS_PRESSURE_SET_TYPE, &
                         & PREV_LOADS,ERR,ERROR,*999)
                       CALL Field_ParameterSetDataRestore(DEPENDENT_FIELD,variable_type,FIELD_PRESSURE_VALUES_SET_TYPE, &
                         & CURRENT_LOADS,ERR,ERROR,*999)
-                      !Finish transfer of dofs to neighbouring domains
-                      CALL Field_ParameterSetUpdateFinish(DEPENDENT_FIELD,variable_type,FIELD_PREVIOUS_PRESSURE_SET_TYPE, &
-                        & ERR,ERROR,*999)
-                      CALL Field_ParameterSetUpdateFinish(DEPENDENT_FIELD,variable_type,FIELD_PRESSURE_VALUES_SET_TYPE, &
-                        & ERR,ERROR,*999)
                     ELSE
                       LOCAL_ERROR="Pressure incremented boundary condition for variable type "// &
-                        & TRIM(NUMBER_TO_VSTRING(variable_type,"*",ERR,ERROR))//" is not associated even though"// &
-                        & TRIM(NUMBER_TO_VSTRING(BOUNDARY_CONDITIONS_VARIABLE%DOF_COUNTS(BOUNDARY_CONDITION_PRESSURE_INCREMENTED), &
-                        & '*',ERR,ERROR))//" conditions of this type has been counted."
-                      CALL FlagError(LOCAL_ERROR,ERR,ERROR,*999)
+                        & TRIM(NUMBER_TO_VSTRING(variable_type,"*",ERR,ERROR))//" is not associated."
                     ENDIF
                   ENDIF !Pressure incremented bc block
                 ELSE
@@ -6757,8 +6201,7 @@ CONTAINS
                     & TRIM(NUMBER_TO_VSTRING(variable_type,"*",ERR,ERROR))//" of dependent field"
                   CALL FlagError(LOCAL_ERROR,ERR,ERROR,*999)
                 ENDIF !Domain mapping test
-              ELSE
-                ! do nothing - no boundary conditions variable type associated?
+                CALL DistributedVector_DataRestore(BOUNDARY_CONDITIONS_VARIABLE%CONDITION_TYPES,conditionTypes,err,error,*999)
               ENDIF
             ENDDO !variable_idx
           ELSE
@@ -6840,11 +6283,9 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
     !Local Variables
-    INTEGER(INTG) :: numberOfTimes
-    INTEGER(INTG) :: nodeIdx,nodeNumber
+    INTEGER(INTG) :: nodeIdx
     REAL(SP) :: nodeUserElapsed,nodeSystemElapsed,userElapsed,userTime1(1),userTime2(1),userTime3(1),userTime4(1), &
-      & userTime5(1),userTime6(1),systemElapsed,systemTime1(1),systemTime2(1),systemTime3(1),systemTime4(1), &
-      & systemTime5(1),systemTime6(1)
+      & systemElapsed,systemTime1(1),systemTime2(1),systemTime3(1),systemTime4(1)
     TYPE(DOMAIN_MAPPING_TYPE), POINTER :: nodalMapping
     TYPE(EQUATIONS_TYPE), POINTER :: equations
     TYPE(EQUATIONS_MATRICES_TYPE), POINTER :: equationsMatrices
@@ -6882,13 +6323,10 @@ CONTAINS
               nodeUserElapsed=0.0_SP
               nodeSystemElapsed=0.0_SP
             ENDIF
-            numberOfTimes=0
-            !Loop over the internal nodes
-            DO nodeIdx=nodalMapping%INTERNAL_START,nodalMapping%INTERNAL_FINISH
-              nodeNumber=nodalMapping%DOMAIN_LIST(nodeIdx)
-              numberOfTimes=numberOfTimes+1
-              CALL EquationsMatrices_NodalCalculate(equationsMatrices,nodeNumber,err,error,*999)
-              CALL EquationsSet_NodalResidualEvaluate(equationsSet,nodeNumber,err,error,*999)
+            !Loop over the local+ghost nodes
+            DO nodeIdx=1,nodalMapping%TOTAL_NUMBER_OF_LOCAL
+              CALL EquationsMatrices_NodalCalculate(equationsMatrices,nodeIdx,err,error,*999)
+              CALL EquationsSet_NodalResidualEvaluate(equationsSet,nodeIdx,err,error,*999)
               CALL EquationsMatrices_NodeAdd(equationsMatrices,err,error,*999)
             ENDDO !nodeIdx
             !Output timing information if required
@@ -6900,48 +6338,14 @@ CONTAINS
               nodeUserElapsed=userElapsed
               nodeSystemElapsed=systemElapsed
               CALL WRITE_STRING(GENERAL_OUTPUT_TYPE,"",err,error,*999)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for internal equations assembly = ",userElapsed, &
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for equations assembly = ",userElapsed, &
                 & err,error,*999)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for internal equations assembly = ",systemElapsed, &
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for equations assembly = ",systemElapsed, &
                 & err,error,*999)
-            ENDIF
-            !Output timing information if required
-            IF(equations%OUTPUT_TYPE>=EQUATIONS_TIMING_OUTPUT) THEN
-              CALL CPU_TIMER(USER_CPU,userTime4,err,error,*999)
-              CALL CPU_TIMER(SYSTEM_CPU,systemTime4,err,error,*999)
-              userElapsed=userTime4(1)-userTime3(1)
-              systemElapsed=systemTime4(1)-systemTime3(1)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for parameter transfer completion = ",userElapsed, &
-                & err,error,*999)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for parameter transfer completion = ",systemElapsed, &
-                & err,error,*999)              
-            ENDIF
-            !Loop over the boundary and ghost nodes
-            DO nodeIdx=nodalMapping%BOUNDARY_START,nodalMapping%GHOST_FINISH
-              nodeNumber=nodalMapping%DOMAIN_LIST(nodeIdx)
-              numberOfTimes=numberOfTimes+1
-              CALL EquationsMatrices_NodalCalculate(equationsMatrices,nodeNumber,err,error,*999)
-              CALL EquationsSet_NodalResidualEvaluate(equationsSet,nodeNumber,err,error,*999)
-              CALL EquationsMatrices_NodeAdd(equationsMatrices,err,error,*999)
-            ENDDO !nodeIdx
-            !Output timing information if required
-            IF(equations%OUTPUT_TYPE>=EQUATIONS_TIMING_OUTPUT) THEN
-              CALL CPU_TIMER(USER_CPU,userTime5,err,error,*999)
-              CALL CPU_TIMER(SYSTEM_CPU,systemTime5,err,error,*999)
-              userElapsed=userTime5(1)-userTime4(1)
-              systemElapsed=systemTime5(1)-systemTime4(1)
-              nodeUserElapsed=nodeUserElapsed+userElapsed
-              nodeSystemElapsed=nodeSystemElapsed+userElapsed
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for boundary+ghost equations assembly = ",userElapsed, &
-                & err,error,*999)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for boundary+ghost equations assembly = ",systemElapsed, &
-                & err,error,*999)
-              IF(numberOfTimes>0) THEN
-                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average node user time for equations assembly = ", &
-                  & nodeUserElapsed/numberOfTimes,err,error,*999)
-                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average node system time for equations assembly = ", &
-                  & nodeSystemElapsed/numberOfTimes,err,error,*999)
-              ENDIF
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average element user time for equations assembly = ", &
+                & nodeUserElapsed/nodalMapping%TOTAL_NUMBER_OF_LOCAL,ERR,ERROR,*999)
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average element system time for equations assembly = ", &
+                & nodeSystemElapsed/nodalMapping%TOTAL_NUMBER_OF_LOCAL,ERR,ERROR,*999)
             ENDIF
             !Finalise the nodal matrices
             CALL EquationsMatrices_NodalFinalise(equationsMatrices,err,error,*999)
@@ -6951,10 +6355,10 @@ CONTAINS
             ENDIF
             !Output timing information if required
             IF(equations%OUTPUT_TYPE>=EQUATIONS_TIMING_OUTPUT) THEN
-              CALL CPU_TIMER(USER_CPU,userTime6,err,error,*999)
-              CALL CPU_TIMER(SYSTEM_CPU,systemTime6,err,error,*999)
-              userElapsed=userTime6(1)-userTime1(1)
-              systemElapsed=systemTime6(1)-systemTime1(1)
+              CALL CPU_TIMER(USER_CPU,userTime4,err,error,*999)
+              CALL CPU_TIMER(SYSTEM_CPU,systemTime4,err,error,*999)
+              userElapsed=userTime4(1)-userTime1(1)
+              systemElapsed=systemTime4(1)-systemTime1(1)
               CALL WRITE_STRING(GENERAL_OUTPUT_TYPE,"",err,error,*999)
               CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Total user time for equations assembly = ",userElapsed, &
                 & err,error,*999)
@@ -7268,11 +6672,9 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
     !Local Variables
-    INTEGER(INTG) :: numberOfTimes
-    INTEGER(INTG) :: nodeIdx,nodeNumber
+    INTEGER(INTG) :: nodeIdx
     REAL(SP) :: nodeUserElapsed,nodeSystemElapsed,userElapsed,userTime1(1),userTime2(1),userTime3(1),userTime4(1), &
-      & userTime5(1),userTime6(1),systemElapsed,systemTime1(1),systemTime2(1),systemTime3(1),systemTime4(1), &
-      & systemTime5(1),systemTime6(1)
+      & systemElapsed,systemTime1(1),systemTime2(1),systemTime3(1),systemTime4(1)
     TYPE(DOMAIN_MAPPING_TYPE), POINTER :: nodalMapping
     TYPE(EQUATIONS_TYPE), POINTER :: equations
     TYPE(EQUATIONS_MATRICES_TYPE), POINTER :: equationsMatrices
@@ -7311,13 +6713,10 @@ CONTAINS
               nodeUserElapsed=0.0_SP
               nodeSystemElapsed=0.0_SP
             ENDIF
-            numberOfTimes=0
-            !Loop over the internal nodes
-            DO nodeIdx=nodalMapping%INTERNAL_START,nodalMapping%INTERNAL_FINISH
-              nodeNumber=nodalMapping%DOMAIN_LIST(nodeIdx)
-              numberOfTimes=numberOfTimes+1
-              CALL EquationsMatrices_NodalCalculate(equationsMatrices,nodeNumber,err,error,*999)
-              CALL EquationsSet_NodalJacobianEvaluate(equationsSet,nodeNumber,err,error,*999)
+            !Loop over the local+ghost nodes
+            DO nodeIdx=1,nodalMapping%TOTAL_NUMBER_OF_LOCAL
+              CALL EquationsMatrices_NodalCalculate(equationsMatrices,nodeIdx,err,error,*999)
+              CALL EquationsSet_NodalJacobianEvaluate(equationsSet,nodeIdx,err,error,*999)
               CALL EquationsMatrices_JacobianNodeAdd(equationsMatrices,err,error,*999)
             ENDDO !nodeIdx
             !Output timing information if required
@@ -7329,48 +6728,14 @@ CONTAINS
               nodeUserElapsed=userElapsed
               nodeSystemElapsed=systemElapsed
               CALL WRITE_STRING(GENERAL_OUTPUT_TYPE,"",err,error,*999)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for internal equations assembly = ",userElapsed, &
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for equations assembly = ",userElapsed, &
                 & err,error,*999)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for internal equations assembly = ",systemElapsed, &
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for equations assembly = ",systemElapsed, &
                 & err,error,*999)
-            ENDIF
-            !Output timing information if required
-            IF(equations%OUTPUT_TYPE>=EQUATIONS_TIMING_OUTPUT) THEN
-              CALL CPU_TIMER(USER_CPU,userTime4,err,error,*999)
-              CALL CPU_TIMER(SYSTEM_CPU,systemTime4,err,error,*999)
-              userElapsed=userTime4(1)-userTime3(1)
-              systemElapsed=systemTime4(1)-systemTime3(1)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for parameter transfer completion = ",userElapsed, &
-                & err,error,*999)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for parameter transfer completion = ",systemElapsed, &
-                & err,error,*999)              
-            ENDIF
-            !Loop over the boundary and ghost nodes
-            DO nodeIdx=nodalMapping%BOUNDARY_START,nodalMapping%GHOST_FINISH
-              nodeNumber=nodalMapping%DOMAIN_LIST(nodeIdx)
-              numberOfTimes=numberOfTimes+1
-              CALL EquationsMatrices_NodalCalculate(equationsMatrices,nodeNumber,err,error,*999)
-              CALL EquationsSet_NodalJacobianEvaluate(equationsSet,nodeNumber,err,error,*999)
-              CALL EquationsMatrices_JacobianNodeAdd(equationsMatrices,err,error,*999)
-            ENDDO !nodeIdx
-            !Output timing information if required
-            IF(equations%OUTPUT_TYPE>=EQUATIONS_TIMING_OUTPUT) THEN
-              CALL CPU_TIMER(USER_CPU,userTime5,err,error,*999)
-              CALL CPU_TIMER(SYSTEM_CPU,systemTime5,err,error,*999)
-              userElapsed=userTime5(1)-userTime4(1)
-              systemElapsed=systemTime5(1)-systemTime4(1)
-              nodeUserElapsed=nodeUserElapsed+userElapsed
-              nodeSystemElapsed=nodeSystemElapsed+userElapsed
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for boundary+ghost equations assembly = ",userElapsed, &
-                & err,error,*999)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for boundary+ghost equations assembly = ",systemElapsed, &
-                & err,error,*999)
-              IF(numberOfTimes>0) THEN
-                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average node user time for equations assembly = ", &
-                  & nodeUserElapsed/numberOfTimes,err,error,*999)
-                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average node system time for equations assembly = ", &
-                  & nodeSystemElapsed/numberOfTimes,err,error,*999)
-              ENDIF
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average element user time for equations assembly = ", &
+                & nodeUserElapsed/nodalMapping%TOTAL_NUMBER_OF_LOCAL,ERR,ERROR,*999)
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average element system time for equations assembly = ", &
+                & nodeSystemElapsed/nodalMapping%TOTAL_NUMBER_OF_LOCAL,ERR,ERROR,*999)
             ENDIF
             !Finalise the nodal matrices
             CALL EquationsMatrices_NodalFinalise(equationsMatrices,err,error,*999)
@@ -7380,10 +6745,10 @@ CONTAINS
             ENDIF
             !Output timing information if required
             IF(equations%OUTPUT_TYPE>=EQUATIONS_TIMING_OUTPUT) THEN
-              CALL CPU_TIMER(USER_CPU,userTime6,err,error,*999)
-              CALL CPU_TIMER(SYSTEM_CPU,systemTime6,err,error,*999)
-              userElapsed=userTime6(1)-userTime1(1)
-              systemElapsed=systemTime6(1)-systemTime1(1)
+              CALL CPU_TIMER(USER_CPU,userTime4,err,error,*999)
+              CALL CPU_TIMER(SYSTEM_CPU,systemTime4,err,error,*999)
+              userElapsed=userTime4(1)-userTime1(1)
+              systemElapsed=systemTime4(1)-systemTime1(1)
               CALL WRITE_STRING(GENERAL_OUTPUT_TYPE,"",err,error,*999)
               CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Total user time for equations assembly = ",userElapsed, &
                 & err,error,*999)
@@ -7421,11 +6786,9 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
     !Local Variables
-    INTEGER(INTG) :: numberOfTimes
-    INTEGER(INTG) :: nodeIdx,nodeNumber
+    INTEGER(INTG) :: nodeIdx
     REAL(SP) :: nodeUserElapsed,nodeSystemElapsed,userElapsed,userTime1(1),userTime2(1),userTime3(1),userTime4(1), &
-      & userTime5(1),userTime6(1),systemElapsed,systemTime1(1),systemTime2(1),systemTime3(1),systemTime4(1), &
-      & systemTime5(1),systemTime6(1)
+      & systemElapsed,systemTime1(1),systemTime2(1),systemTime3(1),systemTime4(1)
     TYPE(DOMAIN_MAPPING_TYPE), POINTER :: nodalMapping
     TYPE(EQUATIONS_TYPE), POINTER :: equations
     TYPE(EQUATIONS_MATRICES_TYPE), POINTER :: equationsMatrices
@@ -7464,13 +6827,10 @@ CONTAINS
               nodeUserElapsed=0.0_SP
               nodeSystemElapsed=0.0_SP
             ENDIF
-            numberOfTimes=0
-            !Loop over the internal nodes
-            DO nodeIdx=nodalMapping%INTERNAL_START,nodalMapping%INTERNAL_FINISH
-              nodeNumber=nodalMapping%DOMAIN_LIST(nodeIdx)
-              numberOfTimes=numberOfTimes+1
-              CALL EquationsMatrices_NodalCalculate(equationsMatrices,nodeNumber,err,error,*999)
-              CALL EquationsSet_NodalResidualEvaluate(equationsSet,nodeNumber,err,error,*999)
+            !Loop over the local+ghost nodes
+            DO nodeIdx=1,nodalMapping%TOTAL_NUMBER_OF_LOCAL
+              CALL EquationsMatrices_NodalCalculate(equationsMatrices,nodeIdx,err,error,*999)
+              CALL EquationsSet_NodalResidualEvaluate(equationsSet,nodeIdx,err,error,*999)
               CALL EquationsMatrices_NodeAdd(equationsMatrices,err,error,*999)
             ENDDO !nodeIdx
             !Output timing information if required
@@ -7482,48 +6842,14 @@ CONTAINS
               nodeUserElapsed=userElapsed
               nodeSystemElapsed=systemElapsed
               CALL WRITE_STRING(GENERAL_OUTPUT_TYPE,"",err,error,*999)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for internal equations assembly = ",userElapsed, &
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for equations assembly = ",userElapsed, &
                 & err,error,*999)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for internal equations assembly = ",systemElapsed, &
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for equations assembly = ",systemElapsed, &
                 & err,error,*999)
-            ENDIF
-            !Output timing information if required
-            IF(equations%OUTPUT_TYPE>=EQUATIONS_TIMING_OUTPUT) THEN
-              CALL CPU_TIMER(USER_CPU,userTime4,err,error,*999)
-              CALL CPU_TIMER(SYSTEM_CPU,systemTime4,err,error,*999)
-              userElapsed=userTime4(1)-userTime3(1)
-              systemElapsed=systemTime4(1)-systemTime3(1)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for parameter transfer completion = ",userElapsed, &
-                & err,error,*999)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for parameter transfer completion = ",systemElapsed, &
-                & err,error,*999)              
-            ENDIF
-            !Loop over the boundary and ghost nodes
-            DO nodeIdx=nodalMapping%BOUNDARY_START,nodalMapping%GHOST_FINISH
-              nodeNumber=nodalMapping%DOMAIN_LIST(nodeIdx)
-              numberOfTimes=numberOfTimes+1
-              CALL EquationsMatrices_NodalCalculate(equationsMatrices,nodeNumber,err,error,*999)
-              CALL EquationsSet_NodalResidualEvaluate(equationsSet,nodeNumber,err,error,*999)
-              CALL EquationsMatrices_NodeAdd(equationsMatrices,err,error,*999)
-            ENDDO !nodeIdx
-            !Output timing information if required
-            IF(equations%OUTPUT_TYPE>=EQUATIONS_TIMING_OUTPUT) THEN
-              CALL CPU_TIMER(USER_CPU,userTime5,err,error,*999)
-              CALL CPU_TIMER(SYSTEM_CPU,systemTime5,err,error,*999)
-              userElapsed=userTime5(1)-userTime4(1)
-              systemElapsed=systemTime5(1)-systemTime4(1)
-              nodeUserElapsed=nodeUserElapsed+userElapsed
-              nodeSystemElapsed=nodeSystemElapsed+userElapsed
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for boundary+ghost equations assembly = ",userElapsed, &
-                & err,error,*999)
-              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for boundary+ghost equations assembly = ",systemElapsed, &
-                & err,error,*999)
-              IF(numberOfTimes>0) THEN
-                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average node user time for equations assembly = ", &
-                  & nodeUserElapsed/numberOfTimes,err,error,*999)
-                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average node system time for equations assembly = ", &
-                  & nodeSystemElapsed/numberOfTimes,err,error,*999)
-              ENDIF
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average element user time for equations assembly = ", &
+                & nodeUserElapsed/nodalMapping%TOTAL_NUMBER_OF_LOCAL,ERR,ERROR,*999)
+              CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average element system time for equations assembly = ", &
+                & nodeSystemElapsed/nodalMapping%TOTAL_NUMBER_OF_LOCAL,ERR,ERROR,*999)
             ENDIF
             !Finalise the nodal matrices
             CALL EquationsMatrices_NodalFinalise(equationsMatrices,err,error,*999)
@@ -7533,10 +6859,10 @@ CONTAINS
             ENDIF
             !Output timing information if required
             IF(equations%OUTPUT_TYPE>=EQUATIONS_TIMING_OUTPUT) THEN
-              CALL CPU_TIMER(USER_CPU,userTime6,err,error,*999)
-              CALL CPU_TIMER(SYSTEM_CPU,systemTime6,err,error,*999)
-              userElapsed=userTime6(1)-userTime1(1)
-              systemElapsed=systemTime6(1)-systemTime1(1)
+              CALL CPU_TIMER(USER_CPU,userTime4,err,error,*999)
+              CALL CPU_TIMER(SYSTEM_CPU,systemTime4,err,error,*999)
+              userElapsed=userTime4(1)-userTime1(1)
+              systemElapsed=systemTime4(1)-systemTime1(1)
               CALL WRITE_STRING(GENERAL_OUTPUT_TYPE,"",err,error,*999)
               CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Total user time for equations assembly = ",userElapsed, &
                 & err,error,*999)

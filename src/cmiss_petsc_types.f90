@@ -60,9 +60,9 @@ MODULE CmissPetscTypes
     IS :: is
   END TYPE PetscISType
 
-  TYPE PetscISLocalToGloabalMappingType
+  TYPE PetscISLocalToGlobalMappingType
     ISLocalToGlobalMapping :: isLocalToGlobalMapping
-  END TYPE PetscISLocalToGloabalMappingType
+  END TYPE PetscISLocalToGlobalMappingType
 
   TYPE PetscISColoringType
     ISColoring :: isColoring
@@ -106,7 +106,7 @@ MODULE CmissPetscTypes
   
   !Interfaces
  
-  PUBLIC PetscISType,PetscISLocalToGloabalMappingType,PetscISColoringType,PetscKspType,PetscMatType,PetscMatColoringType, &
+  PUBLIC PetscISType,PetscISLocalToGlobalMappingType,PetscISColoringType,PetscKspType,PetscMatType,PetscMatColoringType, &
     & PetscMatFDColoringType,PetscPCType,PetscSnesType,PetscSnesLineSearchType,PetscTSType,PetscVecType
 
 END MODULE CmissPetscTypes

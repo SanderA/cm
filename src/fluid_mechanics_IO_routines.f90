@@ -195,7 +195,6 @@ MODULE FLUID_MECHANICS_IO_ROUTINES
   INTEGER(INTG):: ELEMENT_NUMBER
   INTEGER(INTG):: lagrange_simplex
   INTEGER(INTG), DIMENSION(:), ALLOCATABLE:: NodesPerMeshComponent
-  INTEGER(INTG), DIMENSION(:), ALLOCATABLE:: DofsPerMeshComponent
   INTEGER(INTG), DIMENSION(:), ALLOCATABLE::SimplexOutputHelp,HexOutputHelp
   INTEGER(INTG) FLD, DIMEN, OPENCMISS_INTERPOLATION(3),a,b
   INTEGER(INTG) NumberOfNodesPerElement(3), ArrayOfNodesDefined(3), NumberOfElementsDefined(3), TotalNumberOfNodes
@@ -324,7 +323,6 @@ CONTAINS
 
     IF (ALLOCATED(NodesPerElement)) DEALLOCATE(NodesPerElement)
     IF (ALLOCATED(NodesPerMeshComponent)) DEALLOCATE(NodesPerMeshComponent)
-    IF (ALLOCATED(NodesPerMeshComponent)) DEALLOCATE(DofsPerMeshComponent)
     IF (ALLOCATED(XI_COORDINATES)) DEALLOCATE(XI_COORDINATES)
     IF (ALLOCATED(COORDINATES)) DEALLOCATE(COORDINATES)
     IF (ALLOCATED(NodeXValue)) DEALLOCATE(NodeXValue)
@@ -464,14 +462,13 @@ CONTAINS
 
     IF(.NOT.ALLOCATED(NodesPerMeshComponent)) ALLOCATE(NodesPerMeshComponent(NumberOfMeshComponents))
 
-    IF(.NOT.ALLOCATED(DofsPerMeshComponent)) ALLOCATE(DofsPerMeshComponent(NumberOfMeshComponents))
     MaxNodesPerElement=0
 
     DO I=1,NumberOfMeshComponents
       NodesPerElement(I)=REGION%fields%fields(1)%ptr%geometric_field%decomposition%domain(1) &
         & %ptr%topology%elements%elements(1)%basis%number_of_element_parameters
-      NodesPerMeshComponent(I)=REGION%meshes%meshes(1)%ptr%topology(I)%ptr%nodes%numberOfNodes
-      DofsPerMeshComponent(I)=REGION%meshes%meshes(1)%ptr%topology(I)%ptr%dofs%numberOfDofs
+      NodesPerMeshComponent(I)=REGION%fields%fields(1)%ptr%geometric_field%decomposition%domain(1) &
+        & %ptr%topology%nodes%NUMBER_OF_GLOBAL_NODES
     END DO
 
 !     MaxNodesPerElement=NodesPerElement(1)
@@ -1143,7 +1140,8 @@ CONTAINS
     DO I=1,NumberOfMeshComponents
       NodesPerElement(I)=REGION%fields%fields(1)%ptr%geometric_field%decomposition%domain(1) &
         & %ptr%topology%elements%elements(1)%basis%number_of_element_parameters
-      NodesPerMeshComponent(I)=REGION%meshes%meshes(1)%ptr%topology(I)%ptr%nodes%numberOfNodes
+      NodesPerMeshComponent(I)=REGION%fields%fields(1)%ptr%geometric_field%decomposition%domain(1) &
+        & %ptr%topology%nodes%NUMBER_OF_GLOBAL_NODES
     END DO
 
 
@@ -1877,7 +1875,8 @@ CONTAINS
     DO I=1,NumberOfMeshComponents
       NodesPerElement(I)=REGION%fields%fields(1)%ptr%geometric_field%decomposition%domain(1) &
         & %ptr%topology%elements%elements(1)%basis%number_of_element_parameters
-      NodesPerMeshComponent(I)=REGION%meshes%meshes(1)%ptr%topology(I)%ptr%nodes%numberOfNodes
+      NodesPerMeshComponent(I)=REGION%fields%fields(1)%ptr%geometric_field%decomposition%domain(1) &
+        & %ptr%topology%nodes%NUMBER_OF_GLOBAL_NODES
     END DO
 
 
@@ -2318,7 +2317,6 @@ CONTAINS
 ! NOW WRITE NODE INFORMATION
 
     DO I = 1,NodesPerMeshComponent(1)
-    !DO I = 1,DofsPerMeshComponent(1)
 
       WRITE(14,*) ' Node: ',I
       WRITE(14,'("    ", es25.16 )')NodeXValue(I)

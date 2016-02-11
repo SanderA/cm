@@ -2492,29 +2492,6 @@ CONTAINS
   !================================================================================================================================
   !
 
-  FUNCTION FindMyLocalDomainNumber( mapping, myComputationalNodeNumber )
-    TYPE(DOMAIN_GLOBAL_MAPPING_TYPE) :: mapping
-    INTEGER(INTG), INTENT(IN) :: myComputationalNodeNumber
-
-    INTEGER(INTG) :: FindMyLocalDomainNumber
-
-    INTEGER(INTG) :: domainIndex
-    INTEGER(INTG) :: myDomainIndex
-
-    DO domainIndex = 1, mapping%NUMBER_OF_DOMAINS
-      IF( mapping%DOMAIN_NUMBER( domainIndex ) == myComputationalNodeNumber ) THEN
-        myDomainIndex = domainIndex
-        EXIT
-      ENDIF
-    ENDDO
-
-    FindMyLocalDomainNumber = mapping%LOCAL_NUMBER( myDomainIndex )
-  END FUNCTION FindMyLocalDomainNumber
-
-  !
-  !================================================================================================================================
-  !
-
   !>Write the header of a group elements using FORTRAN
   SUBROUTINE FieldIO_ExportElementalGroupHeaderFortran( global_number, MAX_NODE_COMP_INDEX,NUM_OF_SCALING_FACTOR_SETS, &
     & LIST_COMP_SCALE, my_computational_node_number, elementalInfoSet, sessionHandle, ERR,ERROR, *)
@@ -2529,7 +2506,8 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
     !Local Variables
-    INTEGER(INTG) :: i,LENGTH
+    LOGICAL :: userNumberExists,ghostNumber
+    INTEGER(INTG) :: userNumber,i,LENGTH
     INTEGER(INTG) :: NUMBER_OF_UNIQUE_NODES
     CHARACTER(LEN=MAXSTRLEN) :: fvar_name
     CHARACTER(LEN=1, KIND=C_CHAR) :: cvar_name(MAXSTRLEN+1)
@@ -2585,8 +2563,11 @@ CONTAINS
       !finding the local numbering through the global to local mapping
       componentDomain=>elementalInfoSet%COMPONENTS(comp_idx)%PTR%DOMAIN
       !get the domain index for this variable component according to my own computional node number
-      local_number = FindMyLocalDomainNumber( componentDomain%MAPPINGS%ELEMENTS%GLOBAL_TO_LOCAL_MAP( global_number ),&
-          & my_computational_node_number )
+      userNumber=componentDomain%MESH%TOPOLOGY(elementalInfoSet%COMPONENTS(comp_idx)%PTR%MESH_COMPONENT_NUMBER)% &
+        & PTR%ELEMENTS%ELEMENTS(global_number)%USER_NUMBER
+      CALL DECOMPOSITION_TOPOLOGY_ELEMENT_CHECK_EXISTS(componentDomain%decomposition%topology,userNumber, &
+        & userNumberExists,local_number,ghostNumber,err,error,*999)
+
       GROUP_LOCAL_NUMBER(comp_idx)=local_number
       !use local domain information find the out the maximum number of derivatives
       DOMAIN_ELEMENTS=>componentDomain%TOPOLOGY%ELEMENTS
@@ -3422,7 +3403,8 @@ CONTAINS
     TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
 
     !Local variables
-    INTEGER(INTG) :: scaleIndex, componentIndex, localNumber, scaleFactorCount, nodeIndex
+    LOGICAL :: userNumberExists,ghostNumber
+    INTEGER(INTG) :: scaleIndex, componentIndex, userNumber, localNumber, scaleFactorCount, nodeIndex
     INTEGER(INTG) :: nodeNumber, derivativeIndex, nv, nk, ny2, firstScaleSet
     TYPE(FIELD_VARIABLE_COMPONENT_TYPE), POINTER :: component
     TYPE(DOMAIN_ELEMENTS_TYPE), POINTER :: domainElements
@@ -3445,8 +3427,9 @@ CONTAINS
       domainElementMapping=>component%DOMAIN%MAPPINGS%ELEMENTS
       !get the domain index for this variable component according to my own computional node number
 
-      localNumber = FindMyLocalDomainNumber( domainElementMapping%GLOBAL_TO_LOCAL_MAP( globalNumber ), &
-        & myComputationalNodeNumber )
+      userNumber=component%domain%mesh%topology(component%MESH_COMPONENT_NUMBER)%PTR%ELEMENTS%ELEMENTS(globalNumber)%USER_NUMBER
+      CALL DECOMPOSITION_TOPOLOGY_ELEMENT_CHECK_EXISTS(component%domain%decomposition%topology,userNumber, &
+        & userNumberExists,localNumber,ghostNumber,err,error,*999)
       !use local domain information find the out the maximum number of derivatives
       domainElements => component%DOMAIN%TOPOLOGY%ELEMENTS
       domainNodes => component%DOMAIN%TOPOLOGY%NODES
@@ -3535,6 +3518,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
     !Local Variables
+    LOGICAL :: userNumberExists,ghostNumber
     INTEGER(INTG) :: sessionHandle
     TYPE(COORDINATE_SYSTEM_TYPE), POINTER :: COORDINATE_SYSTEM
     TYPE(FIELD_VARIABLE_COMPONENT_TYPE), POINTER :: component
@@ -3543,7 +3527,7 @@ CONTAINS
     TYPE(BASIS_TYPE), POINTER ::BASIS
     TYPE(DOMAIN_MAPPING_TYPE), POINTER :: DOMAIN_MAPPING_ELEMENTS !The domain mapping to calculate elemental mappings
     TYPE(DOMAIN_ELEMENTS_TYPE), POINTER :: DOMAIN_ELEMENTS ! domain elements
-    INTEGER(INTG) :: local_number, global_number, MAX_NODE_COMP_INDEX, NUM_DIM
+    INTEGER(INTG) :: userNumber, local_number, global_number, MAX_NODE_COMP_INDEX, NUM_DIM
     INTEGER(INTG), ALLOCATABLE :: LIST_COMP_SCALE(:), NODAL_NUMBER(:)!LIST_COMP(:) !Components which will be used for export scale factors
     INTEGER(C_INT), TARGET :: USER_ELEMENT_NODES(64)
     INTEGER(INTG) :: elem_idx, comp_idx, NUM_OF_SCALING_FACTOR_SETS, isFirstValueSet !dev_idx  elem_num
@@ -3653,8 +3637,10 @@ CONTAINS
         DOMAIN_MAPPING_ELEMENTS=>component%DOMAIN%MAPPINGS%ELEMENTS
         DOMAIN_ELEMENTS=>component%DOMAIN%TOPOLOGY%ELEMENTS
         !get the domain index for this variable component according to my own computional node number
-        local_number = FindMyLocalDomainNumber( DOMAIN_MAPPING_ELEMENTS%GLOBAL_TO_LOCAL_MAP( global_number ), &
-          & my_computational_node_number )
+        userNumber=component%domain%mesh%topology(component%MESH_COMPONENT_NUMBER)%PTR%ELEMENTS%ELEMENTS(global_number)% &
+          & USER_NUMBER
+        CALL DECOMPOSITION_TOPOLOGY_ELEMENT_CHECK_EXISTS(component%domain%decomposition%topology,userNumber, &
+          & userNumberExists,local_number,ghostNumber,err,error,*999)
         !use local domain information find the out the maximum number of derivatives
         BASIS => DOMAIN_ELEMENTS%ELEMENTS( local_number )%BASIS
 
@@ -3859,11 +3845,13 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
     !Local Variables
+    LOGICAL :: userNumberExists,ghostNumber
     TYPE(DOMAIN_MAPPING_TYPE), POINTER :: DOMAIN_MAPPING_ELEMENTS !The domain mapping to calculate nodal mappings
     TYPE(DOMAIN_ELEMENTS_TYPE), POINTER :: DOMAIN_ELEMENTS1, DOMAIN_ELEMENTS2! domain nodes
-    INTEGER(INTG) :: global_number1, local_number1, global_number2, local_number2
+    INTEGER(INTG) :: userNumber, global_number1, local_number1, global_number2, local_number2
     INTEGER(INTG) :: component_idx, nn1, nn2 ! nn, tmp2, tmp1!temporary variable
     INTEGER(INTG) :: node_idx, deriv_idx
+    TYPE(FIELD_VARIABLE_COMPONENT_TYPE), POINTER :: component
     TYPE(FIELD_IO_COMPONENT_INFO_SET), POINTER :: tmpInfoSet
     LOGICAL :: SAME_ELEMENT_INFO
 
@@ -3943,8 +3931,11 @@ CONTAINS
                 & MAPPINGS%ELEMENTS
               !get the domain index for this variable component according to my own computional node number
               !local number of nn1'th node in the damain assoicated with component(component_idx)
-              local_number1 = FindMyLocalDomainNumber( DOMAIN_MAPPING_ELEMENTS%GLOBAL_TO_LOCAL_MAP( global_number1 ), &
-                & my_computational_node_number )
+              component=>ELEMENTAL_INFO_SET%COMPONENT_INFO_SET(nn1)%PTR%COMPONENTS(component_idx)%PTR
+              userNumber=component%domain%mesh%topology(component%MESH_COMPONENT_NUMBER)%PTR%ELEMENTS%ELEMENTS(global_number1)% &
+                & USER_NUMBER
+              CALL DECOMPOSITION_TOPOLOGY_ELEMENT_CHECK_EXISTS(component%domain%decomposition%topology,userNumber, &
+                & userNumberExists,local_number1,ghostNumber,err,error,*999)
               DOMAIN_ELEMENTS1=>&
                 & ELEMENTAL_INFO_SET%COMPONENT_INFO_SET(nn1)%PTR%COMPONENTS(component_idx)%PTR% &
                 & DOMAIN%TOPOLOGY%ELEMENTS
@@ -3955,8 +3946,11 @@ CONTAINS
                 & DOMAIN%MAPPINGS%ELEMENTS
               !get the domain index for this variable component according to my own computional node number
               !local number of nn2'th node in the damain assoicated with component(component_idx)
-              local_number2 = FindMyLocalDomainNumber( DOMAIN_MAPPING_ELEMENTS%GLOBAL_TO_LOCAL_MAP( global_number2 ), &
-                & my_computational_node_number )
+              component=>ELEMENTAL_INFO_SET%COMPONENT_INFO_SET(nn2)%PTR%COMPONENTS(component_idx)%PTR
+              userNumber=component%domain%mesh%topology(component%MESH_COMPONENT_NUMBER)%PTR%ELEMENTS%ELEMENTS(global_number2)% &
+                & USER_NUMBER
+              CALL DECOMPOSITION_TOPOLOGY_ELEMENT_CHECK_EXISTS(component%domain%decomposition%topology,userNumber, &
+                & userNumberExists,local_number2,ghostNumber,err,error,*999)
               DOMAIN_ELEMENTS2=>&
                 & ELEMENTAL_INFO_SET%COMPONENT_INFO_SET(nn2)%PTR%COMPONENTS(component_idx)%PTR% &
                 & DOMAIN%TOPOLOGY%ELEMENTS

@@ -490,9 +490,7 @@ CONTAINS
               IF(ASSOCIATED(SOLVERS)) THEN
                 DO solver_idx=1,SOLVERS%NUMBER_OF_SOLVERS
                   SOLVER=>SOLVERS%SOLVERS(solver_idx)%PTR
-
                   CALL PROBLEM_SOLVER_SOLVE(SOLVER,ERR,ERROR,*999)
-
                 ENDDO !solver_idx
               ELSE
                 CALL FlagError("Control loop solvers is not associated.",ERR,ERROR,*999)
@@ -569,9 +567,7 @@ CONTAINS
                 IF(ASSOCIATED(SOLVERS)) THEN
                   DO solver_idx=1,SOLVERS%NUMBER_OF_SOLVERS
                     SOLVER=>SOLVERS%SOLVERS(solver_idx)%PTR
-                    
                     CALL PROBLEM_SOLVER_SOLVE(SOLVER,ERR,ERROR,*999)
-                    
                   ENDDO !solver_idx
                 ELSE
                   CALL FlagError("Control loop solvers is not associated.",ERR,ERROR,*999)
@@ -1390,10 +1386,8 @@ CONTAINS
               LINKING_SOLVER=>SOLVER%LINKING_SOLVER
               IF(ASSOCIATED(LINKING_SOLVER)) THEN
                 IF(LINKING_SOLVER%SOLVE_TYPE==SOLVER_DYNAMIC_TYPE) THEN
-                  !Update the field values from the dynamic factor * current solver values AND add in mean predicted displacements/
-                  CALL SOLVER_VARIABLES_DYNAMIC_NONLINEAR_UPDATE(SOLVER,ERR,ERROR,*999)
-                !check for a linked CellML solver 
-!!TODO: This should be generalised for nonlinear solvers in general and not just Newton solvers.
+                  !check for a linked CellML solver 
+                  !!TODO: This should be generalised for nonlinear solvers in general and not just Newton solvers.
                   NEWTON_SOLVER=>SOLVER%NONLINEAR_SOLVER%NEWTON_SOLVER
                   IF(ASSOCIATED(NEWTON_SOLVER)) THEN
                     CELLML_SOLVER=>NEWTON_SOLVER%CELLML_EVALUATOR_SOLVER
@@ -1405,7 +1399,7 @@ CONTAINS
                   ENDIF
                   !Calculate the Jacobian
                   DO equations_set_idx=1,SOLVER_MAPPING%NUMBER_OF_EQUATIONS_SETS
-                    EQUATIONS_SET=>SOLVER_MAPPING%EQUATIONS_SETS(equations_set_idx)%PTR
+                    EQUATIONS_SET=>SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)%EQUATIONS_SET
                     !Assemble the equations for dynamic problems
                     CALL EQUATIONS_SET_JACOBIAN_EVALUATE(EQUATIONS_SET,ERR,ERROR,*999)
                   ENDDO !equations_set_idx
@@ -1431,17 +1425,10 @@ CONTAINS
                 ENDIF
                 !Calculate the Jacobian
                 DO equations_set_idx=1,SOLVER_MAPPING%NUMBER_OF_EQUATIONS_SETS
-                  EQUATIONS_SET=>SOLVER_MAPPING%EQUATIONS_SETS(equations_set_idx)%PTR
+                  EQUATIONS_SET=>SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)%EQUATIONS_SET
                   !Assemble the equations for linear problems
                   CALL EQUATIONS_SET_JACOBIAN_EVALUATE(EQUATIONS_SET,ERR,ERROR,*999)
                 ENDDO !equations_set_idx
-                !Update interface matrices
-!                DO interfaceConditionIdx=1,SOLVER_MAPPING%NUMBER_OF_INTERFACE_CONDITIONS
-!                  interfaceCondition=>SOLVER_MAPPING%INTERFACE_CONDITIONS(interfaceConditionIdx)%PTR
-!                  !Assemble the interface condition for the Jacobian LHS
-!                  CALL WRITE_STRING(GENERAL_OUTPUT_TYPE,"********************Jacobian evaluation******************",ERR,ERROR,*999)
-!                  CALL INTERFACE_CONDITION_ASSEMBLE(interfaceCondition,err,error,*999)
-!                ENDDO
                 !Assemble the static nonlinear solver matrices
                 CALL SOLVER_MATRICES_STATIC_ASSEMBLE(SOLVER,SOLVER_MATRICES_JACOBIAN_ONLY,ERR,ERROR,*999)
               END IF       
@@ -1525,8 +1512,6 @@ CONTAINS
               LINKING_SOLVER=>SOLVER%LINKING_SOLVER
               IF(ASSOCIATED(LINKING_SOLVER)) THEN
                 IF(LINKING_SOLVER%SOLVE_TYPE==SOLVER_DYNAMIC_TYPE) THEN
-                  !Update the field values from the dynamic factor*current solver values AND add in predicted displacements
-                  CALL SOLVER_VARIABLES_DYNAMIC_NONLINEAR_UPDATE(SOLVER,ERR,ERROR,*999)
                   !Caculate the strain field for an CellML evaluator solver
                   CALL PROBLEM_PRE_RESIDUAL_EVALUATE(SOLVER,ERR,ERROR,*999)
                   !check for a linked CellML solver
@@ -1545,7 +1530,7 @@ CONTAINS
                   IF(ASSOCIATED(CELLML_SOLVER)) CALL SOLVER_SOLVE(CELLML_SOLVER,ERR,ERROR,*999)
                   !Calculate the residual for each element (M, C, K and g)
                   DO equations_set_idx=1,SOLVER_MAPPING%NUMBER_OF_EQUATIONS_SETS
-                    EQUATIONS_SET=>SOLVER_MAPPING%EQUATIONS_SETS(equations_set_idx)%PTR
+                    EQUATIONS_SET=>SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)%EQUATIONS_SET
                     SELECT CASE(EQUATIONS_SET%EQUATIONS%LINEARITY)
                     CASE(EQUATIONS_LINEAR)
                       !Assemble the equations for linear equations
@@ -1581,7 +1566,7 @@ CONTAINS
                 IF(ASSOCIATED(CELLML_SOLVER)) CALL SOLVER_SOLVE(CELLML_SOLVER,ERR,ERROR,*999)
                 !Make sure the equations sets are up to date
                 DO equations_set_idx=1,SOLVER_MAPPING%NUMBER_OF_EQUATIONS_SETS
-                  EQUATIONS_SET=>SOLVER_MAPPING%EQUATIONS_SETS(equations_set_idx)%PTR
+                  EQUATIONS_SET=>SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)%EQUATIONS_SET
                   SELECT CASE(EQUATIONS_SET%EQUATIONS%LINEARITY)
                   CASE(EQUATIONS_LINEAR)
                     !Assemble the equations for linear equations
@@ -1594,7 +1579,7 @@ CONTAINS
                 !Note that the linear interface matrices are not required to be updated since these matrices do not change
                 !Update interface matrices
 !                DO interfaceConditionIdx=1,SOLVER_MAPPING%NUMBER_OF_INTERFACE_CONDITIONS
-!                  interfaceCondition=>SOLVER_MAPPING%INTERFACE_CONDITIONS(interfaceConditionIdx)%PTR
+!                  interfaceCondition=>SOLVER_MAPPING%INTERFACE_CONDITION_TO_SOLVER_MAP(interfaceConditionIdx)%INTERFACE_CONDITION
 !                  !Assemble the interface condition for the Jacobian LHS
 !                  CALL WRITE_STRING(GENERAL_OUTPUT_TYPE,"********************Residual evaluation******************",ERR,ERROR,*999)
 !                  CALL INTERFACE_CONDITION_ASSEMBLE(interfaceCondition,err,error,*999)
@@ -1654,7 +1639,7 @@ CONTAINS
           SOLVER_MAPPING=>SOLVER_EQUATIONS%SOLVER_MAPPING
           IF(ASSOCIATED(SOLVER_MAPPING)) THEN
             DO equations_set_idx=1,SOLVER_MAPPING%NUMBER_OF_EQUATIONS_SETS
-              EQUATIONS_SET=>SOLVER_MAPPING%EQUATIONS_SETS(equations_set_idx)%PTR
+              EQUATIONS_SET=>SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)%EQUATIONS_SET
               IF(ASSOCIATED(EQUATIONS_SET)) THEN
                 EQUATIONS=>EQUATIONS_SET%EQUATIONS
                 IF(ASSOCIATED(EQUATIONS)) THEN
@@ -1791,7 +1776,7 @@ CONTAINS
           SOLVER_MAPPING=>SOLVER_EQUATIONS%SOLVER_MAPPING
           IF(ASSOCIATED(SOLVER_MAPPING)) THEN
             DO equations_set_idx=1,SOLVER_MAPPING%NUMBER_OF_EQUATIONS_SETS
-              EQUATIONS_SET=>SOLVER_MAPPING%EQUATIONS_SETS(equations_set_idx)%PTR
+              EQUATIONS_SET=>SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)%EQUATIONS_SET
               IF(ASSOCIATED(EQUATIONS_SET)) THEN
                 EQUATIONS=>EQUATIONS_SET%EQUATIONS
                 IF(ASSOCIATED(EQUATIONS)) THEN
@@ -2033,7 +2018,7 @@ CONTAINS
       IF(ASSOCIATED(SOLVER_MAPPING)) THEN
         !Make sure the equations sets are up to date
         DO equations_set_idx=1,SOLVER_MAPPING%NUMBER_OF_EQUATIONS_SETS
-          EQUATIONS_SET=>SOLVER_MAPPING%EQUATIONS_SETS(equations_set_idx)%PTR
+          EQUATIONS_SET=>SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)%EQUATIONS_SET
           CALL EQUATIONS_SET_LOAD_INCREMENT_APPLY(EQUATIONS_SET,SOLVER_EQUATIONS%BOUNDARY_CONDITIONS,ITERATION_NUMBER, &
             & MAXIMUM_NUMBER_OF_ITERATIONS,ERR,ERROR,*999)
         ENDDO !equations_set_idx
@@ -2430,7 +2415,7 @@ CONTAINS
             IF(ASSOCIATED(SOLVER_MAPPING)) THEN
               !Make sure the equations sets are up to date
               DO equations_set_idx=1,SOLVER_MAPPING%NUMBER_OF_EQUATIONS_SETS
-                EQUATIONS_SET=>SOLVER_MAPPING%EQUATIONS_SETS(equations_set_idx)%PTR
+                EQUATIONS_SET=>SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)%EQUATIONS_SET
                 !Assemble the equations for linear problems
                 CALL EQUATIONS_SET_ASSEMBLE(EQUATIONS_SET,ERR,ERROR,*999)
               ENDDO !equations_set_idx
@@ -2454,7 +2439,7 @@ CONTAINS
               CALL SOLVER_SOLVE(SOLVER,ERR,ERROR,*999)
               !Back-substitute to find flux values for linear problems
               DO equations_set_idx=1,SOLVER_MAPPING%NUMBER_OF_EQUATIONS_SETS
-                EQUATIONS_SET=>SOLVER_MAPPING%EQUATIONS_SETS(equations_set_idx)%PTR
+                EQUATIONS_SET=>SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)%EQUATIONS_SET
                 CALL EQUATIONS_SET_BACKSUBSTITUTE(EQUATIONS_SET,SOLVER_EQUATIONS%BOUNDARY_CONDITIONS,ERR,ERROR,*999)
               ENDDO !equations_set_idx
             ELSE
@@ -2518,7 +2503,7 @@ CONTAINS
               SOLVER_MAPPING=>SOLVER_EQUATIONS%SOLVER_MAPPING
               IF(ASSOCIATED(SOLVER_MAPPING)) THEN
                 DO equations_set_idx=1,SOLVER_MAPPING%NUMBER_OF_EQUATIONS_SETS
-                  EQUATIONS_SET=>SOLVER_MAPPING%EQUATIONS_SETS(equations_set_idx)%PTR
+                  EQUATIONS_SET=>SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)%EQUATIONS_SET
                   IF(DYNAMIC_SOLVER%RESTART.OR..NOT.DYNAMIC_SOLVER%SOLVER_INITIALISED) THEN!.OR.DYNAMIC_SOLVER%FSI) THEN
                     !If we need to restart or we haven't initialised yet or we have an FSI scheme, make sure the equations sets are up to date
                     EQUATIONS=>EQUATIONS_SET%EQUATIONS
@@ -2545,7 +2530,8 @@ CONTAINS
                 ENDDO !equations_set_idx
                 !Make sure the interface matrices are up to date
                 DO interface_condition_idx=1,SOLVER_MAPPING%NUMBER_OF_INTERFACE_CONDITIONS
-                  INTERFACE_CONDITION=>SOLVER_MAPPING%INTERFACE_CONDITIONS(interface_condition_idx)%PTR
+                  INTERFACE_CONDITION=>SOLVER_MAPPING%INTERFACE_CONDITION_TO_SOLVER_MAP(interface_condition_idx)% &
+                    & INTERFACE_CONDITION
                   CALL INTERFACE_CONDITION_ASSEMBLE(INTERFACE_CONDITION,ERR,ERROR,*999)
                 ENDDO !interface_condition_idx
                 !Get current control loop times. The control loop may be a sub loop below a time loop, so iterate up
@@ -2626,7 +2612,7 @@ CONTAINS
             IF(ASSOCIATED(SOLVER_MAPPING)) THEN
               !Make sure the equations sets are up to date
               DO equations_set_idx=1,SOLVER_MAPPING%NUMBER_OF_EQUATIONS_SETS
-                EQUATIONS_SET=>SOLVER_MAPPING%EQUATIONS_SETS(equations_set_idx)%PTR
+                EQUATIONS_SET=>SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)%EQUATIONS_SET
                 !CALL EQUATIONS_SET_FIXED_CONDITIONS_APPLY(EQUATIONS_SET,ERR,ERROR,*999)    
                 !Assemble the equations for linear problems
                 CALL EQUATIONS_SET_ASSEMBLE(EQUATIONS_SET,ERR,ERROR,*999)
@@ -2637,7 +2623,7 @@ CONTAINS
               CALL SOLVER_SOLVE(SOLVER,ERR,ERROR,*999)
               !Back-substitute to find flux values for linear problems
               DO equations_set_idx=1,SOLVER_MAPPING%NUMBER_OF_EQUATIONS_SETS
-                EQUATIONS_SET=>SOLVER_MAPPING%EQUATIONS_SETS(equations_set_idx)%PTR
+                EQUATIONS_SET=>SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)%EQUATIONS_SET
                 CALL EQUATIONS_SET_BACKSUBSTITUTE(EQUATIONS_SET,SOLVER_EQUATIONS%BOUNDARY_CONDITIONS,ERR,ERROR,*999)
               ENDDO !equations_set_idx
             ELSE
@@ -2696,7 +2682,7 @@ CONTAINS
             IF(ASSOCIATED(SOLVER_MAPPING)) THEN
               !Make sure the equations sets are up to date
               DO equations_set_idx=1,SOLVER_MAPPING%NUMBER_OF_EQUATIONS_SETS
-                EQUATIONS_SET=>SOLVER_MAPPING%EQUATIONS_SETS(equations_set_idx)%PTR
+                EQUATIONS_SET=>SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)%EQUATIONS_SET
                 !CALL EQUATIONS_SET_FIXED_CONDITIONS_APPLY(EQUATIONS_SET,ERR,ERROR,*999)
                 !Assemble the equations for linear problems
                 CALL EQUATIONS_SET_ASSEMBLE(EQUATIONS_SET,ERR,ERROR,*999)
@@ -2770,7 +2756,7 @@ CONTAINS
             CALL TAU_PHASE_CREATE_DYNAMIC(PHASE,CVAR)
             CALL TAU_PHASE_START(PHASE)
 #endif
-            EQUATIONS_SET=>SOLVER_MAPPING%EQUATIONS_SETS(equations_set_idx)%PTR
+            EQUATIONS_SET=>SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)%EQUATIONS_SET
             !CALL EQUATIONS_SET_FIXED_CONDITIONS_APPLY(EQUATIONS_SET,ERR,ERROR,*999)
             !Assemble the equations for linear problems
             CALL EQUATIONS_SET_ASSEMBLE(EQUATIONS_SET,ERR,ERROR,*999)
@@ -2785,7 +2771,7 @@ CONTAINS
             CALL TAU_PHASE_CREATE_DYNAMIC(PHASE,CVAR)
             CALL TAU_PHASE_START(PHASE)
 #endif
-            INTERFACE_CONDITION=>SOLVER_MAPPING%INTERFACE_CONDITIONS(interface_condition_idx)%PTR
+            INTERFACE_CONDITION=>SOLVER_MAPPING%INTERFACE_CONDITION_TO_SOLVER_MAP(interface_condition_idx)%INTERFACE_CONDITION
             CALL INTERFACE_CONDITION_ASSEMBLE(INTERFACE_CONDITION,ERR,ERROR,*999)
 #ifdef TAUPROF
             CALL TAU_PHASE_STOP(PHASE)
@@ -2800,7 +2786,7 @@ CONTAINS
 #endif
           !Back-substitute to find flux values for linear problems
           DO equations_set_idx=1,SOLVER_MAPPING%NUMBER_OF_EQUATIONS_SETS
-            EQUATIONS_SET=>SOLVER_MAPPING%EQUATIONS_SETS(equations_set_idx)%PTR
+            EQUATIONS_SET=>SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)%EQUATIONS_SET
             CALL EQUATIONS_SET_BACKSUBSTITUTE(EQUATIONS_SET,SOLVER_EQUATIONS%BOUNDARY_CONDITIONS,ERR,ERROR,*999)
           ENDDO !equations_set_idx
 #ifdef TAUPROF
@@ -2856,7 +2842,7 @@ CONTAINS
         IF(ASSOCIATED(SOLVER_MAPPING)) THEN
           !Apply boundary conditition
           DO equations_set_idx=1,SOLVER_MAPPING%NUMBER_OF_EQUATIONS_SETS
-            EQUATIONS_SET=>SOLVER_MAPPING%EQUATIONS_SETS(equations_set_idx)%PTR
+            EQUATIONS_SET=>SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)%EQUATIONS_SET
             !Assemble the equations set
             CALL EQUATIONS_SET_ASSEMBLE(EQUATIONS_SET,ERR,ERROR,*999)
           ENDDO !equations_set_idx
@@ -2867,7 +2853,7 @@ CONTAINS
             CALL TAU_PHASE_CREATE_DYNAMIC(PHASE,CVAR)
             CALL TAU_PHASE_START(PHASE)
 #endif
-            INTERFACE_CONDITION=>SOLVER_MAPPING%INTERFACE_CONDITIONS(interface_condition_idx)%PTR
+            INTERFACE_CONDITION=>SOLVER_MAPPING%INTERFACE_CONDITION_TO_SOLVER_MAP(interface_condition_idx)%INTERFACE_CONDITION
             CALL INTERFACE_CONDITION_ASSEMBLE(INTERFACE_CONDITION,ERR,ERROR,*999)
 #ifdef TAUPROF
             CALL TAU_PHASE_STOP(PHASE)
@@ -2878,7 +2864,7 @@ CONTAINS
           !Update the rhs field variable with residuals or backsubstitute for any linear
           !equations sets
           DO equations_set_idx=1,SOLVER_MAPPING%NUMBER_OF_EQUATIONS_SETS
-            EQUATIONS_SET=>SOLVER_MAPPING%EQUATIONS_SETS(equations_set_idx)%PTR
+            EQUATIONS_SET=>SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)%EQUATIONS_SET
             EQUATIONS=>EQUATIONS_SET%EQUATIONS
             IF(ASSOCIATED(EQUATIONS)) THEN
               SELECT CASE(EQUATIONS%LINEARITY)
@@ -3037,7 +3023,7 @@ CONTAINS
           SOLVER_MAPPING=>SOLVER_EQUATIONS%SOLVER_MAPPING
           IF(ASSOCIATED(SOLVER_MAPPING)) THEN
             DO equations_set_idx=1,SOLVER_MAPPING%NUMBER_OF_EQUATIONS_SETS
-              EQUATIONS_SET=>SOLVER_MAPPING%EQUATIONS_SETS(equations_set_idx)%PTR
+              EQUATIONS_SET=>SOLVER_MAPPING%EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx)%EQUATIONS_SET
               IF(ASSOCIATED(EQUATIONS_SET)) THEN
                 CALL EQUATIONS_SET_BOUNDARY_CONDITIONS_ANALYTIC(EQUATIONS_SET,BOUNDARY_CONDITIONS,ERR,ERROR,*999)
               ELSE
@@ -3517,7 +3503,7 @@ CONTAINS
                     solverMapping=>solverEquations%SOLVER_MAPPING
                     IF(ASSOCIATED(solverMapping)) THEN
                       DO interfaceConditionIdx=1,solverMapping%NUMBER_OF_INTERFACE_CONDITIONS
-                        interfaceCondition=>solverMapping%INTERFACE_CONDITIONS(interfaceConditionIdx)%PTR
+                        interfaceCondition=>solverMapping%INTERFACE_CONDITION_TO_SOLVER_MAP(interfaceConditionIdx)%INTERFACE_CONDITION
                         IF(ASSOCIATED(interfaceCondition)) THEN
                           IF(interfaceCondition%OPERATOR==INTERFACE_CONDITION_FLS_CONTACT_REPROJECT_OPERATOR .OR. &
                               & interfaceCondition%OPERATOR==INTERFACE_CONDITION_FLS_CONTACT_OPERATOR) THEN !Only reproject for contact operator
@@ -3693,7 +3679,7 @@ CONTAINS
             WRITE(*,'(1X,''    Iteration: '',I4)') iterationNumber
 
             DO equationsSetIdx=1,solverMapping%NUMBER_OF_EQUATIONS_SETS
-              region=>solverMapping%EQUATIONS_SETS(equationsSetIdx)%PTR%REGION
+              region=>solverMapping%EQUATIONS_SET_TO_SOLVER_MAP(equationsSetIdx)%EQUATIONS_SET%REGION
               IF(ASSOCIATED(region))THEN
                 NULLIFY(fields)
                 fields=>region%FIELDS
@@ -3734,8 +3720,8 @@ CONTAINS
           IF(DIAGNOSTICS1) THEN
             IUNIT = 300
             DO interfaceConditionIdx=1,solverMapping%NUMBER_OF_INTERFACE_CONDITIONS
-              interfaceCondition=>solverMapping%INTERFACE_CONDITIONS(interfaceConditionIdx)%PTR
-              interface=>solverMapping%INTERFACE_CONDITIONS(interfaceConditionIdx)%PTR%interface
+              interfaceCondition=>solverMapping%INTERFACE_CONDITION_TO_SOLVER_MAP(interfaceConditionIdx)%INTERFACE_CONDITION
+              interface=>solverMapping%INTERFACE_CONDITION_TO_SOLVER_MAP(interfaceConditionIdx)%INTERFACE_CONDITION%interface
               pointsConnectivity=>interface%pointsConnectivity
               interfaceDatapoints=>interface%DATA_POINTS
               IF(ASSOCIATED(pointsConnectivity)) THEN
@@ -3762,7 +3748,7 @@ CONTAINS
                   WRITE(IUNIT,'(1X,''  z.  Value index= 9, #Derivatives=0'')')
                   WRITE(IUNIT,'(1X,''4) exitTag, field, rectangular cartesian, #Components=1'')')
                   WRITE(IUNIT,'(1X,''  tag.  Value index= 10, #Derivatives=0'')')
-                  coupledMeshDependentField=>interfaceCondition%DEPENDENT%EQUATIONS_SETS(coupledMeshIdx)%PTR% &
+                  coupledMeshDependentField=>interfaceCondition%EQUATIONS_SETS(coupledMeshIdx)%PTR% &
                     & DEPENDENT%DEPENDENT_FIELD
                   NULLIFY(interpolationParameters)
                   CALL FIELD_INTERPOLATION_PARAMETERS_INITIALISE(coupledMeshDependentField,interpolationParameters,err,error, &

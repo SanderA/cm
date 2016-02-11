@@ -69,8 +69,8 @@
 !> This module contains all type definitions in order to avoid cyclic module references.
 MODULE TYPES
 
-  USE CmissPetscTypes, ONLY : PetscISColoringType,PetscKspType,PetscMatType,PetscMatColoringType,PetscMatFDColoringType, &
-    & PetscPCType,PetscSnesType,PetscSnesLineSearchType,PetscVecType
+  USE CmissPetscTypes, ONLY : PetscISColoringType,PetscISLocalToGlobalMappingType,PetscKspType,PetscMatType, &
+    & PetscMatColoringType,PetscMatFDColoringType,PetscPCType,PetscSnesType,PetscSnesLineSearchType,PetscVecType
   USE CONSTANTS
   USE KINDS
   USE ISO_C_BINDING
@@ -94,10 +94,18 @@ MODULE TYPES
     INTEGER(INTG), POINTER :: PTR(:)
   END TYPE INTEGER_INTG_PTR_TYPE
 
+  TYPE INTEGER_INTG_ALLOC_TYPE
+    INTEGER(INTG), ALLOCATABLE :: array(:)
+  END TYPE INTEGER_INTG_ALLOC_TYPE
+
   TYPE INTEGER_CINT_ALLOC_TYPE
     INTEGER(C_INT), ALLOCATABLE :: ARRAY(:)
   END TYPE INTEGER_CINT_ALLOC_TYPE
-  
+
+  TYPE LOGICAL_ALLOC_TYPE
+    LOGICAL, ALLOCATABLE :: array(:)
+  END TYPE LOGICAL_ALLOC_TYPE
+
   !
   !================================================================================================================================
   !
@@ -208,7 +216,7 @@ MODULE TYPES
     INTEGER(INTG) :: NUMBER_OF_ELEMENT_PARAMETERS  !<The number of element parameters in the basis. Old CMISS name NST(nbf). 
     INTEGER(INTG) :: MAXIMUM_NUMBER_OF_DERIVATIVES !<The maximum number of derivatives at any node in the basis. Old CMISS name NKT(0,nbf)
     INTEGER(INTG), ALLOCATABLE :: NUMBER_OF_DERIVATIVES(:) !<NUMBER_OF_DERIVATIVES(nn). The number of derivatives at the nn'th node in the basis. Old CMISS name NKT(nn,nbf).
-    INTEGER(INTG), ALLOCATABLE :: NODE_POSITION_INDEX(:,:) !<NODE_POSITION_INDEX(nn,nic). The index of the node position for the nn'th local node in the nic'th coordinate. For Lagrange-Hermite tensor product basis functions: The number of coordinates equals the number of xi directions. Thus if NODE_POSITION_INDEX(nn,:)=1,2,2 then local node nn is the first node in the ni(c)=1 direction, the second node in the ni(c)=2 direction and the second node in the ni(c)=3 direction; For simplex basis functions: The number of coordinates equals the number of xi directions plus one. The index specifies the inverse distance away from the corner/end of that area coordinate. Thus if an element has quadratic interpolation the index will range from 3 (closest to the corner/end of the element that the area coordinate has the value 1) to 1 (closest to the corners/end of the element that the area coordinate has the value 0). If M is the order of the element then in NODE_POSITION_INDEX(nn,:)=1,1,M then that node is apex for the third area coordinate. In general the index values will add up to M+number of xi directions+1 (i.e., subtract one from the indicies to get the standard simplex coordinates. Old CMISS name INP(nn,ni,nb). \see TYPES::BASIS_TYPE::NODE_POSITION_INDEX_INV.
+    INTEGER(INTG), ALLOCATABLE :: NODE_POSITION_INDEX(:,:) !<NODE_POSITION_INDEX(nn,nic). The index of the node position for the nn'th local node in the nic'th coordinate. For Lagrange-Hermite tensor product basis functions: The number of coordinates equals the number of xi directions. Thus if NODE_POSITION_INDEX(nn,:)=1,2,2 then local node nn is the first node in the ni(c)=1 direction, the second node in the ni(c)=2 direction and the second node in the ni(c)=3 direction; For simplex basis functions: The number of coordinates equals the number of xi directions plus one. The index specifies the inverse distance away from the corner/end of that area coordinate. Thus if an element has quadratic interpolation the index will range from 3 (closest to the corner/end of the element that the area coordinate has the value 1) to 1 (closest to the corners/end of the element that the area coordinate has the value 0). If M is the order of the element then in NODE_POSITION_INDEX(nn,:)=1,1,M then that node is apex for the third area coordinate. In general the index values will add up to M+number of xi directions+1 (i.e., subtract one from the indices to get the standard simplex coordinates. Old CMISS name INP(nn,ni,nb). \see TYPES::BASIS_TYPE::NODE_POSITION_INDEX_INV.
     INTEGER(INTG), ALLOCATABLE :: NODE_POSITION_INDEX_INV(:,:,:,:) !<NODE_POSITION_INDEX_INV(nnc1,nnc2,nnc3,nnc4). The inverse of the node position index for the basis. The NODE_POSITION_INDEX_INV gives the local node number for the node that has node position indices of nnc1 in the 1st ni(c) direction, nnc2 in the 2nd ni(c) direction, nnc3 in the 3rd ni(c) direction and nnc4 in the 4th ni(c) direction. NOTE: that if the basis has less than 4 ni(c) direction the position index is 1. Old CMISS name NNB(inp1,inp2,inp3,nbf). \see TYPES::BASIS_TYPE::NODE_POSITION_INDEX.
     INTEGER(INTG), ALLOCATABLE :: DERIVATIVE_ORDER_INDEX(:,:,:) !<DERIVATIVE_ORDER_INDEX(nk,nn,0:ni). The index of the derivative order for the nk'th derivative of the nn'th node in the ni'th direction of the basis. The derivative index is NO_PART_DERIV for zeroth order, FIRST_PART_DERIV for the first order and SECOND_PART_DERIV for the second order derivative. Thus a DERIVATIVE_ORDER_INDEX(nk,nn,1..) of {NO_PART_DERIV,FIRST_PART_DERIV,NO_PART_DERIV} indicates that the nk'th derivative of the nn'th node of the basis is the first derivative with respect to the s2 direction. Old CMISS name IDO(nk,nn,1:ni,nbf). \see TYPES::BASIS_TYPE::DERIVATIVE_ORDER_INDEX_INV,CONSTANTS_PartialDerivativeConstants
     INTEGER(INTG), ALLOCATABLE :: DERIVATIVE_ORDER_INDEX_INV(:,:,:,:) !<DERIVATIVE_ORDER_INDEX_INV(nu1,nu2,nu3,nn). The inverse of the derivative order index for the nn'th local node of the basis. DERIVATIVE_ORDER_INDEX_INV gives the derivative number for the nu1 partial derivative in the 1st xi direction, the nu2 partial derivative in the 2nd xi direction and the nu3 partial derivative in the 3rd xi direction. NOTE: local node nn does not carry any derivatives of the requested partial derivative type then DERIVATIVE_ORDER_INDEX_INV will return 0. If the basis has less than 3 xi directions then the nu index is 1. \see TYPES::BASIS_TYPE::DERIVATIVE_ORDER_INDEX
@@ -241,7 +249,7 @@ MODULE TYPES
 
   !>Contains information on the defined basis functions
   TYPE BASIS_FUNCTIONS_TYPE
-   INTEGER(INTG) :: NUMBER_BASIS_FUNCTIONS !<The number of basis functions defined
+    INTEGER(INTG) :: NUMBER_BASIS_FUNCTIONS !<The number of basis functions defined
     TYPE(BASIS_PTR_TYPE), POINTER :: BASES(:) !<The array of pointers to the defined basis functions
   END TYPE BASIS_FUNCTIONS_TYPE
   
@@ -371,31 +379,14 @@ MODULE TYPES
   ! Mesh types
   !
 
-  !>Contains information on the dofs for a mesh.
-  TYPE MeshDofsType
-    TYPE(MeshComponentTopologyType), POINTER :: meshComponentTopology !<The pointer to the mesh component topology for the dofs information.
-    INTEGER(INTG) :: numberOfDofs !<The number of dofs in the mesh.
-  END TYPE MeshDofsType
-
-  !>Contains information on the mesh adjacent elements for a xi coordinate
-  TYPE MESH_ADJACENT_ELEMENT_TYPE
-    INTEGER(INTG) :: NUMBER_OF_ADJACENT_ELEMENTS !<The number of adjacent elements for the xi coordinate
-    INTEGER(INTG), ALLOCATABLE :: ADJACENT_ELEMENTS(:) !<The global element numbers of the elements adjacent to this element for the xi coordinate
-  END TYPE MESH_ADJACENT_ELEMENT_TYPE
-  
   !>Contains the information for an element in a mesh.
   TYPE MESH_ELEMENT_TYPE
     INTEGER(INTG) :: GLOBAL_NUMBER !<The global element number in the mesh.
     INTEGER(INTG) :: USER_NUMBER !<The corresponding user number for the element.
     TYPE(BASIS_TYPE), POINTER :: BASIS !<A pointer to the basis function for the element.
-    INTEGER(INTG), ALLOCATABLE :: MESH_ELEMENT_NODES(:) !<MESH_ELEMENT_NODES(nn). The mesh node number in the mesh of the nn'th local node in the element. Old CMISS name NPNE(nn,nbf,ne).
     INTEGER(INTG), ALLOCATABLE :: GLOBAL_ELEMENT_NODES(:) !<GLOBAL_ELEMENT_NODES(nn). The global node number in the mesh of the nn'th local node in the element. Old CMISS name NPNE(nn,nbf,ne).
     INTEGER(INTG), ALLOCATABLE :: USER_ELEMENT_NODE_VERSIONS(:,:) !< USER_ELEMENT_NODE_VERSIONS(derivative_idx,element_node_idx).  The version number for the nn'th user node's nk'th derivative. Size of array dependent on the maximum number of derivatives for the basis of the specified element.
     INTEGER(INTG), ALLOCATABLE :: USER_ELEMENT_NODES(:) !<USER_ELEMENT_NODES(nn). The user node number in the mesh of the nn'th local node in the element. Old CMISS name NPNE(nn,nbf,ne).
-    TYPE(MESH_ADJACENT_ELEMENT_TYPE), ALLOCATABLE :: ADJACENT_ELEMENTS(:) !<ADJACENT_ELEMENTS(-nic:nic). The adjacent elements information in the nic'th xi coordinate direction. Note that -nic gives the adjacent element before the element in the nic'th direction and +nic gives the adjacent element after the element in the nic'th direction. The ni=0 index will give the information on the current element. Old CMISS name NXI(-ni:ni,0:nei,ne).
-    !INTEGER(INTG), ALLOCATABLE :: NUMBER_OF_ADJACENT_ELEMENTS(:) !<NUMBER_OF_ADJACENT_ELEMENTS(-ni:ni). The number of elements adjacent to this element in the ni'th xi direction. Note that -ni gives the adjacent element before the element in the ni'th direction and +ni gives the adjacent element after the element in the ni'th direction. The ni=0 index should be 1 for the current element. Old CMISS name NXI(-ni:ni,0:nei,ne).
-    !INTEGER(INTG), ALLOCATABLE :: ADJACENT_ELEMENTS(:,:) !<ADJACENT_ELEMENTS(nei,-ni:ni). The local element numbers of the elements adjacent to this element in the ni'th xi direction. Note that -ni gives the adjacent elements before the element in the ni'th direction and +ni gives the adjacent elements after the element in the ni'th direction. The ni=0 index should give the current element number. Old CMISS name NXI(-ni:ni,0:nei,ne)
-    LOGICAL :: BOUNDARY_ELEMENT !<Is .TRUE. if the mesh element is on the boundary of a mesh, .FALSE. if not.
   END TYPE MESH_ELEMENT_TYPE
 
   !>Contains the information for the elements of a mesh.
@@ -406,35 +397,6 @@ MODULE TYPES
     TYPE(MESH_ELEMENT_TYPE), POINTER :: ELEMENTS(:) !<ELEMENTS(ne). The pointer to the array of information for the elements of this mesh. ELEMENTS(ne) contains the information for the ne'th global element of the mesh. \todo Should this be allocatable.
     TYPE(TREE_TYPE), POINTER :: ELEMENTS_TREE !<A tree mapping the mesh global element number to the mesh user element number.
   END TYPE MeshElementsType
-
-  !>Contains the information for a node derivative of a mesh.
-  TYPE MeshNodeDerivativeType
-    INTEGER(INTG) :: numberOfVersions !The number of global versions at the node for the mesh.
-    INTEGER(INTG), ALLOCATABLE :: userVersionNumbers(:) !userVersionNumbers(versionIdx). The user version numbers for the versionIdx'th version for the node.
-    INTEGER(INTG), ALLOCATABLE :: dofIndex(:) !The global dof version index (nv) in the domain of the nk'th global derivative for the node.
-    INTEGER(INTG) :: globalDerivativeIndex !The global derivative index of the nk'th global derivative for the node.
-    INTEGER(INTG) :: partialDerivativeIndex !The partial derivative index (nu) of the nk'th global derivative for the node. Old CMISS name NUNK(nk,nj,np).
-  END TYPE MeshNodeDerivativeType
-
-  !>Contains the topology information for a global node of a mesh.
-  TYPE MeshNodeType
-    INTEGER(INTG) :: meshNumber !<The mesh node number in the mesh.
-    INTEGER(INTG) :: globalNumber !<The global node number in the mesh.
-    INTEGER(INTG) :: userNumber !<The corresponding user number for the node.
-    INTEGER(INTG) :: numberOfDerivatives !<The number of global derivatives at the node for the mesh. Old CMISS name NKT(nj,np).
-    TYPE(MeshNodeDerivativeType), ALLOCATABLE :: derivatives(:) !<derivatives(derivativeIdx). Contains information on the derivativeIdx'th derivative of the node.
-    INTEGER(INTG) :: numberOfSurroundingElements !<The number of elements surrounding the node in the mesh. Old CMISS name NENP(np,0,0:nr).
-    INTEGER(INTG), POINTER :: surroundingElements(:) !<surroudingElements(localElementIdx). The global element number of the localElementIdx'th element that is surrounding the node. Old CMISS name NENP(np,nep,0:nr). \todo Change this to allocatable.
-    LOGICAL :: boundaryNode !<Is .TRUE. if the mesh node is on the boundary of the mesh, .FALSE. if not.
-  END TYPE MeshNodeType
-
-  !>Contains the information for the nodes of a mesh.
-  TYPE MeshNodesType
-    TYPE(MeshComponentTopologyType), POINTER :: meshComponentTopology !<The pointer to the mesh component topology for the nodes information.
-    INTEGER(INTG) :: numberOfnodes !<The number of nodes in the mesh.
-    TYPE(MeshNodeType), ALLOCATABLE :: nodes(:) !<nodes(nodeIdx). The pointer to the array of topology information for the nodes of the mesh. node(nodeIdx) contains the topological information for the nodeIdx'th global node of the mesh. \todo Should this be allocatable???
-    TYPE(TREE_TYPE), POINTER :: nodesTree !<A tree mapping the mesh global number to the region nodes global number.
-  END TYPE MeshNodesType
   
   TYPE MeshElementDataPointType
     INTEGER(INTG) :: userNumber !<User number of the projected data point
@@ -467,9 +429,7 @@ MODULE TYPES
   TYPE MeshComponentTopologyType
     TYPE(MESH_TYPE), POINTER :: mesh !<Pointer to the parent mesh.
     INTEGER(INTG) :: meshComponentNumber !<The mesh component number for this mesh topology.
-    TYPE(MeshNodesType), POINTER :: nodes !<Pointer to the nodes within the mesh topology.
     TYPE(MeshElementsType), POINTER :: elements !<Pointer to the elements within the mesh topology.
-    TYPE(MeshDofsType), POINTER :: dofs !<Pointer to the dofs within the mesh topology.
     TYPE(MeshDataPointsType), POINTER :: dataPoints !<Pointer to the data points within the mesh topology
   END TYPE MeshComponentTopologyType
 
@@ -514,6 +474,7 @@ MODULE TYPES
     INTEGER(INTG) :: NUMBER_OF_EMBEDDED_MESHES !<The number of meshes that are embedded in this mesh.
     TYPE(MESH_PTR_TYPE), POINTER :: EMBEDDED_MESHES(:) !<EMBEDDED_MESHES(mesh_idx). A pointer to the mesh_idx'th mesh that is embedded in this mesh.
     INTEGER(INTG) :: NUMBER_OF_ELEMENTS
+    !The topology should be based on cells, faces, lines, vertices and NOT on nodes. This way we can get rid of "mesh components".
     TYPE(MeshComponentTopologyPtrType), POINTER :: TOPOLOGY(:) !<TOPOLOGY(mesh_component_idx). A pointer to the topology mesh_component_idx'th mesh component. \todo Change to allocatable?
     TYPE(DECOMPOSITIONS_TYPE), POINTER :: DECOMPOSITIONS !<A pointer to the decompositions for this mesh.
     LOGICAL :: SURROUNDING_ELEMENTS_CALCULATE !<Boolean flag to determine whether surrounding elements should be calculated.
@@ -608,15 +569,6 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
   ! Domain types
   !
   
-  !>Contains information on the degrees-of-freedom (dofs) for a domain.
-  TYPE DOMAIN_DOFS_TYPE
-    TYPE(DOMAIN_TYPE), POINTER :: DOMAIN !<A pointer to the domain.
-    INTEGER(INTG) :: NUMBER_OF_DOFS !<The number of degrees-of-freedom (excluding ghost dofs) in the domain.
-    INTEGER(INTG) :: TOTAL_NUMBER_OF_DOFS !<The total number of degrees-of-freedom (including ghost dofs) in the domain.
-    INTEGER(INTG) :: NUMBER_OF_GLOBAL_DOFS !<The number of global degrees-of-freedom in the domains.
-    INTEGER(INTG), ALLOCATABLE :: DOF_INDEX(:,:) !<DOF_INDEX(i,ny). The index for the ny'th degree-of-freedom. When i=1 DOF_INDEX will give the global derivative version number (version_idx) associated with the dof. When i=2 DOF_INDEX will give the global derivative number (derivative_idx) associated with the dof. When i=3 DOF_INDEX will give the local node number (node_idx) associated with the dof.
-  END TYPE DOMAIN_DOFS_TYPE
-
   !>Contains the information for a line in a domain.
   TYPE DOMAIN_LINE_TYPE
     INTEGER(INTG) :: NUMBER !<The line number in the domain.
@@ -678,7 +630,7 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     INTEGER(INTG) :: NUMBER_OF_ELEMENTS !<The number of elements (excluding ghost elements) in this domain topology.
     INTEGER(INTG) :: TOTAL_NUMBER_OF_ELEMENTS !<The total number of elements (including ghost elements) in this domain topology.
     INTEGER(INTG) :: NUMBER_OF_GLOBAL_ELEMENTS !<The number of global elements in this domain topology.
-    TYPE(DOMAIN_ELEMENT_TYPE), POINTER :: ELEMENTS(:) !<ELEMENTS(ne). The pointer to the array of topology information for the elements of this domain. ELEMENTS(ne) contains the topological information for the ne'th local elements of the domain. \todo Change this to allocatable???
+    TYPE(DOMAIN_ELEMENT_TYPE), ALLOCATABLE :: ELEMENTS(:) !<ELEMENTS(ne). The array of topology information for the elements of this domain. ELEMENTS(ne) contains the topological information for the ne'th local elements of the domain.
     INTEGER(INTG) :: MAXIMUM_NUMBER_OF_ELEMENT_PARAMETERS !<The maximum number of element parameters (ns) for all the elements in the domain.
   END TYPE DOMAIN_ELEMENTS_TYPE
 
@@ -700,7 +652,7 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     INTEGER(INTG) :: NUMBER_OF_DERIVATIVES !<The number of global derivatives at the node for the domain. Old CMISS name NKT(nj,np)
     TYPE(DOMAIN_NODE_DERIVATIVE_TYPE), ALLOCATABLE :: DERIVATIVES(:) !<DERIVATIVES(derivative_idx)
     INTEGER(INTG) :: NUMBER_OF_SURROUNDING_ELEMENTS !<The number of elements surrounding the node in the domain. Old CMISS name NENP(np,0,0:nr).
-    INTEGER(INTG), POINTER :: SURROUNDING_ELEMENTS(:) !<SURROUNDING_ELEMENTS(nep). The local element number of the nep'th element that is surrounding the node. Old CMISS name NENP(np,nep,0:nr). \todo Change this to allocatable.
+    INTEGER(INTG), ALLOCATABLE :: SURROUNDING_ELEMENTS(:) !<SURROUNDING_ELEMENTS(nep). The local element number of the nep'th element that is surrounding the node. Old CMISS name NENP(np,nep,0:nr).
     INTEGER(INTG) :: NUMBER_OF_NODE_LINES !<The number of lines surrounding the node in the domain.
     INTEGER(INTG), ALLOCATABLE :: NODE_LINES(:) !<NODE_LINES(nlp). The local line number of the nlp'th line that is surrounding the node.
     INTEGER(INTG) :: NUMBER_OF_NODE_FACES !<The number of faces surrounding the node in the domain.
@@ -715,7 +667,7 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     INTEGER(INTG) :: TOTAL_NUMBER_OF_NODES !<The total number of nodes (including ghost nodes) in this domain topology.
     INTEGER(INTG) :: NUMBER_OF_GLOBAL_NODES !<The number of global nodes in this domain topology.
     INTEGER(INTG) :: MAXIMUM_NUMBER_OF_DERIVATIVES !<The maximum number of derivatives over the nodes in this domain topology.
-    TYPE(DOMAIN_NODE_TYPE), POINTER :: NODES(:) !<NODES(np). The pointer to the array of topology information for the nodes of this domain. NODES(np) contains the topological information for the np'th local node of the domain. \todo Change this to allocatable???
+    TYPE(DOMAIN_NODE_TYPE), ALLOCATABLE :: NODES(:) !<NODES(np). The pointer to the array of topology information for the nodes of this domain. NODES(np) contains the topological information for the np'th local node of the domain.
     TYPE(TREE_TYPE), POINTER :: NODES_TREE !<A tree mapping the domain local number to the region nodes user number.
   END TYPE DOMAIN_NODES_TYPE
 
@@ -723,7 +675,6 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
   TYPE DOMAIN_TOPOLOGY_TYPE
     TYPE(DOMAIN_TYPE), POINTER :: DOMAIN !<The pointer to the domain for this topology information.
     TYPE(DOMAIN_NODES_TYPE), POINTER :: NODES !<The pointer to the topology information for the nodes of this domain.
-    TYPE(DOMAIN_DOFS_TYPE), POINTER :: DOFS !<The pointer to the topology information for the dofs of this domain. /todo think about getting rid of domain dofs
     TYPE(DOMAIN_ELEMENTS_TYPE), POINTER :: ELEMENTS !<The pointer to the topology information for the elements of this domain.
     TYPE(DOMAIN_FACES_TYPE), POINTER :: FACES !<The pointer to the topology information for the faces of this domain.
     TYPE(DOMAIN_LINES_TYPE), POINTER :: LINES !<The pointer to the topology information for the lines of this domain.
@@ -742,8 +693,6 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     INTEGER(INTG) :: DATA_TYPE !<The data type of the distributed vector. This is "inherited" from the distributed vector.
     INTEGER(INTG) :: SEND_BUFFER_SIZE !<The size of the buffer to send distributed vector data from the current domain to the adjacent domain.
     INTEGER(INTG) :: RECEIVE_BUFFER_SIZE !<The size of the buffer to receive distributed vector data from the adjacent domain to the current domain.
-    INTEGER(INTG) :: SEND_TAG_NUMBER !<The MPI tag number for the data sending from the current domain to the adjacent domain. It is calculated as an offset from the base tag number of the distribued vector.
-    INTEGER(INTG) :: RECEIVE_TAG_NUMBER !<The MPI tag number for the data receiving from the adjacent domain to the current domain. It is calculated as an offset from the base tag number of the distribued vector.
     INTEGER(INTG) :: MPI_SEND_REQUEST !<The MPI request pointer for sending data from the current domain to the adjacent domain.
     INTEGER(INTG) :: MPI_RECEIVE_REQUEST !<The MPI request pointer for sending data from the adjacent domain to the current domain.
     INTEGER(INTG), ALLOCATABLE :: SEND_BUFFER_INTG(:) !<The integer buffer for sending the distributed integer vector data from the current domain to the adjacent domain.
@@ -774,13 +723,16 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     TYPE(DISTRIBUTED_VECTOR_TYPE), POINTER :: DISTRIBUTED_VECTOR !<A pointer to the distributed vector
     INTEGER(INTG) :: N !<The number of local components in the vector
     INTEGER(INTG) :: GLOBAL_N !<The number of global components in the vector
-    INTEGER(INTG) :: DATA_SIZE  !<The size of the distributed vector that is held locally by the domain.
-    INTEGER(INTG), ALLOCATABLE :: GLOBAL_NUMBERS(:) !<GLOBAL_NUMBERS(i). The PETSc global number corresponding to the i'th local number.
     LOGICAL :: USE_OVERRIDE_VECTOR !<Is .TRUE. if the override vector is used instead of the standard vector
     TYPE(PetscVecType) :: VECTOR !<The PETSc vector
     TYPE(PetscVecType) :: OVERRIDE_VECTOR !<The PETSc override vector
   END TYPE DISTRIBUTED_VECTOR_PETSC_TYPE
   
+  !>A buffer type to allow for an array of pointers to a distributed vector type.
+  TYPE DISTRIBUTED_VECTOR_PTR_TYPE
+    TYPE(DISTRIBUTED_VECTOR_TYPE), POINTER :: PTR
+  END TYPE DISTRIBUTED_VECTOR_PTR_TYPE
+
   !>Contains the information for a vector that is distributed across a number of domains.
   TYPE DISTRIBUTED_VECTOR_TYPE
     LOGICAL :: VECTOR_FINISHED !<!<Is .TRUE. if the distributed vector has finished being created, .FALSE. if not.
@@ -809,15 +761,12 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     INTEGER(INTG) :: GLOBAL_N !<The number of global columns in the PETSc matrix
     INTEGER(INTG) :: STORAGE_TYPE !<The storage type (sparsity) of the PETSc matrix
     INTEGER(INTG) :: NUMBER_NON_ZEROS !<The number of non-zeros in the PETSc matrix
-    INTEGER(INTG) :: DATA_SIZE !<The size of the allocated data in the PETSc matrix
-    INTEGER(INTG) :: MAXIMUM_COLUMN_INDICES_PER_ROW !<The maximum number of column indicies for the rows.
+    INTEGER(INTG) :: MAXIMUM_COLUMN_INDICES_PER_ROW !<The maximum number of column indices for the rows.
     INTEGER(INTG), ALLOCATABLE :: DIAGONAL_NUMBER_NON_ZEROS(:) !<DIAGONAL_NUMBER_NON_ZEROS(i). The number of non-zeros in the diagonal part of the the i'th row
     INTEGER(INTG), ALLOCATABLE :: OFFDIAGONAL_NUMBER_NON_ZEROS(:) !<OFFDIAGONAL_NUMBER_NON_ZEROS(i). The number of non-zeros in the off diagonal part of the the i'th row
     INTEGER(INTG), ALLOCATABLE :: ROW_INDICES(:) !<ROW_INDICES(i). The row indices for the matrix.
     INTEGER(INTG), ALLOCATABLE :: COLUMN_INDICES(:) !<COLUMN_INDICES(i). The column indices for the matrix.
     TYPE(LINKEDLIST),POINTER :: LIST(:) !< \todo Comment
-    INTEGER(INTG), ALLOCATABLE :: GLOBAL_ROW_NUMBERS(:) !<GLOBAL_ROW_NUMBERS(i). The PETSc global row number corresponding to the i'th local row number.
-    REAL(DP), POINTER :: DATA_DP(:) !<DATA_DP(i). The real data for the matrix. \todo Is this used???
     LOGICAL :: USE_OVERRIDE_MATRIX !<Is .TRUE. if the override matrix is to be used instead of the standard matrix
     TYPE(PetscMatType) :: MATRIX !<The PETSc matrix
     TYPE(PetscMatType) :: OVERRIDE_MATRIX !<The PETSc override matrix
@@ -866,7 +815,7 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     INTEGER(INTG) :: STORAGE_TYPE !<The storage type of the matrix \see MATRIX_VECTOR_StorageTypes 
     INTEGER(INTG) :: NUMBER_NON_ZEROS !<The number of non-zero elements in the matrix 
     INTEGER(INTG) :: SIZE !<The size of the data arrays
-    INTEGER(INTG) :: MAXIMUM_COLUMN_INDICES_PER_ROW !<The maximum number of column indicies for the rows.
+    INTEGER(INTG) :: MAXIMUM_COLUMN_INDICES_PER_ROW !<The maximum number of column indices for the rows.
     INTEGER(INTG), ALLOCATABLE :: ROW_INDICES(:) !<ROW_INDICES(i). The row indices for the matrix storage scheme. \see MATRIX_VECTOR_MatrixStorageStructures
     INTEGER(INTG), ALLOCATABLE :: COLUMN_INDICES(:) !<COLUMN_INDICES(i). The column indices for the matrix storage scheme. \see MATRIX_VECTOR_MatrixStorageStructures
     TYPE(LINKEDLIST),POINTER :: LIST(:) !\todo Comment
@@ -881,7 +830,7 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
   !
   ! Domain mapping types
   !
-  
+ 
   !>Contains the information on an adjacent domain to a domain in a domain mapping. 
   TYPE DOMAIN_ADJACENT_DOMAIN_TYPE
     INTEGER(INTG) :: DOMAIN_NUMBER !<The number of the domain that is adjacent to a domain in a mapping.
@@ -890,39 +839,16 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     INTEGER(INTG), ALLOCATABLE :: LOCAL_GHOST_SEND_INDICES(:) !<LOCAL_GHOST_SEND_INDICES(i). The local numbers of the ghosts in the current domain that are to be sent to this domain.
     INTEGER(INTG), ALLOCATABLE :: LOCAL_GHOST_RECEIVE_INDICES(:) !<LOCAL_GHOST_RECEIVE_INDICES(i). The local numbers of the ghosts in the current domain that are to be received from this domain.
   END TYPE DOMAIN_ADJACENT_DOMAIN_TYPE
-  
-  !>Contains the local information for a global mapping number for a domain mapping.
-  TYPE DOMAIN_GLOBAL_MAPPING_TYPE
-    INTEGER(INTG) :: NUMBER_OF_DOMAINS !<The number of domains that the global number is mapped to a local number in.
-    INTEGER(INTG), ALLOCATABLE :: LOCAL_NUMBER(:) !<LOCAL_NUMBER(domain_idx). The mapped local number for the domain_idx'th domain for the global number.
-    INTEGER(INTG), ALLOCATABLE :: DOMAIN_NUMBER(:) !<DOMAIN_NUMBER(domain_idx). The domain number for the domain_idx'th domain for which the global number is mapped to a local number
-    INTEGER(INTG), ALLOCATABLE :: LOCAL_TYPE(:) !<LOCAL_TYPE(domain_idx). The type of local for the domain_idx'th domain for which the global number is mapped to a local number. The types depend on whether the mapped local number in the domain_idx'th domain is an internal, boundary or ghost local number. \see DOMAIN_MAPPINGS_DomainType
-  END TYPE DOMAIN_GLOBAL_MAPPING_TYPE
-
+ 
   !>Contains information on the domain mappings (i.e., local and global numberings).
   TYPE DOMAIN_MAPPING_TYPE
     INTEGER(INTG) :: NUMBER_OF_LOCAL !<The number of local numbers in the domain excluding ghost numbers
     INTEGER(INTG) :: TOTAL_NUMBER_OF_LOCAL !<The total number of local numbers in the domain including ghost numbers.
-    INTEGER(INTG), ALLOCATABLE :: NUMBER_OF_DOMAIN_LOCAL(:) !<NUMBER_OF_DOMAIN_LOCAL(domain_no). The number of locals for domain_no'th domain. NOTE: the domain_no goes from 0 to the number of domains-1.
-    INTEGER(INTG), ALLOCATABLE :: NUMBER_OF_DOMAIN_GHOST(:) !<NUMBER_OF_DOMAIN_GHOST(domain_no). The total number of ghosts for domain_no'th domain. NOTE: the domain_no goes from 0 to the number of domains-1.
     INTEGER(INTG) :: NUMBER_OF_GLOBAL !<The number of global numbers for this mapping.
     INTEGER(INTG) :: NUMBER_OF_DOMAINS !<The number of domains in this mapping.
-    INTEGER(INTG) :: NUMBER_OF_INTERNAL !<The number of internal numbers in this mapping.
-    INTEGER(INTG) :: NUMBER_OF_BOUNDARY !<The number of boundary numbers in this mapping.
-    INTEGER(INTG) :: NUMBER_OF_GHOST !<The number of ghost numbers in this mapping.
-    INTEGER(INTG) :: INTERNAL_START !<The start postition in the DOMAIN_LIST for the list of internal numbers
-    INTEGER(INTG) :: INTERNAL_FINISH !<The finish postition in the DOMAIN_LIST for the list of internal numbers
-    INTEGER(INTG) :: BOUNDARY_START !<The start postition in the DOMAIN_LIST for the list of boundary numbers
-    INTEGER(INTG) :: BOUNDARY_FINISH !<The finish postition in the DOMAIN_LIST for the list of boundary numbers
-    INTEGER(INTG) :: GHOST_START !<The start postition in the DOMAIN_LIST for the list of ghost numbers
-    INTEGER(INTG) :: GHOST_FINISH !<The finish postition in the DOMAIN_LIST for the list of ghost numbers
-    INTEGER(INTG), ALLOCATABLE :: DOMAIN_LIST(:) !<DOMAIN_LIST(i). The list of local numbers grouped so that the internal numbers are from INTERNAL_START to INTERNAL_FINISH, the boundary numbers are from BOUNDARY_START to BOUNDARY_FINISH and the ghost numbers are from GHOST_START to GHOST_FINISH
-    INTEGER(INTG), ALLOCATABLE :: LOCAL_TO_GLOBAL_MAP(:) !<LOCAL_TO_GLOBAL_MAP(i). The global number for the i'th local number for the mapping.
-    TYPE(DOMAIN_GLOBAL_MAPPING_TYPE), ALLOCATABLE :: GLOBAL_TO_LOCAL_MAP(:) !<GLOBAL_TO_LOCAL_MAP(i). The local information for the i'th global number for the mapping.
-    INTEGER(INTG) :: NUMBER_OF_ADJACENT_DOMAINS !<The number of domains that are adjacent to this domain in the mapping.
-    INTEGER(INTG), ALLOCATABLE :: ADJACENT_DOMAINS_PTR(:) !<ADJACENT_DOMAINS_PTR(domain_no). The pointer to the list of adjacent domains for domain_no. ADJACENT_DOMAINS_PTR(domain_no) gives the starting position in ADJACENT_DOMAINS_LIST for the first adjacent domain number for domain number domain_no. ADJACENT_DOMAINS_PTR(domain_no+1) gives the last+1 position in ADJACENT_DOMAINS_LIST for the last adjacent domain number for domain number domain_no. NOTE: the index for ADJACENT_DOMAINS_PTR varies from 0 to the number of domains.
-    INTEGER(INTG), ALLOCATABLE :: ADJACENT_DOMAINS_LIST(:) !<ADJACENT_DOMAINS_LIST(i). The list of adjacent domains for each domain. The start and end positions for the list for domain number domain_no are given by ADJACENT_DOMAIN_PTR(domain_no) and ADJACENT_DOMAIN_PTR(domain_no+1)-1 respectively.
+    INTEGER(INTG) :: NUMBER_OF_ADJACENT_DOMAINS !<The number of adjacent domains in this mapping.
     TYPE(DOMAIN_ADJACENT_DOMAIN_TYPE), ALLOCATABLE :: ADJACENT_DOMAINS(:) !<ADJACENT_DOMAINS(adjacent_domain_idx). The adjacent domain information for the adjacent_domain_idx'th adjacent domain to this domain. 
+    INTEGER(INTG), ALLOCATABLE :: LOCAL_TO_GLOBAL_MAP(:) !<LOCAL_TO_GLOBAL_MAP(i). The global number for the i'th local number for the mapping.
   END TYPE DOMAIN_MAPPING_TYPE
 
   !>Contains information on the domain decomposition mappings.
@@ -930,7 +856,6 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     TYPE(DOMAIN_TYPE), POINTER :: DOMAIN !<A pointer to the domain decomposition.
     TYPE(DOMAIN_MAPPING_TYPE), POINTER :: ELEMENTS !<Pointer to the element mappings for the domain decomposition.
     TYPE(DOMAIN_MAPPING_TYPE), POINTER :: NODES !<Pointer to the node mappings for the domain decomposition.
-    TYPE(DOMAIN_MAPPING_TYPE), POINTER :: DOFS !<Pointer to the dof mappings for the domain decomposition.
   END TYPE DOMAIN_MAPPINGS_TYPE
   
   !>A pointer to the domain decomposition for this domain.
@@ -940,7 +865,6 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     INTEGER(INTG) :: MESH_COMPONENT_NUMBER !<The mesh component number of the mesh which this domain was decomposed from.
     TYPE(REGION_TYPE), POINTER :: REGION !<A pointer to the region that this domain is in. This is "inherited" from the mesh region. 
     INTEGER(INTG) :: NUMBER_OF_DIMENSIONS !<The number of dimensions for this domain. This is "inherited" from the mesh.
-    INTEGER(INTG), ALLOCATABLE :: NODE_DOMAIN(:) !<NODE_DOMAIN(np). The domain number that the np'th global node is in for the domain decomposition. Note: the domain numbers start at 0 and go up to the NUMBER_OF_DOMAINS-1.
     TYPE(DOMAIN_MAPPINGS_TYPE), POINTER :: MAPPINGS !<Pointer to the mappings for the domain  e.g., global to local and local to global maps
     TYPE(DOMAIN_TOPOLOGY_TYPE), POINTER :: TOPOLOGY !<Pointer to the topology for the domain.
   END TYPE DOMAIN_TYPE
@@ -1042,9 +966,6 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     INTEGER(INTG) :: numberOfDataPoints !<The number of data points excluding ghost data points in this decomposition topology.
     INTEGER(INTG) :: totalNumberOfDataPoints !<Number of projected data in this decomposition topology.
     INTEGER(INTG) :: numberOfGlobalDataPoints !<Number of global projected data 
-    INTEGER(INTG), ALLOCATABLE :: numberOfDomainLocal(:) !<numberOfDomainLocal(compDomainIdx). Number of local data points in each computational domain 
-    INTEGER(INTG), ALLOCATABLE :: numberOfDomainGhost(:) !<numberOfDomainGhost(compDomainIdx). Number of ghost data points in each computational domain 
-    INTEGER(INTG), ALLOCATABLE :: numberOfElementDataPoints(:) !<numberOfElementDataPoints(elementIdx). Number of data points in each global element
     TYPE(DecompositionElementDataPointsType), ALLOCATABLE :: elementDataPoint(:) !<elementDataPoint(elementIdx). Information of the projected data on the elements for decomposition of data points
     TYPE(TREE_TYPE), POINTER :: dataPointsTree !<A tree mapping the domain local number to the region data point user number.
   END TYPE DecompositionDataPointsType
@@ -1058,18 +979,23 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     TYPE(DecompositionDataPointsType), POINTER :: dataPoints !<The pointer to the topology information for the data of this decomposition.
   END TYPE DECOMPOSITION_TOPOLOGY_TYPE
 
+  !>Contains information on the domains that the elements are shared with. 
+  TYPE DecompositionElementDomainsType
+    INTEGER(INTG), ALLOCATABLE :: offsets(:) !<offsets(elementIdx). The domain number that the elementIdx'th local element is in for the decomposition.
+    INTEGER(INTG), ALLOCATABLE :: domains(:) !<domains(offsets(elementIdx)+elementDomainIdx-1). The elementDomainIdx'th domain number that the elementIdx'th local element is in for the decomposition. The first elementDomainIdx is also the owner.
+  END TYPE DecompositionElementDomainsType
+
   !>Contains information on the mesh decomposition. \see OPENCMISS::CMISSDecompositionType
   TYPE DECOMPOSITION_TYPE
+    TYPE(DECOMPOSITIONS_TYPE), POINTER :: DECOMPOSITIONS !<A pointer to the decompositions for this decomposition.
     INTEGER(INTG) :: USER_NUMBER !<The user defined identifier for the domain decomposition. The user number must be unique.
     INTEGER(INTG) :: GLOBAL_NUMBER !<The global number of the domain decomposition in the list of domain decompositions for a particular mesh.
     LOGICAL :: DECOMPOSITION_FINISHED !<Is .TRUE. if the decomposition has finished being created, .FALSE. if not.
-    TYPE(DECOMPOSITIONS_TYPE), POINTER :: DECOMPOSITIONS !<A pointer to the decompositions for this decomposition.
-    TYPE(MESH_TYPE), POINTER :: MESH !<A pointer to the mesh for this decomposition.
     INTEGER(INTG) :: MESH_COMPONENT_NUMBER !<The component number (index) of the mesh component that this decomposition belongs to (i.e., was generated from).
     INTEGER(INTG) :: DECOMPOSITION_TYPE !<The type of the domain decomposition \see MESH_ROUTINES_DecompositionTypes.
     INTEGER(INTG) :: NUMBER_OF_DOMAINS !<The number of domains that this decomposition contains.
-    INTEGER(INTG) :: NUMBER_OF_EDGES_CUT !<For automatically calculated decompositions, the number of edges of the mesh dual graph that were cut for the composition. It provides an indication of the optimally of the automatic decomposition.
-    INTEGER(INTG), ALLOCATABLE :: ELEMENT_DOMAIN(:) !<ELEMENT_DOMAIN(ne). The domain number that the ne'th global element is in for the decomposition. Note: the domain numbers start at 0 and go up to the NUMBER_OF_DOMAINS-1.
+    TYPE(DecompositionElementDomainsType), POINTER :: elementDomains !<The domains that the elements are shared with.
+    TYPE(MESH_TYPE), POINTER :: MESH !<A pointer to the mesh for this decomposition.
     TYPE(DECOMPOSITION_TOPOLOGY_TYPE), POINTER :: TOPOLOGY !<A pointer to the topology for this decomposition.
     TYPE(DOMAIN_PTR_TYPE), POINTER :: DOMAIN(:) !<DOMAIN(mesh_component_idx). A pointer to the domain for mesh component for the domain associated with the computational node. \todo Change this to allocatable???
     LOGICAL :: CALCULATE_FACES !<Boolean flag to determine whether faces should be calculated
@@ -1168,6 +1094,7 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     INTEGER(INTG) :: MESH_COMPONENT_NUMBER !<The mesh component number of a field variable component that the scaling factors are associated with.
     INTEGER(INTG) :: MAX_NUMBER_OF_DERIVATIVES !<The maximum number of derivatives in the mesh component. 
     INTEGER(INTG) :: MAX_NUMBER_OF_ELEMENT_PARAMETERS !<The maximum number of element parameters in the mesh component. 
+    TYPE(DOMAIN_MAPPING_TYPE), POINTER :: dofMapping !<The dof domain mapping.
     TYPE(DISTRIBUTED_VECTOR_TYPE), POINTER :: SCALE_FACTORS !<SCALE_FACTORS(nk,np). The scale factor that is applied to the nk'th derivative of the np'th node of the mesh component. \todo  Make scale factors nodally based for now. Will have to revert to element based and extended to be a matrix to allow for a global derivative to be mapped onto many different element derivatives at the points that closes meshes or for inconsistent xi directions
   END TYPE FIELD_SCALING_TYPE
 
@@ -1240,12 +1167,13 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
 
   !>A type to hold the mapping from field parameters (nodes, elements, etc) to field dof numbers for a particular field variable component.
   TYPE FIELD_PARAM_TO_DOF_MAP_TYPE
+    !These could be simplified a lot by storing for each element (or other topological entities such as faces, lines, points) the map from the element parameter indices to the local variable dof indices. This can be done by storing 2 arrays: the offsets for each element and all the dof indices. 
     INTEGER(INTG) :: NUMBER_OF_CONSTANT_PARAMETERS !<The number of constant field parameters for this field variable component. Note: this is currently always 1 but is included for completeness and to allow for multiple constants per field variable component in the future.
     INTEGER(INTG) :: CONSTANT_PARAM2DOF_MAP !<The field variable dof number of the constant parameter for this field variable component.
     TYPE(FIELD_ELEMENT_PARAM_TO_DOF_MAP_TYPE) :: ELEMENT_PARAM2DOF_MAP !> A type to hold the mapping from field element parameters to field dof numbers
     TYPE(FIELD_NODE_PARAM_TO_DOF_MAP_TYPE) :: NODE_PARAM2DOF_MAP !> A type to hold the mapping from field node parameters to field dof numbers
-    TYPE(FIELD_GRID_POINT_PARAM_TO_DOF_MAP_TYPE) :: GRID_POINT_PARAM2DOF_MAP !> A type to hold the mapping from grid point element parameters to field dof numbers
     TYPE(FIELD_GAUSS_POINT_PARAM_TO_DOF_MAP_TYPE) :: GAUSS_POINT_PARAM2DOF_MAP !> A type to hold the mapping from field gauss point parameters to field dof numbers
+    TYPE(FIELD_GRID_POINT_PARAM_TO_DOF_MAP_TYPE) :: GRID_POINT_PARAM2DOF_MAP !> A type to hold the mapping from grid point element parameters to field dof numbers
     TYPE(FIELD_DATA_POINT_PARAM_TO_DOF_MAP_TYPE) :: DATA_POINT_PARAM2DOF_MAP !> A type to hold the mapping from field data point parameters to field dof numbers
   END TYPE FIELD_PARAM_TO_DOF_MAP_TYPE
 
@@ -1389,7 +1317,7 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     INTEGER(INTG) :: NUMBER_OF_ROWS !<The current number of rows in the element matrix.
     INTEGER(INTG) :: NUMBER_OF_COLUMNS !<The current number of columns in the element matrix.
     INTEGER(INTG) :: MAX_NUMBER_OF_ROWS !<The maximum (allocated) number of rows in the element matrix.
-    INTEGER(INTG) :: MAX_NUMBER_OF_COLUMNS !<The maximu (allocated) number of columns in the element matrix.
+    INTEGER(INTG) :: MAX_NUMBER_OF_COLUMNS !<The maximum (allocated) number of columns in the element matrix.
     INTEGER(INTG), ALLOCATABLE :: ROW_DOFS(:) !<ROW_DOFS(i). The equations row that the i'th row of the element matrix belongs to.
     INTEGER(INTG), ALLOCATABLE :: COLUMN_DOFS(:) !<COLUMN_DOFS(j). The equations column that the j'th column of the element matrix bleongs to.
     REAL(DP), ALLOCATABLE :: MATRIX(:,:) !<MATRIX(i,j). The vlaue of the i'th row and the j'th column of the element matrix.
@@ -1432,13 +1360,14 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     INTEGER(INTG) :: STORAGE_TYPE !<The storage (sparsity) type for this matrix
     INTEGER(INTG) :: STRUCTURE_TYPE !<The structure (sparsity) type for this matrix
     LOGICAL :: LUMPED !<Is .TRUE. if the equations matrix is lumped
-    INTEGER(INTG) :: NUMBER_OF_COLUMNS !<The number of columns in this equations matrix
+    INTEGER(INTG) :: NUMBER_OF_COLUMNS !<The number of local (excluding ghost) columns in this equations matrix
+    INTEGER(INTG) :: TOTAL_NUMBER_OF_COLUMNS !<The number of local (including ghost) columns in this equations matrix
+    INTEGER(INTG) :: NUMBER_OF_GLOBAL_COLUMNS !<The number of global columns in this equations matrix
     LOGICAL :: UPDATE_MATRIX !<Is .TRUE. if this equations matrix is to be updated
     LOGICAL :: FIRST_ASSEMBLY !<Is .TRUE. if this equations matrix has not been assembled
     TYPE(DISTRIBUTED_MATRIX_TYPE), POINTER :: MATRIX !<A pointer to the distributed equations matrix data
     TYPE(ELEMENT_MATRIX_TYPE) :: ELEMENT_MATRIX !<The element matrix for this equations matrix
     TYPE(NodalMatrixType) :: NodalMatrix !<The nodal matrix for this equations matrix
-    TYPE(DISTRIBUTED_VECTOR_TYPE), POINTER :: TEMP_VECTOR !<Temporary vector used for assembly. 
   END TYPE EQUATIONS_MATRIX_TYPE
 
   !>A buffer type to allow for an array of pointers to a EQUATIONS_MATRIX_TYPE \see TYPES::EQUATIONS_MATRIX_TYPE.
@@ -1452,7 +1381,9 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     TYPE(EQUATIONS_MATRICES_NONLINEAR_TYPE), POINTER :: NONLINEAR_MATRICES !<A pointer back to the nonlinear matrices for this Jacobian
     INTEGER(INTG) :: STORAGE_TYPE !<The storage (sparsity) type for this matrix
     INTEGER(INTG) :: STRUCTURE_TYPE !<The structure (sparsity) type for this matrix
-    INTEGER(INTG) :: NUMBER_OF_COLUMNS !<The number of columns in this global matrix
+    INTEGER(INTG) :: NUMBER_OF_COLUMNS !<The number of local (excluding ghost) columns in this equations matrix
+    INTEGER(INTG) :: TOTAL_NUMBER_OF_COLUMNS !<The number of local (including ghost) columns in this equations matrix
+    INTEGER(INTG) :: NUMBER_OF_GLOBAL_COLUMNS !<The number of global columns in this equations matrix
     LOGICAL :: UPDATE_JACOBIAN !<Is .TRUE. if this Jacobian matrix is to be updated
     TYPE(DISTRIBUTED_MATRIX_TYPE), POINTER :: JACOBIAN !<A pointer to the distributed jacobian matrix data
     LOGICAL :: FIRST_ASSEMBLY !<Is .TRUE. if this Jacobian matrix has not been assembled
@@ -1471,7 +1402,6 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     TYPE(EQUATIONS_MATRICES_TYPE), POINTER :: EQUATIONS_MATRICES !<A pointer back to the equations matrices.
     INTEGER(INTG) :: NUMBER_OF_DYNAMIC_MATRICES !<The number of dynamic equations matrices defined for the equations set.
     TYPE(EQUATIONS_MATRIX_PTR_TYPE), ALLOCATABLE :: MATRICES(:) !<MATRICES(matrix_idx)%PTR contains the information on the matrix_idx'th dynamic equations matrix.
-    TYPE(DISTRIBUTED_VECTOR_TYPE), POINTER :: TEMP_VECTOR !<Temporary vector used for assembly. 
   END TYPE EQUATIONS_MATRICES_DYNAMIC_TYPE
 
   !>Contains information of the linear matrices for equations matrices
@@ -1530,6 +1460,7 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     TYPE(EQUATIONS_MATRICES_NONLINEAR_TYPE), POINTER :: NONLINEAR_MATRICES !<A pointer to the nonlinear matrices and vectors information for the equations matrices
     TYPE(EQUATIONS_MATRICES_RHS_TYPE), POINTER :: RHS_VECTOR !<A pointer to the RHS vector information for the equations matrices
     TYPE(EQUATIONS_MATRICES_SOURCE_TYPE), POINTER :: SOURCE_VECTOR !<A pointer to the source vector information for the equations matrices
+    TYPE(DISTRIBUTED_VECTOR_TYPE), POINTER :: TEMP_VECTOR !<Temporary vector used for assembly. 
   END TYPE EQUATIONS_MATRICES_TYPE
 
   !
@@ -1538,20 +1469,12 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
   ! Equations mapping types
   !
   
-   !>Contains the information about the mapping of a variable DOF to an equations matrix column
-  TYPE VAR_TO_EQUATIONS_COLUMN_MAP_TYPE
-    INTEGER(INTG), ALLOCATABLE :: COLUMN_DOF(:) !<COLUMN_DOF(dof_idx). The equations column number for this equations matrix that the dof_idx'th variable DOF is mapped to.  
-  END TYPE VAR_TO_EQUATIONS_COLUMN_MAP_TYPE
-
   !>Contains the mapping for a dependent variable type to the equations matrices
   TYPE VAR_TO_EQUATIONS_MATRICES_MAP_TYPE
-    INTEGER(INTG) :: VARIABLE_INDEX !<The variable index for this variable to equations matrices map
     INTEGER(INTG) :: VARIABLE_TYPE !<The variable type for this variable to equations matrices map
     TYPE(FIELD_VARIABLE_TYPE), POINTER :: VARIABLE !<A pointer to the field variable for this variable to equations matrices map
-    INTEGER(INTG) :: NUMBER_OF_EQUATIONS_MATRICES !<The number of equations matrices (linear or dynamic) this variable type is mapped to. If the number is -1 the variable is mapped to the RHS vector. If the number is zero then this variable type is not involved in the equations set and the rest of the type is not allocated.
+    INTEGER(INTG) :: NUMBER_OF_EQUATIONS_MATRICES !<The number of equations matrices (linear or dynamic) this variable type is mapped to.
     INTEGER(INTG), ALLOCATABLE :: EQUATIONS_MATRIX_NUMBERS(:) !<EQUATIONS_MATRIX_NUMBERS(i). The equations matrix number for the i'th matrix that this variable type is mapped to.
-    TYPE(VAR_TO_EQUATIONS_COLUMN_MAP_TYPE), ALLOCATABLE :: DOF_TO_COLUMNS_MAPS(:) !<DOF_TO_COLUMNS_MAPS(i). The variable dof to equations columns for the i'th equations matrix.
-    INTEGER(INTG), ALLOCATABLE :: DOF_TO_ROWS_MAP(:) !<DOF_TO_ROWS_MAP(dof_idx). The row number that the dof_idx'th variable dof is mapped to.
   END TYPE VAR_TO_EQUATIONS_MATRICES_MAP_TYPE
 
   !>Contains information for mapping an equations matrix to a field variable.
@@ -1560,9 +1483,10 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     TYPE(EQUATIONS_MATRIX_TYPE), POINTER :: EQUATIONS_MATRIX !<A pointer to the equations matrix
     INTEGER(INTG) :: VARIABLE_TYPE !<The dependent variable type mapped to this equations matrix
     TYPE(FIELD_VARIABLE_TYPE), POINTER :: VARIABLE !<A pointer to the field variable that is mapped to this equations matrix
-    INTEGER(INTG) :: NUMBER_OF_COLUMNS !<The number of columns in this equations matrix.
+    INTEGER(INTG) :: NUMBER_OF_COLUMNS !<The number of local (excluding ghost) columns in this equations matrix
+    INTEGER(INTG) :: TOTAL_NUMBER_OF_COLUMNS !<The number of local (including ghost) columns in this equations matrix
+    INTEGER(INTG) :: NUMBER_OF_GLOBAL_COLUMNS !<The number of global columns in this equations matrix
     REAL(DP) :: MATRIX_COEFFICIENT !<The multiplicative coefficent for the matrix in the equation set
-    INTEGER(INTG), ALLOCATABLE :: COLUMN_TO_DOF_MAP(:) !<COLUMN_TO_DOF_MAP(column_idx). The variable DOF that the column_idx'th column of this equations matrix is mapped to.
     TYPE(DOMAIN_MAPPING_TYPE), POINTER :: COLUMN_DOFS_MAPPING !<A pointer to the column dofs domain mapping for the matrix variable
   END TYPE EQUATIONS_MATRIX_TO_VAR_MAP_TYPE
 
@@ -1570,16 +1494,11 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
   TYPE EQUATIONS_MAPPING_DYNAMIC_TYPE
     TYPE(EQUATIONS_MAPPING_TYPE), POINTER :: EQUATIONS_MAPPING !<A pointer to the equations mapping
     INTEGER(INTG) :: NUMBER_OF_DYNAMIC_EQUATIONS_MATRICES !<The number of dynamic equations matrices in this mapping
-
     INTEGER(INTG) :: STIFFNESS_MATRIX_NUMBER !<The matrix number of the dynamic stiffness matrix. 0 if there is no dynamic stiffness matrix
     INTEGER(INTG) :: DAMPING_MATRIX_NUMBER !<The matrix number of the dynamic damping matrix. 0 if there is no dynamic damping matrix
     INTEGER(INTG) :: MASS_MATRIX_NUMBER !<The matrix number of the dynamic mass matrix. 0 if there is no dynamic mass matrix
-    INTEGER(INTG) :: DYNAMIC_VARIABLE_TYPE !<The variable type involved in the equations matrix mapping.
-    TYPE(FIELD_VARIABLE_TYPE), POINTER :: DYNAMIC_VARIABLE !<A pointer to the variable that is mapped to the dynamic matrices.
-!!TODO: just make this the size of the number of matrix variables used (i.e. 1) rather than the field number of variable types???
-    TYPE(VAR_TO_EQUATIONS_MATRICES_MAP_TYPE), ALLOCATABLE :: VAR_TO_EQUATIONS_MATRICES_MAPS(:) !<VAR_TO_EQUATIONS_MATRICES_MAPS(variable_type_idx). The equations matrices mapping for the variable_type_idx'th variable type.
+    TYPE(VAR_TO_EQUATIONS_MATRICES_MAP_TYPE), ALLOCATABLE :: VAR_TO_EQUATIONS_MATRICES_MAP !<VAR_TO_EQUATIONS_MATRICES_MAP. The equations matrices mapping for the dynamic variable type.
     TYPE(EQUATIONS_MATRIX_TO_VAR_MAP_TYPE), ALLOCATABLE :: EQUATIONS_MATRIX_TO_VAR_MAPS(:) !<EQUATIONS_MATRIX_TO_VAR_MAPS(matrix_idx). The mappings for the matrix_idx'th equations matrix.
-    INTEGER(INTG), ALLOCATABLE :: EQUATIONS_ROW_TO_VARIABLE_DOF_MAPS(:) !<EQUATIONS_ROW_TO_VARIABLE_DOF_MAPS(row_idx). The row mappings for the row_idx'th row of the equations matrices to the dynamic variable.
   END TYPE EQUATIONS_MAPPING_DYNAMIC_TYPE
 
   !>Contains information for mapping field variables to the linear matrices in the equations set of the mapping
@@ -1587,11 +1506,8 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     TYPE(EQUATIONS_MAPPING_TYPE), POINTER :: EQUATIONS_MAPPING !<A pointer to the equations mapping
     INTEGER(INTG) :: NUMBER_OF_LINEAR_EQUATIONS_MATRICES !<The number of linear equations matrices in this mapping
     INTEGER(INTG) :: NUMBER_OF_LINEAR_MATRIX_VARIABLES !<The number of dependent variables involved in the linear equations matrix mapping
-    INTEGER(INTG), ALLOCATABLE :: LINEAR_MATRIX_VARIABLE_TYPES(:) !<LINEAR_MATRIX_VARIABLE_TYPES(i). The variable type of the i'th variable type involved in the equations linear matrix mapping.
-!!TODO: just make this the size of the number of matrix variables rather than the field number of variable types and merge matrix variable types above???
-    TYPE(VAR_TO_EQUATIONS_MATRICES_MAP_TYPE), ALLOCATABLE :: VAR_TO_EQUATIONS_MATRICES_MAPS(:) !<VAR_TO_EQUATIONS_MATRICES_MAPS(variable_type_idx). The equations matrices mapping for the variable_type_idx'th variable type.
+    TYPE(VAR_TO_EQUATIONS_MATRICES_MAP_TYPE), ALLOCATABLE :: VAR_TO_EQUATIONS_MATRICES_MAPS(:) !<VAR_TO_EQUATIONS_MATRICES_MAPS(variable_idx). The equations matrices mapping for the variable_idx'th variable type.
     TYPE(EQUATIONS_MATRIX_TO_VAR_MAP_TYPE), ALLOCATABLE :: EQUATIONS_MATRIX_TO_VAR_MAPS(:) !<EQUATIONS_MATRIX_TO_VAR_MAPS(matrix_idx). The mappings for the matrix_idx'th equations matrix.
-    INTEGER(INTG), ALLOCATABLE :: EQUATIONS_ROW_TO_VARIABLE_DOF_MAPS(:,:) !<EQUATIONS_ROW_TO_VARIABLE_DOFS_MAPS(row_idx,variable_type_idx). The row mappings for the row_idx'th row of the equations matrices to the variable_type_idx'th variable.
   END TYPE EQUATIONS_MAPPING_LINEAR_TYPE
 
   !>Contains the mapping from the Jacobian back to the nonlinear residual variables.
@@ -1600,9 +1516,10 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     INTEGER(INTG) :: VARIABLE_TYPE !<The dependent variable type mapped to this equations matrix
     TYPE(FIELD_VARIABLE_TYPE), POINTER :: VARIABLE !<A pointer to the field variable that is mapped to this equations matrix
     TYPE(EQUATIONS_JACOBIAN_TYPE), POINTER :: JACOBIAN !<A pointer to the equations matrix for this variable
-    INTEGER(INTG) :: NUMBER_OF_COLUMNS !<The number of columns in this equations matrix.
+    INTEGER(INTG) :: NUMBER_OF_COLUMNS !<The number of local (excluding ghost) columns in this equations matrix
+    INTEGER(INTG) :: TOTAL_NUMBER_OF_COLUMNS !<The number of local (including ghost) columns in this equations matrix
+    INTEGER(INTG) :: NUMBER_OF_GLOBAL_COLUMNS !<The number of global columns in this equations matrix
     REAL(DP) :: JACOBIAN_COEFFICIENT !<The multiplicative coefficent for the matrix in the equation set
-    INTEGER(INTG), ALLOCATABLE :: EQUATIONS_COLUMN_TO_DOF_VARIABLE_MAP(:) !<COLUMN_TO_DOF_MAP(column_idx). The variable DOF that the column_idx'th column of this equations matrix is mapped to.
     TYPE(DOMAIN_MAPPING_TYPE), POINTER :: COLUMN_DOFS_MAPPING !<A pointer to the column dofs domain mapping for the matrix variable
   END TYPE EQUATIONS_JACOBIAN_TO_VAR_MAP_TYPE
 
@@ -1611,8 +1528,6 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     INTEGER(INTG) :: JACOBIAN_NUMBER !<The equations Jacobian matrix number
     INTEGER(INTG) :: VARIABLE_TYPE !<The variable type for this variable to equations matrices map
     TYPE(FIELD_VARIABLE_TYPE), POINTER :: VARIABLE !<A pointer to the field variable for this variable to equations matrices map
-    INTEGER(INTG), ALLOCATABLE :: DOF_TO_COLUMNS_MAP(:) !<DOF_TO_COLUMNS_MAP(dof_idx). The Jacobian column number for dof_idx'th variable dof
-    INTEGER(INTG), ALLOCATABLE :: DOF_TO_ROWS_MAP(:) !<DOF_TO_ROWS_MAP(dof_idx). The row number that the dof_idx'th variable dof is mapped to.
   END TYPE VAR_TO_EQUATIONS_JACOBIAN_MAP_TYPE
 
   !>Contains information on the equations mapping for nonlinear matrices i.e., how a field variable is mapped to residual
@@ -1622,11 +1537,10 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
   TYPE EQUATIONS_MAPPING_NONLINEAR_TYPE
     TYPE(EQUATIONS_MAPPING_TYPE), POINTER :: EQUATIONS_MAPPING !<A pointer to the equations mapping
     INTEGER(INTG) :: NUMBER_OF_RESIDUAL_VARIABLES !<The number of residual variables in this mapping
-    TYPE(FIELD_VARIABLE_PTR_TYPE), ALLOCATABLE :: RESIDUAL_VARIABLES(:) !<RESIDUAL_VARIABLES(variable_idx). The variable_idx'th residual variable.
+    INTEGER(INTG) :: NUMBER_OF_JACOBIANS !<The number of residual variables in this mapping
     TYPE(VAR_TO_EQUATIONS_JACOBIAN_MAP_TYPE), ALLOCATABLE :: VAR_TO_JACOBIAN_MAP(:) !<VAR_TO_JACOBIAN_MAP(variable_idx). The mapping from the residual variable to the Jacobain matrix for the variable_idx'th residual variable.
     TYPE(EQUATIONS_JACOBIAN_TO_VAR_MAP_TYPE), ALLOCATABLE :: JACOBIAN_TO_VAR_MAP(:) !<JACOBIAN_TO_VAR_MAP(jacobian_idx). The mapping from the Jacobian matrix to the residual variables for the jacobian_idx'th Jacobian.
     REAL(DP) :: RESIDUAL_COEFFICIENT !<The multiplicative coefficient applied to the residual vector
-    INTEGER(INTG), ALLOCATABLE :: EQUATIONS_ROW_TO_RESIDUAL_DOF_MAP(:) !<EQUATIONS_ROW_TO_RESIDUAL_DOF_MAP(row_idx). The mapping from the row_idx'th row of the equations to the source dof.
   END TYPE EQUATIONS_MAPPING_NONLINEAR_TYPE
 
   !>Contains information on the equations mapping for a RHS i.e., how a field variable is mapped to the RHS vector for
@@ -1637,8 +1551,6 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     TYPE(FIELD_VARIABLE_TYPE), POINTER :: RHS_VARIABLE !<A pointer to the variable that is mapped to the RHS vector
     TYPE(DOMAIN_MAPPING_TYPE), POINTER :: RHS_VARIABLE_MAPPING !<A pointer to the RHS variable domain mapping
     REAL(DP) :: RHS_COEFFICIENT !<The multiplicative coefficient applied to the RHS vector
-    INTEGER(INTG), ALLOCATABLE :: RHS_DOF_TO_EQUATIONS_ROW_MAP(:) !<RHS_DOF_TO_EQUATIONS_ROW_MAP(residual_dof_idx). The mapping from the rhs_dof_idx'th RHS dof in the rhs variable to the equations row.   
-    INTEGER(INTG), ALLOCATABLE :: EQUATIONS_ROW_TO_RHS_DOF_MAP(:) !<EQUATIONS_ROW_TO_RHS_DOF_MAP(row_idx). The mapping from the row_idx'th row of the equations to the RHS dof.   
   END TYPE EQUATIONS_MAPPING_RHS_TYPE
 
   !>Contains information on the equations mapping for a source i.e., how a field variable is mapped to the source vector for
@@ -1649,8 +1561,6 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     TYPE(FIELD_VARIABLE_TYPE), POINTER :: SOURCE_VARIABLE !<A pointer to the source variable 
     TYPE(DOMAIN_MAPPING_TYPE), POINTER :: SOURCE_VARIABLE_MAPPING !<A pointer to the domain mapping for the source variable.
     REAL(DP) :: SOURCE_COEFFICIENT !<The multiplicative coefficient applied to the source vector
-    INTEGER(INTG), ALLOCATABLE :: SOURCE_DOF_TO_EQUATIONS_ROW_MAP(:) !<SOURCE_DOF_TO_EQUATIONS_ROW_MAP(source_dof_idx). The mapping from the source_dof_idx'th source dof in the source variable to the equations row.   
-    INTEGER(INTG), ALLOCATABLE :: EQUATIONS_ROW_TO_SOURCE_DOF_MAP(:) !<EQUATIONS_ROW_TO_SOURCE_DOF_MAP(row_idx). The mapping from the row_idx'th row of the equations to the source dof.
   END TYPE EQUATIONS_MAPPING_SOURCE_TYPE
 
   !>Contains information on the create values cache for the equations mapping. Because we do not want to allocate and deallocate
@@ -1664,6 +1574,7 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     INTEGER(INTG) :: DYNAMIC_VARIABLE_TYPE !<The dependent variable type mapped to the dynamic equations matrices.
     REAL(DP), ALLOCATABLE :: DYNAMIC_MATRIX_COEFFICIENTS(:) !<DYNAMIC_MATRIX_COEFFICIENTS(matrix_idx). The coefficient of the matrix_idx'th dynamic matrix in the equations set.
     INTEGER(INTG) :: NUMBER_OF_LINEAR_EQUATIONS_MATRICES !<The number of linear matrices in the equations mapping
+    INTEGER(INTG) :: NUMBER_OF_LINEAR_MATRIX_VARIABLES !<The number of variables for the linear equations.
     INTEGER(INTG), ALLOCATABLE :: LINEAR_MATRIX_VARIABLE_TYPES(:) !<LINEAR_MATRIX_VARIABLE_TYPES(matrix_idx). The dependent variable type mapped to the matrix_idx'th linear equations matrix.
     REAL(DP), ALLOCATABLE :: LINEAR_MATRIX_COEFFICIENTS(:) !<LINEAR_MATRIX_COEFFICIENTS(matrix_idx). The coefficient of the matrix_idx'th linear matrix in the equations set.
     INTEGER(INTG) :: NUMBER_OF_RESIDUAL_VARIABLES !<The number of residual variables for the nonlinear equations.
@@ -1681,6 +1592,8 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     TYPE(EQUATIONS_TYPE), POINTER :: EQUATIONS !<A pointer to the equations for this equations mapping
     LOGICAL :: EQUATIONS_MAPPING_FINISHED !<Is .TRUE. if the equations mapping has finished being created, .FALSE. if not.
     TYPE(EQUATIONS_MATRICES_TYPE), POINTER :: EQUATIONS_MATRICES !<A pointer to the equations matrices associated with this equations mapping.
+    INTEGER(INTG) :: DEPENDENT_VARIABLE_TYPE !<The dependent variable type (for the rows)
+    TYPE(FIELD_VARIABLE_TYPE), POINTER :: DEPENDENT_VARIABLE !<A pointer to the dependent variable (for the rows)
     !Row mappings
     INTEGER(INTG) :: NUMBER_OF_ROWS !<The number of local rows (excluding ghost rows) in the equations matrices
     INTEGER(INTG) :: TOTAL_NUMBER_OF_ROWS !<The number of local rows (including ghost rows) in the equations matrices
@@ -1759,15 +1672,13 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     TYPE(BOUNDARY_CONDITIONS_TYPE), POINTER :: BOUNDARY_CONDITIONS !<A pointer to the boundary conditions for this boundary conditions variable
     INTEGER(INTG) :: VARIABLE_TYPE !<The type of variable for this variable boundary conditions
     TYPE(FIELD_VARIABLE_TYPE), POINTER :: VARIABLE !<A pointer to the field variable for this boundary condition variable
-    INTEGER(INTG), ALLOCATABLE :: DOF_TYPES(:) !<DOF_TYPES(dof_idx). The general boundary condition type (eg. fixed or free) of the dof_idx'th dof in the dependent field variable. \see OPENCMISS_BoundaryConditionsTypes,OPENCMISS
-    INTEGER(INTG), ALLOCATABLE :: CONDITION_TYPES(:) !<CONDITION_TYPES(dof_idx). The specific boundary condition type (eg. incremented pressure) of the dof_idx'th dof of the dependent field variable, which might be specific to an equation set. The solver routines should not need to use this array, and should only need the DOF_TYPES array. \see OPENCMISS_BoundaryConditionsDOFTypes,OPENCMISS
-    TYPE(BOUNDARY_CONDITIONS_DIRICHLET_TYPE), POINTER :: DIRICHLET_BOUNDARY_CONDITIONS  !<A pointer to the dirichlet boundary condition type for this boundary condition variable
-    INTEGER(INTG) :: NUMBER_OF_DIRICHLET_CONDITIONS !<Stores the number of dirichlet conditions associated with this variable
+    TYPE(DISTRIBUTED_VECTOR_TYPE), POINTER :: DOF_TYPES !<DOF_TYPES. The general boundary condition type (eg. fixed or free) of the dof_idx'th dof in the dependent field variable. \see OPENCMISS_BoundaryConditionsTypes,OPENCMISS
+    TYPE(DISTRIBUTED_VECTOR_TYPE), POINTER :: CONDITION_TYPES !<CONDITION_TYPES. The specific boundary condition type (eg. incremented pressure) of the dof_idx'th dof of the dependent field variable, which might be specific to an equation set. The solver routines should not need to use this array, and should only need the DOF_TYPES array. \see OPENCMISS_BoundaryConditionsDOFTypes,OPENCMISS
     TYPE(BoundaryConditionsNeumannType), POINTER :: neumannBoundaryConditions
     TYPE(BOUNDARY_CONDITIONS_PRESSURE_INCREMENTED_TYPE), POINTER :: PRESSURE_INCREMENTED_BOUNDARY_CONDITIONS !<A pointer to the pressure incremented condition type for this boundary condition variable
-    INTEGER(INTG), ALLOCATABLE :: DOF_COUNTS(:) !<DOF_COUNTS(CONDITION_TYPE): The number of DOFs that have a CONDITION_TYPE boundary condition set
-    LOGICAL, ALLOCATABLE :: parameterSetRequired(:) !<parameterSetRequired(PARAMETER_SET) is true if any boundary condition has been set that requires the PARAMETER_SET field parameter set
-    TYPE(BoundaryConditionsDofConstraintsType), POINTER :: dofConstraints !<A pointer to the linear DOF constraints structure.
+    TYPE(BoundaryConditionsConstraintsType), POINTER :: constraints !<A pointer to the linear constraints structure.
+    LOGICAL, ALLOCATABLE :: anyGlobalDofs(:) !<anyGlobalDofs(CONDITION_TYPE). Is .TRUE. if the CONDITION_TYPE has any global dofs.
+    TYPE(BoundaryConditionsCreateValuesCacheType), POINTER :: createValuesCache !<A pointer to the create values cache.
   END TYPE BOUNDARY_CONDITIONS_VARIABLE_TYPE
 
   !>A buffer type to allow for an array of pointers to a VARIABLE_BOUNDARY_CONDITIONS_TYPE \see TYPES::VARIABLE_BOUNDARY_CONDITIONS_TYPE
@@ -1784,76 +1695,51 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     INTEGER(INTG) :: neumannMatrixSparsity !<The sparsity type of the Neumann integration matrices. \see SOLVER_ROUTINES_SparsityTypes,SOLVER_ROUTINES
   END TYPE BOUNDARY_CONDITIONS_TYPE
 
-  !>A buffer type to allow for an array of pointers to a BOUNDARY_CONDITIONS_SPARSITY_INDICES_TYPE \see TYPES::BOUNDARY_CONDITIONS_SPARSITY_INDICES_TYPE
-  TYPE BOUNDARY_CONDITIONS_SPARSITY_INDICES_PTR_TYPE
-    TYPE(BOUNDARY_CONDITIONS_SPARSITY_INDICES_TYPE), POINTER :: PTR !<A pointer to the boundary conditions sparsity indices type
-  END TYPE BOUNDARY_CONDITIONS_SPARSITY_INDICES_PTR_TYPE
-
-  !> Contains information on dofs with associated dirichlet conditions and corresponding non-zero elements in the equations matrices
-  TYPE BOUNDARY_CONDITIONS_DIRICHLET_TYPE
-    INTEGER(INTG), ALLOCATABLE :: DIRICHLET_DOF_INDICES(:)  !<DIRICHLET_DOF_INDICES(idx). Stores the dof_idx of the dofs which are subject to a dirichlet boundary condition \see BOUNDARY_CONDITIONS_ROUTINES_BoundaryConditions,BOUNDARY_CONDITIONS_ROUTINES
-    TYPE(BOUNDARY_CONDITIONS_SPARSITY_INDICES_PTR_TYPE), ALLOCATABLE :: LINEAR_SPARSITY_INDICES(:,:) !<LINEAR_SPARSITY_INDICES(equ_set_idx,equ_matrix_idx). Stores the indices of the non-zero elements of the equ_set_idx'th equation set and equ_matrix_idx'th linear equation matrix in the columns corresponding to the dofs which are subject to a dirichlet boundary condition
-    TYPE(BOUNDARY_CONDITIONS_SPARSITY_INDICES_PTR_TYPE), ALLOCATABLE :: DYNAMIC_SPARSITY_INDICES(:,:) !<DYNAMIC_SPARSITY_INDICES(equ_set_idx,equ_matrix_idx). Stores the indices of the non-zero elements of the equ_set_idx'th equation set and equ_matrix_idx'th dynamic equation matrix in the columns corresponding to the dofs which are subject to a dirichlet boundary condition
-  END TYPE BOUNDARY_CONDITIONS_DIRICHLET_TYPE
-
-  !> Contains information on indices of non-zero elements with associated dirichlet conditions
-  !> Indices stored in compressed column format without a values array
-  TYPE BOUNDARY_CONDITIONS_SPARSITY_INDICES_TYPE
-    INTEGER(INTG), ALLOCATABLE :: SPARSE_ROW_INDICES(:) !<SPARSE_ROW_INDICES(SPARSE_COLUMN_INDICES(column_idx)). Between SPARSE_COLUMN_INDICES(column_idx) and SPARSE_COLUMN_INDICES(column_idx+1)-1 are the row indices of non-zero elements of the 'column_idx'th column
-    INTEGER(INTG), ALLOCATABLE :: SPARSE_COLUMN_INDICES(:) !<SPARSE_COLUMN_INDICES(column_idx). Between SPARSE_COLUMN_INDICES(column_idx) and SPARSE_COLUMN_INDICES(column_idx+1)-1 are the row indices of non-zero elements of the 'column_idx'th column
-  END TYPE BOUNDARY_CONDITIONS_SPARSITY_INDICES_TYPE
-
   !>Contains information used to integrate Neumann boundary conditions
   TYPE BoundaryConditionsNeumannType
-    INTEGER(INTG), ALLOCATABLE :: setDofs(:) !<setDofs(neumann_idx): the global dof for the neumann_idx'th Neumann condition
+    INTEGER(INTG) :: numberOfNeumann
+    INTEGER(INTG), ALLOCATABLE :: setDofs(:) !<setDofs(neumann_idx): the local dof for the neumann_idx'th Neumann condition
+    TYPE(DOMAIN_MAPPING_TYPE), POINTER :: pointDofMapping !<The domain mapping for DOFs with Neumann point conditions set.
     TYPE(DISTRIBUTED_MATRIX_TYPE), POINTER :: integrationMatrix !<The N matrix that multiples the point values vector q to give the integrated values f. Number of rows equals number of local dofs, and number of columns equals number of set point DOFs.
     TYPE(DISTRIBUTED_VECTOR_TYPE), POINTER :: pointValues !<The vector of set point values q
-    TYPE(DOMAIN_MAPPING_TYPE), POINTER :: pointDofMapping !<The domain mapping for DOFs with Neumann point conditions set.
   END TYPE BoundaryConditionsNeumannType
 
   !>Contains information on dofs associated with pressure incremented conditions
   TYPE BOUNDARY_CONDITIONS_PRESSURE_INCREMENTED_TYPE
+    INTEGER(INTG) :: numberOfPressureIncrementedDofs !<The number of pressure incremented dofs.
     INTEGER(INTG), ALLOCATABLE :: PRESSURE_INCREMENTED_DOF_INDICES(:)  !<PRESSURE_INCREMENTED_DOF_INDICES(idx). Stores the dof_idx of the dofs which are subject to a pressure incremented boundary condition \see BOUNDARY_CONDITIONS_ROUTINES_BoundaryConditions,BOUNDARY_CONDITIONS_ROUTINES
   END TYPE BOUNDARY_CONDITIONS_PRESSURE_INCREMENTED_TYPE
 
-  !>Describes the value of a DOF as a linear combination of other DOFs.
+  !>Describes affine constraints between variable dofs (including Dirichlet boundary conditions), i.e. if u are the constrained dofs, v are the variable dofs, P is the
+  !constraint matrix and c is the constraint vector then: u=Pv+c 
+  TYPE BoundaryConditionsConstraintsType
+    INTEGER(INTG) :: numberOfConstraints !<The number of constrained dofs
+    INTEGER(INTG), ALLOCATABLE :: constrainedDofIndices(:) !<constrainedDofIndices(constraintDofIdx). The constraintDofIdx'th constrained variable dof.
+    TYPE(DOMAIN_MAPPING_TYPE), POINTER :: constrainedDofsMapping !<The mapping for the constrained dofs
+    TYPE(DISTRIBUTED_MATRIX_TYPE), POINTER :: constraintMatrix !<The constraint matrix
+    TYPE(DISTRIBUTED_VECTOR_TYPE), POINTER :: constraintVector !<The constraint vector
+    TYPE(DISTRIBUTED_VECTOR_TYPE), POINTER :: constrainedValues !<The constrained values
+  END TYPE BoundaryConditionsConstraintsType
+
+  !A temporary type to hold the information of a row in the constraint matrix.
   TYPE BoundaryConditionsDofConstraintType
-    INTEGER(INTG) :: globalDof !<The global DOF number of this DOF.
-    INTEGER(INTG) :: numberOfDofs !<The number of other DOFs that contribute to the value of this DOF.
-    INTEGER(INTG), ALLOCATABLE :: dofs(:) !<dofs(dofIdx) is the dofIdx'th DOF in the linear combination.
-    REAL(DP), ALLOCATABLE :: coefficients(:) !<coefficients(dofIdx) is the linear proportion of the dofIdx'th dof in the value for this DOF.
+    INTEGER(INTG) :: constrainedDofIndex !<The constrained variable dof index.
+    INTEGER(INTG) :: numberOfCoupledDofs !<The number of coupled dofs for the constrained variable dof.
+    INTEGER(INTG), ALLOCATABLE :: coupledDofIndices(:) !<coupledDofIndices(coupledDofIdx). The coupledDofIdx'th coupled dof index.
+    REAL(DP), ALLOCATABLE :: coupledDofCoefficients(:) !<coupledDofCoefficients(coupledDofIdx). The coupledDofIdx'th coupled dof coefficient.
   END TYPE BoundaryConditionsDofConstraintType
 
-  !>A pointer to a linear DOF constraint.
+  !>A buffer type to allow for an array of pointers to a BoundaryConditionsDofConstraintType 
   TYPE BoundaryConditionsDofConstraintPtrType
     TYPE(BoundaryConditionsDofConstraintType), POINTER :: ptr
   END TYPE BoundaryConditionsDofConstraintPtrType
 
-  !>The coupled equations DOF information for the DOF constraints.
-  !>The BoundaryConditionsDofConstraintType describes how an
-  !>equations DOF is a linear combination of other equations DOFs.
-  !>This data structure describes a solver row or column that is mapped to multiple
-  !>equations rows or columns and is used to help build the solver mapping.
-  !>The first equation row/column is used as the owner of the solver row/column.
-  TYPE BoundaryConditionsCoupledDofsType
-    INTEGER(INTG) :: numberOfDofs !<The number of equations rows or columns that are mapped to this solver DOF.
-    INTEGER(INTG), ALLOCATABLE :: globalDofs(:) !<globalDofs(dofIdx) is the dofIdx'th global DOF mapped to the row/column.
-    INTEGER(INTG), ALLOCATABLE :: localDofs(:) !<localDofs(dofIdx) is the dofIdx'th local DOF mapped to the row/column.
-    REAL(DP), ALLOCATABLE :: coefficients(:) !<coefficients(dofIdx) is the linear proportion of the dofIdx'th dof in the mapping for this row or column.
-  END TYPE BoundaryConditionsCoupledDofsType
-
-  !>A pointer to the coupled equations DOF information for the DOF constraints.
-  TYPE BoundaryConditionsCoupledDofsPtrType
-    TYPE(BoundaryConditionsCoupledDofsType), POINTER :: ptr
-  END TYPE BoundaryConditionsCoupledDofsPtrType
-
-  !>Describes linear constraints between solver DOFs in the solver mapping.
-  TYPE BoundaryConditionsDofConstraintsType
-    INTEGER(INTG) :: numberOfConstraints !<The number of DOF constraints.
-    INTEGER(INTG) :: numberOfDofs !<The number of global DOFs.
-    TYPE(BoundaryConditionsDofConstraintPtrType), ALLOCATABLE :: constraints(:) !<constraints(constraintIdx) is a pointer to the dof constraint for the constraintIdx'th constraint.
-    TYPE(BoundaryConditionsCoupledDofsPtrType), ALLOCATABLE :: dofCouplings(:) !<dofCouplings(dofIdx) is a pointer to the coupled DOF information for the solver row/column corresponding to the dofIdx'th equations DOF.
-  END TYPE BoundaryConditionsDofConstraintsType
+  !>A type to temporarily hold the information for a boundary conditions variable.
+  TYPE BoundaryConditionsCreateValuesCacheType
+    INTEGER(INTG) :: numberOfConstraints !<The number of affine constraints (including dirichlet boundary conditions).
+    TYPE(BoundaryConditionsDofConstraintPtrType), ALLOCATABLE :: dofConstraints(:) !<dofConstraints(constraintIdx). A pointer to the constraintIdx'th dof constraint.
+    INTEGER(INTG), ALLOCATABLE :: dofCounts(:) !<dofCount(conditionTypeIdx). The total number of local dofs for the conditionTypeIdx'th boundary condition type.
+  END TYPE BoundaryConditionsCreateValuesCacheType
 
   !
   !================================================================================================================================
@@ -1936,6 +1822,13 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     TYPE(FIELD_TYPE), POINTER :: EQUATIONS_SET_FIELD_FIELD !<A pointer to the equations set field for the equations set.
   END TYPE EQUATIONS_SET_EQUATIONS_SET_FIELD_TYPE
 
+  !>A buffer type to allow for an array of pointers to a INTERFACE_CONDITION_TYPE.
+  !It's placed here because the equations set type uses this type. In F2008 it should be possible to place it after the equations
+  !set type again.
+  TYPE INTERFACE_CONDITION_PTR_TYPE
+    TYPE(INTERFACE_CONDITION_TYPE), POINTER :: PTR !<The pointer to the interface condition.
+  END TYPE INTERFACE_CONDITION_PTR_TYPE  
+
   !>Contains information on an equations set. \see OPENCMISS::CMISSEquationsSetType
   TYPE EQUATIONS_SET_TYPE
     INTEGER(INTG) :: USER_NUMBER !<The user identifying number of the equations set
@@ -1945,6 +1838,8 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     TYPE(REGION_TYPE), POINTER :: REGION !<A pointer back to the region containing the equations set.
     INTEGER(INTG), ALLOCATABLE :: SPECIFICATION(:) !<The equations set specification array, eg. [class, type, subtype], although there can be more or fewer identifiers. Unused identifiers are set to zero.
     INTEGER(INTG) :: SOLUTION_METHOD !<The solution method for the equations set \see EQUATIONS_ROUTINES_SolutionMethods 
+    INTEGER(INTG) :: numberOfInterfaceConditions !The number of interface conditions that this equations set has been added to.
+    TYPE(INTERFACE_CONDITION_PTR_TYPE), ALLOCATABLE :: interfaceConditions(:) !interfaceConditions(interfaceConditionIdx). The interfaceConditionIdx'th interface condition that this equations set has been added to
     TYPE(EQUATIONS_SET_GEOMETRY_TYPE) :: GEOMETRY !<The geometry information for the equations set.
     TYPE(EQUATIONS_SET_MATERIALS_TYPE), POINTER :: MATERIALS !<A pointer to the materials information for the equations set.
     TYPE(EQUATIONS_SET_SOURCE_TYPE), POINTER :: SOURCE !<A pointer to the source information for the equations set.
@@ -1988,8 +1883,6 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     LOGICAL :: HAS_TRANSPOSE !<Is .TRUE. if this interface matrix has has transpose
     TYPE(DISTRIBUTED_MATRIX_TYPE), POINTER :: MATRIX !<A pointer to the distributed interface matrix data
     TYPE(DISTRIBUTED_MATRIX_TYPE), POINTER :: MATRIX_TRANSPOSE !<A pointer to the distributed interface matrix transpose data
-    TYPE(DISTRIBUTED_VECTOR_TYPE), POINTER :: TEMP_VECTOR !<Temporary vector used for assembly. 
-    TYPE(DISTRIBUTED_VECTOR_TYPE), POINTER :: TEMP_TRANSPOSE_VECTOR !<Temporary vector used for assembly. 
     TYPE(ELEMENT_MATRIX_TYPE) :: ELEMENT_MATRIX !<The element matrix for this interface matrix
   END TYPE INTERFACE_MATRIX_TYPE
 
@@ -2019,6 +1912,7 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     INTEGER(INTG) :: NUMBER_OF_INTERFACE_MATRICES !<The number of interfaces matrices defined for the interface condition.
     TYPE(INTERFACE_MATRIX_PTR_TYPE), ALLOCATABLE :: MATRICES(:) !<MATRICES(matrix_idx)%PTR contains the information on the matrix_idx'th  interface matrix.
     TYPE(INTERFACE_RHS_TYPE), POINTER :: RHS_VECTOR !<A pointer to the RHS vector information for the interface matrices.
+    TYPE(DISTRIBUTED_VECTOR_TYPE), POINTER :: TEMP_VECTOR !<Temporary vector used for assembly. 
   END TYPE INTERFACE_MATRICES_TYPE
 
   !>Contains information on interface variable mapping for an interface matrix.
@@ -2036,7 +1930,6 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     INTEGER(INTG) :: TOTAL_NUMBER_OF_ROWS !<The total number of rows in this interface matrix.
     INTEGER(INTG) :: NUMBER_OF_GLOBAL_ROWS !<The global number of rows in this interface matrix.
     TYPE(DOMAIN_MAPPING_TYPE), POINTER :: ROW_DOFS_MAPPING !<A pointer to the domain mapping for the row dofs.
-    INTEGER(INTG), ALLOCATABLE :: VARIABLE_DOF_TO_ROW_MAP(:) !<VARIABLE_DOF_TO_ROW_MAP(dof_idx). The mapping from the dof_idx'th variable dof to the rows on the interface matrix
   END TYPE INTERFACE_MATRIX_TO_VAR_MAP_TYPE
 
   TYPE INTERFACE_MAPPING_RHS_TYPE
@@ -2045,8 +1938,6 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     TYPE(FIELD_VARIABLE_TYPE), POINTER :: RHS_VARIABLE !<A pointer to the variable that is mapped to the RHS vector
     TYPE(DOMAIN_MAPPING_TYPE), POINTER :: RHS_VARIABLE_MAPPING !<A pointer to the RHS variable domain mapping
     REAL(DP) :: RHS_COEFFICIENT !<The multiplicative coefficient applied to the RHS vector
-    INTEGER(INTG), ALLOCATABLE :: RHS_DOF_TO_INTERFACE_ROW_MAP(:) !<RHS_DOF_TO_INTERFACE_ROW_MAP(rhs_dof_idx). The mapping from the rhs_dof_idx'th RHS dof in the rhs variable to the interface row.   
-    INTEGER(INTG), ALLOCATABLE :: INTERFACE_ROW_TO_RHS_DOF_MAP(:) !<INTERFACE_ROW_TO_RHS_DOF_MAP(row_idx). The mapping from the row_idx'th row of the interface to the RHS dof.   
   END TYPE INTERFACE_MAPPING_RHS_TYPE
   
   TYPE INTERFACE_MAPPING_CREATE_VALUES_CACHE_TYPE
@@ -2070,9 +1961,8 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     INTEGER(INTG) :: TOTAL_NUMBER_OF_COLUMNS !<The total number of columns in the interface mapping
     INTEGER(INTG) :: NUMBER_OF_GLOBAL_COLUMNS !<The global number of columns in the interface mapping
     TYPE(DOMAIN_MAPPING_TYPE), POINTER :: COLUMN_DOFS_MAPPING !<A pointer to the domain mapping for the columns
-    INTEGER(INTG), ALLOCATABLE :: LAGRANGE_DOF_TO_COLUMN_MAP(:) !<LAGRANGE_DOF_TO_COLUMN_MAP(dof_idx). The mapping from the dof_idx'th Lagrange dof to the interface matrices column
     INTEGER(INTG) :: NUMBER_OF_INTERFACE_MATRICES !<The number of interface matrices that the mapping is set up for.
-    TYPE(INTERFACE_MATRIX_TO_VAR_MAP_TYPE), ALLOCATABLE :: INTERFACE_MATRIX_ROWS_TO_VAR_MAPS(:) !<INTERFACE_MATRIX_ROWS_TO_VAR_MAPS(interface_matrix_idx). Information for the interface matrix rows to dependent variable maps for the interface_matrix_idx'th interface matrix.
+    TYPE(INTERFACE_MATRIX_TO_VAR_MAP_TYPE), ALLOCATABLE :: INTERFACE_MATRIX_TO_VAR_MAPS(:) !<INTERFACE_MATRIX_TO_VAR_MAPS(interface_matrix_idx). Information for the interface matrix rows to dependent variable maps for the interface_matrix_idx'th interface matrix.
     TYPE(INTERFACE_MAPPING_RHS_TYPE), POINTER :: RHS_MAPPING !<A pointer to the interface mapping for the RHS vector.
     TYPE(INTERFACE_MAPPING_CREATE_VALUES_CACHE_TYPE), POINTER :: CREATE_VALUES_CACHE
   END TYPE INTERFACE_MAPPING_TYPE
@@ -2145,9 +2035,8 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
   TYPE INTERFACE_DEPENDENT_TYPE
     TYPE(INTERFACE_CONDITION_TYPE), POINTER :: INTERFACE_CONDITION !<A pointer to the interface condition
     INTEGER(INTG) :: NUMBER_OF_DEPENDENT_VARIABLES !<The number of dependent variables in the interface condition
-    TYPE(EQUATIONS_SET_PTR_TYPE), POINTER :: EQUATIONS_SETS(:) !<EQUATIONS_SETS(variable_idx). The pointer to the equations set containing the dependent variable for the variable_idx'th added dependent variable.
-    TYPE(FIELD_VARIABLE_PTR_TYPE), POINTER :: FIELD_VARIABLES(:) !<FIELD_VARIABLES(variable_idx). The pointer to the variable_idx'th dependent variable in the interface condition.
-    INTEGER(INTG), POINTER :: VARIABLE_MESH_INDICES(:) !<VARIABLE_MESH_INDICES(variable_idx). The mesh index of the variable_idx'th dependent variable in the interface condition.
+    TYPE(FIELD_VARIABLE_PTR_TYPE), ALLOCATABLE :: FIELD_VARIABLES(:) !<FIELD_VARIABLES(variable_idx). The pointer to the variable_idx'th dependent variable in the interface condition.
+    INTEGER(INTG), ALLOCATABLE :: VARIABLE_MESH_INDICES(:) !<VARIABLE_MESH_INDICES(variable_idx). The mesh index of the variable_idx'th dependent variable in the interface condition.
   END TYPE INTERFACE_DEPENDENT_TYPE
 
   !>Contains information for the interface condition data.
@@ -2160,6 +2049,8 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     INTEGER(INTG) :: METHOD !<An integer which denotes the interface condition method. \see INTERFACE_CONDITIONS_Methods,INTERFACE_CONDITIONS
     INTEGER(INTG) :: OPERATOR !<An integer which denotes the type of interface operator. \see INTERFACE_CONDITIONS_Operator,INTERFACE_CONDITIONS
     INTEGER(INTG) :: integrationType !<An integer which denotes the integration type. \see INTERFACE_CONDITIONS_IntegrationType,INTERFACE_CONDITIONS
+    INTEGER(INTG) :: numberOfEquationsSets !<The number of equations sets for this interface condition.
+    TYPE(EQUATIONS_SET_PTR_TYPE), ALLOCATABLE :: EQUATIONS_SETS(:) !<EQUATIONS_SETS(equations_set_idx). The pointer to the equations_set_idx'th equations set for this interface condition.
     TYPE(INTERFACE_GEOMETRY_TYPE) :: GEOMETRY !<The geometry information for the interface condition.
     TYPE(INTERFACE_PENALTY_TYPE), POINTER :: PENALTY !<A pointer to the interface condition penalty information if there are any for this interface condition.
     TYPE(INTERFACE_LAGRANGE_TYPE), POINTER :: LAGRANGE !<A pointer to the interface condition Lagrange multipler information if there are any for this interface condition.
@@ -2168,11 +2059,6 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     TYPE(BOUNDARY_CONDITIONS_TYPE), POINTER :: BOUNDARY_CONDITIONS !<A pointer to the boundary condition information for this interface condition.
   END TYPE INTERFACE_CONDITION_TYPE
 
-  !>A buffer type to allow for an array of pointers to a INTERFACE_CONDITION_TYPE.
-  TYPE INTERFACE_CONDITION_PTR_TYPE
-    TYPE(INTERFACE_CONDITION_TYPE), POINTER :: PTR !<The pointer to the interface condition.
-  END TYPE INTERFACE_CONDITION_PTR_TYPE
-  
   !>Contains information for interface region specific data that is not of 'region' importance. <<>>
   TYPE INTERFACE_CONDITIONS_TYPE
     TYPE(INTERFACE_TYPE), POINTER :: INTERFACE !<A pointer back to the interface containing the interface conditions.
@@ -2412,7 +2298,9 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     TYPE(SOLVER_MATRICES_TYPE), POINTER :: SOLVER_MATRICES !<A pointer to the solver matrices for this solver matrix
     LOGICAL :: UPDATE_MATRIX !<Is .TRUE. if the solver matrix is to be updated
     INTEGER(INTG) :: STORAGE_TYPE !<The storage type for the solver matrix.
-    INTEGER(INTG) :: NUMBER_OF_COLUMNS !<The number of columns in the distributed solver matrix
+    INTEGER(INTG) :: NUMBER_OF_COLUMNS !<The number of local (excluding ghost) columns in this solver matrix
+    INTEGER(INTG) :: TOTAL_NUMBER_OF_COLUMNS !<The number of local (including ghost) columns in this solver matrix
+    INTEGER(INTG) :: NUMBER_OF_GLOBAL_COLUMNS !<The number of global columns in this solver matrix
     TYPE(DISTRIBUTED_VECTOR_TYPE), POINTER :: SOLVER_VECTOR !<A pointer to the distributed solver vector associated with the matrix
     TYPE(DISTRIBUTED_MATRIX_TYPE), POINTER :: MATRIX !<A pointer to the distributed solver matrix data
   END TYPE SOLVER_MATRIX_TYPE
@@ -2451,17 +2339,12 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
   TYPE SOLVER_EQUATIONS_TYPE
     TYPE(SOLVER_TYPE), POINTER :: SOLVER !<A pointer to the solver
     LOGICAL :: SOLVER_EQUATIONS_FINISHED !<Is .TRUE. if the solver equations have finished being created, .FALSE. if not.
-
     INTEGER(INTG) :: LINEARITY !<The linearity type of the solver equations
     INTEGER(INTG) :: TIME_DEPENDENCE !<The time dependence type of the solver equations
-
     INTEGER(INTG) :: SPARSITY_TYPE !<The type of sparsity to use in the solver matrices \see SOLVER_ROUTINES_SparsityTypes,SOLVER_ROUTINES
-
     TYPE(SOLVER_MAPPING_TYPE), POINTER :: SOLVER_MAPPING !<A pointer to the solver mapping
     TYPE(SOLVER_MATRICES_TYPE), POINTER :: SOLVER_MATRICES !<A pointer to the solver matrices for the problem
-
     TYPE(BOUNDARY_CONDITIONS_TYPE), POINTER :: BOUNDARY_CONDITIONS !<A pointer to the boundary condition information for the solver equations.
-
   END TYPE SOLVER_EQUATIONS_TYPE
 
   !
@@ -2492,7 +2375,7 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
     INTEGER(INTG) :: LINEARITY !<The linearity type of the dynamic solver \see SOLVER_ROUTINES_DynamicLinearityTypes,SOLVER_ROUTINES
     INTEGER(INTG) :: ORDER !<The order of the dynamic solve \see SOLVER_ROUTINES_DynamicOrderTypes,SOLVER_ROUTINES
     INTEGER(INTG) :: DEGREE !<The degree of the time interpolation polynomial \see SOLVER_ROUTINES_DynamicDegreeTypes,SOLVER_ROUTINES
-    INTEGER(INTG) :: SCHEME !<The dyanamic solver scheme \see SOLVER_ROUTINES_DynamicSchemeTypes,SOLVER_ROUTINES
+    INTEGER(INTG) :: SCHEME !<The dynamic solver scheme \see SOLVER_ROUTINES_DynamicSchemeTypes,SOLVER_ROUTINES
     REAL(DP), ALLOCATABLE :: THETA(:) !<THETA(degree_idx). The theta value for the degree_idx'th polynomial in the dynamic solver
     LOGICAL :: EXPLICIT !<Is .TRUE. if the dynamic scheme is an explicit scheme, .FALSE. if not.
     LOGICAL :: RESTART !<Is .TRUE. if the dynamic scheme is to be restarted (i.e., recalculate values at the current time step), .FALSE. if not.
@@ -2813,298 +2696,83 @@ END TYPE GENERATED_MESH_ELLIPSOID_TYPE
   !
   ! Solver mapping types
   !
-  
-  TYPE EQUATIONS_COL_TO_SOLVER_COLS_MAP_TYPE
-    INTEGER(INTG) :: NUMBER_OF_SOLVER_COLS !<The number of solver cols this equations column is mapped to
-    INTEGER(INTG), ALLOCATABLE :: SOLVER_COLS(:) !<SOLVER_COLS(i). The solver column number for the i'th solver column that this column is mapped to
-    REAL(DP), ALLOCATABLE :: COUPLING_COEFFICIENTS(:) !<COUPLING_COEFFICIENTS(i). The coupling coefficients for the i'th solver column that this column is mapped to.
-  END TYPE EQUATIONS_COL_TO_SOLVER_COLS_MAP_TYPE
 
-  TYPE EQUATIONS_TO_SOLVER_MAPS_TYPE
-    INTEGER(INTG) :: EQUATIONS_MATRIX_TYPE !<The type of equations matrix \see SOLVER_MAPPING_EquationsMatrixTypes,SOLVER_MAPPING
-    INTEGER(INTG) :: EQUATIONS_MATRIX_NUMBER !<The equations matrix number being mapped.
-    INTEGER(INTG) :: SOLVER_MATRIX_NUMBER !<The solver matrix number being mapped.
-    TYPE(EQUATIONS_MATRIX_TYPE), POINTER :: EQUATIONS_MATRIX !<A pointer to the equations matrix being mapped.
-    TYPE(SOLVER_MATRIX_TYPE), POINTER :: SOLVER_MATRIX !<A pointer to the solver matrix being mapped.
-    TYPE(EQUATIONS_COL_TO_SOLVER_COLS_MAP_TYPE), ALLOCATABLE :: EQUATIONS_COL_TO_SOLVER_COLS_MAP(:) !<EQUATIONS_COL_TO_SOLVER_COL_MAP(column_idx). The mapping from the column_idx'th column of this equations matrix to the solver matrix columns. Note for interface matrices this will actually be for the transposed interface matrix i.e., for the interface matrix rows.
-  END TYPE EQUATIONS_TO_SOLVER_MAPS_TYPE
+  !<A buffer type for the solver mapping variable type
+  TYPE SOLVER_MAPPING_VARIABLE_PTR_TYPE
+    TYPE(SOLVER_MAPPING_VARIABLE_TYPE), POINTER :: ptr
+  END TYPE SOLVER_MAPPING_VARIABLE_PTR_TYPE
+ 
+  !<Contains information on the mapping of the variable. 
+  TYPE SOLVER_MAPPING_VARIABLE_TYPE
+    TYPE(FIELD_VARIABLE_TYPE), POINTER :: VARIABLE
+    TYPE(BOUNDARY_CONDITIONS_VARIABLE_TYPE), POINTER :: boundaryConditionsVariable
+    INTEGER(INTG) :: VARIABLE_TYPE
+    INTEGER(INTG) :: EQUATION_TYPE
+    INTEGER(INTG) :: EQUATION_INDEX
+    INTEGER(INTG), ALLOCATABLE :: variableDofToSolverDofMap(:) !<VARIABLE_DOF_TO_SOLVER_DOF_MAP(variable_dof_idx). The mappings from the variable_dof_idx'th variable dof to the solver matrices dofs. Non-positive numbers mean constrained values.
+  END TYPE SOLVER_MAPPING_VARIABLE_TYPE
 
-  !>A buffer type to allow for an array of pointers to a EQUATIONS_TO_SOLVER_MAPS_TYPE \see TYPES::EQUATIONS_TO_SOLVER_MAPS_TYPE
-  TYPE EQUATIONS_TO_SOLVER_MAPS_PTR_TYPE
-    TYPE(EQUATIONS_TO_SOLVER_MAPS_TYPE), POINTER :: PTR !<A pointer to the equations to solver maps
-  END TYPE EQUATIONS_TO_SOLVER_MAPS_PTR_TYPE
-  
-  TYPE INTERFACE_TO_SOLVER_MAPS_TYPE
-    INTEGER(INTG) :: INTERFACE_MATRIX_NUMBER !<The interface matrix number being mapped.
-    INTEGER(INTG) :: SOLVER_MATRIX_NUMBER !<The solver matrix number being mapped.
-    TYPE(INTERFACE_MATRIX_TYPE), POINTER :: INTERFACE_MATRIX !<A pointer to the interface matrix being mapped.
-    TYPE(SOLVER_MATRIX_TYPE), POINTER :: SOLVER_MATRIX !<A pointer to the solver matrix being mapped.
-    TYPE(EQUATIONS_COL_TO_SOLVER_COLS_MAP_TYPE), ALLOCATABLE :: INTERFACE_ROW_TO_SOLVER_COLS_MAP(:) !<INTERFACE_ROW_TO_SOLVER_COL_MAP(column_idx). The mapping from the row_idx'th row of this interface matrix to the solver matrix columns.
-  END TYPE INTERFACE_TO_SOLVER_MAPS_TYPE
-
-  !>A buffer type to allow for an array of pointers to a INTERFACE_TO_SOLVER_MAPS_TYPE \see TYPES::INTERFACE_TO_SOLVER_MAPS_TYPE
-  TYPE INTERFACE_TO_SOLVER_MAPS_PTR_TYPE
-    TYPE(INTERFACE_TO_SOLVER_MAPS_TYPE), POINTER :: PTR !<A pointer to the interface to solver maps
-  END TYPE INTERFACE_TO_SOLVER_MAPS_PTR_TYPE
-  
-  TYPE JACOBIAN_COL_TO_SOLVER_COLS_MAP_TYPE
-    INTEGER(INTG) :: NUMBER_OF_SOLVER_COLS !<The number of solver cols this Jacobian column is mapped to
-    INTEGER(INTG), ALLOCATABLE :: SOLVER_COLS(:) !<SOLVER_COLS(i). The solver column number for the i'th solver column that this column is mapped to
-    REAL(DP), ALLOCATABLE :: COUPLING_COEFFICIENTS(:) !<COUPLING_COEFFICIENTS(i). The coupling coefficients for the i'th solver column that this column is mapped to.
-  END TYPE JACOBIAN_COL_TO_SOLVER_COLS_MAP_TYPE
-
-  TYPE JACOBIAN_TO_SOLVER_MAP_TYPE
-    INTEGER(INTG) :: SOLVER_MATRIX_NUMBER !<The solver matrix number being mapped.
-    TYPE(EQUATIONS_JACOBIAN_TYPE), POINTER :: JACOBIAN_MATRIX !<A pointer to the Jacobian matrix being mapped.
-    TYPE(SOLVER_MATRIX_TYPE), POINTER :: SOLVER_MATRIX !<A pointer to the solver matrix being mapped.
-    TYPE(JACOBIAN_COL_TO_SOLVER_COLS_MAP_TYPE), ALLOCATABLE :: JACOBIAN_COL_TO_SOLVER_COLS_MAP(:) !<JACOBIAN_COL_TO_SOLVER_COL_MAP(column_idx). The mapping from the column_idx'th column of the Jacobian matrix to the solver matrix columns.
-  END TYPE JACOBIAN_TO_SOLVER_MAP_TYPE
-
-  TYPE JACOBIAN_TO_SOLVER_MAP_PTR_TYPE
-    TYPE(JACOBIAN_TO_SOLVER_MAP_TYPE), POINTER :: PTR !<A pointer to the Jacobian to solver map
-  END TYPE JACOBIAN_TO_SOLVER_MAP_PTR_TYPE
-
-  !>Contains information on the mappings between field variable dofs inequations and the solver matrix columns (solver dofs) \todo rename solver col to be solver dof here???
-  TYPE VARIABLE_TO_SOLVER_COL_MAP_TYPE
-    INTEGER(INTG), ALLOCATABLE :: COLUMN_NUMBERS(:) !<COLUMN_NUMBERS(variable_dof_idx). The solver column number (solver dof) that the variable_dof_idx'th variable dof is mapped to.
-    REAL(DP), ALLOCATABLE :: COUPLING_COEFFICIENTS(:) !<COUPLING_COEFFICIENTS(variable_dof_idx). The multiplicative constant for the mapping between the variable_dof_idx'th variable dof and the solver dof.
-    REAL(DP), ALLOCATABLE :: ADDITIVE_CONSTANTS(:) !<ADDITIVE_CONSTANTS(variable_dof_idx). The additive constant for the mapping between the variable_dof_idx'th variable dof and the solver dof.
-  END TYPE VARIABLE_TO_SOLVER_COL_MAP_TYPE
-
-  TYPE EQUATIONS_TO_SOLVER_MATRIX_MAPS_INTERFACE_TYPE
-    INTEGER(INTG) :: INTERFACE_CONDITION_INDEX
-    TYPE(INTERFACE_CONDITION_TYPE), POINTER :: INTERFACE_CONDITION
-    INTEGER(INTG) :: INTERFACE_MATRIX_NUMBER
-  END TYPE EQUATIONS_TO_SOLVER_MATRIX_MAPS_INTERFACE_TYPE
-  
   !>Contains information on the equations to solver matrix mappings when indexing by solver matrix number
-  TYPE EQUATIONS_TO_SOLVER_MATRIX_MAPS_SM_TYPE
-    INTEGER(INTG) :: SOLVER_MATRIX_NUMBER !<The number of the solver matrix for these mappings
-
-    INTEGER(INTG) :: NUMBER_OF_VARIABLES !<The number of variables mapped to this solver matrix
-    INTEGER(INTG), ALLOCATABLE :: VARIABLE_TYPES(:) !<VARIABLE_TYPES(variable_idx). The variable type for the variable_idx'th variable that is mapped to the solver matrix.
-    TYPE(FIELD_VARIABLE_PTR_TYPE), ALLOCATABLE :: VARIABLES(:) !<VARIABLES(variable_idx). VARIABLES(variable_idx)%PTR points to the variable_idx'th variable that is mapped to the solver matrix.
-    TYPE(VARIABLE_TO_SOLVER_COL_MAP_TYPE), ALLOCATABLE :: VARIABLE_TO_SOLVER_COL_MAPS(:) !<VARIABLE_TO_SOLVER_COL_MAPS(variable_idx). The mappings from the variable dofs to the solver dofs for the variable_idx'th variable in the equations set that is mapped to the solver matrix.
+  TYPE EQUATIONS_TO_SOLVER_VARIABLES_MAPS_TYPE
+    INTEGER(INTG) :: SOLVER_MATRIX_NUMBER !<The number of of the solver matrix 
     INTEGER(INTG) :: NUMBER_OF_DYNAMIC_EQUATIONS_MATRICES !<The number of dynamic equations matrices mapped to this solver matrix
-    TYPE(EQUATIONS_TO_SOLVER_MAPS_PTR_TYPE), ALLOCATABLE :: DYNAMIC_EQUATIONS_TO_SOLVER_MATRIX_MAPS(:) !<DYNAMIC_EQUATIONS_TO_SOLVER_MATRIX_MAPS(equations_matrix_idx). The maps from the equations_idx'th linear equations matrix to solver matrix
+    TYPE(SOLVER_MAPPING_VARIABLE_PTR_TYPE), ALLOCATABLE :: dynamicMatrixToSolverVariableMap(:) !<dynamicMatrixToSolverVariableMap(dynamicMatrixIdx). The solver mapping variable of the dynamicMatrixIdx'th dynamic matrix.
     INTEGER(INTG) :: NUMBER_OF_LINEAR_EQUATIONS_MATRICES !<The number of linear equations matrices mapped to this solver matrix
-    TYPE(EQUATIONS_TO_SOLVER_MAPS_PTR_TYPE), ALLOCATABLE :: LINEAR_EQUATIONS_TO_SOLVER_MATRIX_MAPS(:) !<LINEAR_EQUATIONS_TO_SOLVER_MATRIX_MAPS(equations_matrix_idx). The maps from the equations_idx'th linear equations matrix to solver matrix
+    TYPE(SOLVER_MAPPING_VARIABLE_PTR_TYPE), ALLOCATABLE :: linearMatrixToSolverVariableMap(:) !<linearMatrixToSolverVariableMap(linearMatrixIdx). The solver variable mapping of the linearMatrixIdx'th linear matrix.
     INTEGER(INTG) :: NUMBER_OF_EQUATIONS_JACOBIANS !<The number of nonlinear equations Jacobian matrices mapped to this solver matrix
-    TYPE(JACOBIAN_TO_SOLVER_MAP_PTR_TYPE), ALLOCATABLE :: JACOBIAN_TO_SOLVER_MATRIX_MAPS(:) !<JACOBIAN_TO_SOLVER_MATRIX_MAPS(equations_matrix_idx). The map from the equations_matrix_idx'th Jacobian matrix to the solver matrix
-  END TYPE EQUATIONS_TO_SOLVER_MATRIX_MAPS_SM_TYPE
-
-  !>Contains information on the equations to solver matrix mappings when indexing by equations matrix number
-  TYPE EQUATIONS_TO_SOLVER_MATRIX_MAPS_EM_TYPE
-    INTEGER(INTG) :: EQUATIONS_MATRIX_NUMBER !<The number of the equations matrix for these mappings
-    INTEGER(INTG) :: NUMBER_OF_SOLVER_MATRICES !<The number of solver matrices mapped to this equations matrix
-    TYPE(EQUATIONS_TO_SOLVER_MAPS_PTR_TYPE), ALLOCATABLE :: EQUATIONS_TO_SOLVER_MATRIX_MAPS(:) !<EQUATIONS_TO_SOLVER_MATRIX_MAPS(solver_matrix_idx). The maps from the equation matrix to the solver_matrix_idx'th solver matrix
-  END TYPE EQUATIONS_TO_SOLVER_MATRIX_MAPS_EM_TYPE
-
-  !>Contains information on the mapping from the equations rows in an equations set to the solver rows 
-  TYPE EQUATIONS_ROW_TO_SOLVER_ROWS_MAP_TYPE
-    INTEGER(INTG) :: NUMBER_OF_SOLVER_ROWS !<The number of solver rows this equations row is mapped to
-    INTEGER(INTG), ALLOCATABLE :: SOLVER_ROWS(:) !<SOLVER_ROWS(i). The solver row number for the i'th solver row that this row is mapped to
-    REAL(DP), ALLOCATABLE :: COUPLING_COEFFICIENTS(:) !<COUPLING_COEFFICIENTS(i). The coupling coefficients for the i'th solver row that this row is mapped to.
-  END TYPE EQUATIONS_ROW_TO_SOLVER_ROWS_MAP_TYPE
+    TYPE(SOLVER_MAPPING_VARIABLE_PTR_TYPE), ALLOCATABLE :: jacobianToSolverVariableMap(:) !<jacoabianToSolverVariableMap(jacobianIdx). The solver variable mapping of the jacobianIdx'th jacobian matrix.
+  END TYPE EQUATIONS_TO_SOLVER_VARIABLES_MAPS_TYPE
   
   !>Contains information on the mappings from an equations set to the solver matrices
   TYPE EQUATIONS_SET_TO_SOLVER_MAP_TYPE
     INTEGER(INTG) :: EQUATIONS_SET_INDEX !<The index of the equations set for these mappings
     TYPE(SOLVER_MAPPING_TYPE), POINTER :: SOLVER_MAPPING !<A pointer to the solver mappings
+    TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET !<A pointer to the equations set
     TYPE(EQUATIONS_TYPE), POINTER :: EQUATIONS !<A pointer to the equations in this equations set
-    INTEGER(INTG) :: NUMBER_OF_INTERFACE_CONDITIONS !<The number of interface conditions affecting this equations set.
-    TYPE(EQUATIONS_TO_SOLVER_MATRIX_MAPS_INTERFACE_TYPE), ALLOCATABLE :: EQUATIONS_TO_SOLVER_MATRIX_MAPS_INTERFACE(:) !<EQUATIONS_TO_SOLVER_MATRIX_MAPS_INTERFACE(interface_condition_idx). Information on the interface_condition_idx'th interface condition affecting this equations set
-    TYPE(EQUATIONS_TO_SOLVER_MATRIX_MAPS_SM_TYPE), ALLOCATABLE :: EQUATIONS_TO_SOLVER_MATRIX_MAPS_SM(:) !<EQUATIONS_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx). The mappings from the equations matrices in this equation set to the solver_matrix_idx'th solver_matrix
-    TYPE(EQUATIONS_TO_SOLVER_MATRIX_MAPS_EM_TYPE), ALLOCATABLE :: EQUATIONS_TO_SOLVER_MATRIX_MAPS_EM(:) !<EQUATIONS_TO_SOLVER_MATRIX_MAPS_EM(equations_matrix_idx). The mappings from the equation_matrix_idx'th equations matrix in this equation set to the solver_matrices.
-    TYPE(JACOBIAN_TO_SOLVER_MAP_PTR_TYPE), ALLOCATABLE :: EQUATIONS_TO_SOLVER_MATRIX_MAPS_JM(:) !<EQUATIONS_TO_SOLVER_MATRIX_MAPS_JM(jacobian_idx). The mappings from the jacobian_idx'th Jacobian matrix in this equation set to the solver_matrices.
-    TYPE(EQUATIONS_ROW_TO_SOLVER_ROWS_MAP_TYPE), ALLOCATABLE :: EQUATIONS_ROW_TO_SOLVER_ROWS_MAPS(:) !<EQUATIONS_ROW_TO_SOLVER_ROWS_MAPS(equations_row_idx). The mappings from the equations_row_idx'th equations row to the solver matrices rows.
+    TYPE(EQUATIONS_TO_SOLVER_VARIABLES_MAPS_TYPE), ALLOCATABLE :: equationsToSolverVariablesMaps(:) !<EQUATIONS_TO_SOLVER_MATRIX_MAPS(solver_matrix_idx). The mappings from the equations matrices in this equation set to the solver_matrix_idx'th solver matrix.
+    TYPE(SOLVER_MAPPING_VARIABLE_TYPE), POINTER :: solverVariableMap !<The solver variable mapping for the row dependent variable.
   END TYPE EQUATIONS_SET_TO_SOLVER_MAP_TYPE
 
   !>Contains information on the interface to solver matrix mappings when indexing by solver matrix number
-  TYPE INTERFACE_TO_SOLVER_MATRIX_MAPS_SM_TYPE
-    INTEGER(INTG) :: SOLVER_MATRIX_NUMBER !<The number of the solver matrix for these mappings
-    INTEGER(INTG) :: LAGRANGE_VARIABLE_TYPE !<LThe variable type for the Lagrange variable that is mapped to the solver matrix.
-    TYPE(FIELD_VARIABLE_TYPE), POINTER :: LAGRANGE_VARIABLE !<A pointer to the Lagrange variable that is mapped to the solver matrix.
-    TYPE(VARIABLE_TO_SOLVER_COL_MAP_TYPE) :: LAGRANGE_VARIABLE_TO_SOLVER_COL_MAP !<The mappings from the Lagrange variable dofs to the solver dofs.
-    INTEGER(INTG) :: NUMBER_OF_DEPENDENT_VARIABLES !<The number of dependent variables mapped to this solver matrix
-    INTEGER(INTG), ALLOCATABLE :: DEPENDENT_VARIABLE_TYPES(:) !<DEPENDENT_VARIABLE_TYPES(variable_idx). The variable type for the variable_idx'th dependent variable that is mapped to the solver matrix.
-    TYPE(FIELD_VARIABLE_PTR_TYPE), ALLOCATABLE :: DEPENDENT_VARIABLES(:) !<DEPENDENT_VARIABLES(variable_idx). DEPENDENT_VARIABLES(variable_idx)%PTR points to the variable_idx'th dependent variable that is mapped to the solver matrix.
-    TYPE(VARIABLE_TO_SOLVER_COL_MAP_TYPE), ALLOCATABLE :: DEPENDENT_VARIABLE_TO_SOLVER_COL_MAPS(:) !<DEPENDENT_VARIABLE_TO_SOLVER_COL_MAPS(interface_matrix_idx). The mappings from the dependent variable dofs to the solver dofs for the interface_matrix_idx'th interface matrix dependent variable in the interface condition that is mapped to the solver matrix.
+  TYPE INTERFACE_TO_SOLVER_VARIABLES_MAPS_TYPE
+    INTEGER(INTG) :: SOLVER_MATRIX_NUMBER !<The number of of the solver matrix 
     INTEGER(INTG) :: NUMBER_OF_INTERFACE_MATRICES !<The number of interface matrices mapped to this solver matrix
-    TYPE(INTERFACE_TO_SOLVER_MAPS_PTR_TYPE), ALLOCATABLE :: INTERFACE_EQUATIONS_TO_SOLVER_MATRIX_MAPS(:) !<INTERFACE_EQUATIONS_TO_SOLVER_MATRIX_MAPS(interface_matrix_idx). The maps from the interface)matrix_idx'th interface matrix to solver matrix
-    TYPE(EQUATIONS_COL_TO_SOLVER_COLS_MAP_TYPE), ALLOCATABLE :: INTERFACE_COL_TO_SOLVER_COLS_MAP(:) !<EQUATIONS_COL_SOLVER_COL_MAP(column_idx). The mapping from the column_idx'th column of this interface matrix to the solver matrix columns.
-  END TYPE INTERFACE_TO_SOLVER_MATRIX_MAPS_SM_TYPE
+    TYPE(SOLVER_MAPPING_VARIABLE_PTR_TYPE), ALLOCATABLE :: interfaceMatrixToSolverVariableMap(:) !<interfaceMatrixToSolverVariableMap(interfaceMatrixIdx). The solver variable mapping of the interfaceMatrixIdx'th interface matrix.
+  END TYPE INTERFACE_TO_SOLVER_VARIABLES_MAPS_TYPE
 
-  !>Contains information on the mapping from an interface condition column to a solver row.
-  TYPE INTERFACE_ROW_TO_SOLVER_ROWS_MAP_TYPE
-    INTEGER(INTG) :: NUMBER_OF_SOLVER_ROWS !<The number of solver rows that the interface condition row in mapped to (can be either 0 or 1 at he moment.)
-    INTEGER(INTG) :: SOLVER_ROW !<The solver row that the interface condition row is mapped to
-    REAL(DP) :: COUPLING_COEFFICIENT !<The coupling coefficient for the mapping.
-  END TYPE INTERFACE_ROW_TO_SOLVER_ROWS_MAP_TYPE
-  
-  !>Contains information on the interface to solver matrix mappings when indexing by interface matrix number
-  TYPE INTERFACE_TO_SOLVER_MATRIX_MAPS_IM_TYPE
-    INTEGER(INTG) :: INTERFACE_MATRIX_NUMBER !<The number of the interface  matrix for these mappings
-    INTEGER(INTG) :: NUMBER_OF_SOLVER_MATRICES !<The number of solver matrices mapped to this interface matrix
-    TYPE(INTERFACE_TO_SOLVER_MAPS_PTR_TYPE), ALLOCATABLE :: INTERFACE_TO_SOLVER_MATRIX_MAPS(:) !<EQUATIONS_TO_SOLVER_MATRIX_MAPS(solver_matrix_idx). The maps from the equation matrix to the solver_matrix_idx'th solver matrix
-    TYPE(INTERFACE_ROW_TO_SOLVER_ROWS_MAP_TYPE), ALLOCATABLE :: INTERFACE_ROW_TO_SOLVER_ROWS_MAP(:) !<INTERFACE_ROW_TO_SOLVER_ROW_MAP(interface_row_idx). The mapping from the interface_row_idx'th interface matrix to a solver row.
-  END TYPE INTERFACE_TO_SOLVER_MATRIX_MAPS_IM_TYPE
-
-  TYPE INTERFACE_TO_SOLVER_MATRIX_MAPS_EQUATIONS_TYPE
-    INTEGER(INTG) :: EQUATIONS_SET_INDEX
-    TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET
-    INTEGER(INTG) :: INTERFACE_MATRIX_INDEX
-  END TYPE INTERFACE_TO_SOLVER_MATRIX_MAPS_EQUATIONS_TYPE
-  
-  !>Contains information on the mapping from an interface condition column to a solver row.
-  TYPE INTERFACE_COLUMN_TO_SOLVER_ROWS_MAP_TYPE
-    INTEGER(INTG) :: NUMBER_OF_SOLVER_ROWS !<The number of solver rows that the interface condition column in mapped to (can be either 0 or 1 at he moment.)
-    INTEGER(INTG) :: SOLVER_ROW !<The solver row that the interface condition column is mapped to
-    REAL(DP) :: COUPLING_COEFFICIENT !<The coupling coefficient for the mapping.
-  END TYPE INTERFACE_COLUMN_TO_SOLVER_ROWS_MAP_TYPE
-  
   !>Contains information on the mappings from an interface condition to the solver matrices
   TYPE INTERFACE_CONDITION_TO_SOLVER_MAP_TYPE
     INTEGER(INTG) :: INTERFACE_CONDITION_INDEX !<The index of the interface condition for these mappings
     TYPE(SOLVER_MAPPING_TYPE), POINTER :: SOLVER_MAPPING !<A pointer to the solver mappings
+    TYPE(INTERFACE_CONDITION_TYPE), POINTER :: INTERFACE_CONDITION !<A pointer to the interface condition
     TYPE(INTERFACE_EQUATIONS_TYPE), POINTER :: INTERFACE_EQUATIONS !<A pointer to the interface equations in this interface condition
-    INTEGER(INTG) :: NUMBER_OF_EQUATIONS_SETS !<The number of equations sets that the interface condition affects
-    TYPE(INTERFACE_TO_SOLVER_MATRIX_MAPS_EQUATIONS_TYPE), ALLOCATABLE :: INTERFACE_TO_SOLVER_MATRIX_MAPS_EQUATIONS(:) !<INTERFACE_TO_SOLVER_MATRIX_MAPS_EQUATIONS(equations_set_idx). The equations set information of the equations_set_idx'th equations set that the interface condition affects.
-    TYPE(INTERFACE_TO_SOLVER_MATRIX_MAPS_SM_TYPE), ALLOCATABLE :: INTERFACE_TO_SOLVER_MATRIX_MAPS_SM(:) !<INTERFACE_TO_SOLVER_MATRIX_MAPS_SM(solver_matrix_idx). The mappings from the interface matrices in this interface condition to the solver_matrix_idx'th solver_matrix
-    TYPE(INTERFACE_TO_SOLVER_MATRIX_MAPS_IM_TYPE), ALLOCATABLE :: INTERFACE_TO_SOLVER_MATRIX_MAPS_IM(:) !<INTERFACE_TO_SOLVER_MATRIX_MAPS_IM(interface_matrix_idx). The mappings from the interface_matrix_idx'th interface matrix in this interface condition to the solver_matrices.
-    TYPE(INTERFACE_COLUMN_TO_SOLVER_ROWS_MAP_TYPE), ALLOCATABLE :: INTERFACE_COLUMN_TO_SOLVER_ROWS_MAPS(:) !<INTERFACE_COLUMN_TO_SOLVER_ROW_MAP(interface_column_idx). The mapping from the interface_column_idx'th interface column to a solver row.
+    TYPE(INTERFACE_TO_SOLVER_VARIABLES_MAPS_TYPE), ALLOCATABLE :: interfaceToSolverVariablesMaps(:) !<interfaceToSolverVariablesMaps(solver_matrix_idx). The mappings from the interface matrices in this interface condition to the solver_matrix_idx'th solver_matrix
+    TYPE(SOLVER_MAPPING_VARIABLE_TYPE), POINTER :: solverVariableMap !<The solver variable mapping for the Lagrange variable.
   END TYPE INTERFACE_CONDITION_TO_SOLVER_MAP_TYPE
-  
- !>Contains information about the mapping from a solver matrix column to dynamic equations matrices and variables
-  TYPE SOLVER_COL_TO_DYNAMIC_EQUATIONS_MAP_TYPE
-    INTEGER(INTG) :: NUMBER_OF_DYNAMIC_EQUATIONS_MATRICES !<The number of dynamic equations matrices the solver column is mapped to in this equations set
-    INTEGER(INTG), ALLOCATABLE :: EQUATIONS_MATRIX_NUMBERS(:) !<EQUATIONS_MATRIX_NUMBERS(i). The i'th equations matrix number in theequations that the solver column is mapped to
-    INTEGER(INTG), ALLOCATABLE :: EQUATIONS_COL_NUMBERS(:) !<EQUATIONS_COL_NUMBERS(i). The i'th equations column number in the equation set the solver column is mapped to.
-    REAL(DP), ALLOCATABLE :: COUPLING_COEFFICIENTS(:) !<COUPLING_COEFFICIENTS(i). The i'th coupling coefficient for solver column mapping
-  END TYPE SOLVER_COL_TO_DYNAMIC_EQUATIONS_MAP_TYPE
 
-  !>Contains information about the mapping from a solver matrix column to static equations matrices and variables
-  TYPE SOLVER_COL_TO_STATIC_EQUATIONS_MAP_TYPE
-    INTEGER(INTG) :: NUMBER_OF_LINEAR_EQUATIONS_MATRICES !<The number of linear equations matrices the solver column is mapped to in this equations set
-    INTEGER(INTG), ALLOCATABLE :: EQUATIONS_MATRIX_NUMBERS(:) !<EQUATIONS_MATRIX_NUMBERS(i). The i'th equations matrix number in theequations that the solver column is mapped to
-    INTEGER(INTG), ALLOCATABLE :: EQUATIONS_COL_NUMBERS(:) !<EQUATIONS_COL_NUMBERS(i). The i'th equations column number in the equation set the solver column is mapped to.
-    REAL(DP), ALLOCATABLE :: COUPLING_COEFFICIENTS(:) !<COUPLING_COEFFICIENTS(i). The i'th coupling coefficient for solver column mapping
-!!TODO: Maybe split this into a linear and a nonlinear part? The only problem is that would probably use about the same memory???
-    INTEGER(INTG) :: JACOBIAN_COL_NUMBER !<The Jacobian column number in the equations set that the solver column is mapped to.
-    REAL(DP) :: JACOBIAN_COUPLING_COEFFICIENT !<The coupling coefficient for the solver column to Jacobian column mapping.
-  END TYPE SOLVER_COL_TO_STATIC_EQUATIONS_MAP_TYPE
-
-  !>Contains information about mapping the solver dof to the field variable dofs in the equations set.
-  TYPE SOLVER_DOF_TO_VARIABLE_MAP_TYPE
-    INTEGER(INTG) :: NUMBER_OF_EQUATION_DOFS !<The number of equation dofs this solver dof is mapped to
-    INTEGER(INTG), ALLOCATABLE :: EQUATIONS_TYPES(:) !<EQUATION_TYPES(equation_idx). The type of equation of the equation_idx'th dof that the solver dof is mapped to.
-    INTEGER(INTG), ALLOCATABLE :: EQUATIONS_INDICES(:) !<EQUATIONS_INDICES(equation_idx). The index of either the equations set or interface condition of the equation_idx'th dof that this solver dof is mapped to.
-    TYPE(FIELD_VARIABLE_PTR_TYPE), ALLOCATABLE :: VARIABLE(:) !<VARIABLE(equation_idx)%PTR is a pointer to the field variable that the solver dof is mapped to in the equation_idx'th equation
-    INTEGER(INTG), ALLOCATABLE :: VARIABLE_DOF(:) !<VARIABLE_DOF(equation_idx). The variable dof number that the solver dof is mapped to in the equation_idx'th equation
-    REAL(DP), ALLOCATABLE :: VARIABLE_COEFFICIENT(:) !<VARIABLE_COEFFICIENT(equation_idx). The mulitplicative coefficient for the mapping to the equation_idx'th equations
-    REAL(DP), ALLOCATABLE :: ADDITIVE_CONSTANT(:) !<ADDITIVE_CONSTANT(equation_idx). The additive constant for the mapping to the equation_idx'th equations
-  END TYPE SOLVER_DOF_TO_VARIABLE_MAP_TYPE
-  
-  !>Contains information about the mappings from a solver matrix to the equations in an equations set
-  TYPE SOLVER_COL_TO_EQUATIONS_SET_MAP_TYPE
-    TYPE(EQUATIONS_TYPE), POINTER :: EQUATIONS !<A pointer to the equations in the equations set that these columns map to.
-    LOGICAL :: HAVE_DYNAMIC !<Is .TRUE. if there are any dynamic equations in the map.
-    LOGICAL :: HAVE_STATIC !<Is .TRUE. if there are any static equations in the map.
-    TYPE(SOLVER_COL_TO_DYNAMIC_EQUATIONS_MAP_TYPE), ALLOCATABLE :: SOLVER_COL_TO_DYNAMIC_EQUATIONS_MAPS(:) !<SOLVER_COL_TO_DYNAMIC_EQUATIONS_MAPS(col_idx). The mappings from the col_idx'th column of the solver matrix to the dynamic equations in the equations set.
-    TYPE(SOLVER_COL_TO_STATIC_EQUATIONS_MAP_TYPE), ALLOCATABLE :: SOLVER_COL_TO_STATIC_EQUATIONS_MAPS(:) !<SOLVER_COL_TO_STATIC_EQUATIONS_MAPS(col_idx). The mappings from the col_idx'th column of the solver matrix to the static equations in the equations set.
-  END TYPE SOLVER_COL_TO_EQUATIONS_SET_MAP_TYPE
-  
-  !>Contains information about the mapping from a solver matrix column to interface equations matrices and variables
-  TYPE SOLVER_COL_TO_INTERFACE_EQUATIONS_MAP_TYPE
-    INTEGER(INTG) :: NUMBER_OF_INTERFACE_MATRICES !<The number of interface matrices the solver column is mapped to in this interface condition
-    INTEGER(INTG), ALLOCATABLE :: INTERFACE_MATRIX_NUMBERS(:) !<INTERFACE_MATRIX_NUMBERS(i). The i'th interface matrix number in the interface equations that the solver column is mapped to
-    INTEGER(INTG), ALLOCATABLE :: INTERFACE_COL_NUMBERS(:) !<INTERFACE_COL_NUMBERS(i). The i'th interface interface column number in the interface condition the solver column is mapped to.
-    REAL(DP), ALLOCATABLE :: COUPLING_COEFFICIENTS(:) !<COUPLING_COEFFICIENTS(i). The i'th coupling coefficient for solver column mapping
-  END TYPE SOLVER_COL_TO_INTERFACE_EQUATIONS_MAP_TYPE
-
-  !>Contains information about the mappings from a solver matrix to the equations in an equations set
-  TYPE SOLVER_COL_TO_INTERFACE_MAP_TYPE
-    TYPE(EQUATIONS_TYPE), POINTER :: INTERFACE_EQUATIONS !<A pointer to the interface equations in the interface conditionthat these columns map to.
-    TYPE(SOLVER_COL_TO_INTERFACE_EQUATIONS_MAP_TYPE), ALLOCATABLE :: SOLVER_COL_TO_INTERFACE_EQUATIONS_MAPS(:) !<SOLVER_COL_TO_INTERFACE_EQUATIONS_MAPS(col_idx). The mappings from the col_idx'th column of the solver matrix to the interface equations in the interface condition.
-  END TYPE SOLVER_COL_TO_INTERFACE_MAP_TYPE
-  
-  !>Contains information on the mappings from a solver matrix to equations sets
-  TYPE SOLVER_COL_TO_EQUATIONS_MAPS_TYPE
-    INTEGER(INTG) :: SOLVER_MATRIX_NUMBER !<The number of this solver matrix
-    TYPE(SOLVER_MAPPING_TYPE), POINTER :: SOLVER_MAPPING !<A pointer to the solver mapping for this solver matrix mapping
-    TYPE(SOLVER_MATRIX_TYPE), POINTER :: SOLVER_MATRIX !<A pointer to the solver matrix being mappind
-    INTEGER(INTG) :: NUMBER_OF_COLUMNS !<The number of columns in this distributed solver matrix
-    TYPE(SOLVER_COL_TO_EQUATIONS_SET_MAP_TYPE), ALLOCATABLE :: SOLVER_COL_TO_EQUATIONS_SET_MAPS(:) !<SOLVER_TO_EQUATIONS_SET_MAP(equations_set_idx). The solver columns to equations matrix maps for the equations_set_idx'th equations set.
-    TYPE(SOLVER_COL_TO_INTERFACE_MAP_TYPE), ALLOCATABLE :: SOLVER_COL_TO_INTERFACE_MAPS(:) !<SOLVER_COL_TO_INTERFACE_MAPS(interface_condition_idx). The solver columns to interface matrix maps for the interface_condition_idx'th interface condition.
-    INTEGER(INTG) :: NUMBER_OF_DOFS !<The number of local dofs (excluding ghost values) in the solver vector associated with this solver matrix
-    INTEGER(INTG) :: TOTAL_NUMBER_OF_DOFS !<The number of local dofs (including ghost values) in the solver vector associated with this solver matrix
-    INTEGER(INTG) :: NUMBER_OF_GLOBAL_DOFS !<The number of global dofs in the solver vector associated with this solver matrix.
-!!TODO: should this be index by solver dof rather than column???
-    TYPE(SOLVER_DOF_TO_VARIABLE_MAP_TYPE), ALLOCATABLE :: SOLVER_DOF_TO_VARIABLE_MAPS(:) !<SOLVER_DOF_TO_EQUATIONS_MAPS(dof_idx). The mappings from the dof_idx'th solver dof to the field variables in the equations set.
-    TYPE(DOMAIN_MAPPING_TYPE), POINTER :: COLUMN_DOFS_MAPPING !<The domain mapping for solver matrix column dofs
-  END TYPE SOLVER_COL_TO_EQUATIONS_MAPS_TYPE
-
-  !>Contains information on the mappings from a solver row to the equations.
-  TYPE SOLVER_ROW_TO_EQUATIONS_MAPS_TYPE
-    INTEGER(INTG) :: NUMBER_OF_EQUATIONS_SET_ROWS !<The number of equations set rows the solver row is mapped to. If the rows are interface rows then this will be zero.
-    INTEGER(INTG) :: INTERFACE_CONDITION_INDEX !<The interface condition index that the solver row is mapped to. If the rows are from an equations set then this will be zero.
-    INTEGER(INTG), ALLOCATABLE :: EQUATIONS_INDEX(:) !<EQUATIONS_INDEX(i). If the rows are equations set rows then this is the index of the equations set that the i'th equations set row belongs to. If the rows are interface rows this will not be allocated.
-    INTEGER(INTG), ALLOCATABLE :: ROWCOL_NUMBER(:) !<ROWCOL_NUMBER(i). If the rows are equations set rows the i'th equations row number that the solver row is mapped to. If the rows are interface rows then the i'th column number that the solver row is mapped to.
-    REAL(DP), ALLOCATABLE :: COUPLING_COEFFICIENTS(:) !<COUPLING_COEFFICIENTS(i). The i'th coupling coefficient for the solver row to equations mapping
-  END TYPE SOLVER_ROW_TO_EQUATIONS_MAPS_TYPE
-
-  !>Contains information about the cached create values for a solver mapping
   TYPE SOLVER_MAPPING_CREATE_VALUES_CACHE_TYPE
-    TYPE(LIST_PTR_TYPE), POINTER :: EQUATIONS_VARIABLE_LIST(:) !<EQUATIONS_VARIABLES_LIST(solver_matrix_idx). The list of equations set variables in the solver mapping.
-    INTEGER, ALLOCATABLE :: DYNAMIC_VARIABLE_TYPE(:) !<DYNAMIC_VARIABLE_TYPE(equations_set_idx). The variable type that is mapped to the dynamic matrices for the equations_set_idx'th equations set.
-    INTEGER(INTG), ALLOCATABLE :: MATRIX_VARIABLE_TYPES(:,:,:) !<MATRIX_VARIABLE_TYPES(0:..,equations_set_idx,matrix_idx). The list of matrix variable types in the equations_set_idx'th equations set for the matrix_idx'th solver matrix. MATRIX_VARIABLE_TYPES(0,equations_set_idx,matrix_idx) is the number of variable types in the equations_set_idx'th equations set mapped to the matrix_idx'th solver matrix and MATRIX_VARIABLE_TYPES(1..,equations_set_idx,matrix_idx) is the list of the variable types in the equations set.
-    INTEGER(INTG), ALLOCATABLE :: RESIDUAL_VARIABLE_TYPES(:,:) !<RESIDUAL_VARIABLE_TYPES(0:..,equations_set_idx). The list of residual variable types in the equations_set_idx'th equations set. RESIDUAL_VARIABLE_TYPES(0,equations_set_idx) is the number of variable types in the equations_set_idx'th equations set and RESIDUAL_VARIABLE_TYPES(1..,equations_set_idx) is the list of the variable types in the equations set.
-    INTEGER(INTG), ALLOCATABLE :: RHS_VARIABLE_TYPE(:) !<RHS_VARIABLE_TYPE(equations_set_idx). The variable type that is mapped to the solution RHS for the equations_set_idx'th equations set
-    INTEGER, ALLOCATABLE :: SOURCE_VARIABLE_TYPE(:) !<SOURCE_VARIABLE_TYPE(equations_set_idx). The source variable type that is mapped to the RHS for the equations_set_idx'th equations set.
-    TYPE(LIST_PTR_TYPE), POINTER :: INTERFACE_VARIABLE_LIST(:) !<INTERFACE_VARIABLES_LIST(solver_matrix_idx). The list of interface condition variables in the solver mapping for the solver_matrix idx'th solver matrix.
-    TYPE(LIST_PTR_TYPE), POINTER :: INTERFACE_INDICES(:) !<INTERFACE_INDICES(equations_set_idx). The list of interface condition indices in the equations_set_idx'th equations set.
+    INTEGER(INTG) :: NUMBER_OF_EQUATIONS_SETS !<The number of equations sets in the solution mapping.
+    TYPE(EQUATIONS_SET_PTR_TYPE), ALLOCATABLE :: EQUATIONS_SETS(:) !<The list of equations sets that are in this solution mapping
+    INTEGER(INTG) :: NUMBER_OF_INTERFACE_CONDITIONS !<The number of interface conditions in the solution mapping.
+    TYPE(INTERFACE_CONDITION_PTR_TYPE), ALLOCATABLE :: INTERFACE_CONDITIONS(:) !<The list of interface conditions that are in this
   END TYPE SOLVER_MAPPING_CREATE_VALUES_CACHE_TYPE
-
-  TYPE SOLVER_MAPPING_VARIABLE_TYPE
-    TYPE(FIELD_VARIABLE_TYPE), POINTER :: VARIABLE
-    INTEGER(INTG) :: VARIABLE_TYPE
-    INTEGER(INTG) :: NUMBER_OF_EQUATIONS
-    INTEGER(INTG), ALLOCATABLE :: EQUATION_TYPES(:)
-    INTEGER(INTG), ALLOCATABLE :: EQUATION_INDICES(:)
-  END TYPE SOLVER_MAPPING_VARIABLE_TYPE
-
-  !>Contains information on the variables involved in a solver matrix
-  TYPE SOLVER_MAPPING_VARIABLES_TYPE
-    INTEGER(INTG) :: NUMBER_OF_VARIABLES !<The number of variables involved in the solver matrix.
-    TYPE(SOLVER_MAPPING_VARIABLE_TYPE), ALLOCATABLE :: VARIABLES(:) !<VARIABLES(variable_idx). The variable information for the variable_idx'th variable involved in the solver matrix.
-  END TYPE SOLVER_MAPPING_VARIABLES_TYPE
-
-  !>Describes the coupled rows or columns in the solver mapping
-  TYPE SolverMappingDofCouplingsType
-    INTEGER(INTG) :: numberOfCouplings !<The number of couplings in the list.
-    INTEGER(INTG) :: capacity !<The allocated length of the couplings array.
-    TYPE(BoundaryConditionsCoupledDofsPtrType), ALLOCATABLE :: dofCouplings(:) !<dofCouplings(couplingIdx) is a pointer to the coupled DOF information for the couplingIdx'th coupling in the solver rows or columns.
-  END TYPE SolverMappingDofCouplingsType
 
   !>Contains information on the solver mapping between the global equation sets and the solver matrices.
   TYPE SOLVER_MAPPING_TYPE
     TYPE(SOLVER_EQUATIONS_TYPE), POINTER :: SOLVER_EQUATIONS !<A pointer to the solver equations for this mapping.
     LOGICAL :: SOLVER_MAPPING_FINISHED !<Is .TRUE. if the solution mapping has finished being created, .FALSE. if not.
-    INTEGER(INTG) :: NUMBER_OF_SOLVER_MATRICES !<The number of solution matrices in this mapping.
-    INTEGER(INTG) :: NUMBER_OF_ROWS !<The number of (local) rows in the solver matrices
-    INTEGER(INTG) :: NUMBER_OF_GLOBAL_ROWS !<The number of global rows in the solver matrices
+    INTEGER(INTG) :: NUMBER_OF_SOLVER_MATRICES !<The number of solver matrices in this mapping.
+    INTEGER(INTG) :: NUMBER_OF_DOFS !<The number of local (excluding ghost) row/column dofs in the solver matrices
+    INTEGER(INTG) :: TOTAL_NUMBER_OF_DOFS !<The number of local (including ghost) row/column dofs in the solver matrices
+    INTEGER(INTG) :: NUMBER_OF_GLOBAL_DOFS !<The number of global row/column dofs in the solver matrices
+    TYPE(DOMAIN_MAPPING_TYPE), POINTER :: DOFS_MAPPING !<The domain mapping for the solver rows/columns.
     INTEGER(INTG) :: NUMBER_OF_EQUATIONS_SETS !<The number of equations sets in the solution mapping.
-    TYPE(EQUATIONS_SET_PTR_TYPE), ALLOCATABLE :: EQUATIONS_SETS(:) !<The list of equations sets that are in this solution mapping
     TYPE(EQUATIONS_SET_TO_SOLVER_MAP_TYPE), ALLOCATABLE :: EQUATIONS_SET_TO_SOLVER_MAP(:) !<EQUATIONS_SET_TO_SOLVER_MAP(equations_set_idx). The mapping from the equations_set_idx'th equations set to the solver matrices.
     INTEGER(INTG) :: NUMBER_OF_INTERFACE_CONDITIONS !<The number of interface conditions in the solution mapping.
-    TYPE(INTERFACE_CONDITION_PTR_TYPE), ALLOCATABLE :: INTERFACE_CONDITIONS(:) !<The list of interface conditions that are in this
     TYPE(INTERFACE_CONDITION_TO_SOLVER_MAP_TYPE), ALLOCATABLE :: INTERFACE_CONDITION_TO_SOLVER_MAP(:) !<INTERFACE_CONDITION_TO_SOLVER_MAP(interface_condition_idx). The mapping from the interface_condition_idx'th interface condition to the solver matrices.
-    TYPE(SOLVER_MAPPING_VARIABLES_TYPE), ALLOCATABLE :: VARIABLES_LIST(:) !<VARIABLES_LIST(solver_matrix_idx). The list of variable for the solver_matrix_idx'th solver matrix.
-    TYPE(SOLVER_COL_TO_EQUATIONS_MAPS_TYPE), ALLOCATABLE :: SOLVER_COL_TO_EQUATIONS_COLS_MAP(:) !<SOLVER_TO_EQUATIONS_SET_MAP(solver_matrix_idx). The mapping from the solver_matrix_idx'th solver matrix to the equations set. 
-    TYPE(SOLVER_ROW_TO_EQUATIONS_MAPS_TYPE), ALLOCATABLE :: SOLVER_ROW_TO_EQUATIONS_ROWS_MAP(:) !<SOLVER_ROW_TO_EQUATIONS_SET_MAPS(local_row_idx). The mappings from the local_row_idx'th solver row to the equations set rows.
-    !LOGICAL :: HAVE_JACOBIAN !<Is .TRUE. if the Jacobian exists for nonlinear problems.
-    TYPE(DOMAIN_MAPPING_TYPE), POINTER :: ROW_DOFS_MAPPING !<The domain mapping for the solver rows.
-    TYPE(SOlVER_MAPPING_CREATE_VALUES_CACHE_TYPE), POINTER :: CREATE_VALUES_CACHE !<The create values cache for the solver mapping
+    INTEGER(INTG) :: NUMBER_OF_VARIABLES !<The number of variables involved in the solver matrices.
+    TYPE(SOLVER_MAPPING_VARIABLE_TYPE), ALLOCATABLE :: VARIABLES(:) !<VARIABLES(variable_idx). The variable information for the variable_idx'th variable involved in the solver matrices.
+    TYPE(SOLVER_MAPPING_CREATE_VALUES_CACHE_TYPE), POINTER :: CREATE_VALUES_CACHE !<The create values cache.
   END TYPE SOLVER_MAPPING_TYPE
 
   !

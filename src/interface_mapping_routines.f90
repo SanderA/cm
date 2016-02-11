@@ -136,16 +136,9 @@ CONTAINS
                 INTERFACE_MAPPING%NUMBER_OF_GLOBAL_COLUMNS=LAGRANGE_VARIABLE%NUMBER_OF_GLOBAL_DOFS
                 !Set the column dofs mapping
                 INTERFACE_MAPPING%COLUMN_DOFS_MAPPING=>LAGRANGE_VARIABLE%DOMAIN_MAPPING
-                ALLOCATE(INTERFACE_MAPPING%LAGRANGE_DOF_TO_COLUMN_MAP(LAGRANGE_VARIABLE%TOTAL_NUMBER_OF_DOFS),STAT=ERR)
-                IF(ERR/=0) CALL FlagError("Could not allocate Lagrange dof to column map.",ERR,ERROR,*999)
-                !1-1 mapping for now
-                DO dof_idx=1,LAGRANGE_VARIABLE%TOTAL_NUMBER_OF_DOFS
-                  column_idx=LAGRANGE_VARIABLE%DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(dof_idx)
-                  INTERFACE_MAPPING%LAGRANGE_DOF_TO_COLUMN_MAP(dof_idx)=column_idx
-                ENDDO
                 !Set the number of interface matrices
                 INTERFACE_MAPPING%NUMBER_OF_INTERFACE_MATRICES=CREATE_VALUES_CACHE%NUMBER_OF_INTERFACE_MATRICES
-                ALLOCATE(INTERFACE_MAPPING%INTERFACE_MATRIX_ROWS_TO_VAR_MAPS(INTERFACE_MAPPING%NUMBER_OF_INTERFACE_MATRICES), &
+                ALLOCATE(INTERFACE_MAPPING%INTERFACE_MATRIX_TO_VAR_MAPS(INTERFACE_MAPPING%NUMBER_OF_INTERFACE_MATRICES), &
                   & STAT=ERR)
                 IF(ERR/=0) CALL FlagError("Could not allocate interface matrix rows to variable maps.",ERR,ERROR,*999)
                 !Loop over the interface matrices and calculate the row mappings
@@ -165,37 +158,30 @@ CONTAINS
                   NULLIFY(FIELD_VARIABLE)
                   DO variable_idx=1,INTERFACE_DEPENDENT%NUMBER_OF_DEPENDENT_VARIABLES
                     IF(INTERFACE_DEPENDENT%VARIABLE_MESH_INDICES(variable_idx)==mesh_idx) THEN
-                      EQUATIONS_SET=>INTERFACE_DEPENDENT%EQUATIONS_SETS(variable_idx)%PTR
+                      EQUATIONS_SET=>INTERFACE_CONDITION%EQUATIONS_SETS(variable_idx)%PTR
                       FIELD_VARIABLE=>INTERFACE_DEPENDENT%FIELD_VARIABLES(variable_idx)%PTR
                       EXIT
                     ENDIF
                   ENDDO !variable_idx
                   IF(ASSOCIATED(EQUATIONS_SET)) THEN
                     IF(ASSOCIATED(FIELD_VARIABLE)) THEN
-                      INTERFACE_MAPPING%INTERFACE_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%EQUATIONS_SET=>EQUATIONS_SET
-                      INTERFACE_MAPPING%INTERFACE_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%VARIABLE_TYPE=FIELD_VARIABLE%VARIABLE_TYPE
-                      INTERFACE_MAPPING%INTERFACE_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%VARIABLE=>FIELD_VARIABLE
-                      INTERFACE_MAPPING%INTERFACE_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%MESH_INDEX=mesh_idx
-                      INTERFACE_MAPPING%INTERFACE_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%MATRIX_COEFFICIENT=INTERFACE_MAPPING% &
+                      INTERFACE_MAPPING%INTERFACE_MATRIX_TO_VAR_MAPS(matrix_idx)%EQUATIONS_SET=>EQUATIONS_SET
+                      INTERFACE_MAPPING%INTERFACE_MATRIX_TO_VAR_MAPS(matrix_idx)%VARIABLE_TYPE=FIELD_VARIABLE%VARIABLE_TYPE
+                      INTERFACE_MAPPING%INTERFACE_MATRIX_TO_VAR_MAPS(matrix_idx)%VARIABLE=>FIELD_VARIABLE
+                      INTERFACE_MAPPING%INTERFACE_MATRIX_TO_VAR_MAPS(matrix_idx)%MESH_INDEX=mesh_idx
+                      INTERFACE_MAPPING%INTERFACE_MATRIX_TO_VAR_MAPS(matrix_idx)%MATRIX_COEFFICIENT=INTERFACE_MAPPING% &
                         & CREATE_VALUES_CACHE%MATRIX_COEFFICIENTS(matrix_idx)
-                      INTERFACE_MAPPING%INTERFACE_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%HAS_TRANSPOSE=INTERFACE_MAPPING% &
+                      INTERFACE_MAPPING%INTERFACE_MATRIX_TO_VAR_MAPS(matrix_idx)%HAS_TRANSPOSE=INTERFACE_MAPPING% &
                         & CREATE_VALUES_CACHE%HAS_TRANSPOSE(matrix_idx)
                        !Set the number of rows
-                      INTERFACE_MAPPING%INTERFACE_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%NUMBER_OF_ROWS=FIELD_VARIABLE%NUMBER_OF_DOFS
-                      INTERFACE_MAPPING%INTERFACE_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%TOTAL_NUMBER_OF_ROWS= &
+                      INTERFACE_MAPPING%INTERFACE_MATRIX_TO_VAR_MAPS(matrix_idx)%NUMBER_OF_ROWS=FIELD_VARIABLE%NUMBER_OF_DOFS
+                      INTERFACE_MAPPING%INTERFACE_MATRIX_TO_VAR_MAPS(matrix_idx)%TOTAL_NUMBER_OF_ROWS= &
                         & FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS
-                      INTERFACE_MAPPING%INTERFACE_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%NUMBER_OF_GLOBAL_ROWS= &
+                      INTERFACE_MAPPING%INTERFACE_MATRIX_TO_VAR_MAPS(matrix_idx)%NUMBER_OF_GLOBAL_ROWS= &
                         & FIELD_VARIABLE%NUMBER_OF_GLOBAL_DOFS
                       !Set the row mapping
-                      INTERFACE_MAPPING%INTERFACE_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%ROW_DOFS_MAPPING=> &
+                      INTERFACE_MAPPING%INTERFACE_MATRIX_TO_VAR_MAPS(matrix_idx)%ROW_DOFS_MAPPING=> &
                         & FIELD_VARIABLE%DOMAIN_MAPPING
-                      ALLOCATE(INTERFACE_MAPPING%INTERFACE_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%VARIABLE_DOF_TO_ROW_MAP( &
-                        & FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS),STAT=ERR)
-                      IF(ERR/=0) CALL FlagError("Could not allocate variable dof to row map.",ERR,ERROR,*999)
-                      !1-1 mapping for now
-                      DO dof_idx=1,FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS
-                        INTERFACE_MAPPING%INTERFACE_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%VARIABLE_DOF_TO_ROW_MAP(dof_idx)=dof_idx
-                      ENDDO !dof_idx
                     ELSE
                       LOCAL_ERROR="Dependent variable for mesh index "//TRIM(NUMBER_TO_VSTRING(mesh_idx,"*",ERR,ERROR))// &
                         & " could not be found."
@@ -225,30 +211,23 @@ CONTAINS
                   INTERFACE_EQUATIONS=>INTERFACE_CONDITION%INTERFACE_EQUATIONS
                   IF(ASSOCIATED(INTERFACE_EQUATIONS)) THEN
                     IF(ASSOCIATED(FIELD_VARIABLE)) THEN
-                      INTERFACE_MAPPING%INTERFACE_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%INTERFACE_EQUATIONS=>INTERFACE_EQUATIONS
-                      INTERFACE_MAPPING%INTERFACE_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%VARIABLE_TYPE=FIELD_VARIABLE%VARIABLE_TYPE
-                      INTERFACE_MAPPING%INTERFACE_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%VARIABLE=>FIELD_VARIABLE
-                      INTERFACE_MAPPING%INTERFACE_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%MESH_INDEX=mesh_idx
-                      INTERFACE_MAPPING%INTERFACE_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%MATRIX_COEFFICIENT=INTERFACE_MAPPING% &
+                      INTERFACE_MAPPING%INTERFACE_MATRIX_TO_VAR_MAPS(matrix_idx)%INTERFACE_EQUATIONS=>INTERFACE_EQUATIONS
+                      INTERFACE_MAPPING%INTERFACE_MATRIX_TO_VAR_MAPS(matrix_idx)%VARIABLE_TYPE=FIELD_VARIABLE%VARIABLE_TYPE
+                      INTERFACE_MAPPING%INTERFACE_MATRIX_TO_VAR_MAPS(matrix_idx)%VARIABLE=>FIELD_VARIABLE
+                      INTERFACE_MAPPING%INTERFACE_MATRIX_TO_VAR_MAPS(matrix_idx)%MESH_INDEX=mesh_idx
+                      INTERFACE_MAPPING%INTERFACE_MATRIX_TO_VAR_MAPS(matrix_idx)%MATRIX_COEFFICIENT=INTERFACE_MAPPING% &
                         & CREATE_VALUES_CACHE%MATRIX_COEFFICIENTS(matrix_idx)
-                      INTERFACE_MAPPING%INTERFACE_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%HAS_TRANSPOSE=INTERFACE_MAPPING% &
+                      INTERFACE_MAPPING%INTERFACE_MATRIX_TO_VAR_MAPS(matrix_idx)%HAS_TRANSPOSE=INTERFACE_MAPPING% &
                         & CREATE_VALUES_CACHE%HAS_TRANSPOSE(matrix_idx)
                         !Set the number of rows
-                      INTERFACE_MAPPING%INTERFACE_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%NUMBER_OF_ROWS=FIELD_VARIABLE%NUMBER_OF_DOFS
-                      INTERFACE_MAPPING%INTERFACE_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%TOTAL_NUMBER_OF_ROWS= &
+                      INTERFACE_MAPPING%INTERFACE_MATRIX_TO_VAR_MAPS(matrix_idx)%NUMBER_OF_ROWS=FIELD_VARIABLE%NUMBER_OF_DOFS
+                      INTERFACE_MAPPING%INTERFACE_MATRIX_TO_VAR_MAPS(matrix_idx)%TOTAL_NUMBER_OF_ROWS= &
                         & FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS
-                      INTERFACE_MAPPING%INTERFACE_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%NUMBER_OF_GLOBAL_ROWS= &
+                      INTERFACE_MAPPING%INTERFACE_MATRIX_TO_VAR_MAPS(matrix_idx)%NUMBER_OF_GLOBAL_ROWS= &
                         & FIELD_VARIABLE%NUMBER_OF_GLOBAL_DOFS
                       !Set the row mapping
-                      INTERFACE_MAPPING%INTERFACE_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%ROW_DOFS_MAPPING=> &
+                      INTERFACE_MAPPING%INTERFACE_MATRIX_TO_VAR_MAPS(matrix_idx)%ROW_DOFS_MAPPING=> &
                         & FIELD_VARIABLE%DOMAIN_MAPPING
-                      ALLOCATE(INTERFACE_MAPPING%INTERFACE_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%VARIABLE_DOF_TO_ROW_MAP( &
-                        & FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS),STAT=ERR)
-                      IF(ERR/=0) CALL FlagError("Could not allocate variable dof to row map.",ERR,ERROR,*999)
-                      !1-1 mapping for now
-                      DO dof_idx=1,FIELD_VARIABLE%TOTAL_NUMBER_OF_DOFS
-                        INTERFACE_MAPPING%INTERFACE_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%VARIABLE_DOF_TO_ROW_MAP(dof_idx)=dof_idx
-                      ENDDO !dof_idx
                     ELSE
                       LOCAL_ERROR="Lagrange variable for mesh index "//TRIM(NUMBER_TO_VSTRING(mesh_idx,"*",ERR,ERROR))// &
                         & " could not be found."
@@ -271,21 +250,6 @@ CONTAINS
                     RHS_MAPPING%RHS_VARIABLE=>LAGRANGE_VARIABLE
                     RHS_MAPPING%RHS_VARIABLE_MAPPING=>LAGRANGE_VARIABLE%DOMAIN_MAPPING
                     RHS_MAPPING%RHS_COEFFICIENT=CREATE_VALUES_CACHE%RHS_COEFFICIENT
-                    !Allocate and set up the row mappings
-                    ALLOCATE(RHS_MAPPING%RHS_DOF_TO_INTERFACE_ROW_MAP(LAGRANGE_VARIABLE%TOTAL_NUMBER_OF_DOFS),STAT=ERR)
-                    IF(ERR/=0) CALL FlagError("Could not allocate rhs dof to interface row map.",ERR,ERROR,*999)
-                    ALLOCATE(RHS_MAPPING%INTERFACE_ROW_TO_RHS_DOF_MAP(INTERFACE_MAPPING%TOTAL_NUMBER_OF_COLUMNS),STAT=ERR)
-                    IF(ERR/=0) CALL FlagError("Could not allocate interface row to dof map.",ERR,ERROR,*999)
-                    DO dof_idx=1,LAGRANGE_VARIABLE%TOTAL_NUMBER_OF_DOFS
-                      !1-1 mapping for now
-                      column_idx=dof_idx
-                      RHS_MAPPING%RHS_DOF_TO_INTERFACE_ROW_MAP(dof_idx)=column_idx
-                    ENDDO !dof_idx
-                    DO column_idx=1,INTERFACE_MAPPING%TOTAL_NUMBER_OF_COLUMNS
-                      !1-1 mapping for now
-                      dof_idx=column_idx
-                      RHS_MAPPING%INTERFACE_ROW_TO_RHS_DOF_MAP(column_idx)=dof_idx
-                    ENDDO !column_idx
                   ELSE
                     CALL FlagError("RHS mapping is not associated.",ERR,ERROR,*999)
                   ENDIF
@@ -617,13 +581,8 @@ CONTAINS
     ENTERS("INTERFACE_MAPPING_FINALISE",ERR,ERROR,*999)
 
     IF(ASSOCIATED(INTERFACE_MAPPING)) THEN
-      IF(ALLOCATED(INTERFACE_MAPPING%LAGRANGE_DOF_TO_COLUMN_MAP)) DEALLOCATE(INTERFACE_MAPPING%LAGRANGE_DOF_TO_COLUMN_MAP)
-      IF(ALLOCATED(INTERFACE_MAPPING%INTERFACE_MATRIX_ROWS_TO_VAR_MAPS)) THEN
-        DO matrix_idx=1,SIZE(INTERFACE_MAPPING%INTERFACE_MATRIX_ROWS_TO_VAR_MAPS,1)
-          CALL InterfaceMapping_MatrixToVarMapFinalise(INTERFACE_MAPPING%INTERFACE_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx), &
-            & ERR,ERROR,*999)
-        ENDDO !matrix_idx
-        DEALLOCATE(INTERFACE_MAPPING%INTERFACE_MATRIX_ROWS_TO_VAR_MAPS)
+      IF(ALLOCATED(INTERFACE_MAPPING%INTERFACE_MATRIX_TO_VAR_MAPS)) THEN
+        DEALLOCATE(INTERFACE_MAPPING%INTERFACE_MATRIX_TO_VAR_MAPS)
       ENDIF
       CALL INTERFACE_MAPPING_RHS_MAPPING_FINALISE(INTERFACE_MAPPING%RHS_MAPPING,ERR,ERROR,*999)
       CALL InterfaceMapping_CreateValuesCacheFinalise(INTERFACE_MAPPING%CREATE_VALUES_CACHE,ERR,ERROR,*999)
@@ -767,31 +726,6 @@ CONTAINS
   !================================================================================================================================
   !
 
-  !>Finalises an interface matrix to variable map and deallocates all memory.
-  SUBROUTINE InterfaceMapping_MatrixToVarMapFinalise(INTERFACE_MATRIX_TO_VAR_MAP,ERR,ERROR,*)
-
-    !Argument variables
-    TYPE(INTERFACE_MATRIX_TO_VAR_MAP_TYPE) :: INTERFACE_MATRIX_TO_VAR_MAP !<The interface matrix to var map to finalise
-    INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
-    TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
-    !Local Variables
-  
-    ENTERS("InterfaceMapping_MatrixToVarMapFinalise",ERR,ERROR,*999)
-
-    IF(ALLOCATED(INTERFACE_MATRIX_TO_VAR_MAP%VARIABLE_DOF_TO_ROW_MAP)) &
-      & DEALLOCATE(INTERFACE_MATRIX_TO_VAR_MAP%VARIABLE_DOF_TO_ROW_MAP)
-    
-    EXITS("InterfaceMapping_MatrixToVarMapFinalise")
-    RETURN
-999 ERRORSEXITS("InterfaceMapping_MatrixToVarMapFinalise",ERR,ERROR)
-    RETURN 1
-    
-  END SUBROUTINE InterfaceMapping_MatrixToVarMapFinalise
-
-  !
-  !================================================================================================================================
-  !
-
   !>Initialises an interface matrix to variable map.
   SUBROUTINE InterfaceMapping_MatrixToVarMapInitialise(INTERFACE_MAPPING,matrix_idx,ERR,ERROR,*)
 
@@ -806,20 +740,20 @@ CONTAINS
     ENTERS("InterfaceMapping_MatrixToVarMapInitialise",ERR,ERROR,*999)
 
     IF(ASSOCIATED(INTERFACE_MAPPING)) THEN
-      IF(ALLOCATED(INTERFACE_MAPPING%INTERFACE_MATRIX_ROWS_TO_VAR_MAPS)) THEN
+      IF(ALLOCATED(INTERFACE_MAPPING%INTERFACE_MATRIX_TO_VAR_MAPS)) THEN
         IF(matrix_idx>0.AND.matrix_idx<=INTERFACE_MAPPING%NUMBER_OF_INTERFACE_MATRICES) THEN
-          INTERFACE_MAPPING%INTERFACE_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%MATRIX_NUMBER=matrix_idx
-          NULLIFY(INTERFACE_MAPPING%INTERFACE_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%INTERFACE_MATRIX)
-          NULLIFY(INTERFACE_MAPPING%INTERFACE_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%EQUATIONS_SET)
-          INTERFACE_MAPPING%INTERFACE_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%VARIABLE_TYPE=0
-          NULLIFY(INTERFACE_MAPPING%INTERFACE_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%VARIABLE)
-          INTERFACE_MAPPING%INTERFACE_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%MESH_INDEX=0
-          INTERFACE_MAPPING%INTERFACE_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%MATRIX_COEFFICIENT=0.0_DP
-          INTERFACE_MAPPING%INTERFACE_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%HAS_TRANSPOSE=.FALSE.
-          INTERFACE_MAPPING%INTERFACE_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%NUMBER_OF_ROWS=0
-          INTERFACE_MAPPING%INTERFACE_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%TOTAL_NUMBER_OF_ROWS=0
-          INTERFACE_MAPPING%INTERFACE_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%NUMBER_OF_GLOBAL_ROWS=0
-          NULLIFY(INTERFACE_MAPPING%INTERFACE_MATRIX_ROWS_TO_VAR_MAPS(matrix_idx)%ROW_DOFS_MAPPING)          
+          INTERFACE_MAPPING%INTERFACE_MATRIX_TO_VAR_MAPS(matrix_idx)%MATRIX_NUMBER=matrix_idx
+          NULLIFY(INTERFACE_MAPPING%INTERFACE_MATRIX_TO_VAR_MAPS(matrix_idx)%INTERFACE_MATRIX)
+          NULLIFY(INTERFACE_MAPPING%INTERFACE_MATRIX_TO_VAR_MAPS(matrix_idx)%EQUATIONS_SET)
+          INTERFACE_MAPPING%INTERFACE_MATRIX_TO_VAR_MAPS(matrix_idx)%VARIABLE_TYPE=0
+          NULLIFY(INTERFACE_MAPPING%INTERFACE_MATRIX_TO_VAR_MAPS(matrix_idx)%VARIABLE)
+          INTERFACE_MAPPING%INTERFACE_MATRIX_TO_VAR_MAPS(matrix_idx)%MESH_INDEX=0
+          INTERFACE_MAPPING%INTERFACE_MATRIX_TO_VAR_MAPS(matrix_idx)%MATRIX_COEFFICIENT=0.0_DP
+          INTERFACE_MAPPING%INTERFACE_MATRIX_TO_VAR_MAPS(matrix_idx)%HAS_TRANSPOSE=.FALSE.
+          INTERFACE_MAPPING%INTERFACE_MATRIX_TO_VAR_MAPS(matrix_idx)%NUMBER_OF_ROWS=0
+          INTERFACE_MAPPING%INTERFACE_MATRIX_TO_VAR_MAPS(matrix_idx)%TOTAL_NUMBER_OF_ROWS=0
+          INTERFACE_MAPPING%INTERFACE_MATRIX_TO_VAR_MAPS(matrix_idx)%NUMBER_OF_GLOBAL_ROWS=0
+          NULLIFY(INTERFACE_MAPPING%INTERFACE_MATRIX_TO_VAR_MAPS(matrix_idx)%ROW_DOFS_MAPPING)          
         ELSE
           LOCAL_ERROR="The specified matrix index of "//TRIM(NUMBER_TO_VSTRING(matrix_idx,"*",ERR,ERROR))// &
             & " is invalid. The index must be > 0 and <= "// &
@@ -1389,8 +1323,6 @@ CONTAINS
     ENTERS("INTERFACE_MAPPING_RHS_MAPPING_FINALISE",ERR,ERROR,*999)
 
     IF(ASSOCIATED(RHS_MAPPING)) THEN
-      IF(ALLOCATED(RHS_MAPPING%RHS_DOF_TO_INTERFACE_ROW_MAP)) DEALLOCATE(RHS_MAPPING%RHS_DOF_TO_INTERFACE_ROW_MAP)
-      IF(ALLOCATED(RHS_MAPPING%INTERFACE_ROW_TO_RHS_DOF_MAP)) DEALLOCATE(RHS_MAPPING%INTERFACE_ROW_TO_RHS_DOF_MAP)
       DEALLOCATE(RHS_MAPPING)
     ENDIF
        

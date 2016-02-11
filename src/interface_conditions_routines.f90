@@ -72,7 +72,7 @@ MODULE INTERFACE_CONDITIONS_ROUTINES
 
   PUBLIC INTERFACE_CONDITION_CREATE_FINISH,INTERFACE_CONDITION_CREATE_START
 
-  PUBLIC INTERFACE_CONDITION_DEPENDENT_VARIABLE_ADD
+  PUBLIC INTERFACE_CONDITION_EQUATIONS_SET_ADD
 
   PUBLIC INTERFACE_CONDITION_DESTROY
 
@@ -159,10 +159,9 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
     !Local Variables
-    INTEGER(INTG) :: element_idx,ne,NUMBER_OF_TIMES
+    INTEGER(INTG) :: element_idx
     REAL(SP) :: ELEMENT_USER_ELAPSED,ELEMENT_SYSTEM_ELAPSED,USER_ELAPSED,USER_TIME1(1),USER_TIME2(1),USER_TIME3(1),USER_TIME4(1), &
-      & USER_TIME5(1),USER_TIME6(1),SYSTEM_ELAPSED,SYSTEM_TIME1(1),SYSTEM_TIME2(1),SYSTEM_TIME3(1),SYSTEM_TIME4(1), &
-      & SYSTEM_TIME5(1),SYSTEM_TIME6(1)
+      & SYSTEM_ELAPSED,SYSTEM_TIME1(1),SYSTEM_TIME2(1),SYSTEM_TIME3(1),SYSTEM_TIME4(1)
     TYPE(DOMAIN_MAPPING_TYPE), POINTER :: ELEMENTS_MAPPING
     TYPE(INTERFACE_EQUATIONS_TYPE), POINTER :: INTERFACE_EQUATIONS
     TYPE(INTERFACE_MATRICES_TYPE), POINTER :: INTERFACE_MATRICES
@@ -220,29 +219,26 @@ CONTAINS
                 ELEMENT_USER_ELAPSED=0.0_SP
                 ELEMENT_SYSTEM_ELAPSED=0.0_SP
               ENDIF
-              NUMBER_OF_TIMES=0
-              !Loop over the internal elements
+              !Loop over the local+ghost elements
 
 #ifdef TAUPROF
-              CALL TAU_STATIC_PHASE_START("Internal Elements Loop")
+              CALL TAU_STATIC_PHASE_START("Local+ghost Elements Loop")
 #endif
-              DO element_idx=ELEMENTS_MAPPING%INTERNAL_START,ELEMENTS_MAPPING%INTERNAL_FINISH
+              DO element_idx=1,ELEMENTS_MAPPING%TOTAL_NUMBER_OF_LOCAL
 !#ifdef TAUPROF
-!              WRITE (CVAR,'(a23,i3)') 'Internal Elements Loop ',element_idx
+!              WRITE (CVAR,'(a23,i3)') 'Local+ghost Elements Loop ',element_idx
 !              CALL TAU_PHASE_CREATE_DYNAMIC(PHASE,CVAR)
 !              CALL TAU_PHASE_START(PHASE)
 !#endif
-                ne=ELEMENTS_MAPPING%DOMAIN_LIST(element_idx)
-                NUMBER_OF_TIMES=NUMBER_OF_TIMES+1
-                CALL InterfaceMatrices_ElementCalculate(INTERFACE_MATRICES,ne,ERR,ERROR,*999)
-                CALL InterfaceCondition_FiniteElementCalculate(INTERFACE_CONDITION,ne,ERR,ERROR,*999)
+                CALL InterfaceMatrices_ElementCalculate(INTERFACE_MATRICES,element_idx,ERR,ERROR,*999)
+                CALL InterfaceCondition_FiniteElementCalculate(INTERFACE_CONDITION,element_idx,ERR,ERROR,*999)
                 CALL INTERFACE_MATRICES_ELEMENT_ADD(INTERFACE_MATRICES,ERR,ERROR,*999)
 !#ifdef TAUPROF
 !              CALL TAU_PHASE_STOP(PHASE)
 !#endif
               ENDDO !element_idx
 #ifdef TAUPROF
-              CALL TAU_STATIC_PHASE_STOP("Internal Elements Loop")
+              CALL TAU_STATIC_PHASE_STOP("Local+ghost Elements Loop")
 #endif
 
               !Output timing information if required
@@ -253,54 +249,14 @@ CONTAINS
                 SYSTEM_ELAPSED=SYSTEM_TIME3(1)-SYSTEM_TIME2(1)
                 ELEMENT_USER_ELAPSED=USER_ELAPSED
                 ELEMENT_SYSTEM_ELAPSED=SYSTEM_ELAPSED
-                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for internal interface equations assembly = ", &
-                  & USER_ELAPSED, ERR,ERROR,*999)
-                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for internal interface equations assembly = ", &
+                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for interface equations assembly = ", &
+                  & USER_ELAPSED,ERR,ERROR,*999)
+                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for interface equations assembly = ", &
                   & SYSTEM_ELAPSED,ERR,ERROR,*999)
-              ENDIF
-              !Output timing information if required
-              IF(INTERFACE_EQUATIONS%OUTPUT_TYPE>=INTERFACE_EQUATIONS_TIMING_OUTPUT) THEN
-                CALL CPU_TIMER(USER_CPU,USER_TIME4,ERR,ERROR,*999)
-                CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME4,ERR,ERROR,*999)
-                USER_ELAPSED=USER_TIME4(1)-USER_TIME3(1)
-                SYSTEM_ELAPSED=SYSTEM_TIME4(1)-SYSTEM_TIME3(1)
-                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for parameter transfer completion = ",USER_ELAPSED, &
-                  & ERR,ERROR,*999)
-                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for parameter transfer completion = ",SYSTEM_ELAPSED, &
-                & ERR,ERROR,*999)              
-              ENDIF
-              !Loop over the boundary and ghost elements
-#ifdef TAUPROF
-              CALL TAU_STATIC_PHASE_START("Boundary and Ghost Elements Loop")
-#endif
-              DO element_idx=ELEMENTS_MAPPING%BOUNDARY_START,ELEMENTS_MAPPING%GHOST_FINISH
-                ne=ELEMENTS_MAPPING%DOMAIN_LIST(element_idx)
-                NUMBER_OF_TIMES=NUMBER_OF_TIMES+1
-                CALL InterfaceMatrices_ElementCalculate(INTERFACE_MATRICES,ne,ERR,ERROR,*999)
-                CALL InterfaceCondition_FiniteElementCalculate(INTERFACE_CONDITION,ne,ERR,ERROR,*999)
-                CALL INTERFACE_MATRICES_ELEMENT_ADD(INTERFACE_MATRICES,ERR,ERROR,*999)
-              ENDDO !element_idx
-#ifdef TAUPROF
-              CALL TAU_STATIC_PHASE_STOP("Boundary and Ghost Elements Loop")
-#endif
-              !Output timing information if required
-              IF(INTERFACE_EQUATIONS%OUTPUT_TYPE>=INTERFACE_EQUATIONS_TIMING_OUTPUT) THEN
-                CALL CPU_TIMER(USER_CPU,USER_TIME5,ERR,ERROR,*999)
-                CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME5,ERR,ERROR,*999)
-                USER_ELAPSED=USER_TIME5(1)-USER_TIME4(1)
-                SYSTEM_ELAPSED=SYSTEM_TIME5(1)-SYSTEM_TIME4(1)
-                ELEMENT_USER_ELAPSED=ELEMENT_USER_ELAPSED+USER_ELAPSED
-                ELEMENT_SYSTEM_ELAPSED=ELEMENT_SYSTEM_ELAPSED+USER_ELAPSED
-                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for boundary+ghost equations assembly = ",USER_ELAPSED, &
-                  & ERR,ERROR,*999)
-                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for boundary+ghost equations assembly = ",SYSTEM_ELAPSED, &
-                  & ERR,ERROR,*999)
-                IF(NUMBER_OF_TIMES>0) THEN
-                  CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average element user time for equations assembly = ", &
-                    & ELEMENT_USER_ELAPSED/NUMBER_OF_TIMES,ERR,ERROR,*999)
-                  CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average element system time for equations assembly = ", &
-                    & ELEMENT_SYSTEM_ELAPSED/NUMBER_OF_TIMES,ERR,ERROR,*999)
-                ENDIF
+                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average element user time for interface assembly = ", &
+                  & ELEMENT_USER_ELAPSED/ELEMENTS_MAPPING%TOTAL_NUMBER_OF_LOCAL,ERR,ERROR,*999)
+                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average element system time for interface assembly = ", &
+                  & ELEMENT_SYSTEM_ELAPSED/ELEMENTS_MAPPING%TOTAL_NUMBER_OF_LOCAL,ERR,ERROR,*999)
               ENDIF
               !Finalise the element matrices
 #ifdef TAUPROF
@@ -316,10 +272,10 @@ CONTAINS
               ENDIF
               !Output timing information if required
               IF(INTERFACE_EQUATIONS%OUTPUT_TYPE>=INTERFACE_EQUATIONS_TIMING_OUTPUT) THEN
-                CALL CPU_TIMER(USER_CPU,USER_TIME6,ERR,ERROR,*999)
-                CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME6,ERR,ERROR,*999)
-                USER_ELAPSED=USER_TIME6(1)-USER_TIME1(1)
-                SYSTEM_ELAPSED=SYSTEM_TIME6(1)-SYSTEM_TIME1(1)
+                CALL CPU_TIMER(USER_CPU,USER_TIME4,ERR,ERROR,*999)
+                CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME4,ERR,ERROR,*999)
+                USER_ELAPSED=USER_TIME4(1)-USER_TIME1(1)
+                SYSTEM_ELAPSED=SYSTEM_TIME4(1)-SYSTEM_TIME1(1)
                 CALL WRITE_STRING(GENERAL_OUTPUT_TYPE,"***",ERR,ERROR,*999)
                 CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Total user time for equations assembly = ",USER_ELAPSED, &
                   & ERR,ERROR,*999)
@@ -362,15 +318,12 @@ CONTAINS
     TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
     !Local Variables
     INTEGER(INTG) :: mesh_idx,mesh_idx_count,NUMBER_OF_COMPONENTS,variable_idx
-    INTEGER(INTG), POINTER :: NEW_VARIABLE_MESH_INDICES(:)
+    INTEGER(INTG), ALLOCATABLE :: NEW_VARIABLE_MESH_INDICES(:)
     TYPE(FIELD_VARIABLE_TYPE), POINTER :: FIELD_VARIABLE
-    TYPE(FIELD_VARIABLE_PTR_TYPE), POINTER :: NEW_FIELD_VARIABLES(:)
+    TYPE(FIELD_VARIABLE_PTR_TYPE), ALLOCATABLE :: NEW_FIELD_VARIABLES(:)
     TYPE(INTERFACE_TYPE), POINTER :: INTERFACE
     TYPE(INTERFACE_DEPENDENT_TYPE), POINTER :: INTERFACE_DEPENDENT
     TYPE(VARYING_STRING) :: LOCAL_ERROR
-    
-    NULLIFY(NEW_FIELD_VARIABLES)
-    NULLIFY(NEW_VARIABLE_MESH_INDICES)
     
     ENTERS("INTERFACE_CONDITION_CREATE_FINISH",ERR,ERROR,*999)
 
@@ -446,10 +399,8 @@ CONTAINS
               ENDDO !mesh_idx
               IF(mesh_idx_count/=INTERFACE_DEPENDENT%NUMBER_OF_DEPENDENT_VARIABLES) &
                 & CALL FlagError("Invalid dependent variable mesh index setup.",ERR,ERROR,*999)
-              IF(ASSOCIATED(INTERFACE_DEPENDENT%FIELD_VARIABLES)) DEALLOCATE(INTERFACE_DEPENDENT%FIELD_VARIABLES)
-              IF(ASSOCIATED(INTERFACE_DEPENDENT%VARIABLE_MESH_INDICES)) DEALLOCATE(INTERFACE_DEPENDENT%VARIABLE_MESH_INDICES)
-              INTERFACE_DEPENDENT%FIELD_VARIABLES=>NEW_FIELD_VARIABLES
-              INTERFACE_DEPENDENT%VARIABLE_MESH_INDICES=>NEW_VARIABLE_MESH_INDICES
+              CALL MOVE_ALLOC(NEW_FIELD_VARIABLES,INTERFACE_DEPENDENT%FIELD_VARIABLES)
+              CALL MOVE_ALLOC(NEW_VARIABLE_MESH_INDICES,INTERFACE_DEPENDENT%VARIABLE_MESH_INDICES)
             ELSE
               CALL FlagError("Interface condition dependent is not associated.",ERR,ERROR,*999)
             ENDIF
@@ -474,8 +425,8 @@ CONTAINS
        
     EXITS("INTERFACE_CONDITION_CREATE_FINISH")
     RETURN
-999 IF(ASSOCIATED(NEW_FIELD_VARIABLES)) DEALLOCATE(NEW_FIELD_VARIABLES)
-    IF(ASSOCIATED(NEW_VARIABLE_MESH_INDICES)) DEALLOCATE(NEW_VARIABLE_MESH_INDICES)
+999 IF(ALLOCATED(NEW_FIELD_VARIABLES)) DEALLOCATE(NEW_FIELD_VARIABLES)
+    IF(ALLOCATED(NEW_VARIABLE_MESH_INDICES)) DEALLOCATE(NEW_VARIABLE_MESH_INDICES)
     ERRORSEXITS("INTERFACE_CONDITION_CREATE_FINISH",ERR,ERROR)    
     RETURN 1
    
@@ -628,9 +579,8 @@ CONTAINS
     ENTERS("INTERFACE_CONDITION_DEPENDENT_FINALISE",ERR,ERROR,*999)
 
     IF(ASSOCIATED(INTERFACE_DEPENDENT)) THEN
-      IF(ASSOCIATED(INTERFACE_DEPENDENT%EQUATIONS_SETS)) DEALLOCATE(INTERFACE_DEPENDENT%EQUATIONS_SETS)
-      IF(ASSOCIATED(INTERFACE_DEPENDENT%FIELD_VARIABLES)) DEALLOCATE(INTERFACE_DEPENDENT%FIELD_VARIABLES)
-      IF(ASSOCIATED(INTERFACE_DEPENDENT%VARIABLE_MESH_INDICES)) DEALLOCATE(INTERFACE_DEPENDENT%VARIABLE_MESH_INDICES)
+      IF(ALLOCATED(INTERFACE_DEPENDENT%FIELD_VARIABLES)) DEALLOCATE(INTERFACE_DEPENDENT%FIELD_VARIABLES)
+      IF(ALLOCATED(INTERFACE_DEPENDENT%VARIABLE_MESH_INDICES)) DEALLOCATE(INTERFACE_DEPENDENT%VARIABLE_MESH_INDICES)
       DEALLOCATE(INTERFACE_DEPENDENT)
     ENDIF
        
@@ -665,9 +615,6 @@ CONTAINS
         IF(ERR/=0) CALL FlagError("Could not allocate interface condition dependent.",ERR,ERROR,*999)
         INTERFACE_CONDITION%DEPENDENT%INTERFACE_CONDITION=>INTERFACE_CONDITION
         INTERFACE_CONDITION%DEPENDENT%NUMBER_OF_DEPENDENT_VARIABLES=0
-        NULLIFY(INTERFACE_CONDITION%DEPENDENT%EQUATIONS_SETS)
-        NULLIFY(INTERFACE_CONDITION%DEPENDENT%FIELD_VARIABLES)
-        NULLIFY(INTERFACE_CONDITION%DEPENDENT%VARIABLE_MESH_INDICES)
       ENDIF
     ELSE
       CALL FlagError("Interface condition is not associated.",ERR,ERROR,*999)
@@ -685,30 +632,32 @@ CONTAINS
   !
 
   !>Adds an equations set to an interface condition. \see OPENCMISS::CMISSInterfaceConditionEquationsSetAdd
-  SUBROUTINE INTERFACE_CONDITION_DEPENDENT_VARIABLE_ADD(INTERFACE_CONDITION,MESH_INDEX,EQUATIONS_SET,VARIABLE_TYPE,ERR,ERROR,*)
+  SUBROUTINE INTERFACE_CONDITION_EQUATIONS_SET_ADD(INTERFACE_CONDITION,MESH_INDEX,EQUATIONS_SET,ERR,ERROR,*)
 
     !Argument variables
-    TYPE(INTERFACE_CONDITION_TYPE), POINTER :: INTERFACE_CONDITION !<A pointer to the interface condition to add the dependent variable to
-    INTEGER(INTG), INTENT(IN) :: MESH_INDEX !<The mesh index in the interface conditions interface that the dependent variable corresponds to
-    TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET !<A pointer to the equations set containing the dependent field to add the variable from.
-    INTEGER(INTG), INTENT(IN) :: VARIABLE_TYPE !<The variable type of the dependent field to add \see FIELD_ROUTINES_VariableTypes,FIELD_ROUTINES
+    TYPE(INTERFACE_CONDITION_TYPE), POINTER :: INTERFACE_CONDITION !<A pointer to the interface condition to add the equations set to.
+    INTEGER(INTG), INTENT(IN) :: MESH_INDEX !<The mesh index in the interface conditions interface that the equations set corresponds to.
+    TYPE(EQUATIONS_SET_TYPE), POINTER :: EQUATIONS_SET !<A pointer to the equations set to add.
     INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
     !Local Variables
-    INTEGER(INTG) :: variable_idx
-    INTEGER(INTG), POINTER :: NEW_VARIABLE_MESH_INDICES(:)
-    LOGICAL :: FOUND_MESH_INDEX
+    INTEGER(INTG) :: variable_idx,equationsSetIdx,interfaceConditionIdx
+    INTEGER(INTG), ALLOCATABLE :: NEW_VARIABLE_MESH_INDICES(:)
+    LOGICAL :: foundEquationsSet
     TYPE(DECOMPOSITION_TYPE), POINTER :: DECOMPOSITION
-    TYPE(EQUATIONS_SET_PTR_TYPE), POINTER :: NEW_EQUATIONS_SETS(:)
+    TYPE(EQUATIONS_SET_PTR_TYPE), ALLOCATABLE :: NEW_EQUATIONS_SETS(:)
+    TYPE(EQUATIONS_TYPE), POINTER :: EQUATIONS
+    TYPE(EQUATIONS_MAPPING_TYPE), POINTER :: EQUATIONS_MAPPING
     TYPE(FIELD_TYPE), POINTER :: DEPENDENT_FIELD
-    TYPE(FIELD_VARIABLE_TYPE), POINTER :: FIELD_VARIABLE,INTERFACE_VARIABLE
-    TYPE(FIELD_VARIABLE_PTR_TYPE), POINTER :: NEW_FIELD_VARIABLES(:)
+    TYPE(FIELD_VARIABLE_TYPE), POINTER :: FIELD_VARIABLE
+    TYPE(FIELD_VARIABLE_PTR_TYPE), ALLOCATABLE :: NEW_FIELD_VARIABLES(:)
     TYPE(INTERFACE_TYPE), POINTER :: INTERFACE
+    TYPE(INTERFACE_CONDITION_PTR_TYPE), ALLOCATABLE :: newInterfaceConditions(:)
     TYPE(INTERFACE_DEPENDENT_TYPE), POINTER :: INTERFACE_DEPENDENT
     TYPE(MESH_TYPE), POINTER :: DEPENDENT_MESH,INTERFACE_MESH
     TYPE(VARYING_STRING) :: LOCAL_ERROR
 
-    ENTERS("INTERFACE_CONDITION_DEPENDENT_VARIABLE_ADD",ERR,ERROR,*999)
+    ENTERS("INTERFACE_CONDITION_EQUATIONS_SET_ADD",ERR,ERROR,*999)
 
     IF(ASSOCIATED(INTERFACE_CONDITION)) THEN
       INTERFACE_DEPENDENT=>INTERFACE_CONDITION%DEPENDENT
@@ -717,106 +666,88 @@ CONTAINS
         IF(ASSOCIATED(INTERFACE)) THEN
           IF(MESH_INDEX>0.AND.MESH_INDEX<=INTERFACE%NUMBER_OF_COUPLED_MESHES) THEN
             IF(ASSOCIATED(EQUATIONS_SET)) THEN
-              DEPENDENT_FIELD=>EQUATIONS_SET%DEPENDENT%DEPENDENT_FIELD
-              IF(ASSOCIATED(DEPENDENT_FIELD)) THEN
-                IF(VARIABLE_TYPE>=1.AND.VARIABLE_TYPE<=FIELD_NUMBER_OF_VARIABLE_TYPES) THEN
-                  FIELD_VARIABLE=>DEPENDENT_FIELD%VARIABLE_TYPE_MAP(VARIABLE_TYPE)%PTR
+              EQUATIONS=>EQUATIONS_SET%EQUATIONS
+              IF(ASSOCIATED(EQUATIONS)) THEN
+                EQUATIONS_MAPPING=>EQUATIONS%EQUATIONS_MAPPING
+                IF(ASSOCIATED(EQUATIONS_MAPPING)) THEN
+                  FIELD_VARIABLE=>EQUATIONS_MAPPING%DEPENDENT_VARIABLE
                   IF(ASSOCIATED(FIELD_VARIABLE)) THEN
-                    !Check that the field variable hasn't already been added.
-                    variable_idx=1
-                    NULLIFY(INTERFACE_VARIABLE)
-                    DO WHILE(variable_idx<=INTERFACE_DEPENDENT%NUMBER_OF_DEPENDENT_VARIABLES.AND. &
-                      & .NOT.ASSOCIATED(INTERFACE_VARIABLE))
-                      IF(ASSOCIATED(FIELD_VARIABLE,INTERFACE_DEPENDENT%FIELD_VARIABLES(variable_idx)%PTR)) THEN
-                        INTERFACE_VARIABLE=>INTERFACE_DEPENDENT%FIELD_VARIABLES(variable_idx)%PTR
-                      ELSE
-                        variable_idx=variable_idx+1
-                      ENDIF
-                    ENDDO
-                    IF(ASSOCIATED(INTERFACE_VARIABLE)) THEN
-                      !Check if we are dealing with the same mesh index.
-                      IF(MESH_INDEX/=INTERFACE_DEPENDENT%VARIABLE_MESH_INDICES(variable_idx)) THEN
-                        LOCAL_ERROR="The dependent variable has already been added to the interface condition at "// &
-                          & "position index "//TRIM(NUMBER_TO_VSTRING(variable_idx,"*",ERR,ERROR))//"."
-                        CALL FlagError(LOCAL_ERROR,ERR,ERROR,*999)
-                      ENDIF
-                    ELSE
-                      !Check the dependent variable and the mesh index match.
-                      INTERFACE_MESH=>INTERFACE%COUPLED_MESHES(MESH_INDEX)%PTR
-                      IF(ASSOCIATED(INTERFACE_MESH)) THEN
-                        DECOMPOSITION=>DEPENDENT_FIELD%DECOMPOSITION
-                        IF(ASSOCIATED(DECOMPOSITION)) THEN
-                          DEPENDENT_MESH=>DECOMPOSITION%MESH
-                          IF(ASSOCIATED(DEPENDENT_MESH)) THEN
-                            IF(ASSOCIATED(INTERFACE_MESH,DEPENDENT_MESH)) THEN
-                              !The meshes match. Check if the dependent variable has already been added for the mesh index.
-                              FOUND_MESH_INDEX=.FALSE.
-                              DO variable_idx=1,INTERFACE_DEPENDENT%NUMBER_OF_DEPENDENT_VARIABLES
-                                IF(INTERFACE_DEPENDENT%VARIABLE_MESH_INDICES(variable_idx)==MESH_INDEX) THEN
-                                  FOUND_MESH_INDEX=.TRUE.
-                                  EXIT
-                                ENDIF
-                              ENDDO !variable_idx
-                              IF(FOUND_MESH_INDEX) THEN
-                                !The mesh index has already been added to replace the dependent variable with the specified variable
-                                INTERFACE_DEPENDENT%FIELD_VARIABLES(variable_idx)%PTR=>DEPENDENT_FIELD% &
-                                  & VARIABLE_TYPE_MAP(VARIABLE_TYPE)%PTR
-                              ELSE
-                                !The mesh index has not been found so add a new dependent variable.
-                                ALLOCATE(NEW_EQUATIONS_SETS(INTERFACE_DEPENDENT%NUMBER_OF_DEPENDENT_VARIABLES+1),STAT=ERR)
+                    DEPENDENT_FIELD=>FIELD_VARIABLE%FIELD
+                    IF(ASSOCIATED(DEPENDENT_FIELD)) THEN
+                      !Check that the equations set hasn't already been added.
+                      foundEquationsSet=.FALSE.
+                      DO equationsSetIdx=1,INTERFACE_CONDITION%numberOfEquationsSets
+                        IF(ASSOCIATED(EQUATIONS_SET,INTERFACE_CONDITION%EQUATIONS_SETS(equationsSetIdx)%PTR)) THEN
+                          foundEquationsSet=.TRUE.
+                          EXIT
+                        END IF
+                      END DO !equationsSetIdx
+                      IF(.NOT.foundEquationsSet) THEN
+                        !Check the dependent variable and the mesh index match.
+                        INTERFACE_MESH=>INTERFACE%COUPLED_MESHES(MESH_INDEX)%PTR
+                        IF(ASSOCIATED(INTERFACE_MESH)) THEN
+                          DECOMPOSITION=>DEPENDENT_FIELD%DECOMPOSITION
+                          IF(ASSOCIATED(DECOMPOSITION)) THEN
+                            DEPENDENT_MESH=>DECOMPOSITION%MESH
+                            IF(ASSOCIATED(DEPENDENT_MESH)) THEN
+                              IF(ASSOCIATED(INTERFACE_MESH,DEPENDENT_MESH)) THEN
+                                ALLOCATE(newInterfaceConditions(EQUATIONS_SET%numberOfInterfaceConditions+1),STAT=ERR)
+                                IF(ERR/=0) CALL FlagError("Could not allocate new interface conditions.",ERR,ERROR,*999)
+                                ALLOCATE(NEW_EQUATIONS_SETS(INTERFACE_CONDITION%numberOfEquationsSets+1),STAT=ERR)
                                 IF(ERR/=0) CALL FlagError("Could not allocate new equations sets.",ERR,ERROR,*999)
                                 ALLOCATE(NEW_FIELD_VARIABLES(INTERFACE_DEPENDENT%NUMBER_OF_DEPENDENT_VARIABLES+1),STAT=ERR)
                                 IF(ERR/=0) CALL FlagError("Could not allocate new field variables.",ERR,ERROR,*999)
                                 ALLOCATE(NEW_VARIABLE_MESH_INDICES(INTERFACE_DEPENDENT%NUMBER_OF_DEPENDENT_VARIABLES+1),STAT=ERR)
                                 IF(ERR/=0) CALL FlagError("Could not allocate new variable mesh indices.",ERR,ERROR,*999)
+                                DO interfaceConditionIdx=1,EQUATIONS_SET%numberOfInterfaceConditions
+                                  newInterfaceConditions(interfaceConditionIdx)%PTR=> &
+                                    & EQUATIONS_SET%interfaceConditions(interfaceConditionIdx)%PTR
+                                ENDDO ! interfaceConditionIdx
+                                DO equationsSetIdx=1,INTERFACE_CONDITION%numberOfEquationsSets
+                                  NEW_EQUATIONS_SETS(equationsSetIdx)%PTR=>INTERFACE_CONDITION%EQUATIONS_SETS(equationsSetIdx)%PTR
+                                ENDDO ! equationsSetIdx
                                 DO variable_idx=1,INTERFACE_DEPENDENT%NUMBER_OF_DEPENDENT_VARIABLES
-                                  NEW_EQUATIONS_SETS(variable_idx)%PTR=>INTERFACE_DEPENDENT%EQUATIONS_SETS(variable_idx)%PTR
                                   NEW_FIELD_VARIABLES(variable_idx)%PTR=>INTERFACE_DEPENDENT%FIELD_VARIABLES(variable_idx)%PTR
                                   NEW_VARIABLE_MESH_INDICES(variable_idx)=INTERFACE_DEPENDENT%VARIABLE_MESH_INDICES(variable_idx)
                                 ENDDO !variable_idx
-                                NEW_EQUATIONS_SETS(INTERFACE_DEPENDENT%NUMBER_OF_DEPENDENT_VARIABLES+1)%PTR=>EQUATIONS_SET
-                                NEW_FIELD_VARIABLES(INTERFACE_DEPENDENT%NUMBER_OF_DEPENDENT_VARIABLES+1)%PTR=>DEPENDENT_FIELD% &
-                                  & VARIABLE_TYPE_MAP(VARIABLE_TYPE)%PTR
+                                newInterfaceConditions(EQUATIONS_SET%numberOfInterfaceConditions+1)%ptr=>INTERFACE_CONDITION
+                                NEW_EQUATIONS_SETS(INTERFACE_CONDITION%numberOfEquationsSets+1)%PTR=>EQUATIONS_SET
+                                NEW_FIELD_VARIABLES(INTERFACE_DEPENDENT%NUMBER_OF_DEPENDENT_VARIABLES+1)%PTR=>FIELD_VARIABLE
                                 NEW_VARIABLE_MESH_INDICES(INTERFACE_DEPENDENT%NUMBER_OF_DEPENDENT_VARIABLES+1)=MESH_INDEX
-                                IF(ASSOCIATED(INTERFACE_DEPENDENT%EQUATIONS_SETS)) DEALLOCATE(INTERFACE_DEPENDENT%EQUATIONS_SETS)
-                                IF(ASSOCIATED(INTERFACE_DEPENDENT%FIELD_VARIABLES)) DEALLOCATE(INTERFACE_DEPENDENT%FIELD_VARIABLES)
-                                IF(ASSOCIATED(INTERFACE_DEPENDENT%VARIABLE_MESH_INDICES)) &
-                                  & DEALLOCATE(INTERFACE_DEPENDENT%VARIABLE_MESH_INDICES)
-                                INTERFACE_DEPENDENT%EQUATIONS_SETS=>NEW_EQUATIONS_SETS
-                                INTERFACE_DEPENDENT%FIELD_VARIABLES=>NEW_FIELD_VARIABLES
-                                INTERFACE_DEPENDENT%VARIABLE_MESH_INDICES=>NEW_VARIABLE_MESH_INDICES
+                                CALL MOVE_ALLOC(newInterfaceConditions,EQUATIONS_SET%interfaceConditions)
+                                CALL MOVE_ALLOC(NEW_EQUATIONS_SETS,INTERFACE_CONDITION%EQUATIONS_SETS)
+                                CALL MOVE_ALLOC(NEW_FIELD_VARIABLES,INTERFACE_DEPENDENT%FIELD_VARIABLES)
+                                CALL MOVE_ALLOC(NEW_VARIABLE_MESH_INDICES,INTERFACE_DEPENDENT%VARIABLE_MESH_INDICES)
+                                EQUATIONS_SET%numberOfInterfaceConditions=EQUATIONS_SET%numberOfInterfaceConditions+1
+                                INTERFACE_CONDITION%numberOfEquationsSets=INTERFACE_CONDITION%numberOfEquationsSets+1
                                 INTERFACE_DEPENDENT%NUMBER_OF_DEPENDENT_VARIABLES= &
                                   & INTERFACE_DEPENDENT%NUMBER_OF_DEPENDENT_VARIABLES+1
+                              ELSE
+                                CALL FlagError("The dependent field mesh does not match the interface mesh.",ERR,ERROR,*999)
                               ENDIF
                             ELSE
-                              CALL FlagError("The dependent field mesh does not match the interface mesh.",ERR,ERROR,*999)
+                              CALL FlagError("The dependent field decomposition mesh is not associated.",ERR,ERROR,*999)
                             ENDIF
                           ELSE
-                            CALL FlagError("The dependent field decomposition mesh is not associated.",ERR,ERROR,*999)
+                            CALL FlagError("The dependent field decomposition is not associated.",ERR,ERROR,*999)
                           ENDIF
                         ELSE
-                          CALL FlagError("The dependent field decomposition is not associated.",ERR,ERROR,*999)
+                          LOCAL_ERROR="The interface mesh for mesh index "//TRIM(NUMBER_TO_VSTRING(MESH_INDEX,"*",ERR,ERROR))// &
+                            & " is not associated."
+                          CALL FlagError(LOCAL_ERROR,ERR,ERROR,*999)
                         ENDIF
-                      ELSE
-                        LOCAL_ERROR="The interface mesh for mesh index "//TRIM(NUMBER_TO_VSTRING(MESH_INDEX,"*",ERR,ERROR))// &
-                          & " is not associated."
-                        CALL FlagError(LOCAL_ERROR,ERR,ERROR,*999)
                       ENDIF
+                    ELSE
+                      CALL FlagError("The dependent field has not been created.",ERR,ERROR,*999)
                     ENDIF
                   ELSE
-                    LOCAL_ERROR="The field variable type of "//TRIM(NUMBER_TO_VSTRING(VARIABLE_TYPE,"*",ERR,ERROR))// &
-                      & " has not been created on field number "// &
-                      & TRIM(NUMBER_TO_VSTRING(DEPENDENT_FIELD%USER_NUMBER,"*",ERR,ERROR))//"."
-                    CALL FlagError(LOCAL_ERROR,ERR,ERROR,*999)
+                    CALL FlagError("The dependent field variable has not been created.",ERR,ERROR,*999)
                   ENDIF
                 ELSE
-                  LOCAL_ERROR="The field variable type of "//TRIM(NUMBER_TO_VSTRING(VARIABLE_TYPE,"*",ERR,ERROR))// &
-                    & " is invalid. The variable type must be between 1 and "// &
-                    & TRIM(NUMBER_TO_VSTRING(FIELD_NUMBER_OF_VARIABLE_TYPES,"*",ERR,ERROR))//"."
-                  CALL FlagError(LOCAL_ERROR,ERR,ERROR,*999)
+                  CALL FlagError("Equations set equations mapping is not associated.",ERR,ERROR,*999)
                 ENDIF
               ELSE
-                CALL FlagError("Equations set dependent field is not associated.",ERR,ERROR,*999)
+                CALL FlagError("Equations set equations is not associated.",ERR,ERROR,*999)
               ENDIF
             ELSE
               CALL FlagError("Equations set is not associated.",ERR,ERROR,*999)
@@ -837,11 +768,11 @@ CONTAINS
       CALL FlagError("Interface conditions is not associated.",ERR,ERROR,*999)
     ENDIF
     
-    EXITS("INTERFACE_CONDITION_DEPENDENT_VARIABLE_ADD")
+    EXITS("INTERFACE_CONDITION_EQUATIONS_SET_ADD")
     RETURN
-999 ERRORSEXITS("INTERFACE_CONDITION_DEPENDENT_VARIABLE_ADD",ERR,ERROR)
+999 ERRORSEXITS("INTERFACE_CONDITION_EQUATIONS_SET_ADD",ERR,ERROR)
     RETURN 1   
-  END SUBROUTINE INTERFACE_CONDITION_DEPENDENT_VARIABLE_ADD
+  END SUBROUTINE INTERFACE_CONDITION_EQUATIONS_SET_ADD
   
   !
   !================================================================================================================================
@@ -1136,6 +1067,7 @@ CONTAINS
     ENTERS("INTERFACE_CONDITION_FINALISE",ERR,ERROR,*999)
 
     IF(ASSOCIATED(INTERFACE_CONDITION)) THEN
+      IF(ALLOCATED(INTERFACE_CONDITION%EQUATIONS_SETS)) DEALLOCATE(INTERFACE_CONDITION%EQUATIONS_SETS)
       CALL INTERFACE_CONDITION_GEOMETRY_FINALISE(INTERFACE_CONDITION%GEOMETRY,ERR,ERROR,*999)
       CALL INTERFACE_CONDITION_LAGRANGE_FINALISE(INTERFACE_CONDITION%LAGRANGE,ERR,ERROR,*999)
       CALL INTERFACE_CONDITION_PENALTY_FINALISE(INTERFACE_CONDITION%PENALTY,ERR,ERROR,*999)
@@ -1310,6 +1242,7 @@ CONTAINS
       NULLIFY(INTERFACE_CONDITION%INTERFACE)
       INTERFACE_CONDITION%METHOD=0
       INTERFACE_CONDITION%OPERATOR=0
+      INTERFACE_CONDITION%numberOfEquationsSets=0
       NULLIFY(INTERFACE_CONDITION%LAGRANGE)
       NULLIFY(INTERFACE_CONDITION%PENALTY)
       NULLIFY(INTERFACE_CONDITION%DEPENDENT)
@@ -2094,10 +2027,9 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
     !Local Variables
-    INTEGER(INTG) :: element_idx,ne,NUMBER_OF_TIMES
+    INTEGER(INTG) :: element_idx
     REAL(SP) :: ELEMENT_USER_ELAPSED,ELEMENT_SYSTEM_ELAPSED,USER_ELAPSED,USER_TIME1(1),USER_TIME2(1),USER_TIME3(1),USER_TIME4(1), &
-      & USER_TIME5(1),USER_TIME6(1),SYSTEM_ELAPSED,SYSTEM_TIME1(1),SYSTEM_TIME2(1),SYSTEM_TIME3(1),SYSTEM_TIME4(1), &
-      & SYSTEM_TIME5(1),SYSTEM_TIME6(1)
+      & SYSTEM_ELAPSED,SYSTEM_TIME1(1),SYSTEM_TIME2(1),SYSTEM_TIME3(1),SYSTEM_TIME4(1)
     TYPE(DOMAIN_MAPPING_TYPE), POINTER :: ELEMENTS_MAPPING
     TYPE(INTERFACE_EQUATIONS_TYPE), POINTER :: INTERFACE_EQUATIONS
     TYPE(INTERFACE_LAGRANGE_TYPE), POINTER :: LAGRANGE
@@ -2152,20 +2084,17 @@ CONTAINS
                 ELEMENT_USER_ELAPSED=0.0_SP
                 ELEMENT_SYSTEM_ELAPSED=0.0_SP
               ENDIF
-              NUMBER_OF_TIMES=0
-              !Loop over the internal elements
+              !Loop over the local+ghost elements
 #ifdef TAUPROF
-              CALL TAU_STATIC_PHASE_START("Internal Elements Loop")
+              CALL TAU_STATIC_PHASE_START("Local+ghost Elements Loop")
 #endif
-              DO element_idx=ELEMENTS_MAPPING%INTERNAL_START,ELEMENTS_MAPPING%INTERNAL_FINISH
-                ne=ELEMENTS_MAPPING%DOMAIN_LIST(element_idx)
-                NUMBER_OF_TIMES=NUMBER_OF_TIMES+1
-                CALL InterfaceMatrices_ElementCalculate(INTERFACE_MATRICES,ne,ERR,ERROR,*999)
-                CALL InterfaceCondition_FiniteElementCalculate(INTERFACE_CONDITION,ne,ERR,ERROR,*999)
+              DO element_idx=1,ELEMENTS_MAPPING%TOTAL_NUMBER_OF_LOCAL
+                CALL InterfaceMatrices_ElementCalculate(INTERFACE_MATRICES,element_idx,ERR,ERROR,*999)
+                CALL InterfaceCondition_FiniteElementCalculate(INTERFACE_CONDITION,element_idx,ERR,ERROR,*999)
                 CALL INTERFACE_MATRICES_ELEMENT_ADD(INTERFACE_MATRICES,ERR,ERROR,*999)
               ENDDO !element_idx                  
 #ifdef TAUPROF
-              CALL TAU_STATIC_PHASE_STOP("Internal Elements Loop")
+              CALL TAU_STATIC_PHASE_STOP("Local+ghost Elements Loop")
 #endif
               !Output timing information if required
               IF(INTERFACE_EQUATIONS%OUTPUT_TYPE>=INTERFACE_EQUATIONS_TIMING_OUTPUT) THEN
@@ -2175,54 +2104,14 @@ CONTAINS
                 SYSTEM_ELAPSED=SYSTEM_TIME3(1)-SYSTEM_TIME2(1)
                 ELEMENT_USER_ELAPSED=USER_ELAPSED
                 ELEMENT_SYSTEM_ELAPSED=SYSTEM_ELAPSED
-                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for internal interface assembly = ",USER_ELAPSED, &
+                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for interface assembly = ",USER_ELAPSED, &
                   & ERR,ERROR,*999)
-                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for internal interface assembly = ",SYSTEM_ELAPSED, &
+                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for interface assembly = ",SYSTEM_ELAPSED, &
                   & ERR,ERROR,*999)
-              ENDIF
-              !Output timing information if required
-              IF(INTERFACE_EQUATIONS%OUTPUT_TYPE>=INTERFACE_EQUATIONS_TIMING_OUTPUT) THEN
-                CALL CPU_TIMER(USER_CPU,USER_TIME4,ERR,ERROR,*999)
-                CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME4,ERR,ERROR,*999)
-                USER_ELAPSED=USER_TIME4(1)-USER_TIME3(1)
-                SYSTEM_ELAPSED=SYSTEM_TIME4(1)-SYSTEM_TIME3(1)
-                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for parameter transfer completion = ",USER_ELAPSED, &
-                  & ERR,ERROR,*999)
-                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for parameter transfer completion = ",SYSTEM_ELAPSED, &
-                  & ERR,ERROR,*999)              
-              ENDIF
-              !Loop over the boundary and ghost elements
-#ifdef TAUPROF
-              CALL TAU_STATIC_PHASE_START("Boundary and Ghost Elements Loop")
-#endif
-              DO element_idx=ELEMENTS_MAPPING%BOUNDARY_START,ELEMENTS_MAPPING%GHOST_FINISH
-                ne=ELEMENTS_MAPPING%DOMAIN_LIST(element_idx)
-                NUMBER_OF_TIMES=NUMBER_OF_TIMES+1
-                CALL InterfaceMatrices_ElementCalculate(INTERFACE_MATRICES,ne,ERR,ERROR,*999)
-                CALL InterfaceCondition_FiniteElementCalculate(INTERFACE_CONDITION,ne,ERR,ERROR,*999)
-                CALL INTERFACE_MATRICES_ELEMENT_ADD(INTERFACE_MATRICES,ERR,ERROR,*999)
-              ENDDO !element_idx
-#ifdef TAUPROF
-              CALL TAU_STATIC_PHASE_STOP("Boundary and Ghost Elements Loop")
-#endif
-              !Output timing information if required
-              IF(INTERFACE_EQUATIONS%OUTPUT_TYPE>=INTERFACE_EQUATIONS_TIMING_OUTPUT) THEN
-                CALL CPU_TIMER(USER_CPU,USER_TIME5,ERR,ERROR,*999)
-                CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME5,ERR,ERROR,*999)
-                USER_ELAPSED=USER_TIME5(1)-USER_TIME4(1)
-                SYSTEM_ELAPSED=SYSTEM_TIME5(1)-SYSTEM_TIME4(1)
-                ELEMENT_USER_ELAPSED=ELEMENT_USER_ELAPSED+USER_ELAPSED
-                ELEMENT_SYSTEM_ELAPSED=ELEMENT_SYSTEM_ELAPSED+USER_ELAPSED
-                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"User time for boundary+ghost interface assembly = ",USER_ELAPSED, &
-                  & ERR,ERROR,*999)
-                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"System time for boundary+ghost interface assembly = ", &
-                  & SYSTEM_ELAPSED,ERR,ERROR,*999)
-                IF(NUMBER_OF_TIMES>0) THEN
-                  CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average element user time for interface assembly = ", &
-                    & ELEMENT_USER_ELAPSED/NUMBER_OF_TIMES,ERR,ERROR,*999)
-                  CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average element system time for interface assembly = ", &
-                    & ELEMENT_SYSTEM_ELAPSED/NUMBER_OF_TIMES,ERR,ERROR,*999)
-                ENDIF
+                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average element user time for interface assembly = ", &
+                  & ELEMENT_USER_ELAPSED/ELEMENTS_MAPPING%TOTAL_NUMBER_OF_LOCAL,ERR,ERROR,*999)
+                CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Average element system time for interface assembly = ", &
+                  & ELEMENT_SYSTEM_ELAPSED/ELEMENTS_MAPPING%TOTAL_NUMBER_OF_LOCAL,ERR,ERROR,*999)
               ENDIF
               !Finalise the element matrices
 #ifdef TAUPROF
@@ -2238,10 +2127,10 @@ CONTAINS
               ENDIF
               !Output timing information if required
               IF(INTERFACE_EQUATIONS%OUTPUT_TYPE>=INTERFACE_EQUATIONS_TIMING_OUTPUT) THEN
-                CALL CPU_TIMER(USER_CPU,USER_TIME6,ERR,ERROR,*999)
-                CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME6,ERR,ERROR,*999)
-                USER_ELAPSED=USER_TIME6(1)-USER_TIME1(1)
-                SYSTEM_ELAPSED=SYSTEM_TIME6(1)-SYSTEM_TIME1(1)
+                CALL CPU_TIMER(USER_CPU,USER_TIME4,ERR,ERROR,*999)
+                CALL CPU_TIMER(SYSTEM_CPU,SYSTEM_TIME4,ERR,ERROR,*999)
+                USER_ELAPSED=USER_TIME4(1)-USER_TIME1(1)
+                SYSTEM_ELAPSED=SYSTEM_TIME4(1)-SYSTEM_TIME1(1)
                 CALL WRITE_STRING(GENERAL_OUTPUT_TYPE,"***",ERR,ERROR,*999)
                 CALL WRITE_STRING_VALUE(GENERAL_OUTPUT_TYPE,"Total user time for interface equations assembly = ",USER_ELAPSED, &
                   & ERR,ERROR,*999)

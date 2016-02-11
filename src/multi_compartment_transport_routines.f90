@@ -494,6 +494,7 @@ CONTAINS
     INTEGER(INTG) :: VARIABLE_TYPE !<The field variable type to add \see FIELD_ROUTINES_VariableTypes,FIELD_ROUTINES
     INTEGER(INTG) :: ANALYTIC_FUNCTION_TYPE
     INTEGER(INTG) :: GLOBAL_DERIV_INDEX
+    INTEGER(INTG), POINTER :: conditionTypes(:)
     REAL(DP) :: A1,A2,A3,A4,D1,D2,D3,D4,LAMBDA_12,LAMBDA_13,LAMBDA_23
 !    INTEGER(INTG) :: FIELD_SET_TYPE !<The field parameter set identifier \see FIELD_ROUTINES_ParameterSetTypes,FIELD_ROUTINES
 !    INTEGER(INTG) :: DERIVATIVE_NUMBER !<The node derivative number
@@ -588,6 +589,9 @@ CONTAINS
                                           CALL BOUNDARY_CONDITIONS_VARIABLE_GET(SOLVER_EQUATIONS%BOUNDARY_CONDITIONS, &
                                             & FIELD_VARIABLE,BOUNDARY_CONDITIONS_VARIABLE,ERR,ERROR,*999)
                                           IF(ASSOCIATED(BOUNDARY_CONDITIONS_VARIABLE)) THEN
+                                            NULLIFY(conditionTypes)
+                                            CALL DistributedVector_DataGet(BOUNDARY_CONDITIONS_VARIABLE%CONDITION_TYPES, &
+                                              & conditionTypes,err,error,*999)
                                             !Loop over the local nodes excluding the ghosts.
                                             DO node_idx=1,DOMAIN_NODES%NUMBER_OF_NODES
                                               !!TODO \todo We should interpolate the geometric field here and the node position.
@@ -611,8 +615,7 @@ CONTAINS
                                                   & NODE_PARAM2DOF_MAP%NODES(node_idx)%DERIVATIVES(deriv_idx)%VERSIONS(1)
                                                 CALL FIELD_PARAMETER_SET_UPDATE_LOCAL_DOF(DEPENDENT_FIELD,variable_type, &
                                                   & FIELD_ANALYTIC_VALUES_SET_TYPE,local_ny,VALUE,ERR,ERROR,*999)
-                                                BOUNDARY_CONDITION_CHECK_VARIABLE=BOUNDARY_CONDITIONS_VARIABLE% &
-                                                  & CONDITION_TYPES(local_ny)
+                                                BOUNDARY_CONDITION_CHECK_VARIABLE=conditionTypes(local_ny)
                                                 IF(BOUNDARY_CONDITION_CHECK_VARIABLE==BOUNDARY_CONDITION_FIXED) THEN
                                                  CALL FIELD_PARAMETER_SET_UPDATE_LOCAL_DOF(DEPENDENT_FIELD, & 
                                                    & variable_type,FIELD_VALUES_SET_TYPE,local_ny, & 
@@ -628,6 +631,8 @@ CONTAINS
 !                                              ENDIF
                                               ENDDO !deriv_idx
                                             ENDDO !node_idx
+                                            CALL DistributedVector_DataRestore(BOUNDARY_CONDITIONS_VARIABLE%CONDITION_TYPES, &
+                                              & conditionTypes,err,error,*999)
                                           ELSE
                                             CALL FlagError("Boundary conditions variable is not associated.",ERR,ERROR,*999)
                                           ENDIF

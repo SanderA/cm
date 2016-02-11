@@ -776,6 +776,7 @@ CONTAINS
     TYPE(VARYING_STRING) :: localError
     INTEGER(INTG) :: variableIdx,BOUNDARY_CONDITION_CHECK_VARIABLE,nodeIdx,componentIdx,derivativeIdx,versionIdx
     INTEGER(INTG) :: dependentDof,dependentVariableType,userNodeNumber,m
+    INTEGER(INTG), POINTER :: conditionTypes(:)
     REAL(DP) :: currentTime,timeIncrement,flow
 
     ENTERS("Stree_PRE_SOLVE",err,error,*999)
@@ -799,8 +800,8 @@ CONTAINS
               solverMapping=>solverEquations%SOLVER_MAPPING
               navierstokesSolverMapping=>navierstokesSolverEquations%SOLVER_MAPPING
               IF(ASSOCIATED(solverMapping)) THEN
-                equationsSet=>solverMapping%EQUATIONS_SETS(1)%PTR
-                navierstokesEquationsSet=>navierstokesSolverMapping%EQUATIONS_SETS(1)%PTR
+                equationsSet=>solverMapping%EQUATIONS_SET_TO_SOLVER_MAP(1)%EQUATIONS_SET
+                navierstokesEquationsSet=>navierstokesSolverMapping%EQUATIONS_SET_TO_SOLVER_MAP(1)%EQUATIONS_SET
                 IF(ASSOCIATED(equationsSet)) THEN
                   equations=>equationsSet%EQUATIONS
                   navierstokesEquations=>navierstokesEquationsSet%EQUATIONS
@@ -846,6 +847,9 @@ CONTAINS
       CALL BOUNDARY_CONDITIONS_VARIABLE_GET(BOUNDARY_CONDITIONS, &
         & dependentFieldVariable,BOUNDARY_CONDITIONS_VARIABLE,ERR,ERROR,*999)
       IF(ASSOCIATED(BOUNDARY_CONDITIONS_VARIABLE)) THEN
+        NULLIFY(conditionTypes)
+        CALL DistributedVector_DataGet(BOUNDARY_CONDITIONS_VARIABLE%CONDITION_TYPES, &
+          & conditionTypes,err,error,*999)
         IF(ASSOCIATED(dependentFieldVariable)) THEN
           DO componentIdx=1,dependentFieldVariable%NUMBER_OF_COMPONENTS
             IF(dependentFieldVariable%COMPONENTS(componentIdx)%INTERPOLATION_TYPE==FIELD_NODE_BASED_INTERPOLATION) THEN
@@ -861,7 +865,7 @@ CONTAINS
                         DO versionIdx=1,domainNodes%NODES(nodeIdx)%DERIVATIVES(derivativeIdx)%numberOfVersions
                           dependentDof = dependentFieldVariable%COMPONENTS(componentIdx)%PARAM_TO_DOF_MAP% &
                             & NODE_PARAM2DOF_MAP%NODES(nodeIdx)%DERIVATIVES(derivativeIdx)%VERSIONS(versionIdx)
-                          BOUNDARY_CONDITION_CHECK_VARIABLE=BOUNDARY_CONDITIONS_VARIABLE%CONDITION_TYPES(dependentDof)
+                          BOUNDARY_CONDITION_CHECK_VARIABLE=conditionTypes(dependentDof)
                           IF(BOUNDARY_CONDITION_CHECK_VARIABLE==BOUNDARY_CONDITION_FIXED_STREE) THEN  
                             ! Update dependent field value
                             IF(ASSOCIATED(materialsField)) THEN
@@ -891,6 +895,8 @@ CONTAINS
         ELSE
           CALL FLAG_ERROR("Dependent field variable is not associated.",ERR,ERROR,*999)
         ENDIF
+        CALL DistributedVector_DataRestore(BOUNDARY_CONDITIONS_VARIABLE%CONDITION_TYPES, &
+          & conditionTypes,err,error,*999)
       ENDIF
     ENDDO !variableIdx
 

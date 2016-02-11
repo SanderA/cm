@@ -175,7 +175,7 @@ CONTAINS
             elementConnectivity=>interfaceCondition%INTERFACE%MESH_CONNECTIVITY%ELEMENT_CONNECTIVITY(elementNumber,coupledMeshIdx)
             coupledMeshElementNumber=elementConnectivity%COUPLED_MESH_ELEMENT_NUMBER
             interfaceMatrixVariable=> &
-              & interfaceEquations%INTERFACE_MAPPING%INTERFACE_MATRIX_ROWS_TO_VAR_MAPS(coupledMeshIdx)%VARIABLE
+              & interfaceEquations%INTERFACE_MAPPING%INTERFACE_MATRIX_TO_VAR_MAPS(coupledMeshIdx)%VARIABLE
             coupledMeshVariableType=interfaceMatrixVariable%VARIABLE_TYPE
             interfaceElementMatrix=>interfaceEquations%INTERFACE_MATRICES%MATRICES(coupledMeshIdx)%PTR%ELEMENT_MATRIX
             interfaceConnectivityBasis=>interfaceCondition%INTERFACE%MESH_CONNECTIVITY%BASIS
@@ -416,9 +416,9 @@ CONTAINS
               numberOfMatrixCoupledElements=pointsConnectivity%coupledElements(interfaceElementNumber,coupledMeshIdx)% &
                 & numberOfCoupledElements
               numberOfCoupledMeshXi=interface%COUPLED_MESHES(coupledMeshIdx)%PTR%NUMBER_OF_DIMENSIONS
-              coupledMeshGeometricField=>interfaceCondition%DEPENDENT%EQUATIONS_SETS(coupledMeshIdx)%PTR% &
+              coupledMeshGeometricField=>interfaceCondition%EQUATIONS_SETS(coupledMeshIdx)%PTR% &
                 & GEOMETRY%GEOMETRIC_FIELD
-              coupledMeshDependentField=>interfaceCondition%DEPENDENT%EQUATIONS_SETS(coupledMeshIdx)%PTR% &
+              coupledMeshDependentField=>interfaceCondition%EQUATIONS_SETS(coupledMeshIdx)%PTR% &
                 & DEPENDENT%DEPENDENT_FIELD
 
               numberOfCoupledMeshGeoComp=coupledMeshGeometricField%VARIABLES(FIELD_U_VARIABLE_TYPE)%NUMBER_OF_COMPONENTS
@@ -580,7 +580,7 @@ CONTAINS
                 IF(ERR/=0) CALL FlagError("Could not allocate orthogonal projected logicals.",err,error,*999)
                 orthogonallyProjected=.TRUE. !Initialise orthogonal projected logicals
                 DO coupledMeshIdx=1,interface%NUMBER_OF_COUPLED_MESHES
-                  coupledMeshDependentField=>interfaceCondition%DEPENDENT%EQUATIONS_SETS(coupledMeshIdx)%PTR% &
+                  coupledMeshDependentField=>interfaceCondition%EQUATIONS_SETS(coupledMeshIdx)%PTR% &
                     & DEPENDENT%DEPENDENT_FIELD
                   !mesh component number is the same for all geometric components in elasticity problems
                   DO dataPointIdx=1,decompositionElementData%numberOfProjectedData
@@ -691,9 +691,9 @@ CONTAINS
                     numberOfMatrixCoupledElements=pointsConnectivity%coupledElements(interfaceElementNumber,coupledMeshIdx)% &
                       & numberOfCoupledElements
                     numberOfCoupledMeshXi=interface%COUPLED_MESHES(coupledMeshIdx)%PTR%NUMBER_OF_DIMENSIONS
-                    numberOfCoupledMeshGeoComp=interfaceCondition%DEPENDENT%EQUATIONS_SETS(coupledMeshIdx)%PTR%GEOMETRY% &
+                    numberOfCoupledMeshGeoComp=interfaceCondition%EQUATIONS_SETS(coupledMeshIdx)%PTR%GEOMETRY% &
                       & GEOMETRIC_FIELD%VARIABLE_TYPE_MAP(FIELD_U_VARIABLE_TYPE)%PTR%NUMBER_OF_COMPONENTS
-                    coupledMeshDependentField=>interfaceCondition%DEPENDENT%EQUATIONS_SETS(coupledMeshIdx)%PTR% &
+                    coupledMeshDependentField=>interfaceCondition%EQUATIONS_SETS(coupledMeshIdx)%PTR% &
                       & DEPENDENT%DEPENDENT_FIELD
                     interfaceElementMatrix=>interfaceEquations%INTERFACE_MATRICES%MATRICES(coupledMeshIdx)%PTR%ELEMENT_MATRIX
                     DO dataPointIdx=1,decompositionElementData%numberOfProjectedData
@@ -929,7 +929,7 @@ CONTAINS
             elementConnectivity=>interfaceCondition%INTERFACE%MESH_CONNECTIVITY%ELEMENT_CONNECTIVITY(elementNumber,coupledMeshIdx)
             coupledMeshElementNumber=elementConnectivity%COUPLED_MESH_ELEMENT_NUMBER
             interfaceMatrixVariable=> &
-              & interfaceEquations%INTERFACE_MAPPING%INTERFACE_MATRIX_ROWS_TO_VAR_MAPS(coupledMeshIdx)%VARIABLE
+              & interfaceEquations%INTERFACE_MAPPING%INTERFACE_MATRIX_TO_VAR_MAPS(coupledMeshIdx)%VARIABLE
             coupledMeshVariableType=interfaceMatrixVariable%VARIABLE_TYPE
             interfaceElementMatrix=>interfaceEquations%INTERFACE_MATRICES%MATRICES(coupledMeshIdx)%PTR%ELEMENT_MATRIX
             interfaceConnectivityBasis=>interfaceCondition%INTERFACE%MESH_CONNECTIVITY%BASIS

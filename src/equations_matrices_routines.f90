@@ -361,6 +361,10 @@ CONTAINS
                 NONLINEAR_MATRICES%JACOBIANS(MATRIX_NUMBER)%PTR%STRUCTURE_TYPE=EQUATIONS_MATRIX_NO_STRUCTURE
                 NONLINEAR_MATRICES%JACOBIANS(MATRIX_NUMBER)%PTR%NUMBER_OF_COLUMNS= &
                     & NONLINEAR_MAPPING%JACOBIAN_TO_VAR_MAP(MATRIX_NUMBER)%NUMBER_OF_COLUMNS
+                NONLINEAR_MATRICES%JACOBIANS(MATRIX_NUMBER)%PTR%TOTAL_NUMBER_OF_COLUMNS= &
+                    & NONLINEAR_MAPPING%JACOBIAN_TO_VAR_MAP(MATRIX_NUMBER)%TOTAL_NUMBER_OF_COLUMNS
+                NONLINEAR_MATRICES%JACOBIANS(MATRIX_NUMBER)%PTR%NUMBER_OF_GLOBAL_COLUMNS= &
+                    & NONLINEAR_MAPPING%JACOBIAN_TO_VAR_MAP(MATRIX_NUMBER)%NUMBER_OF_GLOBAL_COLUMNS
                 NONLINEAR_MATRICES%JACOBIANS(MATRIX_NUMBER)%PTR%UPDATE_JACOBIAN=.TRUE.
                 NONLINEAR_MATRICES%JACOBIANS(MATRIX_NUMBER)%PTR%FIRST_ASSEMBLY=.TRUE.
                 NONLINEAR_MAPPING%JACOBIAN_TO_VAR_MAP(MATRIX_NUMBER)%JACOBIAN=>NONLINEAR_MATRICES%JACOBIANS(MATRIX_NUMBER)%PTR
@@ -694,7 +698,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: ERR !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: ERROR !<The error string
     !Local Variables
-    INTEGER(INTG) :: component_idx,derivative,derivative_idx,global_ny,local_ny,node,node_idx,version,dataPointIdx, &
+    INTEGER(INTG) :: component_idx,derivative,derivative_idx,local_ny,node,node_idx,version,dataPointIdx, &
       & localDataPointNumber,elementIdx,rowElementNumber,colElementNumber
     TYPE(BASIS_TYPE), POINTER :: BASIS
     TYPE(DOMAIN_ELEMENTS_TYPE), POINTER :: ELEMENTS_TOPOLOGY
@@ -718,19 +722,17 @@ CONTAINS
                   SELECT CASE(ROWS_FIELD_VARIABLE%COMPONENTS(component_idx)%INTERPOLATION_TYPE)
                   CASE(FIELD_CONSTANT_INTERPOLATION)
                     local_ny=ROWS_FIELD_VARIABLE%COMPONENTS(component_idx)%PARAM_TO_DOF_MAP%CONSTANT_PARAM2DOF_MAP
-                    global_ny=ROWS_FIELD_VARIABLE%DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(local_ny)
                     ELEMENT_MATRIX%NUMBER_OF_ROWS=ELEMENT_MATRIX%NUMBER_OF_ROWS+1
                     ELEMENT_MATRIX%NUMBER_OF_COLUMNS=ELEMENT_MATRIX%NUMBER_OF_COLUMNS+1
                     ELEMENT_MATRIX%ROW_DOFS(ELEMENT_MATRIX%NUMBER_OF_ROWS)=local_ny
-                    ELEMENT_MATRIX%COLUMN_DOFS(ELEMENT_MATRIX%NUMBER_OF_COLUMNS)=global_ny
+                    ELEMENT_MATRIX%COLUMN_DOFS(ELEMENT_MATRIX%NUMBER_OF_COLUMNS)=local_ny
                   CASE(FIELD_ELEMENT_BASED_INTERPOLATION)
                     local_ny=ROWS_FIELD_VARIABLE%COMPONENTS(component_idx)%PARAM_TO_DOF_MAP%ELEMENT_PARAM2DOF_MAP% &
                       & ELEMENTS(rowElementNumber)
-                    global_ny=ROWS_FIELD_VARIABLE%DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(local_ny)
                     ELEMENT_MATRIX%NUMBER_OF_ROWS=ELEMENT_MATRIX%NUMBER_OF_ROWS+1
                     ELEMENT_MATRIX%NUMBER_OF_COLUMNS=ELEMENT_MATRIX%NUMBER_OF_COLUMNS+1
                     ELEMENT_MATRIX%ROW_DOFS(ELEMENT_MATRIX%NUMBER_OF_ROWS)=local_ny
-                    ELEMENT_MATRIX%COLUMN_DOFS(ELEMENT_MATRIX%NUMBER_OF_COLUMNS)=global_ny
+                    ELEMENT_MATRIX%COLUMN_DOFS(ELEMENT_MATRIX%NUMBER_OF_COLUMNS)=local_ny
                   CASE(FIELD_NODE_BASED_INTERPOLATION)
                     BASIS=>ELEMENTS_TOPOLOGY%ELEMENTS(rowElementNumber)%BASIS
                     DO node_idx=1,BASIS%NUMBER_OF_NODES
@@ -740,11 +742,10 @@ CONTAINS
                         version=ELEMENTS_TOPOLOGY%ELEMENTS(rowElementNumber)%elementVersions(derivative_idx,node_idx)
                         local_ny=ROWS_FIELD_VARIABLE%COMPONENTS(component_idx)%PARAM_TO_DOF_MAP%NODE_PARAM2DOF_MAP%NODES(node)% &
                           & DERIVATIVES(derivative)%VERSIONS(version)
-                        global_ny=ROWS_FIELD_VARIABLE%DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(local_ny)
                         ELEMENT_MATRIX%NUMBER_OF_ROWS=ELEMENT_MATRIX%NUMBER_OF_ROWS+1
                         ELEMENT_MATRIX%NUMBER_OF_COLUMNS=ELEMENT_MATRIX%NUMBER_OF_COLUMNS+1
                         ELEMENT_MATRIX%ROW_DOFS(ELEMENT_MATRIX%NUMBER_OF_ROWS)=local_ny
-                        ELEMENT_MATRIX%COLUMN_DOFS(ELEMENT_MATRIX%NUMBER_OF_COLUMNS)=global_ny
+                        ELEMENT_MATRIX%COLUMN_DOFS(ELEMENT_MATRIX%NUMBER_OF_COLUMNS)=local_ny
                       ENDDO !derivative_idx
                     ENDDO !node_idx
                   CASE(FIELD_GRID_POINT_BASED_INTERPOLATION)
@@ -758,11 +759,10 @@ CONTAINS
                         & dataIndices(dataPointIdx)%localNumber
                       local_ny=ROWS_FIELD_VARIABLE%COMPONENTS(component_idx)%PARAM_TO_DOF_MAP%DATA_POINT_PARAM2DOF_MAP% &
                         & DATA_POINTS(localDataPointNumber)
-                      global_ny=ROWS_FIELD_VARIABLE%DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(local_ny)
                       ELEMENT_MATRIX%NUMBER_OF_ROWS=ELEMENT_MATRIX%NUMBER_OF_ROWS+1
                       ELEMENT_MATRIX%NUMBER_OF_COLUMNS=ELEMENT_MATRIX%NUMBER_OF_COLUMNS+1
                       ELEMENT_MATRIX%ROW_DOFS(ELEMENT_MATRIX%NUMBER_OF_ROWS)=local_ny
-                      ELEMENT_MATRIX%COLUMN_DOFS(ELEMENT_MATRIX%NUMBER_OF_COLUMNS)=global_ny
+                      ELEMENT_MATRIX%COLUMN_DOFS(ELEMENT_MATRIX%NUMBER_OF_COLUMNS)=local_ny
                     ENDDO
                   CASE DEFAULT
                     LOCAL_ERROR="The interpolation type of "// &
@@ -826,9 +826,8 @@ CONTAINS
                         & dataIndices(dataPointIdx)%localNumber
                       local_ny=ROWS_FIELD_VARIABLE%COMPONENTS(component_idx)%PARAM_TO_DOF_MAP%DATA_POINT_PARAM2DOF_MAP% &
                         & DATA_POINTS(localDataPointNumber)
-                      global_ny=ROWS_FIELD_VARIABLE%DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(local_ny)
                       ELEMENT_MATRIX%NUMBER_OF_COLUMNS=ELEMENT_MATRIX%NUMBER_OF_COLUMNS+1
-                      ELEMENT_MATRIX%COLUMN_DOFS(ELEMENT_MATRIX%NUMBER_OF_COLUMNS)=global_ny
+                      ELEMENT_MATRIX%COLUMN_DOFS(ELEMENT_MATRIX%NUMBER_OF_COLUMNS)=local_ny
                     ENDDO
                   CASE DEFAULT
                     LOCAL_ERROR="The interpolation type of "// &
@@ -859,15 +858,13 @@ CONTAINS
                   SELECT CASE(COLS_FIELD_VARIABLE%COMPONENTS(component_idx)%INTERPOLATION_TYPE)
                   CASE(FIELD_CONSTANT_INTERPOLATION)
                     local_ny=COLS_FIELD_VARIABLE%COMPONENTS(component_idx)%PARAM_TO_DOF_MAP%CONSTANT_PARAM2DOF_MAP
-                    global_ny=COLS_FIELD_VARIABLE%DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(local_ny)
                     ELEMENT_MATRIX%NUMBER_OF_COLUMNS=ELEMENT_MATRIX%NUMBER_OF_COLUMNS+1
-                    ELEMENT_MATRIX%COLUMN_DOFS(ELEMENT_MATRIX%NUMBER_OF_COLUMNS)=global_ny
+                    ELEMENT_MATRIX%COLUMN_DOFS(ELEMENT_MATRIX%NUMBER_OF_COLUMNS)=local_ny
                   CASE(FIELD_ELEMENT_BASED_INTERPOLATION)
                     local_ny=COLS_FIELD_VARIABLE%COMPONENTS(component_idx)%PARAM_TO_DOF_MAP%ELEMENT_PARAM2DOF_MAP% &
                       & ELEMENTS(colElementNumber)
-                    global_ny=COLS_FIELD_VARIABLE%DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(local_ny)
                     ELEMENT_MATRIX%NUMBER_OF_COLUMNS=ELEMENT_MATRIX%NUMBER_OF_COLUMNS+1
-                    ELEMENT_MATRIX%COLUMN_DOFS(ELEMENT_MATRIX%NUMBER_OF_COLUMNS)=global_ny
+                    ELEMENT_MATRIX%COLUMN_DOFS(ELEMENT_MATRIX%NUMBER_OF_COLUMNS)=local_ny
                   CASE(FIELD_NODE_BASED_INTERPOLATION)
                     BASIS=>ELEMENTS_TOPOLOGY%ELEMENTS(colElementNumber)%BASIS
                     DO node_idx=1,BASIS%NUMBER_OF_NODES
@@ -877,9 +874,8 @@ CONTAINS
                         version=ELEMENTS_TOPOLOGY%ELEMENTS(colElementNumber)%elementVersions(derivative_idx,node_idx)
                         local_ny=COLS_FIELD_VARIABLE%COMPONENTS(component_idx)%PARAM_TO_DOF_MAP%NODE_PARAM2DOF_MAP%NODES(node)% &
                           & DERIVATIVES(derivative)%VERSIONS(version)
-                        global_ny=COLS_FIELD_VARIABLE%DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(local_ny)
                         ELEMENT_MATRIX%NUMBER_OF_COLUMNS=ELEMENT_MATRIX%NUMBER_OF_COLUMNS+1
-                        ELEMENT_MATRIX%COLUMN_DOFS(ELEMENT_MATRIX%NUMBER_OF_COLUMNS)=global_ny
+                        ELEMENT_MATRIX%COLUMN_DOFS(ELEMENT_MATRIX%NUMBER_OF_COLUMNS)=local_ny
                       ENDDO !derivative_idx
                     ENDDO !node_idx
                   CASE(FIELD_GRID_POINT_BASED_INTERPOLATION)
@@ -893,9 +889,8 @@ CONTAINS
                         & dataIndices(dataPointIdx)%localNumber
                       local_ny=COLS_FIELD_VARIABLE%COMPONENTS(component_idx)%PARAM_TO_DOF_MAP%DATA_POINT_PARAM2DOF_MAP% &
                         & DATA_POINTS(localDataPointNumber)
-                      global_ny=COLS_FIELD_VARIABLE%DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(local_ny)
                       ELEMENT_MATRIX%NUMBER_OF_COLUMNS=ELEMENT_MATRIX%NUMBER_OF_COLUMNS+1
-                      ELEMENT_MATRIX%COLUMN_DOFS(ELEMENT_MATRIX%NUMBER_OF_COLUMNS)=global_ny
+                      ELEMENT_MATRIX%COLUMN_DOFS(ELEMENT_MATRIX%NUMBER_OF_COLUMNS)=local_ny
                     ENDDO
                   CASE DEFAULT
                     LOCAL_ERROR="The interpolation type of "// &
@@ -1018,7 +1013,7 @@ CONTAINS
             & rowsFieldVariable%COMPONENTS(componentIdx)%maxNumberElementInterpolationParameters
         ENDDO
         elementMatrix%MAX_NUMBER_OF_ROWS=elementMatrix%MAX_NUMBER_OF_ROWS*rowsNumberOfElements
-        elementMatrix%MAX_NUMBER_OF_COLUMNS = 0
+        elementMatrix%MAX_NUMBER_OF_COLUMNS=0
         DO componentIdx=1,columnsFieldVariable%NUMBER_OF_COMPONENTS
           elementMatrix%MAX_NUMBER_OF_COLUMNS=elementMatrix%MAX_NUMBER_OF_COLUMNS+ &
             & columnsFieldVariable%COMPONENTS(componentIdx)%maxNumberElementInterpolationParameters
@@ -1717,7 +1712,7 @@ CONTAINS
     TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
     !Local Variables
     INTEGER(INTG) :: componentIdx
-    INTEGER(INTG) :: localRow,globalRow,localColumn,globalColumn
+    INTEGER(INTG) :: localRow,localColumn
     INTEGER(INTG) :: numberOfDerivatives,numberOfVersions,versionIdx,derivativeIdx
     TYPE(DOMAIN_NODES_TYPE), POINTER :: nodesTopology
     TYPE(VARYING_STRING) :: localError
@@ -1737,19 +1732,17 @@ CONTAINS
                 SELECT CASE(rowsFieldVariable%COMPONENTS(componentIdx)%INTERPOLATION_TYPE)
                 CASE(FIELD_CONSTANT_INTERPOLATION)
                   localRow=rowsFieldVariable%COMPONENTS(componentIdx)%PARAM_TO_DOF_MAP%CONSTANT_PARAM2DOF_MAP
-                  globalRow=rowsFieldVariable%DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(localRow)
                   nodalMatrix%numberOfRows=nodalMatrix%numberOfRows+1
                   nodalMatrix%numberOfColumns=nodalMatrix%numberOfColumns+1
                   nodalMatrix%rowDofs(nodalMatrix%numberOfRows)=localRow
-                  nodalMatrix%columnDofs(nodalMatrix%numberOfColumns)=globalRow
+                  nodalMatrix%columnDofs(nodalMatrix%numberOfColumns)=localRow
                 CASE(FIELD_ELEMENT_BASED_INTERPOLATION)
                   localRow=rowsFieldVariable%COMPONENTS(componentIdx)%PARAM_TO_DOF_MAP%ELEMENT_PARAM2DOF_MAP% &
                     & ELEMENTS(rowNodeNumber)
-                  globalRow=rowsFieldVariable%DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(localRow)
                   nodalMatrix%numberOfRows=nodalMatrix%numberOfRows+1
                   nodalMatrix%numberOfColumns=nodalMatrix%numberOfColumns+1
                   nodalMatrix%rowDofs(nodalMatrix%numberOfRows)=localRow
-                  nodalMatrix%columnDofs(nodalMatrix%numberOfColumns)=globalRow
+                  nodalMatrix%columnDofs(nodalMatrix%numberOfColumns)=localRow
                 CASE(FIELD_NODE_BASED_INTERPOLATION)
                   numberOfDerivatives=rowsFieldVariable%components(componentIdx)%domain%topology%nodes%nodes(rowNodeNumber)% &
                     & NUMBER_OF_DERIVATIVES
@@ -1759,11 +1752,10 @@ CONTAINS
                     DO versionIdx=1,numberOfVersions
                       localRow=rowsFieldVariable%COMPONENTS(componentIdx)%PARAM_TO_DOF_MAP%NODE_PARAM2DOF_MAP% & 
                         & NODES(rowNodeNumber)%DERIVATIVES(derivativeIdx)%VERSIONS(versionIdx)
-                      globalRow=rowsFieldVariable%DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(localRow)
                       nodalMatrix%numberOfRows=nodalMatrix%numberOfRows+1
                       nodalMatrix%numberOfColumns=nodalMatrix%numberOfColumns+1
                       nodalMatrix%rowDofs(nodalMatrix%numberOfRows)=localRow
-                      nodalMatrix%columnDofs(nodalMatrix%numberOfColumns)=globalRow
+                      nodalMatrix%columnDofs(nodalMatrix%numberOfColumns)=localRow
                     ENDDO !versionIdx
                   ENDDO !derivativeIdx
                 CASE(FIELD_GRID_POINT_BASED_INTERPOLATION)
@@ -1848,15 +1840,13 @@ CONTAINS
                 SELECT CASE(colsFieldVariable%COMPONENTS(componentIdx)%INTERPOLATION_TYPE)
                 CASE(FIELD_CONSTANT_INTERPOLATION)
                   localColumn=colsFieldVariable%COMPONENTS(componentIdx)%PARAM_TO_DOF_MAP%CONSTANT_PARAM2DOF_MAP
-                  globalColumn=colsFieldVariable%DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(localColumn)
                   nodalMatrix%numberOfColumns=nodalMatrix%numberOfColumns+1
-                  nodalMatrix%columnDofs(nodalMatrix%numberOfColumns)=globalColumn
+                  nodalMatrix%columnDofs(nodalMatrix%numberOfColumns)=localColumn
                 CASE(FIELD_ELEMENT_BASED_INTERPOLATION)
                   localColumn=colsFieldVariable%COMPONENTS(componentIdx)%PARAM_TO_DOF_MAP%ELEMENT_PARAM2DOF_MAP% &
                     & ELEMENTS(columnNodeNumber)
-                  globalColumn=colsFieldVariable%DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(localColumn)
                   nodalMatrix%numberOfColumns=nodalMatrix%numberOfColumns+1
-                  nodalMatrix%columnDofs(nodalMatrix%numberOfColumns)=globalColumn
+                  nodalMatrix%columnDofs(nodalMatrix%numberOfColumns)=localColumn
                 CASE(FIELD_NODE_BASED_INTERPOLATION)
                   numberOfDerivatives=colsFieldVariable%components(componentIdx)%domain%topology%nodes%nodes(rowNodeNumber)% &
                     & NUMBER_OF_DERIVATIVES
@@ -2912,7 +2902,6 @@ CONTAINS
       IF(ASSOCIATED(EQUATIONS_MATRIX%MATRIX)) CALL DISTRIBUTED_MATRIX_DESTROY(EQUATIONS_MATRIX%MATRIX,ERR,ERROR,*999)
       CALL EQUATIONS_MATRICES_ELEMENT_MATRIX_FINALISE(EQUATIONS_MATRIX%ELEMENT_MATRIX,ERR,ERROR,*999)
       CALL EquationsMatrices_NodalMatrixFinalise(EQUATIONS_MATRIX%NodalMatrix,ERR,ERROR,*999)
-      IF(ASSOCIATED(EQUATIONS_MATRIX%TEMP_VECTOR)) CALL DISTRIBUTED_VECTOR_DESTROY(EQUATIONS_MATRIX%TEMP_VECTOR,ERR,ERROR,*999)
     ENDIF
     
     EXITS("EQUATIONS_MATRIX_FINALISE")
@@ -2968,11 +2957,14 @@ CONTAINS
                 EQUATIONS_MATRIX%UPDATE_MATRIX=.TRUE.
                 EQUATIONS_MATRIX%FIRST_ASSEMBLY=.TRUE.
                 EQUATIONS_MATRIX%NUMBER_OF_COLUMNS=DYNAMIC_MAPPING%EQUATIONS_MATRIX_TO_VAR_MAPS(MATRIX_NUMBER)%NUMBER_OF_COLUMNS
+                EQUATIONS_MATRIX%TOTAL_NUMBER_OF_COLUMNS=DYNAMIC_MAPPING%EQUATIONS_MATRIX_TO_VAR_MAPS(MATRIX_NUMBER)% &
+                  & TOTAL_NUMBER_OF_COLUMNS
+                EQUATIONS_MATRIX%NUMBER_OF_GLOBAL_COLUMNS=DYNAMIC_MAPPING%EQUATIONS_MATRIX_TO_VAR_MAPS(MATRIX_NUMBER)% &
+                  & NUMBER_OF_GLOBAL_COLUMNS
                 DYNAMIC_MAPPING%EQUATIONS_MATRIX_TO_VAR_MAPS(MATRIX_NUMBER)%EQUATIONS_MATRIX=>EQUATIONS_MATRIX
                 NULLIFY(EQUATIONS_MATRIX%MATRIX)
                 CALL EquationsMatrices_ElementMatrixInitialise(EQUATIONS_MATRIX%ELEMENT_MATRIX,ERR,ERROR,*999)
                 CALL EquationsMatrices_NodalMatrixInitialise(EQUATIONS_MATRIX%NodalMatrix,ERR,ERROR,*999)
-                NULLIFY(EQUATIONS_MATRIX%TEMP_VECTOR)
               ENDIF
             ELSE
               CALL FlagError("Equations mapping dynamic mapping is not associated.",ERR,ERROR,*998)
@@ -3047,11 +3039,14 @@ CONTAINS
                 EQUATIONS_MATRIX%UPDATE_MATRIX=.TRUE.
                 EQUATIONS_MATRIX%FIRST_ASSEMBLY=.TRUE.
                 EQUATIONS_MATRIX%NUMBER_OF_COLUMNS=LINEAR_MAPPING%EQUATIONS_MATRIX_TO_VAR_MAPS(MATRIX_NUMBER)%NUMBER_OF_COLUMNS
+                EQUATIONS_MATRIX%TOTAL_NUMBER_OF_COLUMNS=LINEAR_MAPPING%EQUATIONS_MATRIX_TO_VAR_MAPS(MATRIX_NUMBER)% &
+                  & TOTAL_NUMBER_OF_COLUMNS
+                EQUATIONS_MATRIX%NUMBER_OF_GLOBAL_COLUMNS=LINEAR_MAPPING%EQUATIONS_MATRIX_TO_VAR_MAPS(MATRIX_NUMBER)% &
+                  & NUMBER_OF_GLOBAL_COLUMNS
                 LINEAR_MAPPING%EQUATIONS_MATRIX_TO_VAR_MAPS(MATRIX_NUMBER)%EQUATIONS_MATRIX=>EQUATIONS_MATRIX
                 NULLIFY(EQUATIONS_MATRIX%MATRIX)
                 CALL EquationsMatrices_ElementMatrixInitialise(EQUATIONS_MATRIX%ELEMENT_MATRIX,ERR,ERROR,*999)
                 CALL EquationsMatrices_NodalMatrixInitialise(EQUATIONS_MATRIX%NodalMatrix,ERR,ERROR,*999)
-                NULLIFY(EQUATIONS_MATRIX%TEMP_VECTOR)
               ENDIF
             ELSE
               CALL FlagError("Equations mapping linear mapping is not associated.",ERR,ERROR,*998)
@@ -3102,7 +3097,6 @@ CONTAINS
         ENDDO !matrix_idx
         DEALLOCATE(DYNAMIC_MATRICES%MATRICES)
       ENDIF
-      IF(ASSOCIATED(DYNAMIC_MATRICES%TEMP_VECTOR)) CALL DISTRIBUTED_VECTOR_DESTROY(DYNAMIC_MATRICES%TEMP_VECTOR,ERR,ERROR,*999)
       DEALLOCATE(DYNAMIC_MATRICES)
     ENDIF
     
@@ -3149,7 +3143,6 @@ CONTAINS
               NULLIFY(EQUATIONS_MATRICES%DYNAMIC_MATRICES%MATRICES(matrix_idx)%PTR)
               CALL EQUATIONS_MATRIX_DYNAMIC_INITIALISE(EQUATIONS_MATRICES%DYNAMIC_MATRICES,matrix_idx,ERR,ERROR,*999)
             ENDDO !matrix_idx
-            NULLIFY(EQUATIONS_MATRICES%DYNAMIC_MATRICES%TEMP_VECTOR)
           ENDIF
         ENDIF
       ELSE
@@ -4361,6 +4354,8 @@ CONTAINS
       CALL EQUATIONS_MATRICES_NONLINEAR_FINALISE(EQUATIONS_MATRICES%NONLINEAR_MATRICES,ERR,ERROR,*999)
       CALL EQUATIONS_MATRICES_RHS_FINALISE(EQUATIONS_MATRICES%RHS_VECTOR,ERR,ERROR,*999)      
       CALL EQUATIONS_MATRICES_SOURCE_FINALISE(EQUATIONS_MATRICES%SOURCE_VECTOR,ERR,ERROR,*999)      
+      IF(ASSOCIATED(EQUATIONS_MATRICES%TEMP_VECTOR)) CALL DISTRIBUTED_VECTOR_DESTROY(EQUATIONS_MATRICES%TEMP_VECTOR, &
+        & ERR,ERROR,*999)
       DEALLOCATE(EQUATIONS_MATRICES)
     ENDIF
        
@@ -4414,6 +4409,7 @@ CONTAINS
             CALL EQUATIONS_MATRICES_NONLINEAR_INITIALISE(EQUATIONS%EQUATIONS_MATRICES,ERR,ERROR,*999)            
             CALL EQUATIONS_MATRICES_RHS_INITIALISE(EQUATIONS%EQUATIONS_MATRICES,ERR,ERROR,*999)            
             CALL EQUATIONS_MATRICES_SOURCE_INITIALISE(EQUATIONS%EQUATIONS_MATRICES,ERR,ERROR,*999)            
+            NULLIFY(EQUATIONS%EQUATIONS_MATRICES%TEMP_VECTOR)
           ELSE
             CALL FlagError("Equations mapping has not been finished.",ERR,ERROR,*999)
           ENDIF
@@ -4568,7 +4564,7 @@ CONTAINS
   !================================================================================================================================
   !
 
-  !>Caclulates the matrix structure (sparsity) for a equations matrix.
+  !>Calculates the matrix structure (sparsity) for a equations matrix.
   SUBROUTINE EquationsMatrix_StructureCalculate(equationsMatrix,numberOfNonZeros,rowIndices,columnIndices,list,err,error,*)
 
     !Argument variables
@@ -4580,7 +4576,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
     !Local Variables
-    INTEGER(INTG) ::  columnIdx,dummyErr,elementIdx,globalColumn,localColumn,local_ny,matrixNumber,mk,mp,ne,nh,nh2,nn,nnk,np
+    INTEGER(INTG) ::  columnIdx,dummyErr,elementIdx,localColumn,local_ny,matrixNumber,mk,mp,ne,nh,nh2,nn,nnk,np
     INTEGER(INTG) ::  numberOfColumns,nyy,nyyg,npg,nhg,local_cols,local_dof,mv
     INTEGER(INTG) :: dofIdx,nodeIdx,componentIdx,localDofIdx
     INTEGER(INTG) :: versionIdx,derivativeIdx,numberOfDerivatives,numberOfVersions
@@ -4682,13 +4678,10 @@ CONTAINS
                                             DO nnk=1,basis%NUMBER_OF_DERIVATIVES(nn)
                                               mk=domainElements%ELEMENTS(ne)%ELEMENT_DERIVATIVES(nnk,nn)
                                               mv=domainElements%ELEMENTS(ne)%elementVersions(nnk,nn)
-                                              !Find the local and global column and add the global column to the indices list
+                                              !Find the local column and add the local column to the indices list
                                               localColumn=fieldVariable%COMPONENTS(nh2)%PARAM_TO_DOF_MAP%NODE_PARAM2DOF_MAP% &
                                                 & NODES(mp)%DERIVATIVES(mk)%VERSIONS(mv)
-                                              globalColumn=fieldVariable%DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(localColumn)
-                                          
-                                              CALL LIST_ITEM_ADD(columnIndicesLists(local_ny)%PTR,globalColumn,err,error,*999)
-                                                
+                                              CALL LIST_ITEM_ADD(columnIndicesLists(local_ny)%PTR,localColumn,err,error,*999)
                                             ENDDO !mk
                                           ENDDO !nn
                                         ENDDO !nh2
@@ -4709,7 +4702,7 @@ CONTAINS
                                   !Allocate and setup the column locations
                                   ALLOCATE(columnIndices(numberOfNonZeros),STAT=ERR)
 
-                                  ALLOCATE(list(dependentDofsDomainMapping%NUMBER_OF_GLOBAL))
+                                  ALLOCATE(list(dependentDofsDomainMapping%TOTAL_NUMBER_OF_LOCAL))
 
                                   IF(ERR/=0) CALL FlagError("Could not allocate column indices.",err,error,*999)
                                   DO local_ny=1,dependentDofsDomainMapping%TOTAL_NUMBER_OF_LOCAL
@@ -4720,27 +4713,12 @@ CONTAINS
                                       !COLUMNS store the list of nonzero column indices for each local row (local_ny)
                                       columnIndices(rowIndices(local_ny)+columnIdx-1)=columns(columnIdx) 
 
-                                      ! global to local columns
-                                       IF(ASSOCIATED(linearMapping).OR.ASSOCIATED(dynamicMapping)) THEN
-                                         IF(ASSOCIATED(dynamicMatrices)) THEN
-                                           local_cols=equationsMatrices%equations_mapping%dynamic_mapping &
-                                             & %equations_matrix_to_var_maps(1)%column_dofs_mapping%global_to_local_map &
-                                             & (columns(columnIdx))%LOCAL_NUMBER(1)
-                                           local_dof = local_cols
-                                           ! Column to dof mapping?
-                                           !local_dof=equationsMatrices%equations_mapping%dynamic_mapping% &
-                                            ! & equations_matrix_to_var_maps(1)%column_to_dof_map(local_cols)
-                                         ELSE
-                                           local_cols=equationsMatrices%equations_mapping%linear_mapping &
-                                             & %equations_matrix_to_var_maps(1)%column_dofs_mapping%global_to_local_map &
-                                             & (columns(columnIdx))%LOCAL_NUMBER(1)
-                                           local_dof = local_cols
-                                         ENDIF
-                                       ENDIF
-                                       nyyg=dependentDofsParamMapping%DOF_TYPE(2,local_dof)
-                                       npg=dependentDofsParamMapping%NODE_DOF2PARAM_MAP(3,nyyg)
-                                       nhg=dependentDofsParamMapping%NODE_DOF2PARAM_MAP(4,nyyg)
-                                       domainNodes=>fieldVariable%COMPONENTS(nhg)%DOMAIN%TOPOLOGY%NODES
+                                      local_cols=columns(columnIdx)
+                                      local_dof=local_cols
+                                      nyyg=dependentDofsParamMapping%DOF_TYPE(2,local_dof)
+                                      npg=dependentDofsParamMapping%NODE_DOF2PARAM_MAP(3,nyyg)
+                                      nhg=dependentDofsParamMapping%NODE_DOF2PARAM_MAP(4,nyyg)
+                                      domainNodes=>fieldVariable%COMPONENTS(nhg)%DOMAIN%TOPOLOGY%NODES
                             
                                       ! Check whether boundary node    
                                       IF(domainNodes%NODES(npg)%BOUNDARY_NODE)THEN
@@ -4882,9 +4860,7 @@ CONTAINS
                                           DO versionIdx=1,numberOfVersions
                                             localColumn=fieldVariable%COMPONENTS(componentIdx)%PARAM_TO_DOF_MAP% &
                                              & NODE_PARAM2DOF_MAP%NODES(nodeIdx)%DERIVATIVES(derivativeIdx)%VERSIONS(versionIdx)
-                                            globalColumn=fieldVariable%DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(localColumn)
-
-                                            CALL LIST_ITEM_ADD(columnIndicesLists(localDofIdx)%PTR,globalColumn,err,error,*999)
+                                            CALL LIST_ITEM_ADD(columnIndicesLists(localDofIdx)%PTR,localColumn,err,error,*999)
                                             
                                           ENDDO !versionIdx
                                         ENDDO !derivativeIdx
@@ -4904,7 +4880,7 @@ CONTAINS
                                   
                                   !Allocate and setup the column locations
                                   ALLOCATE(columnIndices(numberOfNonZeros),STAT=ERR)
-                                  ALLOCATE(list(dependentDofsDomainMapping%NUMBER_OF_GLOBAL))
+                                  ALLOCATE(list(dependentDofsDomainMapping%TOTAL_NUMBER_OF_LOCAL))
 
                                   IF(ERR/=0) CALL FlagError("Could not allocate column indices.",err,error,*999)
                                   DO localDofIdx=1,dependentDofsDomainMapping%TOTAL_NUMBER_OF_LOCAL
@@ -4914,28 +4890,12 @@ CONTAINS
                                     DO columnIdx=1,numberOfColumns
                                       !columns store the list of nonzero column indices for each local row (localDofIdx)
                                       columnIndices(rowIndices(localDofIdx)+columnIdx-1)=columns(columnIdx) 
-
-                                      ! global to local columns
-                                       IF(ASSOCIATED(linearMapping).OR.ASSOCIATED(dynamicMapping)) THEN
-                                         IF(ASSOCIATED(dynamicMatrices)) THEN
-                                           local_cols=equationsMatrices%equations_mapping%dynamic_mapping &
-                                             & %equations_matrix_to_var_maps(1)%column_dofs_mapping%global_to_local_map &
-                                             & (columns(columnIdx))%LOCAL_NUMBER(1)
-                                           local_dof = local_cols
-                                           ! Column to dof mapping?
-                                           !local_dof=equationsMatrices%equations_mapping%dynamic_mapping% &
-                                            ! & equations_matrix_to_var_maps(1)%column_to_dof_map(local_cols)
-                                         ELSE
-                                           local_cols=equationsMatrices%equations_mapping%linear_mapping &
-                                             & %equations_matrix_to_var_maps(1)%column_dofs_mapping%global_to_local_map &
-                                             & (columns(columnIdx))%LOCAL_NUMBER(1)
-                                           local_dof = local_cols
-                                         ENDIF
-                                       ENDIF
-                                       nyyg=dependentDofsParamMapping%DOF_TYPE(2,local_dof)
-                                       npg=dependentDofsParamMapping%NODE_DOF2PARAM_MAP(3,nyyg)
-                                       nhg=dependentDofsParamMapping%NODE_DOF2PARAM_MAP(4,nyyg)
-                                       domainNodes=>fieldVariable%COMPONENTS(nhg)%DOMAIN%TOPOLOGY%NODES
+                                      local_cols=columns(columnIdx)
+                                      local_dof=local_cols
+                                      nyyg=dependentDofsParamMapping%DOF_TYPE(2,local_dof)
+                                      npg=dependentDofsParamMapping%NODE_DOF2PARAM_MAP(3,nyyg)
+                                      nhg=dependentDofsParamMapping%NODE_DOF2PARAM_MAP(4,nyyg)
+                                      domainNodes=>fieldVariable%COMPONENTS(nhg)%DOMAIN%TOPOLOGY%NODES
                             
                                       ! Check whether boundary node    
                                       IF(domainNodes%NODES(npg)%BOUNDARY_NODE)THEN
@@ -5055,7 +5015,7 @@ CONTAINS
     INTEGER(INTG), INTENT(OUT) :: err !<The error code
     TYPE(VARYING_STRING), INTENT(OUT) :: error !<The error string
     !Local Variables
-    INTEGER(INTG) ::  columnIdx,dummyErr,elementIdx,globalColumn,localColumn,local_ny,mk,mp,ne,nh,nh2,nn,nnk,np,mv, &
+    INTEGER(INTG) ::  columnIdx,dummyErr,elementIdx,localColumn,local_ny,mk,mp,ne,nh,nh2,nn,nnk,np,mv, &
       & numberOfColumns,nyy,matrixNumber
     INTEGER(INTG) :: dofIdx,nodeIdx,componentIdx,versionIdx,derivativeIdx,numberOfVersions,numberOfDerivatives
     INTEGER(INTG) :: localDofIdx
@@ -5160,8 +5120,7 @@ CONTAINS
                                               CASE(FIELD_ELEMENT_BASED_INTERPOLATION)
                                                 localColumn=fieldVariable%COMPONENTS(nh2)%PARAM_TO_DOF_MAP% &
                                                   & ELEMENT_PARAM2DOF_MAP%ELEMENTS(ne)
-                                                globalColumn=fieldVariable%DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(localColumn)
-                                                CALL LIST_ITEM_ADD(columnIndicesLists(local_ny)%PTR,globalColumn,err,error,*999)
+                                                CALL LIST_ITEM_ADD(columnIndicesLists(local_ny)%PTR,localColumn,err,error,*999)
                                               CASE(FIELD_NODE_BASED_INTERPOLATION)
                                                 domainElements=>fieldVariable%COMPONENTS(nh2)%DOMAIN%TOPOLOGY%ELEMENTS
                                                 basis=>domainElements%ELEMENTS(ne)%BASIS
@@ -5170,11 +5129,10 @@ CONTAINS
                                                   DO nnk=1,basis%NUMBER_OF_DERIVATIVES(nn)
                                                     mk=domainElements%ELEMENTS(ne)%ELEMENT_DERIVATIVES(nnk,nn)
                                                     mv=domainElements%ELEMENTS(ne)%elementVersions(nnk,nn)
-                                                    !Find the local and global column and add the global column to the indices list
+                                                    !Find the local column and add the local column to the indices list
                                                     localColumn=fieldVariable%COMPONENTS(nh2)%PARAM_TO_DOF_MAP% &
                                                       & NODE_PARAM2DOF_MAP%NODES(mp)%DERIVATIVES(mk)%VERSIONS(mv)
-                                                    globalColumn=fieldVariable%DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(localColumn)
-                                                    CALL LIST_ITEM_ADD(columnIndicesLists(local_ny)%PTR,globalColumn, &
+                                                    CALL LIST_ITEM_ADD(columnIndicesLists(local_ny)%PTR,localColumn, &
                                                       & err,error,*999)
                                                   ENDDO !mk
                                                 ENDDO !nn
@@ -5220,8 +5178,7 @@ CONTAINS
                                               ! put a diagonal entry
                                               localColumn=fieldVariable%COMPONENTS(nh2)%PARAM_TO_DOF_MAP% &
                                                 & ELEMENT_PARAM2DOF_MAP%ELEMENTS(ne)
-                                              globalColumn=fieldVariable%DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(localColumn)
-                                              CALL LIST_ITEM_ADD(columnIndicesLists(local_ny)%PTR,globalColumn,err,error,*999)
+                                              CALL LIST_ITEM_ADD(columnIndicesLists(local_ny)%PTR,localColumn,err,error,*999)
                                             CASE(FIELD_NODE_BASED_INTERPOLATION)
                                               ! loop over all nodes in the element (and dofs belonging to them)
                                               DO nn=1,basis%NUMBER_OF_NODES
@@ -5229,11 +5186,10 @@ CONTAINS
                                                 DO nnk=1,basis%NUMBER_OF_DERIVATIVES(nn)
                                                   mk=domainElements%ELEMENTS(ne)%ELEMENT_DERIVATIVES(nnk,nn)
                                                   mv=domainElements%ELEMENTS(ne)%elementVersions(nnk,nn)
-                                                  !Find the local and global column and add the global column to the indices list
+                                                  !Find the local column and add the local column to the indices list
                                                   localColumn=fieldVariable%COMPONENTS(nh2)%PARAM_TO_DOF_MAP%NODE_PARAM2DOF_MAP% &
                                                     & NODES(mp)%DERIVATIVES(mk)%VERSIONS(mv)
-                                                  globalColumn=fieldVariable%DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(localColumn)
-                                                  CALL LIST_ITEM_ADD(columnIndicesLists(local_ny)%PTR,globalColumn, &
+                                                  CALL LIST_ITEM_ADD(columnIndicesLists(local_ny)%PTR,localColumn, &
                                                     & err,error,*999)
                                                 ENDDO !mk
                                               ENDDO !nn
@@ -5418,9 +5374,7 @@ CONTAINS
                                                   localColumn=fieldVariable%COMPONENTS(componentIdx)%PARAM_TO_DOF_MAP% &
                                                    & NODE_PARAM2DOF_MAP%NODES(nodeIdx)%DERIVATIVES(derivativeIdx)% &
                                                    & VERSIONS(versionIdx)
-                                                  globalColumn=fieldVariable%DOMAIN_MAPPING%LOCAL_TO_GLOBAL_MAP(localColumn)
-
-                                                  CALL LIST_ITEM_ADD(columnIndicesLists(localDofIdx)%PTR,globalColumn, &
+                                                  CALL LIST_ITEM_ADD(columnIndicesLists(localDofIdx)%PTR,localColumn, &
                                                     & err,error,*999)
 
                                                 ENDDO !versionIdx

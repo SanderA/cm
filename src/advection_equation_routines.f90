@@ -1338,7 +1338,7 @@ CONTAINS
       IF(ASSOCIATED(solverEquations)) THEN
         solverMapping=>solverEquations%SOLVER_MAPPING
         IF(ASSOCIATED(solverMapping)) THEN
-          equationsSet=>solverMapping%EQUATIONS_SETS(1)%PTR
+          equationsSet=>solverMapping%EQUATIONS_SET_TO_SOLVER_MAP(1)%EQUATIONS_SET
           IF(ASSOCIATED(equationsSet)) THEN
             dependentField=>equationsSet%DEPENDENT%DEPENDENT_FIELD
           ELSE

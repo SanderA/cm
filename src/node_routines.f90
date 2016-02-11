@@ -129,9 +129,9 @@ CONTAINS
     GLOBAL_NUMBER=0
     IF(ASSOCIATED(NODES)) THEN
       NULLIFY(TREE_NODE)
-      CALL TREE_SEARCH(NODES%NODES_TREE,USER_NUMBER,TREE_NODE,ERR,ERROR,*999)
+      CALL Tree_Search(NODES%NODES_TREE,USER_NUMBER,TREE_NODE,ERR,ERROR,*999)
       IF(ASSOCIATED(TREE_NODE)) THEN
-        CALL TREE_NODE_VALUE_GET(NODES%NODES_TREE,TREE_NODE,GLOBAL_NUMBER,ERR,ERROR,*999)
+        CALL Tree_NodeValueGet(NODES%NODES_TREE,TREE_NODE,GLOBAL_NUMBER,ERR,ERROR,*999)
         NODE_EXISTS=.TRUE.
       ENDIF
     ELSE
@@ -207,7 +207,7 @@ CONTAINS
           & ERR,ERROR,*999)
       ENDDO !np
       CALL WRITE_STRING(DIAGNOSTIC_OUTPUT_TYPE,"User->Global number tree",ERR,ERROR,*999)
-      CALL TREE_OUTPUT(DIAGNOSTIC_OUTPUT_TYPE,NODES%NODES_TREE,ERR,ERROR,*999)
+      CALL Tree_Output(DIAGNOSTIC_OUTPUT_TYPE,NODES%NODES_TREE,ERR,ERROR,*999)
     ENDIF
 
     EXITS("NODES_CREATE_FINISH")
@@ -240,15 +240,15 @@ CONTAINS
         ALLOCATE(NODES%NODES(NUMBER_OF_NODES),STAT=ERR)
         IF(ERR/=0) CALL FlagError("Could not allocate nodes nodes.",ERR,ERROR,*999)
         NODES%NUMBER_OF_NODES=NUMBER_OF_NODES
-        CALL TREE_CREATE_START(NODES%NODES_TREE,ERR,ERROR,*999)
-        CALL TREE_INSERT_TYPE_SET(NODES%NODES_TREE,TREE_NO_DUPLICATES_ALLOWED,ERR,ERROR,*999)
-        CALL TREE_CREATE_FINISH(NODES%NODES_TREE,ERR,ERROR,*999)
+        CALL Tree_CreateStart(NODES%NODES_TREE,ERR,ERROR,*999)
+        CALL Tree_InsertTypeSet(NODES%NODES_TREE,TREE_NO_DUPLICATES_ALLOWED,ERR,ERROR,*999)
+        CALL Tree_CreateFinish(NODES%NODES_TREE,ERR,ERROR,*999)
         !Set default node numbers
         DO np=1,NODES%NUMBER_OF_NODES
           NODES%NODES(np)%GLOBAL_NUMBER=np
           NODES%NODES(np)%USER_NUMBER=np
           NODES%NODES(np)%LABEL=""
-          CALL TREE_ITEM_INSERT(NODES%NODES_TREE,np,np,INSERT_STATUS,ERR,ERROR,*999)
+          CALL Tree_ItemInsert(NODES%NODES_TREE,np,np,INSERT_STATUS,ERR,ERROR,*999)
         ENDDO !np
       ELSE
         LOCAL_ERROR="The specified number of nodes of "//TRIM(NUMBER_TO_VSTRING(NUMBER_OF_NODES,"*",ERR,ERROR))// &
@@ -419,7 +419,7 @@ CONTAINS
         ENDDO !np
         DEALLOCATE(NODES%NODES)
       ENDIF
-      IF(ASSOCIATED(NODES%NODES_TREE)) CALL TREE_DESTROY(NODES%NODES_TREE,ERR,ERROR,*999)
+      IF(ASSOCIATED(NODES%NODES_TREE)) CALL Tree_Destroy(NODES%NODES_TREE,ERR,ERROR,*999)
       DEALLOCATE(NODES)
     ENDIF
     
@@ -814,8 +814,7 @@ CONTAINS
               CALL FlagError(LOCAL_ERROR,ERR,ERROR,*999)
             ENDIF
           ELSE
-            CALL TREE_ITEM_DELETE(NODES%NODES_TREE,NODES%NODES(GLOBAL_NUMBER)%USER_NUMBER,ERR,ERROR,*999)
-            CALL TREE_ITEM_INSERT(NODES%NODES_TREE,USER_NUMBER,GLOBAL_NUMBER,INSERT_STATUS,ERR,ERROR,*999)
+            CALL Tree_ItemInsert(NODES%NODES_TREE,USER_NUMBER,GLOBAL_NUMBER,INSERT_STATUS,ERR,ERROR,*999)
             IF(INSERT_STATUS/=TREE_NODE_INSERT_SUCESSFUL) CALL FlagError("Unsucessful nodes tree insert.",ERR,ERROR,*999)
             NODES%NODES(GLOBAL_NUMBER)%USER_NUMBER=USER_NUMBER
           ENDIF
@@ -864,11 +863,11 @@ CONTAINS
       ELSE
         IF(nodes%NUMBER_OF_NODES==SIZE(userNumbers,1)) THEN
           !Check the users numbers to ensure that there are no duplicates                    
-          CALL TREE_CREATE_START(newNodesTree,err,error,*999)
-          CALL TREE_INSERT_TYPE_SET(newNodesTree,TREE_NO_DUPLICATES_ALLOWED,err,error,*999)
-          CALL TREE_CREATE_FINISH(newNodesTree,err,error,*999)
+          CALL Tree_CreateStart(newNodesTree,err,error,*999)
+          CALL Tree_InsertTypeSet(newNodesTree,TREE_NO_DUPLICATES_ALLOWED,err,error,*999)
+          CALL Tree_CreateFinish(newNodesTree,err,error,*999)
           DO nodeIdx=1,nodes%NUMBER_OF_NODES
-            CALL TREE_ITEM_INSERT(newNodesTree,userNumbers(nodeIdx),nodeIdx,insertStatus,err,error,*999)
+            CALL Tree_ItemInsert(newNodesTree,userNumbers(nodeIdx),nodeIdx,insertStatus,err,error,*999)
             IF(insertStatus/=TREE_NODE_INSERT_SUCESSFUL) THEN
               localError="The specified user number of "//TRIM(NumberToVstring(userNumbers(nodeIdx),"*",err,error))// &
                 & " for global node number "//TRIM(NumberToVstring(nodeIdx,"*",err,error))// &
@@ -876,7 +875,7 @@ CONTAINS
               CALL FlagError(localError,err,error,*999)
             ENDIF
           ENDDO !nodeIdx
-          CALL TREE_DESTROY(nodes%NODES_TREE,err,error,*999)
+          CALL Tree_Destroy(nodes%NODES_TREE,err,error,*999)
           nodes%NODES_TREE=>newNodesTree
           NULLIFY(newNodesTree)
           DO nodeIdx=1,nodes%NUMBER_OF_NODES
@@ -897,7 +896,7 @@ CONTAINS
     
     EXITS("NodesUserNumbersAllSet")
     RETURN
-999 IF(ASSOCIATED(newNodesTree)) CALL TREE_DESTROY(newNodesTree,err,error,*998)
+999 IF(ASSOCIATED(newNodesTree)) CALL Tree_Destroy(newNodesTree,err,error,*998)
 998 ERRORSEXITS("NodesUserNumbersAllSet",err,error)    
     RETURN 1
    

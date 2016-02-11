@@ -106,7 +106,7 @@ CONTAINS
     myComputationalNodeNumber = COMPUTATIONAL_NODE_NUMBER_GET(ERR,ERROR)
     NumberOfDimensions = COMPUTATIONAL_DOMAIN%NUMBER_OF_DIMENSIONS
     NumberOfNodes = COMPUTATIONAL_DOMAIN%TOPOLOGY%NODES%NUMBER_OF_NODES
-    NodesInMeshComponent = REGION%meshes%meshes(1)%ptr%topology(1)%ptr%nodes%numberOfNodes
+    NodesInMeshComponent = COMPUTATIONAL_DOMAIN%TOPOLOGY%NODES%NUMBER_OF_GLOBAL_NODES
     NumberOfElements = COMPUTATIONAL_DOMAIN%TOPOLOGY%ELEMENTS%NUMBER_OF_ELEMENTS
     NumberOfVariableComponents=REGION%equations_sets%equations_sets(EQUATIONS_SET_GLOBAL_NUMBER)%ptr%dependent%dependent_field% &
       & variables(1)%number_of_components

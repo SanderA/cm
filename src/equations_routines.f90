@@ -1223,7 +1223,7 @@ CONTAINS
     !Find Jacobian matrix index using the nonlinear equations mapping
     matrixIndex=0
     DO variableIndex=1,nonlinearMapping%number_of_residual_variables
-      IF(nonlinearMapping%residual_variables(variableIndex)%ptr%variable_type==variableType) THEN
+      IF(nonlinearMapping%var_to_jacobian_map(variableIndex)%variable_type==variableType) THEN
         matrixIndex=nonlinearMapping%var_to_jacobian_map(variableIndex)%jacobian_number
       END IF
     END DO
@@ -1624,7 +1624,7 @@ CONTAINS
       numberOfVariables=nonlinearMapping%number_of_residual_variables
       IF(SIZE(residualVariables,1)>=numberOfVariables) THEN
         DO variableIdx=1,numberOfVariables
-          residualVariables(variableIdx)=nonlinearMapping%residual_variables(variableIdx)%ptr%variable_type
+          residualVariables(variableIdx)=nonlinearMapping%var_to_jacobian_map(variableIdx)%variable_type
         END DO
       ELSE
         CALL FlagError("residualVariables array must have size of at least "// &
